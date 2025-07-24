@@ -49,4 +49,20 @@ exports.getAdminProfileImage = async (req, res) => {
   } catch (err) {
     res.status(500).send('Error');
   }
+};
+
+exports.getUserProfileByEmail = async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+    const user = await User.findOne({ email }).select('-password');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const userObj = user.toObject();
+    if (userObj.profileImage) {
+      userObj.profileImage = `${req.protocol}://${req.get('host')}/api/users/${userObj._id}/profile-image`;
+    }
+    res.json(userObj);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }; 

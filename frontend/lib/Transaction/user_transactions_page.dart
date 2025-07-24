@@ -10,6 +10,7 @@ import 'dart:typed_data';
 import 'package:open_file/open_file.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:string_similarity/string_similarity.dart';
 
 class UserTransactionsPage extends StatefulWidget {
   @override
@@ -28,6 +29,13 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   DateTime? _endDate;
   double? _minAmount;
   double? _maxAmount;
+  // New filter/search state
+  String _searchCounterparty = '';
+  String _searchPlace = '';
+  String _searchTransactionId = '';
+  double? _searchAmount;
+  String _sortBy = 'Date'; // 'Date', 'Amount', 'Status'
+  bool _sortAsc = false;
 
   @override
   void initState() {
@@ -151,6 +159,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     }
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     final email = user?['email'];
+    final counterpartyEmail = t['counterpartyEmail'];
+    final userEmail = t['userEmail'];
     bool youCleared = (isLending ? t['userCleared'] : t['counterpartyCleared']) == true;
     bool otherCleared = (isLending ? t['counterpartyCleared'] : t['userCleared']) == true;
     bool fullyCleared = youCleared && otherCleared;
@@ -341,34 +351,115 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
               children: [
                 Icon(isLending ? Icons.arrow_upward : Icons.arrow_downward, color: isLending ? Colors.green : Colors.orange, size: 28),
                 SizedBox(width: 10),
+                // Only one profile icon for the logged-in user
+                GestureDetector(
+                  onTap: () async {
+                    final profile = user;
+                    final gender = profile?['gender'] ?? 'Other';
+                    dynamic imageUrl = profile?['profileImage'];
+                    if (imageUrl is Map && imageUrl['url'] != null) imageUrl = imageUrl['url'];
+                    if (imageUrl != null && imageUrl is! String) imageUrl = null;
+                    ImageProvider avatarProvider;
+                    if (imageUrl != null && imageUrl.toString().isNotEmpty && imageUrl != 'null') {
+                      avatarProvider = NetworkImage(imageUrl);
+                    } else {
+                      avatarProvider = AssetImage(
+                        gender == 'Male'
+                            ? 'assets/Male.png'
+                            : gender == 'Female'
+                                ? 'assets/Female.png'
+                                : 'assets/Other.png',
+                      );
+                    }
+                    final phoneStr = (profile?['phone'] ?? '').toString();
+                    showDialog(
+                      context: context,
+                      builder: (_) => _StylishProfileDialog(
+                        title: 'You',
+                        name: profile?['name'] ?? 'You',
+                        avatarProvider: avatarProvider,
+                        email: profile?['email'],
+                        phone: phoneStr,
+                        gender: profile?['gender'],
+                      ),
+                    );
+                  },
+                  child: CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.teal.shade100,
+                    child: Icon(Icons.person, color: Colors.teal, size: 22),
+                  ),
+                ),
+                SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     isLending ? 'Lending (You gave money)' : 'Borrowing (You took money)',
                     style: TextStyle(fontWeight: FontWeight.bold, color: isLending ? Colors.green : Colors.orange, fontSize: 16),
                   ),
                 ),
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: borderColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.currency_rupee, color: borderColor, size: 20),
-                      Text('${t['amount']} ${t['currency']}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: borderColor)),
-                    ],
-                  ),
-                ),
               ],
             ),
             SizedBox(height: 10),
+            // Counterparty profile icon to the left of the counterparty email (remove right icon)
             Row(
               children: [
-                Icon(Icons.person, color: Colors.teal, size: 18),
-                SizedBox(width: 6),
+                GestureDetector(
+                  onTap: () async {
+                    showDialog(
+                      context: context,
+                      builder: (_) => FutureBuilder<Map<String, dynamic>?>(
+                        future: _fetchCounterpartyProfile(counterpartyEmail),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Center(child: CircularProgressIndicator());
+                          }
+                          final profile = snapshot.data;
+                          if (profile == null) {
+                            return _StylishProfileDialog(
+                              title: 'Counterparty Info',
+                              name: 'No profile found.',
+                              avatarProvider: AssetImage('assets/Other.png'),
+                              email: counterpartyEmail,
+                            );
+                          }
+                          final gender = profile['gender'] ?? 'Other';
+                          dynamic imageUrl = profile['profileImage'];
+                          if (imageUrl is Map && imageUrl['url'] != null) imageUrl = imageUrl['url'];
+                          if (imageUrl != null && imageUrl is! String) imageUrl = null;
+                          ImageProvider avatarProvider;
+                          if (imageUrl != null && imageUrl.toString().isNotEmpty && imageUrl != 'null') {
+                            avatarProvider = NetworkImage(imageUrl);
+                          } else {
+                            avatarProvider = AssetImage(
+                              gender == 'Male'
+                                  ? 'assets/Male.png'
+                                  : gender == 'Female'
+                                      ? 'assets/Female.png'
+                                      : 'assets/Other.png',
+                            );
+                          }
+                          final phoneStr = (profile['phone'] ?? '').toString();
+                          return _StylishProfileDialog(
+                            title: 'Counterparty',
+                            name: profile['name'] ?? 'Counterparty',
+                            avatarProvider: avatarProvider,
+                            email: profile['email'],
+                            phone: phoneStr,
+                            gender: profile['gender'],
+                          );
+                        },
+                      ),
+                    );
+                  },
+                  child: CircleAvatar(
+                    radius: 14,
+                    backgroundColor: Colors.teal.shade100,
+                    child: Icon(Icons.person_outline, color: Colors.teal, size: 16),
+                  ),
+                ),
+                SizedBox(width: 8),
                 Expanded(
-                  child: Text('Counterparty: $counterparty', style: TextStyle(fontSize: 15, color: Colors.black87)),
+                  child: Text('Counterparty: $counterpartyEmail', style: TextStyle(fontSize: 15, color: Colors.black87)),
                 ),
               ],
             ),
@@ -415,6 +506,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                   );
                 },
               ),
+            ] else ...[
+              SizedBox(height: 10),
+              Text('No attachments', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
             ],
             if (fileWidgets.isNotEmpty) ...[
               SizedBox(height: 10),
@@ -706,8 +800,53 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         borrowingFiltered = borrowing.where(isPartiallyClearedOtherSide).toList();
       }
     }
+    // --- Apply search filters ---
+    bool matchesSearch(t) {
+      bool fuzzyMatch(String a, String b) {
+        if (a.isEmpty || b.isEmpty) return false;
+        a = a.toLowerCase();
+        b = b.toLowerCase();
+        if (a.contains(b) || b.contains(a)) return true;
+        return StringSimilarity.compareTwoStrings(a, b) > 0.6;
+      }
+      if (_searchCounterparty.isNotEmpty) {
+        final val = t['counterpartyEmail']?.toString() ?? '';
+        if (!fuzzyMatch(val, _searchCounterparty)) return false;
+      }
+      if (_searchPlace.isNotEmpty) {
+        final val = t['place']?.toString() ?? '';
+        if (!fuzzyMatch(val, _searchPlace)) return false;
+      }
+      if (_searchTransactionId.isNotEmpty) {
+        final val = t['transactionId']?.toString() ?? '';
+        if (!fuzzyMatch(val, _searchTransactionId)) return false;
+      }
+      if (_searchAmount != null && (t['amount'] == null || double.tryParse(t['amount'].toString()) != _searchAmount)) return false;
+      return true;
+    }
+    // --- Sorting ---
+    int sortCompare(a, b) {
+      if (_sortBy == 'Date') {
+        final da = a['date'] != null ? DateTime.tryParse(a['date']) : null;
+        final db = b['date'] != null ? DateTime.tryParse(b['date']) : null;
+        if (da == null && db == null) return 0;
+        if (da == null) return _sortAsc ? -1 : 1;
+        if (db == null) return _sortAsc ? 1 : -1;
+        return _sortAsc ? da.compareTo(db) : db.compareTo(da);
+      } else if (_sortBy == 'Amount') {
+        final aa = a['amount'] is num ? a['amount'].toDouble() : double.tryParse(a['amount'].toString()) ?? 0.0;
+        final ab = b['amount'] is num ? b['amount'].toDouble() : double.tryParse(b['amount'].toString()) ?? 0.0;
+        return _sortAsc ? aa.compareTo(ab) : ab.compareTo(aa);
+      } else if (_sortBy == 'Status') {
+        final sa = (a['userCleared'] == true && a['counterpartyCleared'] == true) ? 2 : (a['userCleared'] == true || a['counterpartyCleared'] == true) ? 1 : 0;
+        final sb = (b['userCleared'] == true && b['counterpartyCleared'] == true) ? 2 : (b['userCleared'] == true || b['counterpartyCleared'] == true) ? 1 : 0;
+        return _sortAsc ? sa.compareTo(sb) : sb.compareTo(sa);
+      }
+      return 0;
+    }
     if (filter == 'All' || filter == 'Lending') {
-      final filteredLending = lendingFiltered.where((t) => _transactionMatchesFilters(t)).toList();
+      var filteredLending = lendingFiltered.where((t) => _transactionMatchesFilters(t) && matchesSearch(t)).toList();
+      filteredLending.sort(sortCompare);
       if (filteredLending.isNotEmpty) {
         widgets.add(Text('Lending Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green)));
         widgets.add(SizedBox(height: 8));
@@ -716,7 +855,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       }
     }
     if (filter == 'All' || filter == 'Borrowing') {
-      final filteredBorrowing = borrowingFiltered.where((t) => _transactionMatchesFilters(t)).toList();
+      var filteredBorrowing = borrowingFiltered.where((t) => _transactionMatchesFilters(t) && matchesSearch(t)).toList();
+      filteredBorrowing.sort(sortCompare);
       if (filteredBorrowing.isNotEmpty) {
         widgets.add(Text('Borrowing Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.orange)));
         widgets.add(SizedBox(height: 8));
@@ -737,6 +877,110 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         elevation: 0,
         title: Text('Your Transactions', style: TextStyle(color: Colors.white)),
         actions: [
+          IconButton(
+            icon: Icon(Icons.filter_list, color: Colors.white),
+            tooltip: 'Filter & Search',
+            onPressed: () async {
+              await showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                builder: (context) => Padding(
+                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                  child: StatefulBuilder(
+                    builder: (context, setModalState) => Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Search & Filter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                            SizedBox(height: 16),
+                            TextField(
+                              decoration: InputDecoration(labelText: 'Counterparty Email'),
+                              onChanged: (v) => setModalState(() => _searchCounterparty = v),
+                              controller: TextEditingController(text: _searchCounterparty),
+                            ),
+                            SizedBox(height: 10),
+                            TextField(
+                              decoration: InputDecoration(labelText: 'Place'),
+                              onChanged: (v) => setModalState(() => _searchPlace = v),
+                              controller: TextEditingController(text: _searchPlace),
+                            ),
+                            SizedBox(height: 10),
+                            TextField(
+                              decoration: InputDecoration(labelText: 'Transaction ID'),
+                              onChanged: (v) => setModalState(() => _searchTransactionId = v),
+                              controller: TextEditingController(text: _searchTransactionId),
+                            ),
+                            SizedBox(height: 10),
+                            TextField(
+                              decoration: InputDecoration(labelText: 'Amount'),
+                              keyboardType: TextInputType.numberWithOptions(decimal: true),
+                              onChanged: (v) => setModalState(() => _searchAmount = double.tryParse(v)),
+                              controller: TextEditingController(text: _searchAmount?.toString() ?? ''),
+                            ),
+                            SizedBox(height: 20),
+                            Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold)),
+                            SizedBox(height: 8),
+                            DropdownButton<String>(
+                              value: _sortBy,
+                              items: [
+                                DropdownMenuItem(value: 'Date', child: Text('Date')),
+                                DropdownMenuItem(value: 'Amount', child: Text('Amount')),
+                                DropdownMenuItem(value: 'Status', child: Text('Status')),
+                              ],
+                              onChanged: (v) => setModalState(() => _sortBy = v ?? 'Date'),
+                            ),
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _sortAsc,
+                                  onChanged: (v) => setModalState(() => _sortAsc = v ?? false),
+                                ),
+                                Text('Ascending'),
+                              ],
+                            ),
+                            SizedBox(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                TextButton(
+                                  onPressed: () {
+                                    setModalState(() {
+                                      _searchCounterparty = '';
+                                      _searchPlace = '';
+                                      _searchTransactionId = '';
+                                      _searchAmount = null;
+                                      _sortBy = 'Date';
+                                      _sortAsc = false;
+                                    });
+                                  },
+                                  child: Text('Clear'),
+                                ),
+                                SizedBox(width: 12),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    setState(() {});
+                                    Navigator.pop(context);
+                                  },
+                                  child: Text('Apply'),
+                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: Icon(Icons.refresh, color: Colors.white),
             onPressed: fetchTransactions,
@@ -790,6 +1034,17 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         ],
       ),
     );
+  }
+
+  Future<Map<String, dynamic>?> _fetchCounterpartyProfile(String email) async {
+    if (email.isEmpty) return null;
+    try {
+      final res = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    return null;
   }
 }
 
@@ -929,6 +1184,72 @@ class _AttachmentCarouselDialogState extends State<_AttachmentCarouselDialog> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _StylishProfileDialog extends StatelessWidget {
+  final String title;
+  final String name;
+  final ImageProvider avatarProvider;
+  final String? email;
+  final String? phone;
+  final String? gender;
+  const _StylishProfileDialog({required this.title, required this.name, required this.avatarProvider, this.email, this.phone, this.gender});
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Color(0xFF00B4D8),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Column(
+              children: [
+                CircleAvatar(radius: 36, backgroundImage: avatarProvider),
+                SizedBox(height: 12),
+                Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.white)),
+                SizedBox(height: 4),
+                Text(title, style: TextStyle(fontSize: 14, color: Colors.white70)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (email != null) ...[
+                  Row(children: [Icon(Icons.email, size: 18, color: Colors.teal), SizedBox(width: 8), Text(email!, style: TextStyle(fontSize: 16))]),
+                  SizedBox(height: 10),
+                ],
+                if (phone != null && phone!.isNotEmpty) ...[
+                  Row(children: [Icon(Icons.phone, size: 18, color: Colors.teal), SizedBox(width: 8), Text(phone!, style: TextStyle(fontSize: 16))]),
+                  SizedBox(height: 10),
+                ],
+                if (gender != null) ...[
+                  Row(children: [Icon(Icons.transgender, size: 18, color: Colors.teal), SizedBox(width: 8), Text(gender!, style: TextStyle(fontSize: 16))]),
+                  SizedBox(height: 10),
+                ],
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Close'),
+              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF00B4D8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            ),
+          ),
+        ],
       ),
     );
   }

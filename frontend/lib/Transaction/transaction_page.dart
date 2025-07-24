@@ -15,6 +15,7 @@ import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:http_parser/http_parser.dart';
 
 class TopWaveClipper extends CustomClipper<Path> {
   @override
@@ -175,7 +176,7 @@ class _TransactionPageState extends State<TransactionPage> {
         ElevatedButton.icon(
           onPressed: _pickFiles,
           icon: Icon(Icons.attach_file),
-          label: Text('Add Files (Images/PDF)'),
+          label: Text('Add Images'),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
         ),
         SizedBox(height: 8),
@@ -306,10 +307,20 @@ class _TransactionPageState extends State<TransactionPage> {
     request.fields['description'] = _descriptionController.text;
     for (var file in _pickedFiles) {
       if (file.bytes != null) {
+        MediaType? mediaType;
+        final ext = file.extension?.toLowerCase();
+        if (ext == 'png') {
+          mediaType = MediaType('image', 'png');
+        } else if (ext == 'jpg' || ext == 'jpeg') {
+          mediaType = MediaType('image', 'jpeg');
+        } else if (ext == 'pdf') {
+          mediaType = MediaType('application', 'pdf');
+        }
         request.files.add(http.MultipartFile.fromBytes(
           'files',
           file.bytes!,
           filename: file.name,
+          contentType: mediaType,
         ));
       }
     }

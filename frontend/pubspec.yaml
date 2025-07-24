@@ -20,6 +20,8 @@ dependencies:
   intl: ^0.19.0
   open_file: ^3.5.10
   path_provider: ^2.1.5
+  string_similarity: ^2.1.1
+  fl_chart: ^1.0.0
 
 flutter:
   uses-material-design: true

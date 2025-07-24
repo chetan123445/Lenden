@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+delete mongoose.connection.models['Transaction'];
 const { v4: uuidv4 } = require('uuid');
 
 const transactionSchema = new mongoose.Schema({
@@ -27,10 +28,8 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  files: [{
-    data: Buffer,
-    type: String, // MIME type (e.g., image/png, application/pdf)
-    name: String  // original filename
+  photos: [{
+    type: String // base64 encoded images
   }],
   interestType: {
     type: String,

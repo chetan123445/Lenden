@@ -8,8 +8,11 @@ const profileController = require('../controllers/profileController');
 const editProfileController = require('../controllers/editProfileController');
 const auth = require('../middleware/auth');
 const multer = require('multer');
-const upload = multer();
+const upload = multer({
+  limits: { fileSize: 10 * 1024 * 1024 } // 10 MB per file (industry standard for images/PDFs)
+});
 const transactionController = require('../controllers/transactionController');
+const analyticController = require('../controllers/analyticController');
 
 // User routes
 router.post('/users/register', userController.register);
@@ -27,6 +30,7 @@ router.get('/users/me', auth, profileController.getUserProfile);
 router.put('/users/me', auth, upload.single('profileImage'), editProfileController.updateUserProfile);
 // Serve user profile image
 router.get('/users/:id/profile-image', profileController.getUserProfileImage);
+router.get('/users/profile-by-email', profileController.getUserProfileByEmail);
 
 // Admin routes
 router.post('/admins/register', adminController.register);
@@ -45,6 +49,9 @@ router.post('/transactions/send-user-otp', transactionController.sendUserOTP);
 router.post('/transactions/verify-user-otp', transactionController.verifyUserOTP);
 router.post('/transactions/clear', transactionController.clearTransaction);
 router.get('/transactions/user', transactionController.getUserTransactions);
+
+// Analytics routes
+router.get('/analytics/user', analyticController.getUserAnalytics);
 
 
 module.exports = router;
