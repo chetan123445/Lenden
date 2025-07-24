@@ -27,8 +27,10 @@ const transactionSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  photos: [{
-    type: String // base64 encoded images
+  files: [{
+    data: Buffer,
+    type: String, // MIME type (e.g., image/png, application/pdf)
+    name: String  // original filename
   }],
   interestType: {
     type: String,

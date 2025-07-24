@@ -37,7 +37,7 @@ router.put('/admins/me', auth, upload.single('profileImage'), editProfileControl
 router.get('/admins/:id/profile-image', profileController.getAdminProfileImage);
 
 // Transaction routes
-router.post('/transactions/create', upload.array('files'), transactionController.createTransaction);
+router.post('/transactions/create', transactionController.createTransaction);
 router.post('/transactions/check-email', transactionController.checkEmailExists);
 router.post('/transactions/send-counterparty-otp', transactionController.sendCounterpartyOTP);
 router.post('/transactions/verify-counterparty-otp', transactionController.verifyCounterpartyOTP);

@@ -6,6 +6,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'dart:math';
+import 'dart:typed_data';
+import 'package:open_file/open_file.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class UserTransactionsPage extends StatefulWidget {
   @override
@@ -53,9 +57,64 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   }
 
   Widget _buildTransactionCard(Map t, bool isLending) {
-    List<Widget> photoWidgets = [];
+    List<Map<String, dynamic>> attachments = [];
+    if (t['files'] != null && t['files'] is List && t['files'].isNotEmpty) {
+      attachments = List<Map<String, dynamic>>.from(t['files']);
+    } else if (t['photos'] != null && t['photos'] is List && t['photos'].isNotEmpty) {
+      // For backward compatibility, treat photos as images
+      attachments = t['photos'].map<Map<String, dynamic>>((p) => {'type': 'image/jpeg', 'data': p, 'name': 'Photo'}).toList();
+    }
+    List<Widget> fileWidgets = [];
+    // Handle new 'files' array
+    if (t['files'] != null && t['files'] is List && t['files'].isNotEmpty) {
+      for (var file in t['files']) {
+        if (file['type'] != null && file['type'].toString().startsWith('image/')) {
+          // Image
+          final bytes = base64Decode(file['data']);
+          fileWidgets.add(GestureDetector(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (_) => Dialog(
+                  backgroundColor: Colors.black,
+                  child: GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: InteractiveViewer(
+                      child: Image.memory(bytes, fit: BoxFit.contain),
+                    ),
+                  ),
+                ),
+              );
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(bytes, width: 60, height: 60, fit: BoxFit.cover),
+            ),
+          ));
+        } else if (file['type'] == 'application/pdf') {
+          // PDF
+          fileWidgets.add(GestureDetector(
+            onTap: () async {
+              final bytes = base64Decode(file['data']);
+              final tempDir = await getTemporaryDirectory();
+              final tempFile = File('${tempDir.path}/${file['name'] ?? 'document.pdf'}');
+              await tempFile.writeAsBytes(bytes, flush: true);
+              await OpenFile.open(tempFile.path);
+            },
+            child: Column(
+              children: [
+                Icon(Icons.picture_as_pdf, size: 40, color: Colors.red),
+                Text(file['name'] ?? 'PDF', style: TextStyle(fontSize: 10)),
+              ],
+            ),
+          ));
+        }
+      }
+      fileWidgets.add(SizedBox(height: 8));
+    }
+    // Fallback for old 'photos' array
     if (t['photos'] != null && t['photos'] is List && t['photos'].isNotEmpty) {
-      photoWidgets.add(
+      fileWidgets.add(
         SizedBox(
           height: 60,
           child: ListView.separated(
@@ -88,7 +147,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           ),
         ),
       );
-      photoWidgets.add(SizedBox(height: 8));
+      fileWidgets.add(SizedBox(height: 8));
     }
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     final email = user?['email'];
@@ -343,9 +402,23 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                 ),
               ],
             ),
-            if (photoWidgets.isNotEmpty) ...[
+            if (attachments.isNotEmpty) ...[
               SizedBox(height: 10),
-              ...photoWidgets,
+              ElevatedButton.icon(
+                icon: Icon(Icons.attach_file),
+                label: Text('View Attachments'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => _AttachmentCarouselDialog(attachments: attachments),
+                  );
+                },
+              ),
+            ],
+            if (fileWidgets.isNotEmpty) ...[
+              SizedBox(height: 10),
+              ...fileWidgets,
             ],
             if (interestWidgets.isNotEmpty) ...[
               SizedBox(height: 10),
@@ -739,4 +812,124 @@ class _TopWaveClipper extends CustomClipper<Path> {
   }
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+class _AttachmentCarouselDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> attachments;
+  const _AttachmentCarouselDialog({required this.attachments});
+  @override
+  State<_AttachmentCarouselDialog> createState() => _AttachmentCarouselDialogState();
+}
+
+class _AttachmentCarouselDialogState extends State<_AttachmentCarouselDialog> {
+  int _currentIndex = 0;
+  PageController? _pageController;
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: 0);
+  }
+  @override
+  void dispose() {
+    _pageController?.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) {
+    final attachments = widget.attachments;
+    return Dialog(
+      backgroundColor: Colors.black,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        width: 350,
+        height: 420,
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: attachments.length,
+                onPageChanged: (i) => setState(() => _currentIndex = i),
+                itemBuilder: (context, i) {
+                  final file = attachments[i];
+                  if (file['type'] != null && file['type'].toString().startsWith('image/')) {
+                    final bytes = base64Decode(file['data']);
+                    return InteractiveViewer(
+                      child: Image.memory(bytes, fit: BoxFit.contain),
+                    );
+                  } else if (file['type'] == 'application/pdf') {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.picture_as_pdf, size: 80, color: Colors.red),
+                          SizedBox(height: 16),
+                          Text(file['name'] ?? 'PDF', style: TextStyle(color: Colors.white)),
+                          SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            icon: Icon(Icons.open_in_new),
+                            label: Text('Open PDF'),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                            onPressed: () async {
+                              final bytes = base64Decode(file['data']);
+                              final tempDir = await getTemporaryDirectory();
+                              final tempFile = File('${tempDir.path}/${file['name'] ?? 'document.pdf'}');
+                              await tempFile.writeAsBytes(bytes, flush: true);
+                              await OpenFile.open(tempFile.path);
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  } else {
+                    return Center(child: Text('Unsupported file', style: TextStyle(color: Colors.white)));
+                  }
+                },
+              ),
+            ),
+            SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(attachments.length, (i) => Container(
+                margin: EdgeInsets.symmetric(horizontal: 4),
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: i == _currentIndex ? Colors.teal : Colors.white24,
+                ),
+              )),
+            ),
+            SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: Icon(Icons.arrow_back_ios, color: Colors.white),
+                  onPressed: () {
+                    int newIndex = (_currentIndex - 1 + attachments.length) % attachments.length;
+                    _pageController?.animateToPage(newIndex, duration: Duration(milliseconds: 300), curve: Curves.ease);
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.arrow_forward_ios, color: Colors.white),
+                  onPressed: () {
+                    int newIndex = (_currentIndex + 1) % attachments.length;
+                    _pageController?.animateToPage(newIndex, duration: Duration(milliseconds: 300), curve: Curves.ease);
+                  },
+                ),
+              ],
+            ),
+            SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Close'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 } 

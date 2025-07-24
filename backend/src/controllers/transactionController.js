@@ -2,6 +2,8 @@ const Transaction = require('../models/transaction');
 const User = require('../models/user');
 const lendingborrowingotp = require('../utils/lendingborrowingotp');
 const { sendTransactionReceipt, sendTransactionClearedNotification } = require('../utils/lendingborrowingotp');
+const multer = require('multer');
+const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg', 'application/pdf'];
 
 // Create a new transaction
 exports.createTransaction = async (req, res) => {
@@ -12,7 +14,6 @@ exports.createTransaction = async (req, res) => {
       date,
       time,
       place,
-      photos,
       counterpartyEmail,
       userEmail,
       role, // 'lender' or 'borrower'
@@ -43,6 +44,21 @@ exports.createTransaction = async (req, res) => {
     if (!counterparty) return res.status(400).json({ error: 'Counterparty email not registered' });
     if (!user) return res.status(400).json({ error: 'User email not registered' });
 
+    // Handle files
+    let files = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          return res.status(400).json({ error: 'Invalid file type. Only PNG, JPG, JPEG, and PDF allowed.' });
+        }
+        files.push({
+          data: file.buffer,
+          type: file.mimetype,
+          name: file.originalname
+        });
+      }
+    }
+
     // Save transaction
     const transaction = await Transaction.create({
       amount,
@@ -50,7 +66,7 @@ exports.createTransaction = async (req, res) => {
       date,
       time,
       place,
-      photos: photos || [],
+      files,
       counterpartyEmail,
       userEmail,
       role,

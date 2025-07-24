@@ -12,6 +12,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 // Add for wavy background
 import 'dart:math' as math;
 import 'dart:math';
+import 'package:file_picker/file_picker.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
 
 class TopWaveClipper extends CustomClipper<Path> {
   @override
@@ -46,8 +49,7 @@ class _TransactionPageState extends State<TransactionPage> {
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   final TextEditingController _placeController = TextEditingController();
-  List<String> _photosBase64 = [];
-  List<File> _photoFiles = [];
+  List<PlatformFile> _pickedFiles = [];
   final TextEditingController _counterpartyEmailController = TextEditingController();
   final TextEditingController _userEmailController = TextEditingController();
   String? _transactionId;
@@ -110,56 +112,103 @@ class _TransactionPageState extends State<TransactionPage> {
     super.dispose();
   }
 
-  Future<void> _pickPhotos() async {
-    final picked = await _picker.pickMultiImage();
-    if (picked != null && picked.isNotEmpty) {
+  Future<void> _pickFiles() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: ['png', 'jpg', 'jpeg', 'pdf'],
+      withData: true,
+    );
+    if (result != null && result.files.isNotEmpty) {
       setState(() {
-        _photoFiles.addAll(picked.map((x) => File(x.path)));
+        _pickedFiles.addAll(result.files);
       });
-      for (var file in picked) {
-        final bytes = await File(file.path).readAsBytes();
-        setState(() {
-          _photosBase64.add(base64Encode(bytes));
-        });
-      }
     }
   }
-
-  void _removePhoto(int idx) {
+  void _removeFile(int idx) {
     setState(() {
-      _photoFiles.removeAt(idx);
-      _photosBase64.removeAt(idx);
+      _pickedFiles.removeAt(idx);
     });
   }
-
-  Widget _buildPhotoThumbnail(int i) {
-    final bytes = base64Decode(_photosBase64[i]);
-    if (kIsWeb) {
-      return Image.memory(bytes, width: 80, height: 80, fit: BoxFit.cover);
+  Widget _buildFileThumbnail(int i) {
+    final file = _pickedFiles[i];
+    if (file.extension == 'pdf') {
+      return GestureDetector(
+        onTap: () async {
+          if (file.bytes != null) {
+            final tempDir = await getTemporaryDirectory();
+            final tempFile = File('${tempDir.path}/${file.name}');
+            await tempFile.writeAsBytes(file.bytes!, flush: true);
+            await OpenFile.open(tempFile.path);
+          }
+        },
+        child: Icon(Icons.picture_as_pdf, size: 80, color: Colors.red),
+      );
     } else {
-      return _photoFiles.length > i
-          ? Image.file(_photoFiles[i], width: 80, height: 80, fit: BoxFit.cover)
-          : Image.memory(bytes, width: 80, height: 80, fit: BoxFit.cover);
+      return GestureDetector(
+        onTap: () {
+          if (file.bytes != null) {
+            showDialog(
+              context: context,
+              builder: (_) => Dialog(
+                backgroundColor: Colors.black,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: InteractiveViewer(
+                    child: Image.memory(file.bytes!, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+            );
+          }
+        },
+        child: file.bytes != null
+          ? Image.memory(file.bytes!, width: 80, height: 80, fit: BoxFit.cover)
+          : Icon(Icons.image, size: 80),
+      );
     }
   }
-
-  void _previewPhoto(int idx) {
-    final bytes = base64Decode(_photosBase64[idx]);
-    showDialog(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.black,
-        child: GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: InteractiveViewer(
-            child: kIsWeb
-                ? Image.memory(bytes, fit: BoxFit.contain)
-                : (_photoFiles.length > idx
-                    ? Image.file(_photoFiles[idx], fit: BoxFit.contain)
-                    : Image.memory(bytes, fit: BoxFit.contain)),
-          ),
+  Widget _buildFilePicker() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ElevatedButton.icon(
+          onPressed: _pickFiles,
+          icon: Icon(Icons.attach_file),
+          label: Text('Add Files (Images/PDF)'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
         ),
-      ),
+        SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          children: List.generate(_pickedFiles.length, (i) => GestureDetector(
+            onTap: () {},
+            child: Stack(
+              alignment: Alignment.topRight,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: _buildFileThumbnail(i),
+                ),
+                GestureDetector(
+                  onTap: () => _removeFile(i),
+                  child: CircleAvatar(radius: 12, backgroundColor: Colors.red, child: Icon(Icons.close, size: 16, color: Colors.white)),
+                ),
+                if (_pickedFiles[i].extension == 'pdf')
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      color: Colors.white70,
+                      child: Text(_pickedFiles[i].name, style: TextStyle(fontSize: 10, color: Colors.black), textAlign: TextAlign.center),
+                    ),
+                  ),
+              ],
+            ),
+          )),
+        ),
+      ],
     );
   }
 
@@ -240,28 +289,35 @@ class _TransactionPageState extends State<TransactionPage> {
     setState(() => _sameEmailError = null);
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
-    final res = await http.post(Uri.parse('${ApiConfig.baseUrl}/api/transactions/create'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'amount': double.tryParse(_amountController.text),
-        'currency': _currency,
-        'date': _selectedDate?.toIso8601String(),
-        'time': _selectedTime?.format(context),
-        'place': _placeController.text,
-        'photos': _photosBase64,
-        'counterpartyEmail': _counterpartyEmailController.text,
-        'userEmail': _userEmailController.text,
-        'role': _role,
-        'interestType': _interestType == 'none' ? null : _interestType,
-        'interestRate': _interestType == 'none' ? null : double.tryParse(_interestRateController.text),
-        'expectedReturnDate': _expectedReturnDate?.toIso8601String(),
-        'compoundingFrequency': _interestType == 'compound' ? _compoundingFrequency : null,
-        'description': _descriptionController.text,
-      }),
-    );
+    var uri = Uri.parse('${ApiConfig.baseUrl}/api/transactions/create');
+    var request = http.MultipartRequest('POST', uri);
+    request.fields['amount'] = _amountController.text;
+    request.fields['currency'] = _currency;
+    request.fields['date'] = _selectedDate?.toIso8601String() ?? '';
+    request.fields['time'] = _selectedTime?.format(context) ?? '';
+    request.fields['place'] = _placeController.text;
+    request.fields['counterpartyEmail'] = _counterpartyEmailController.text;
+    request.fields['userEmail'] = _userEmailController.text;
+    request.fields['role'] = _role;
+    request.fields['interestType'] = _interestType == 'none' ? '' : _interestType;
+    request.fields['interestRate'] = _interestType == 'none' ? '' : _interestRateController.text;
+    request.fields['expectedReturnDate'] = _expectedReturnDate?.toIso8601String() ?? '';
+    request.fields['compoundingFrequency'] = _interestType == 'compound' ? _compoundingFrequency.toString() : '';
+    request.fields['description'] = _descriptionController.text;
+    for (var file in _pickedFiles) {
+      if (file.bytes != null) {
+        request.files.add(http.MultipartFile.fromBytes(
+          'files',
+          file.bytes!,
+          filename: file.name,
+        ));
+      }
+    }
+    var streamed = await request.send();
     setState(() => _isLoading = false);
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
+    if (streamed.statusCode == 200) {
+      final resp = await streamed.stream.bytesToString();
+      final data = jsonDecode(resp);
       setState(() {
         _transactionId = data['transactionId'];
       });
@@ -332,13 +388,13 @@ class _TransactionPageState extends State<TransactionPage> {
         ),
       );
     } else {
-      print('Transaction API error: ${res.statusCode} ${res.body}');
+      final resp = await streamed.stream.bytesToString();
       String errorMsg = 'Failed to create transaction';
       try {
-        final data = jsonDecode(res.body);
+        final data = jsonDecode(resp);
         errorMsg = data['error'] ?? errorMsg;
       } catch (_) {
-        errorMsg = res.body;
+        errorMsg = resp;
       }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg)));
     }
@@ -427,40 +483,6 @@ class _TransactionPageState extends State<TransactionPage> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildPhotoPicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ElevatedButton.icon(
-          onPressed: _pickPhotos,
-          icon: Icon(Icons.add_a_photo),
-          label: Text('Add Photos'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-        ),
-        SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: List.generate(_photosBase64.length, (i) => GestureDetector(
-            onTap: () => _previewPhoto(i),
-            child: Stack(
-              alignment: Alignment.topRight,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: _buildPhotoThumbnail(i),
-                ),
-                GestureDetector(
-                  onTap: () => _removePhoto(i),
-                  child: CircleAvatar(radius: 12, backgroundColor: Colors.red, child: Icon(Icons.close, size: 16, color: Colors.white)),
-                ),
-              ],
-            ),
-          )),
-        ),
-      ],
     );
   }
 
@@ -643,7 +665,7 @@ class _TransactionPageState extends State<TransactionPage> {
                       validator: (val) => val == null || val.isEmpty ? 'Place required' : null,
                     ),
                     SizedBox(height: 12),
-                    _buildPhotoPicker(),
+                    _buildFilePicker(),
                     SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: _interestType,
