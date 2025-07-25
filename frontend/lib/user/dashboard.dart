@@ -79,7 +79,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 title: const Text('Transaction Details'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionDetailsPage()));
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => UserTransactionsPage()));
                 },
               ),
               ListTile(

@@ -15,4 +15,6 @@ const chatThreadSchema = new mongoose.Schema({
   messages: [messageSchema]
 });
 
+chatThreadSchema.index({ transactionId: 1 });
+
 module.exports = mongoose.model('ChatThread', chatThreadSchema); 

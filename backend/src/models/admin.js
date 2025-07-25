@@ -21,6 +21,10 @@ const adminSchema = new mongoose.Schema({
   profileImage: { type: Buffer }, // Store image as binary
 }, { timestamps: true });
 
+adminSchema.index({ email: 1 });
+adminSchema.index({ username: 1 });
+adminSchema.index({ phone: 1 });
+
 adminSchema.statics.createDefaultAdmin = async function() {
   const Admin = this;
   const username = process.env.DEFAULT_ADMIN_USERNAME;

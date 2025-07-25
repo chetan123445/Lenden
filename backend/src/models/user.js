@@ -21,4 +21,8 @@ const userSchema = new mongoose.Schema({
   profileImage: { type: Buffer }, // Store image as binary
 }, { timestamps: true });
 
+userSchema.index({ email: 1 });
+userSchema.index({ username: 1 });
+userSchema.index({ phone: 1 });
+
 module.exports = mongoose.model('User', userSchema); 

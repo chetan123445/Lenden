@@ -37,11 +37,34 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   double? _searchAmount;
   String _sortBy = 'Date'; // 'Date', 'Amount', 'Status'
   bool _sortAsc = false;
+  String interestTypeFilter = 'All'; // 'All', 'simple', 'compound'
+  String globalSearch = '';
+  final TextEditingController _globalSearchController = TextEditingController();
+
+  final TextEditingController _counterpartyController = TextEditingController();
+  final TextEditingController _placeController = TextEditingController();
+  final TextEditingController _transactionIdController = TextEditingController();
+  final TextEditingController _amountController = TextEditingController();
+  bool showAllTransactions = false;
 
   @override
   void initState() {
     super.initState();
     fetchTransactions();
+    _counterpartyController.text = _searchCounterparty;
+    _placeController.text = _searchPlace;
+    _transactionIdController.text = _searchTransactionId;
+    _amountController.text = _searchAmount?.toString() ?? '';
+  }
+
+  @override
+  void dispose() {
+    _counterpartyController.dispose();
+    _placeController.dispose();
+    _transactionIdController.dispose();
+    _amountController.dispose();
+    _globalSearchController.dispose();
+    super.dispose();
   }
 
   Future<void> fetchTransactions() async {
@@ -595,93 +618,128 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   }
 
   Widget _buildClearanceFilterChips() {
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 8),
-      padding: EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Colors.teal.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                Tooltip(
-                  message: 'Show all transactions',
-                  child: ChoiceChip(
-                    label: Text('All'),
-                    selected: clearanceFilter == 'All',
-                    onSelected: (_) => setState(() => clearanceFilter = 'All'),
-                    selectedColor: Color(0xFF00B4D8).withOpacity(0.2),
-                  ),
-                ),
-                SizedBox(width: 8),
-                Tooltip(
-                  message: 'Both parties have cleared',
-                  child: ChoiceChip(
-                    label: Text('Totally Cleared'),
-                    selected: clearanceFilter == 'Totally Cleared',
-                    onSelected: (_) => setState(() => clearanceFilter = 'Totally Cleared'),
-                    selectedColor: Colors.green.withOpacity(0.2),
-                    labelStyle: TextStyle(color: Colors.green[800]),
-                  ),
-                ),
-                SizedBox(width: 8),
-                Tooltip(
-                  message: 'Neither party has cleared',
-                  child: ChoiceChip(
-                    label: Text('Totally Uncleared'),
-                    selected: clearanceFilter == 'Totally Uncleared',
-                    onSelected: (_) => setState(() => clearanceFilter = 'Totally Uncleared'),
-                    selectedColor: Colors.orange.withOpacity(0.2),
-                    labelStyle: TextStyle(color: Colors.orange[800]),
-                  ),
-                ),
-                SizedBox(width: 8),
-                Tooltip(
-                  message: 'Only one party has cleared',
-                  child: ChoiceChip(
-                    label: Text('Partially Cleared'),
-                    selected: clearanceFilter == 'Partially Cleared',
-                    onSelected: (_) => setState(() => clearanceFilter = 'Partially Cleared'),
-                    selectedColor: Colors.blue.withOpacity(0.2),
-                    labelStyle: TextStyle(color: Colors.blue[800]),
-                  ),
-                ),
-              ],
-            ),
+    return Column(
+      children: [
+        Container(
+          margin: EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: Colors.teal.withOpacity(0.04),
+            borderRadius: BorderRadius.circular(14),
           ),
-          if (clearanceFilter == 'Partially Cleared')
-            Padding(
-              padding: const EdgeInsets.only(top: 10.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ToggleButtons(
-                    isSelected: [partialClearedType == 'my', partialClearedType == 'other'],
-                    onPressed: (idx) => setState(() => partialClearedType = idx == 0 ? 'my' : 'other'),
-                    borderRadius: BorderRadius.circular(8),
-                    selectedColor: Colors.white,
-                    fillColor: Colors.teal,
-                    color: Colors.teal,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(children: [Icon(Icons.person, size: 18), SizedBox(width: 6), Text('My Side')]),
+          child: Column(
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    Tooltip(
+                      message: 'Show all transactions',
+                      child: ChoiceChip(
+                        label: Text('All'),
+                        selected: clearanceFilter == 'All',
+                        onSelected: (_) => setState(() => clearanceFilter = 'All'),
+                        selectedColor: Color(0xFF00B4D8).withOpacity(0.2),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(children: [Icon(Icons.people, size: 18), SizedBox(width: 6), Text('Other Party Side')]),
+                    ),
+                    SizedBox(width: 8),
+                    Tooltip(
+                      message: 'Both parties have cleared',
+                      child: ChoiceChip(
+                        label: Text('Totally Cleared'),
+                        selected: clearanceFilter == 'Totally Cleared',
+                        onSelected: (_) => setState(() => clearanceFilter = 'Totally Cleared'),
+                        selectedColor: Colors.green.withOpacity(0.2),
+                        labelStyle: TextStyle(color: Colors.green[800]),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Tooltip(
+                      message: 'Neither party has cleared',
+                      child: ChoiceChip(
+                        label: Text('Totally Uncleared'),
+                        selected: clearanceFilter == 'Totally Uncleared',
+                        onSelected: (_) => setState(() => clearanceFilter = 'Totally Uncleared'),
+                        selectedColor: Colors.orange.withOpacity(0.2),
+                        labelStyle: TextStyle(color: Colors.orange[800]),
+                      ),
+                    ),
+                    SizedBox(width: 8),
+                    Tooltip(
+                      message: 'Only one party has cleared',
+                      child: ChoiceChip(
+                        label: Text('Partially Cleared'),
+                        selected: clearanceFilter == 'Partially Cleared',
+                        onSelected: (_) => setState(() => clearanceFilter = 'Partially Cleared'),
+                        selectedColor: Colors.blue.withOpacity(0.2),
+                        labelStyle: TextStyle(color: Colors.blue[800]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (clearanceFilter == 'Partially Cleared')
+                Padding(
+                  padding: const EdgeInsets.only(top: 10.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ToggleButtons(
+                        isSelected: [partialClearedType == 'my', partialClearedType == 'other'],
+                        onPressed: (idx) => setState(() => partialClearedType = idx == 0 ? 'my' : 'other'),
+                        borderRadius: BorderRadius.circular(8),
+                        selectedColor: Colors.white,
+                        fillColor: Colors.teal,
+                        color: Colors.teal,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(children: [Icon(Icons.person, size: 18), SizedBox(width: 6), Text('My Side')]),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(children: [Icon(Icons.people, size: 18), SizedBox(width: 6), Text('Other Party Side')]),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
+            ],
+          ),
+        ),
+        // Interest type filter chips
+        Container(
+          margin: EdgeInsets.only(top: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ChoiceChip(
+                label: Text('All'),
+                selected: interestTypeFilter == 'All',
+                onSelected: (_) => setState(() => interestTypeFilter = 'All'),
+                selectedColor: Color(0xFF00B4D8).withOpacity(0.2),
               ),
-            ),
-        ],
-      ),
+              SizedBox(width: 8),
+              ChoiceChip(
+                label: Text('Simple Interest'),
+                selected: interestTypeFilter == 'simple',
+                onSelected: (_) => setState(() => interestTypeFilter = 'simple'),
+                selectedColor: Colors.green.withOpacity(0.2),
+                labelStyle: TextStyle(color: Colors.green[800]),
+              ),
+              SizedBox(width: 8),
+              ChoiceChip(
+                label: Text('Compound Interest'),
+                selected: interestTypeFilter == 'compound',
+                onSelected: (_) => setState(() => interestTypeFilter = 'compound'),
+                selectedColor: Colors.blue.withOpacity(0.2),
+                labelStyle: TextStyle(color: Colors.blue[800]),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -774,6 +832,34 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     if (_endDate != null && (date == null || date.isAfter(_endDate!))) return false;
     if (_minAmount != null && (amount == null || amount < _minAmount!)) return false;
     if (_maxAmount != null && (amount == null || amount > _maxAmount!)) return false;
+    if (interestTypeFilter != 'All' && (t['interestType'] ?? '').toString().toLowerCase() != interestTypeFilter) return false;
+    // Global fuzzy search
+    if (globalSearch.isNotEmpty) {
+      final q = globalSearch.toLowerCase();
+      bool match(String? s) => s != null && s.toLowerCase().contains(q);
+      bool fuzzyMatch(String? a, String? b) {
+        if (a == null || b == null) return false;
+        a = a.toLowerCase();
+        b = b.toLowerCase();
+        if (a.contains(b) || b.contains(a)) return true;
+        return StringSimilarity.compareTwoStrings(a, b) > 0.6;
+      }
+      final isLending = t['role'] == 'lender' || (t['userEmail'] == Provider.of<SessionProvider>(context, listen: false).user?['email'] && t['role'] == 'lender');
+      final isBorrowing = t['role'] == 'borrower' || (t['userEmail'] == Provider.of<SessionProvider>(context, listen: false).user?['email'] && t['role'] == 'borrower');
+      if (
+        fuzzyMatch(t['counterpartyEmail']?.toString(), q) ||
+        fuzzyMatch(t['place']?.toString(), q) ||
+        fuzzyMatch(t['interestType']?.toString(), q) ||
+        fuzzyMatch(t['transactionId']?.toString(), q) ||
+        (amount != null && amount.toString().contains(q)) ||
+        (isLending && 'lending'.contains(q)) ||
+        (isBorrowing && 'borrowing'.contains(q))
+      ) {
+        // pass
+      } else {
+        return false;
+      }
+    }
     return true;
   }
 
@@ -793,7 +879,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     }
   }
 
-  List<Widget> _buildFilteredTransactionCards() {
+  List<Widget> _buildFilteredTransactionCards({int? limit}) {
     List<Widget> widgets = [];
     bool isTotallyCleared(t) => (t['userCleared'] == true && t['counterpartyCleared'] == true);
     bool isTotallyUncleared(t) => (t['userCleared'] != true && t['counterpartyCleared'] != true);
@@ -846,19 +932,25 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         if (a.contains(b) || b.contains(a)) return true;
         return StringSimilarity.compareTwoStrings(a, b) > 0.6;
       }
-      if (_searchCounterparty.isNotEmpty) {
-        final val = t['counterpartyEmail']?.toString() ?? '';
-        if (!fuzzyMatch(val, _searchCounterparty)) return false;
+      if (globalSearch.isNotEmpty) {
+        final q = globalSearch.toLowerCase();
+        bool match(String? s) => s != null && s.toLowerCase().contains(q);
+        final isLending = t['role'] == 'lender' || (t['userEmail'] == Provider.of<SessionProvider>(context, listen: false).user?['email'] && t['role'] == 'lender');
+        final isBorrowing = t['role'] == 'borrower' || (t['userEmail'] == Provider.of<SessionProvider>(context, listen: false).user?['email'] && t['role'] == 'borrower');
+        if (
+          fuzzyMatch((t['counterpartyEmail']?.toString() ?? ''), q) ||
+          fuzzyMatch((t['place']?.toString() ?? ''), q) ||
+          fuzzyMatch((t['interestType']?.toString() ?? ''), q) ||
+          fuzzyMatch((t['transactionId']?.toString() ?? ''), q) ||
+          (t['amount'] is num && (t['amount'] as num).toDouble().toString().contains(q)) ||
+          (isLending && 'lending'.contains(q)) ||
+          (isBorrowing && 'borrowing'.contains(q))
+        ) {
+          // pass
+        } else {
+          return false;
+        }
       }
-      if (_searchPlace.isNotEmpty) {
-        final val = t['place']?.toString() ?? '';
-        if (!fuzzyMatch(val, _searchPlace)) return false;
-      }
-      if (_searchTransactionId.isNotEmpty) {
-        final val = t['transactionId']?.toString() ?? '';
-        if (!fuzzyMatch(val, _searchTransactionId)) return false;
-      }
-      if (_searchAmount != null && (t['amount'] == null || double.tryParse(t['amount'].toString()) != _searchAmount)) return false;
       return true;
     }
     // --- Sorting ---
@@ -884,6 +976,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     if (filter == 'All' || filter == 'Lending') {
       var filteredLending = lendingFiltered.where((t) => _transactionMatchesFilters(t) && matchesSearch(t)).toList();
       filteredLending.sort(sortCompare);
+      if (!showAllTransactions && limit != null && filteredLending.length > limit) {
+        filteredLending = filteredLending.take(limit).toList();
+      }
       if (filteredLending.isNotEmpty) {
         widgets.add(Text('Lending Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green)));
         widgets.add(SizedBox(height: 8));
@@ -894,6 +989,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     if (filter == 'All' || filter == 'Borrowing') {
       var filteredBorrowing = borrowingFiltered.where((t) => _transactionMatchesFilters(t) && matchesSearch(t)).toList();
       filteredBorrowing.sort(sortCompare);
+      if (!showAllTransactions && limit != null && filteredBorrowing.length > limit) {
+        filteredBorrowing = filteredBorrowing.take(limit).toList();
+      }
       if (filteredBorrowing.isNotEmpty) {
         widgets.add(Text('Borrowing Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.orange)));
         widgets.add(SizedBox(height: 8));
@@ -913,163 +1011,84 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         backgroundColor: Color(0xFF00B4D8),
         elevation: 0,
         title: Text('Your Transactions', style: TextStyle(color: Colors.white)),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.filter_list, color: Colors.white),
-            tooltip: 'Filter & Search',
-            onPressed: () async {
-              await showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                builder: (context) => Padding(
-                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-                  child: StatefulBuilder(
-                    builder: (context, setModalState) => Padding(
-                      padding: const EdgeInsets.all(20.0),
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Search & Filter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                            SizedBox(height: 16),
-                            TextField(
-                              decoration: InputDecoration(labelText: 'Counterparty Email'),
-                              onChanged: (v) => setModalState(() => _searchCounterparty = v),
-                              controller: TextEditingController(text: _searchCounterparty),
-                            ),
-                            SizedBox(height: 10),
-                            TextField(
-                              decoration: InputDecoration(labelText: 'Place'),
-                              onChanged: (v) => setModalState(() => _searchPlace = v),
-                              controller: TextEditingController(text: _searchPlace),
-                            ),
-                            SizedBox(height: 10),
-                            TextField(
-                              decoration: InputDecoration(labelText: 'Transaction ID'),
-                              onChanged: (v) => setModalState(() => _searchTransactionId = v),
-                              controller: TextEditingController(text: _searchTransactionId),
-                            ),
-                            SizedBox(height: 10),
-                            TextField(
-                              decoration: InputDecoration(labelText: 'Amount'),
-                              keyboardType: TextInputType.numberWithOptions(decimal: true),
-                              onChanged: (v) => setModalState(() => _searchAmount = double.tryParse(v)),
-                              controller: TextEditingController(text: _searchAmount?.toString() ?? ''),
-                            ),
-                            SizedBox(height: 20),
-                            Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold)),
-                            SizedBox(height: 8),
-                            DropdownButton<String>(
-                              value: _sortBy,
-                              items: [
-                                DropdownMenuItem(value: 'Date', child: Text('Date')),
-                                DropdownMenuItem(value: 'Amount', child: Text('Amount')),
-                                DropdownMenuItem(value: 'Status', child: Text('Status')),
-                              ],
-                              onChanged: (v) => setModalState(() => _sortBy = v ?? 'Date'),
-                            ),
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: _sortAsc,
-                                  onChanged: (v) => setModalState(() => _sortAsc = v ?? false),
-                                ),
-                                Text('Ascending'),
-                              ],
-                            ),
-                            SizedBox(height: 20),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                TextButton(
-                                  onPressed: () {
-                                    setModalState(() {
-                                      _searchCounterparty = '';
-                                      _searchPlace = '';
-                                      _searchTransactionId = '';
-                                      _searchAmount = null;
-                                      _sortBy = 'Date';
-                                      _sortAsc = false;
-                                    });
-                                  },
-                                  child: Text('Clear'),
-                                ),
-                                SizedBox(width: 12),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    setState(() {});
-                                    Navigator.pop(context);
-                                  },
-                                  child: Text('Apply'),
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                                ),
-                              ],
-                            ),
-                          ],
+      ),
+      body: loading
+          ? Center(child: CircularProgressIndicator())
+          : error != null
+              ? Center(child: Text(error!, style: TextStyle(color: Colors.red)))
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: TextField(
+                        controller: _globalSearchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search transactions... (email, place, type, id, amount, lending/borrowing)',
+                          prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                          ),
                         ),
+                        onChanged: (v) => setState(() => globalSearch = v),
                       ),
                     ),
-                  ),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.refresh, color: Colors.white),
-            onPressed: fetchTransactions,
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          // Wavy blue background at the top
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: ClipPath(
-              clipper: _TopWaveClipper(),
-              child: Container(
-                height: 160,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.only(top: 120),
-            child: loading
-                ? Center(child: CircularProgressIndicator())
-                : error != null
-                    ? Center(child: Text(error!, style: TextStyle(color: Colors.red)))
-                    : RefreshIndicator(
-                        onRefresh: fetchTransactions,
-                        child: ListView(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          children: [
-                            _buildFilterChips(),
-                            SizedBox(height: 12),
-                            _buildClearanceFilterChips(),
-                            SizedBox(height: 12),
-                            _buildAdvancedFilters(),
-                            SizedBox(height: 16),
+                    SizedBox(height: 8),
+                    _buildFilterChips(),
+                    SizedBox(height: 8),
+                    _buildClearanceFilterChips(),
+                    SizedBox(height: 8),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          if (showAllTransactions)
                             ..._buildFilteredTransactionCards(),
-                          ],
-                        ),
+                          if (!showAllTransactions)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: ElevatedButton(
+                                  onPressed: () => setState(() => showAllTransactions = true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Color(0xFF00B4D8),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                  ),
+                                  child: Text('View All Transactions', style: TextStyle(color: Colors.white, fontSize: 16)),
+                                ),
+                              ),
+                            ),
+                          if (showAllTransactions)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: ElevatedButton(
+                                  onPressed: () => setState(() => showAllTransactions = false),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.grey[300],
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                  ),
+                                  child: Text('Close', style: TextStyle(color: Color(0xFF00B4D8), fontSize: 16)),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-          ),
-        ],
-      ),
+                    ),
+                  ],
+                ),
     );
   }
 
