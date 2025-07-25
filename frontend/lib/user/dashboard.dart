@@ -12,6 +12,7 @@ import '../otp_input.dart';
 import '../Transaction/transaction_page.dart';
 import '../Transaction/user_transactions_page.dart';
 import '../Transaction/analytics_page.dart';
+import '../user/notes_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -79,6 +80,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 onTap: () {
                   Navigator.of(context).pop();
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionDetailsPage()));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.note),
+                title: Text('Notes'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => NotesPage()));
                 },
               ),
               ListTile(

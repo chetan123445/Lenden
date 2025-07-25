@@ -76,14 +76,14 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       );
     }
     final a = analytics!;
-    final totalLent = a['totalLent'] ?? 0.0;
-    final totalBorrowed = a['totalBorrowed'] ?? 0.0;
-    final totalInterest = a['totalInterest'] ?? 0.0;
+    final totalLent = (a['totalLent'] as num?)?.toDouble() ?? 0.0;
+    final totalBorrowed = (a['totalBorrowed'] as num?)?.toDouble() ?? 0.0;
+    final totalInterest = (a['totalInterest'] as num?)?.toDouble() ?? 0.0;
     final cleared = a['cleared'] ?? 0;
     final uncleared = a['uncleared'] ?? 0;
     final total = a['total'] ?? 0;
     final clearedPercent = total == 0 ? 0.0 : cleared / total;
-    final monthlyCounts = List<int>.from(a['monthlyCounts'] ?? []);
+    final monthlyCounts = List<double>.from((a['monthlyCounts'] ?? []).map((e) => (e as num).toDouble()));
     final monthLabels = List<String>.from(a['months'] ?? []);
     final topCounterparties = List<Map<String, dynamic>>.from(a['topCounterparties'] ?? []);
     return Scaffold(

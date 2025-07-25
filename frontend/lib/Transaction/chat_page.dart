@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../user/session.dart';
 import 'dart:collection';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:intl/intl.dart';
 
 // Emoji categories
 const Map<String, List<String>> kEmojiCategories = {
@@ -488,12 +489,25 @@ class _ChatPageState extends State<ChatPage> {
                                 if (value == 'delete_for_me') setState(() { messages.removeWhere((m) => m['_id'] != null && m['_id'].toString() == msg['_id'].toString()); });
                                 if (value == 'delete_for_everyone' && isMine) await deleteMessage(msg['_id']);
                               },
-                              itemBuilder: (context) => [
-                                PopupMenuItem(value: 'reply', child: Text('Reply')),
-                                PopupMenuItem(value: 'react', child: Text('React')),
-                                PopupMenuItem(value: 'delete_for_me', child: Text('Delete for me')),
-                                if (isMine) PopupMenuItem(value: 'delete_for_everyone', child: Text('Delete for everyone', style: TextStyle(color: Colors.red))),
-                              ],
+                              itemBuilder: (context) {
+                                final timestamp = msg['timestamp'] != null ? DateTime.tryParse(msg['timestamp']) : null;
+                                final dateStr = timestamp != null ? DateFormat('dd MMM yyyy').format(timestamp) : 'Unknown date';
+                                final timeStr = timestamp != null ? DateFormat('hh:mm a').format(timestamp) : 'Unknown time';
+                                return [
+                                  PopupMenuItem(
+                                    enabled: false,
+                                    child: Text('Date: $dateStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+                                  ),
+                                  PopupMenuItem(
+                                    enabled: false,
+                                    child: Text('Time: $timeStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+                                  ),
+                                  PopupMenuItem(value: 'reply', child: Text('Reply')),
+                                  PopupMenuItem(value: 'react', child: Text('React')),
+                                  PopupMenuItem(value: 'delete_for_me', child: Text('Delete for me')),
+                                  if (isMine) PopupMenuItem(value: 'delete_for_everyone', child: Text('Delete for everyone', style: TextStyle(color: Colors.red))),
+                                ];
+                              },
                             ),
                           ],
                         );

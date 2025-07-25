@@ -14,6 +14,7 @@ const upload = multer({
 const transactionController = require('../controllers/transactionController');
 const analyticController = require('../controllers/analyticController');
 const chatController = require('../controllers/chatController');
+const noteController = require('../controllers/noteController');
 
 // User routes
 router.post('/users/register', userController.register);
@@ -58,6 +59,12 @@ router.delete('/transactions/:transactionId/chat/:messageId', chatController.del
 
 // Analytics routes
 router.get('/analytics/user', analyticController.getUserAnalytics);
+
+// Notes routes
+router.post('/notes', auth, noteController.createNote);
+router.get('/notes', auth, noteController.getNotes);
+router.put('/notes/:id', auth, noteController.updateNote);
+router.delete('/notes/:id', auth, noteController.deleteNote);
 
 
 module.exports = router;

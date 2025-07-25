@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lenden_frontend/user/session.dart';
+import 'notes_page.dart';
 
 class AdminDashboardPage extends StatelessWidget {
   const AdminDashboardPage({super.key});
@@ -29,6 +30,14 @@ class AdminDashboardPage extends StatelessWidget {
               const ListTile(
                 leading: Icon(Icons.settings),
                 title: Text('Settings'),
+              ),
+              ListTile(
+                leading: Icon(Icons.note),
+                title: Text('Notes'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => AdminNotesPage()));
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.logout),
