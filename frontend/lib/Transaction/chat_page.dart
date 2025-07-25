@@ -225,36 +225,6 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Future<void> flagMessage(String messageId) async {
-    final url = '${ApiConfig.baseUrl}/api/transactions/${widget.transactionId}/chat/$messageId/flag';
-    final res = await http.patch(Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'reason': 'Flagged by user'})
-    );
-    if (res.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Flagged for review.')));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to flag message')));
-    }
-  }
-
-  Future<void> unflagMessage(String messageId) async {
-    final url = '${ApiConfig.baseUrl}/api/transactions/${widget.transactionId}/chat/$messageId/unflag';
-    final res = await http.patch(Uri.parse(url),
-      headers: {'Content-Type': 'application/json'},
-    );
-    if (res.statusCode == 200) {
-      final updated = json.decode(res.body)['message'];
-      setState(() {
-        final idx = messages.indexWhere((m) => m['_id'] == messageId);
-        if (idx != -1) messages[idx] = updated;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Message unflagged.')));
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to unflag message')));
-    }
-  }
-
   Widget buildReactions(Map<String, dynamic> msg) {
     final reactions = (msg['reactions'] ?? []) as List<dynamic>;
     if (reactions.isEmpty) return SizedBox.shrink();
@@ -309,15 +279,6 @@ class _ChatPageState extends State<ChatPage> {
               onTap: () {
                 setState(() => replyToId = msg['_id']);
                 Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.flag),
-              title: Text('Flag'),
-              onTap: () {
-                // TODO: Implement flag logic
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Flagged for review.')));
               },
             ),
             ListTile(
@@ -376,16 +337,6 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Widget buildFlagIcon(Map<String, dynamic> msg) {
-    if (msg['isFlagged'] == true) {
-      return Padding(
-        padding: const EdgeInsets.only(left: 4.0),
-        child: Icon(Icons.flag, color: Colors.redAccent, size: 16),
-      );
-    }
-    return SizedBox.shrink();
-  }
-
   Widget buildMessageBubble(Map<String, dynamic> msg, bool isMine) {
     final content = msg['content'] ?? '';
     final isReply = msg['parentId'] != null;
@@ -422,7 +373,6 @@ class _ChatPageState extends State<ChatPage> {
             Row(
               children: [
                 Expanded(child: Text(content, style: TextStyle(fontSize: 16, color: textColor)) ),
-                buildFlagIcon(msg),
               ],
             ),
             buildReactions(msg),
@@ -467,10 +417,6 @@ class _ChatPageState extends State<ChatPage> {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(leading: Icon(Icons.reply), title: Text('Reply'), onTap: () { setState(() => replyToId = msg['_id']); Navigator.pop(context); }),
-          if (!isMine && msg['isFlagged'] == true)
-            ListTile(leading: Icon(Icons.flag), title: Text('Unflag'), onTap: () async { await unflagMessage(msg['_id']); Navigator.pop(context); }),
-          if (!isMine && msg['isFlagged'] != true)
-            ListTile(leading: Icon(Icons.flag), title: Text('Flag'), onTap: () async { await flagMessage(msg['_id']); Navigator.pop(context); }),
           ListTile(leading: Icon(Icons.emoji_emotions), title: Text('React'), onTap: () async { final emoji = await showReactionPicker(); if (emoji != null) reactToMessage(msg['_id'], emoji); Navigator.pop(context); }),
           if (isMine)
             ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete for everyone', style: TextStyle(color: Colors.red)), onTap: () async { await deleteMessage(msg['_id']); Navigator.pop(context); }),
@@ -538,18 +484,12 @@ class _ChatPageState extends State<ChatPage> {
                               icon: Icon(Icons.more_vert, size: 20),
                               onSelected: (value) async {
                                 if (value == 'reply') setState(() => replyToId = msg['_id']);
-                                if (value == 'flag') await flagMessage(msg['_id']);
-                                if (value == 'unflag') await unflagMessage(msg['_id']);
                                 if (value == 'react') showReactionPicker().then((emoji) { if (emoji != null) reactToMessage(msg['_id'], emoji); });
                                 if (value == 'delete_for_me') setState(() { messages.removeWhere((m) => m['_id'] != null && m['_id'].toString() == msg['_id'].toString()); });
                                 if (value == 'delete_for_everyone' && isMine) await deleteMessage(msg['_id']);
                               },
                               itemBuilder: (context) => [
                                 PopupMenuItem(value: 'reply', child: Text('Reply')),
-                                if (!isMine && msg['isFlagged'] == true)
-                                  PopupMenuItem(value: 'unflag', child: Text('Unflag'))
-                                else if (!isMine)
-                                  PopupMenuItem(value: 'flag', child: Text('Flag')),
                                 PopupMenuItem(value: 'react', child: Text('React')),
                                 PopupMenuItem(value: 'delete_for_me', child: Text('Delete for me')),
                                 if (isMine) PopupMenuItem(value: 'delete_for_everyone', child: Text('Delete for everyone', style: TextStyle(color: Colors.red))),

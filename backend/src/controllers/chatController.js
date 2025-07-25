@@ -75,39 +75,6 @@ exports.readMessage = async (req, res) => {
   }
 };
 
-exports.flagMessage = async (req, res) => {
-  try {
-    const { transactionId, messageId } = req.params;
-    const { reason } = req.body;
-    let thread = await ChatThread.findOne({ transactionId });
-    if (!thread) return res.status(404).json({ error: 'Chat not found' });
-    const msg = thread.messages.id(messageId);
-    if (!msg) return res.status(404).json({ error: 'Message not found' });
-    msg.isFlagged = true;
-    msg.flaggedReason = reason || 'Flagged by user';
-    await thread.save();
-    res.json({ message: msg });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to flag message', details: err.message });
-  }
-};
-
-exports.unflagMessage = async (req, res) => {
-  try {
-    const { transactionId, messageId } = req.params;
-    let thread = await ChatThread.findOne({ transactionId });
-    if (!thread) return res.status(404).json({ error: 'Chat not found' });
-    const msg = thread.messages.id(messageId);
-    if (!msg) return res.status(404).json({ error: 'Message not found' });
-    msg.isFlagged = false;
-    msg.flaggedReason = '';
-    await thread.save();
-    res.json({ message: msg });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to unflag message', details: err.message });
-  }
-};
-
 exports.deleteMessage = async (req, res) => {
   try {
     const { transactionId, messageId } = req.params;

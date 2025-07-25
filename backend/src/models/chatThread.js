@@ -5,8 +5,6 @@ const messageSchema = new mongoose.Schema({
   content: { type: String, default: '' },
   timestamp: { type: Date, default: Date.now },
   parentId: { type: mongoose.Schema.Types.ObjectId, default: null }, // for replies
-  isFlagged: { type: Boolean, default: false },
-  flaggedReason: { type: String, default: '' },
   reactions: [{ userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, emoji: String }],
   readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   deleted: { type: Boolean, default: false }
