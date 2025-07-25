@@ -3,10 +3,11 @@ const Note = require('../models/note');
 // Create a new note
 exports.createNote = async (req, res) => {
   try {
-    const { content } = req.body;
+    const { title, content } = req.body;
+    if (!title || !content) return res.status(400).json({ error: 'Title and content are required' });
     const user = req.user;
     const role = user.role === 'admin' ? 'Admin' : 'User';
-    const note = await Note.create({ user: user.id, role, content });
+    const note = await Note.create({ user: user.id, role, title, content });
     res.status(201).json({ note });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create note', details: err.message });
@@ -29,10 +30,14 @@ exports.getNotes = async (req, res) => {
 exports.updateNote = async (req, res) => {
   try {
     const { id } = req.params;
-    const { content } = req.body;
+    const { title, content } = req.body;
+    if (!title && !content) return res.status(400).json({ error: 'Title or content required' });
     const user = req.user;
     const role = user.role === 'admin' ? 'Admin' : 'User';
-    const note = await Note.findOneAndUpdate({ _id: id, user: user.id, role }, { content }, { new: true });
+    const update = {};
+    if (title) update.title = title;
+    if (content) update.content = content;
+    const note = await Note.findOneAndUpdate({ _id: id, user: user.id, role }, update, { new: true });
     if (!note) return res.status(404).json({ error: 'Note not found' });
     res.json({ note });
   } catch (err) {
