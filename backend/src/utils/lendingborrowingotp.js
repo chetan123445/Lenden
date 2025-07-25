@@ -175,4 +175,42 @@ exports.sendTransactionClearedNotification = async (email, transaction, clearedB
     subject: 'Lenden Transaction Clearance Update',
     html
   });
+};
+
+exports.sendReminderEmail = async (email, transaction, daysLeft) => {
+  const nodemailer = require('nodemailer');
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS
+    }
+  });
+  const subject = daysLeft === 0
+    ? `Lenden: Today is the due date for your transaction!`
+    : `Lenden: Your transaction is due in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`;
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; background: #f8f6fa; padding: 32px; border-radius: 16px; max-width: 500px; margin: auto;">
+      <h2 style="color: #00b4d8;">Lenden Reminder</h2>
+      <p style="font-size: 18px; color: #333;">Hi <b>${transaction.counterpartyName || 'User'}</b>,</p>
+      <p style="font-size: 16px;">This is a friendly reminder that your transaction of <b>₹${transaction.amount}</b> (${transaction.type}) is due <b>${daysLeft === 0 ? 'today' : `in ${daysLeft} day${daysLeft === 1 ? '' : 's'}`}</b>.</p>
+      <ul style="font-size: 15px; color: #444;">
+        <li><b>Transaction ID:</b> ${transaction._id}</li>
+        <li><b>Counterparty:</b> ${transaction.counterpartyEmail}</li>
+        <li><b>Place:</b> ${transaction.place}</li>
+        <li><b>Expected Return Date:</b> ${transaction.expectedReturnDate ? new Date(transaction.expectedReturnDate).toLocaleDateString() : 'N/A'}</li>
+      </ul>
+      <p style="margin-top: 24px; font-size: 15px; color: #555;">Please ensure timely settlement to maintain a good record.</p>
+      <div style="margin-top: 32px; text-align: center;">
+        <a href="https://lenden.app" style="background: #00b4d8; color: #fff; padding: 12px 32px; border-radius: 24px; text-decoration: none; font-weight: bold;">Go to Lenden</a>
+      </div>
+      <p style="margin-top: 32px; font-size: 13px; color: #aaa;">This is an automated reminder from Lenden. Please do not reply to this email.</p>
+    </div>
+  `;
+  await transporter.sendMail({
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject,
+    html
+  });
 }; 
