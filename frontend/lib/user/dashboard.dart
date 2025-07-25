@@ -196,7 +196,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                               children: [
                                 Icon(Icons.swap_horiz, color: Colors.teal, size: 40),
                                 SizedBox(width: 20),
-                                Text('Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                                Text('Create Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
                               ],
                             ),
                           ),

@@ -1,16 +1,22 @@
 require('dotenv').config();
 const express = require('express');
+const app = express();
 const mongoose = require('mongoose');
 const cors = require('cors');
 const cron = require('node-cron');
 const { sendReminderEmail } = require('./utils/lendingborrowingotp');
 const Transaction = require('./models/transaction');
 const User = require('./models/user');
+const http = require('http');
+const socketio = require('socket.io');
+const server = http.createServer(app);
+const io = socketio(server, { cors: { origin: '*' } });
+const ChatThread = require('./models/chatThread');
+const leoProfanity = require('leo-profanity');
 
 const apiRoutes = require('./routes/api');
 const Admin = require('./models/admin');
 
-const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
@@ -69,6 +75,29 @@ cron.schedule('0 8 * * *', async () => {
   }
 });
 
-app.listen(PORT, () => {
+io.on('connection', (socket) => {
+  socket.on('join', ({ transactionId }) => {
+    socket.join(transactionId);
+  });
+  socket.on('chatMessage', async ({ transactionId, senderId, content, parentId, image, imageType, imageName }) => {
+    if ((!content || leoProfanity.check(content)) && !image) return;
+    let thread = await ChatThread.findOne({ transactionId });
+    if (!thread) {
+      thread = await ChatThread.create({ transactionId, messages: [] });
+    }
+    const message = {
+      sender: senderId,
+      content: content || '',
+      parentId: parentId || null,
+      image: image ? { data: image, type: imageType, name: imageName } : undefined
+    };
+    thread.messages.push(message);
+    await thread.save();
+    const populatedMsg = await ChatThread.populate(thread.messages[thread.messages.length - 1], { path: 'sender', select: 'name email' });
+    io.to(transactionId).emit('chatMessage', populatedMsg);
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

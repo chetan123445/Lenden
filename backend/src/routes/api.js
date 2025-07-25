@@ -13,6 +13,7 @@ const upload = multer({
 });
 const transactionController = require('../controllers/transactionController');
 const analyticController = require('../controllers/analyticController');
+const chatController = require('../controllers/chatController');
 
 // User routes
 router.post('/users/register', userController.register);
@@ -49,6 +50,13 @@ router.post('/transactions/send-user-otp', transactionController.sendUserOTP);
 router.post('/transactions/verify-user-otp', transactionController.verifyUserOTP);
 router.post('/transactions/clear', transactionController.clearTransaction);
 router.get('/transactions/user', transactionController.getUserTransactions);
+router.get('/transactions/:transactionId/chat', chatController.getChat);
+router.post('/transactions/:transactionId/chat', chatController.postMessage);
+router.patch('/transactions/:transactionId/chat/:messageId/flag', chatController.flagMessage);
+router.patch('/transactions/:transactionId/chat/:messageId/react', chatController.reactMessage);
+router.patch('/transactions/:transactionId/chat/:messageId/read', chatController.readMessage);
+router.patch('/transactions/:transactionId/chat/:messageId/unflag', chatController.unflagMessage);
+router.delete('/transactions/:transactionId/chat/:messageId', chatController.deleteMessage);
 
 // Analytics routes
 router.get('/analytics/user', analyticController.getUserAnalytics);
