@@ -173,7 +173,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     final exists = await _checkUserExists(email);
     if (!exists) {
       setState(() { 
-        memberAddError = 'This user does not exist, cannot add to group.'; 
+        memberAddError = 'User with email "$email" does not exist in our database. Please check the email address.'; 
         _memberEmailController.clear();
       });
       return;
@@ -183,7 +183,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
     if (email.toLowerCase() == (currentUserEmail ?? '').toLowerCase()) {
       setState(() { 
-        memberAddError = 'You (group creator) are already in the group.'; 
+        memberAddError = 'You (group creator) are already a member of this group.'; 
         _memberEmailController.clear();
       });
       return;
@@ -196,7 +196,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     
     if (isAlreadyMember) {
       setState(() { 
-        memberAddError = 'This user is already a member of the group.'; 
+        memberAddError = 'User "$email" is already a member of this group.'; 
         _memberEmailController.clear();
       });
       return;
@@ -217,13 +217,17 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           _memberEmailController.clear();
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Member added successfully')),
+          SnackBar(
+            content: Text('✅ Member "$email" added successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
         );
       } else {
-        setState(() { memberAddError = data['error'] ?? 'Failed to add member'; });
+        setState(() { memberAddError = data['error'] ?? 'Failed to add member. Please try again.'; });
       }
     } catch (e) {
-      setState(() { memberAddError = e.toString(); });
+      setState(() { memberAddError = 'Network error. Please check your connection and try again.'; });
     } finally {
       setState(() { loading = false; });
     }
@@ -1342,6 +1346,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   void _showExpensesDialog(List<Map<String, dynamic>> expenses) {
+    // Get members from the current group
+    final members = (group?['members'] ?? []).cast<Map<String, dynamic>>();
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1434,7 +1441,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     ),
                   )
                 else
-                  ...expenses.take(3).map<Widget>((expense) {
+                  ...expenses.map<Widget>((expense) {
                     return Container(
                       margin: EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(
@@ -1487,16 +1494,101 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 fontSize: 12,
                               ),
                             ),
-                            if (expense['createdAt'] != null)
-                              Text(
-                                'Date: ${expense['createdAt'].toString().substring(0, 10)}',
-                                style: TextStyle(
-                                  color: Colors.grey[500],
-                                  fontSize: 11,
+                            if (expense['createdAt'] != null || expense['date'] != null)
+                              Row(
+                                children: [
+                                  Icon(Icons.access_time, color: Colors.grey[500], size: 12),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Created: ${_formatDateTime(expense['createdAt'] ?? expense['date'])}',
+                                    style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            // Show split details
+                            if (expense['split'] != null && expense['split'].isNotEmpty)
+                              Container(
+                                margin: EdgeInsets.only(top: 8),
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Color(0xFF1E3A8A).withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.people_outline, color: Color(0xFF1E3A8A), size: 16),
+                                        SizedBox(width: 4),
+                                        Text(
+                                          'Split Details:',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF1E3A8A),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 4),
+                                    Container(
+                                      constraints: BoxConstraints(maxHeight: 120),
+                                      child: SingleChildScrollView(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: (expense['split'] as List).map<Widget>((splitItem) {
+                                            final member = members.firstWhere(
+                                              (m) => m['_id'] == splitItem['user'],
+                                              orElse: () => {'email': 'Unknown User'},
+                                            );
+                                            return Padding(
+                                              padding: EdgeInsets.only(bottom: 2),
+                                              child: Row(
+                                                children: [
+                                                  Text(
+                                                    '• ${member['email']}: ',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    '\$${splitItem['amount'].toStringAsFixed(2)}',
+                                                    style: TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: Colors.green[700],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                           ],
                         ),
+                        trailing: isCreator
+                            ? IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  _showDeleteExpenseDialog(
+                                    expense['_id'],
+                                    expense['description'] ?? 'Unknown',
+                                  );
+                                },
+                              )
+                            : null,
                       ),
                     );
                   }).toList(),
@@ -2242,7 +2334,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
               )
             else
-              ...expenses.take(3).map<Widget>((expense) {
+              ...expenses.map<Widget>((expense) {
                 return Container(
                   margin: EdgeInsets.only(bottom: 8),
                   decoration: BoxDecoration(
@@ -2295,16 +2387,101 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             fontSize: 12,
                           ),
                         ),
-                        if (expense['createdAt'] != null)
-                          Text(
-                            'Date: ${expense['createdAt'].toString().substring(0, 10)}',
-                            style: TextStyle(
-                              color: Colors.grey[500],
-                              fontSize: 11,
+                        if (expense['createdAt'] != null || expense['date'] != null)
+                          Row(
+                            children: [
+                              Icon(Icons.access_time, color: Colors.grey[500], size: 12),
+                              SizedBox(width: 4),
+                              Text(
+                                'Created: ${_formatDateTime(expense['createdAt'] ?? expense['date'])}',
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        // Show split details
+                        if (expense['split'] != null && expense['split'].isNotEmpty)
+                          Container(
+                            margin: EdgeInsets.only(top: 8),
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Color(0xFF1E3A8A).withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.people_outline, color: Color(0xFF1E3A8A), size: 16),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Split Details:',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF1E3A8A),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 4),
+                                Container(
+                                  constraints: BoxConstraints(maxHeight: 120),
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: (expense['split'] as List).map<Widget>((splitItem) {
+                                        final member = members.firstWhere(
+                                          (m) => m['_id'] == splitItem['user'],
+                                          orElse: () => {'email': 'Unknown User'},
+                                        );
+                                        return Padding(
+                                          padding: EdgeInsets.only(bottom: 2),
+                                          child: Row(
+                                            children: [
+                                              Text(
+                                                '• ${member['email']}: ',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                              Text(
+                                                '\$${splitItem['amount'].toStringAsFixed(2)}',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.green[700],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                       ],
                     ),
+                    trailing: isCreator
+                        ? IconButton(
+                            icon: Icon(Icons.delete, color: Colors.red),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              _showDeleteExpenseDialog(
+                                expense['_id'],
+                                expense['description'] ?? 'Unknown',
+                              );
+                            },
+                          )
+                        : null,
                   ),
                 );
               }).toList(),
@@ -2323,55 +2500,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             SizedBox(height: 24),
             ElevatedButton(
               onPressed: addingExpense ? null : () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                    title: Text('Add Expense'),
-                    content: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: _expenseDescController,
-                          decoration: InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
-                        ),
-                        SizedBox(height: 12),
-                        TextField(
-                          controller: _expenseAmountController,
-                          decoration: InputDecoration(labelText: 'Amount', border: OutlineInputBorder()),
-                          keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        ),
-                        SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          value: splitType,
-                          items: [
-                            DropdownMenuItem(value: 'equal', child: Text('Split Equally')),
-                            DropdownMenuItem(value: 'custom', child: Text('Split By Yourself')),
-                          ],
-                          onChanged: (v) => setState(() => splitType = v ?? 'equal'),
-                          decoration: InputDecoration(
-                            labelText: 'Split Type',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        if (splitType == 'custom')
-                          Text('Custom split UI here (not implemented)'),
-                        if (expenseError != null)
-                          Text(expenseError!, style: TextStyle(color: Colors.red)),
-                      ],
-                    ),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel')),
-                      ElevatedButton(
-                        onPressed: addingExpense ? null : () async {
-                          await _addExpense();
-                          Navigator.pop(context);
-                        },
-                        child: addingExpense ? CircularProgressIndicator() : Text('Add'),
-                      ),
-                    ],
-                  ),
-                );
+                _showAddExpenseDialog();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF00B4D8),
@@ -2450,7 +2579,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ),
         ),
         content: Container(
-          padding: EdgeInsets.symmetric(vertical: 8),
+          padding: EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -2458,16 +2587,16 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Color(0xFFDC2626).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Color(0xFFDC2626).withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Color(0xFFDC2626), size: 24),
+                    Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 24),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Are you sure you want to delete the expense "$description"?',
+                        'Are you sure you want to delete this expense?',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -2482,24 +2611,17 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               Container(
                 padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Color(0xFFFECACA)),
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey[300]!),
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'This action cannot be undone.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFFDC2626),
-                        ),
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  '"$description"',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             ],
@@ -2509,53 +2631,47 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           Row(
             children: [
               Expanded(
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Color(0xFF1E3A8A)),
+                child: Container(
+                  margin: EdgeInsets.only(left: 16, right: 8),
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[300],
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: EdgeInsets.symmetric(vertical: 12),
                     ),
-                  ),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(
-                      color: Color(0xFF1E3A8A),
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
               ),
-              SizedBox(width: 12),
               Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _deleteExpense(expenseId);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFDC2626),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    elevation: 4,
-                    shadowColor: Color(0xFFDC2626).withOpacity(0.3),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.delete, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Delete',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                child: Container(
+                  margin: EdgeInsets.only(left: 8, right: 16),
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.of(context).pop();
+                      await _deleteExpense(expenseId);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFFDC2626),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: Text(
+                      'Delete',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),
@@ -2564,6 +2680,365 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         ],
       ),
     );
+  }
+
+  void _showAddExpenseDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.add_circle_outline, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Add New Expense',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF1E3A8A).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Add expense details and choose split type',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF1E3A8A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 20),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: _expenseDescController,
+                    decoration: InputDecoration(
+                      labelText: 'Expense Description',
+                      labelStyle: TextStyle(
+                        color: Color(0xFF1E3A8A),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      prefixIcon: Icon(Icons.description, color: Color(0xFF1E3A8A)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: TextField(
+                    controller: _expenseAmountController,
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Amount (\$)',
+                      labelStyle: TextStyle(
+                        color: Color(0xFF1E3A8A),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      prefixIcon: Icon(Icons.attach_money, color: Color(0xFF1E3A8A)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                    ),
+                  ),
+                ),
+                SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: DropdownButtonFormField<String>(
+                    value: splitType,
+                    items: [
+                      DropdownMenuItem(
+                        value: 'equal',
+                        child: Row(
+                          children: [
+                            Icon(Icons.equalizer, color: Color(0xFF1E3A8A)),
+                            SizedBox(width: 8),
+                            Text('Split Equally'),
+                          ],
+                        ),
+                      ),
+                      DropdownMenuItem(
+                        value: 'custom',
+                        child: Row(
+                          children: [
+                            Icon(Icons.person_outline, color: Color(0xFF1E3A8A)),
+                            SizedBox(width: 8),
+                            Text('Custom Split'),
+                          ],
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) => setState(() => splitType = v ?? 'equal'),
+                    decoration: InputDecoration(
+                      labelText: 'Split Type',
+                      labelStyle: TextStyle(
+                        color: Color(0xFF1E3A8A),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      prefixIcon: Icon(Icons.share, color: Color(0xFF1E3A8A)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                    ),
+                  ),
+                ),
+                if (splitType == 'custom')
+                  Container(
+                    margin: EdgeInsets.only(top: 16),
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Color(0xFF1E3A8A).withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Custom split feature will be implemented in the next update',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF1E3A8A),
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (expenseError != null)
+                  Container(
+                    margin: EdgeInsets.only(top: 16),
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.red[300]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            expenseError!,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.red[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(left: 16, right: 8),
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.grey[300],
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(left: 8, right: 16),
+                  child: ElevatedButton(
+                    onPressed: addingExpense ? null : () async {
+                      await _addExpense();
+                      Navigator.of(context).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF1E3A8A),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: addingExpense
+                        ? SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            'Add Expense',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper function to format date and time
+  String _formatDateTime(dynamic dateTime) {
+    if (dateTime == null) return 'Unknown';
+    
+    try {
+      DateTime date;
+      if (dateTime is String) {
+        date = DateTime.parse(dateTime);
+      } else if (dateTime is DateTime) {
+        date = dateTime;
+      } else {
+        return 'Invalid date';
+      }
+      
+      // Format: "Dec 15, 2023 at 2:30 PM"
+      String month = _getMonthName(date.month);
+      String day = date.day.toString();
+      String year = date.year.toString();
+      String hour = date.hour > 12 ? (date.hour - 12).toString() : date.hour.toString();
+      if (hour == '0') hour = '12';
+      String minute = date.minute.toString().padLeft(2, '0');
+      String period = date.hour >= 12 ? 'PM' : 'AM';
+      
+      return '$month $day, $year at $hour:$minute $period';
+    } catch (e) {
+      return 'Invalid date';
+    }
+  }
+  
+  String _getMonthName(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return months[month - 1];
   }
 }
 

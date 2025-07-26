@@ -3,6 +3,25 @@ const User = require('../models/user');
 const { sendGroupSettleOtp } = require('../utils/groupSettleOtp');
 const mongoose = require('mongoose');
 
+// Helper function to process expenses and convert Object IDs to emails in addedBy field
+async function processExpenses(expenses) {
+  return await Promise.all((expenses || []).map(async expense => {
+    if (expense.addedBy && typeof expense.addedBy === 'string' && expense.addedBy.length === 24) {
+      // This is likely an Object ID, try to find the user and get their email
+      try {
+        const User = require('../models/user');
+        const user = await User.findById(expense.addedBy);
+        if (user) {
+          return { ...expense, addedBy: user.email };
+        }
+      } catch (err) {
+        console.log('Error finding user for expense:', err.message);
+      }
+    }
+    return expense;
+  }));
+}
+
 // Helper: check if all userIds exist in User collection
 async function validateUsers(userIds) {
   const count = await User.countDocuments({ _id: { $in: userIds } });
@@ -195,6 +214,10 @@ exports.addExpense = async (req, res) => {
       .populate('members.user', 'email')
       .populate('creator', 'email');
     const groupObj = populatedGroup.toObject();
+    
+    // Process expenses to convert Object IDs to emails in addedBy field
+    const processedExpenses = await processExpenses(groupObj.expenses);
+    
     groupObj.members = groupObj.members.map(m => ({
       _id: m.user._id,
       email: m.user.email,
@@ -205,6 +228,8 @@ exports.addExpense = async (req, res) => {
       _id: groupObj.creator._id,
       email: groupObj.creator.email
     };
+    groupObj.expenses = processedExpenses;
+    
     res.json({ group: groupObj });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -289,9 +314,14 @@ exports.getUserGroups = async (req, res) => {
       .populate('members.user', 'email')
       .populate('creator', 'email')
       .sort({ createdAt: -1 });
+    
     // Map to summary format
-    const groupSummaries = groups.map(g => {
+    const groupSummaries = await Promise.all(groups.map(async g => {
       const obj = g.toObject();
+      
+      // Process expenses to convert Object IDs to emails in addedBy field
+      const processedExpenses = await processExpenses(obj.expenses);
+      
       return {
         _id: obj._id,
         title: obj.title,
@@ -302,13 +332,14 @@ exports.getUserGroups = async (req, res) => {
           joinedAt: m.joinedAt,
           leftAt: m.leftAt
         })),
-        expenses: obj.expenses || [],
+        expenses: processedExpenses,
         balances: obj.balances || [],
         color: obj.color,
         createdAt: obj.createdAt,
         updatedAt: obj.updatedAt
       };
-    });
+    }));
+    
     res.json({ groups: groupSummaries });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -328,6 +359,10 @@ exports.updateGroupColor = async (req, res) => {
       .populate('members.user', 'email')
       .populate('creator', 'email');
     const groupObj = populatedGroup.toObject();
+    
+    // Process expenses to convert Object IDs to emails in addedBy field
+    const processedExpenses = await processExpenses(groupObj.expenses);
+    
     groupObj.members = groupObj.members.map(m => ({
       _id: m.user._id,
       email: m.user.email,
@@ -338,6 +373,8 @@ exports.updateGroupColor = async (req, res) => {
       _id: groupObj.creator._id,
       email: groupObj.creator.email
     };
+    groupObj.expenses = processedExpenses;
+    
     res.json({ group: groupObj });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -395,6 +432,10 @@ exports.leaveGroup = async (req, res) => {
       .populate('members.user', 'email')
       .populate('creator', 'email');
     const groupObj = populatedGroup.toObject();
+    
+    // Process expenses to convert Object IDs to emails in addedBy field
+    const processedExpenses = await processExpenses(groupObj.expenses);
+    
     groupObj.members = groupObj.members.map(m => ({
       _id: m.user._id,
       email: m.user.email,
@@ -405,6 +446,8 @@ exports.leaveGroup = async (req, res) => {
       _id: groupObj.creator._id,
       email: groupObj.creator.email
     };
+    groupObj.expenses = processedExpenses;
+    
     res.json({ group: groupObj });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -431,6 +474,10 @@ exports.deleteExpense = async (req, res) => {
       .populate('members.user', 'email')
       .populate('creator', 'email');
     const groupObj = populatedGroup.toObject();
+    
+    // Process expenses to convert Object IDs to emails in addedBy field
+    const processedExpenses = await processExpenses(groupObj.expenses);
+    
     groupObj.members = groupObj.members.map(m => ({
       _id: m.user._id,
       email: m.user.email,
@@ -441,6 +488,8 @@ exports.deleteExpense = async (req, res) => {
       _id: groupObj.creator._id,
       email: groupObj.creator.email
     };
+    groupObj.expenses = processedExpenses;
+    
     res.json({ group: groupObj });
   } catch (err) {
     res.status(500).json({ error: err.message });
