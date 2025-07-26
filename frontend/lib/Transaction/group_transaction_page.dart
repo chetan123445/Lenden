@@ -78,7 +78,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     return false;
   }
 
-  void _addMemberEmail() async {
+  Future<void> _addMemberEmail() async {
     final email = _memberEmailController.text.trim();
     if (email.isEmpty) return;
     
@@ -166,13 +166,49 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   Future<void> _addMember() async {
     if (_memberEmailController.text.trim().isEmpty) return;
-    setState(() { loading = true; error = null; });
+    
+    final email = _memberEmailController.text.trim();
+    
+    // Check if user exists before adding
+    final exists = await _checkUserExists(email);
+    if (!exists) {
+      setState(() { 
+        memberAddError = 'This user does not exist, cannot add to group.'; 
+        _memberEmailController.clear();
+      });
+      return;
+    }
+    
+    // Check if trying to add the group creator (current user)
+    final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
+    if (email.toLowerCase() == (currentUserEmail ?? '').toLowerCase()) {
+      setState(() { 
+        memberAddError = 'You (group creator) are already in the group.'; 
+        _memberEmailController.clear();
+      });
+      return;
+    }
+    
+    // Check if user is already a member
+    final members = (group?['members'] ?? []).cast<Map<String, dynamic>>();
+    final isAlreadyMember = members.any((member) => 
+        (member['email'] ?? '').toLowerCase() == email.toLowerCase());
+    
+    if (isAlreadyMember) {
+      setState(() { 
+        memberAddError = 'This user is already a member of the group.'; 
+        _memberEmailController.clear();
+      });
+      return;
+    }
+    
+    setState(() { loading = true; memberAddError = null; });
     try {
       final headers = await _authHeaders(context);
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
         headers: headers,
-        body: json.encode({'email': _memberEmailController.text.trim()}),
+        body: json.encode({'email': email}),
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -180,11 +216,14 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           group = data['group'];
           _memberEmailController.clear();
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Member added successfully')),
+        );
       } else {
-        setState(() { error = data['error'] ?? 'Failed to add member'; });
+        setState(() { memberAddError = data['error'] ?? 'Failed to add member'; });
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() { memberAddError = e.toString(); });
     } finally {
       setState(() { loading = false; });
     }
@@ -391,6 +430,1104 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       }
     } catch (_) {}
     setState(() { loading = false; });
+  }
+
+  void _showMembersDialog(List<Map<String, dynamic>> members, Map<String, dynamic>? creator) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.people, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Group Members',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          width: double.maxFinite,
+          height: 400,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF1E3A8A).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Total Members: ${members.length}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E3A8A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+                if (creator != null)
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Color(0xFF059669).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Color(0xFF059669).withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.star, color: Color(0xFF059669), size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Creator: ${creator['email'] ?? ''}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF059669),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                SizedBox(height: 16),
+                ...members.map<Widget>((member) {
+                  final isCreator = creator != null && member['email'] == creator['email'];
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: isCreator ? Color(0xFF059669).withOpacity(0.1) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isCreator ? Color(0xFF059669).withOpacity(0.3) : Color(0xFF1E3A8A).withOpacity(0.2),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: isCreator 
+                          ? Color(0xFF059669)
+                          : Color(0xFF1E3A8A),
+                        child: Text(
+                          () {
+                            final email = member['email'] ?? '';
+                            return email.isNotEmpty ? email[0].toUpperCase() : '?';
+                          }(),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        member['email'] ?? '',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E3A8A),
+                        ),
+                      ),
+                      subtitle: Text(
+                        isCreator 
+                          ? 'Group Creator' 
+                          : 'Joined: ${member['joinedAt'] != null ? member['joinedAt'].toString().substring(0, 10) : ''}',
+                        style: TextStyle(
+                          color: isCreator ? Color(0xFF059669) : Colors.grey[600],
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: isCreator 
+                        ? Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Color(0xFF059669),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'CREATOR',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          )
+                        : IconButton(
+                            icon: Icon(Icons.person_remove, color: Color(0xFFDC2626)),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              _showRemoveMemberDialog(member['email'] ?? '');
+                            },
+                          ),
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF1E3A8A),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddMemberDialog() {
+    // Clear any previous errors when opening dialog
+    setState(() { memberAddError = null; });
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.person_add, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Add New Member',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: memberAddError != null 
+                      ? Color(0xFFDC2626).withOpacity(0.5)
+                      : Color(0xFF1E3A8A).withOpacity(0.3)
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: _memberEmailController,
+                  decoration: InputDecoration(
+                    labelText: 'Email Address',
+                    labelStyle: TextStyle(
+                      color: memberAddError != null 
+                        ? Color(0xFFDC2626)
+                        : Color(0xFF1E3A8A)
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: memberAddError != null 
+                      ? Color(0xFFDC2626).withOpacity(0.05)
+                      : Color(0xFF1E3A8A).withOpacity(0.05),
+                    prefixIcon: Icon(
+                      Icons.email, 
+                      color: memberAddError != null 
+                        ? Color(0xFFDC2626)
+                        : Color(0xFF1E3A8A)
+                    ),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    errorText: memberAddError,
+                    errorStyle: TextStyle(
+                      color: Color(0xFFDC2626),
+                      fontSize: 12,
+                    ),
+                  ),
+                  onChanged: (value) {
+                    // Clear error when user starts typing
+                    if (memberAddError != null) {
+                      setState(() { memberAddError = null; });
+                    }
+                  },
+                ),
+              ),
+              SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: loading ? null : () async {
+                    await _addMember();
+                    if (memberAddError == null) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF1E3A8A),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    elevation: 4,
+                    shadowColor: Color(0xFF1E3A8A).withOpacity(0.3),
+                  ),
+                  child: loading 
+                    ? SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.person_add, color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Add Member',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ).then((_) {
+      // Clear error when dialog is closed
+      setState(() { memberAddError = null; });
+    });
+  }
+
+  Future<void> _deleteGroup() async {
+    setState(() { loading = true; error = null; });
+    try {
+      final headers = await _authHeaders(context);
+      final res = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}'),
+        headers: headers,
+      );
+      final data = json.decode(res.body);
+      if (res.statusCode == 200) {
+        setState(() { group = null; });
+        _fetchUserGroups();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Group deleted successfully')),
+        );
+      } else {
+        setState(() { error = data['error'] ?? 'Failed to delete group'; });
+      }
+    } catch (e) {
+      setState(() { error = e.toString(); });
+    } finally {
+      setState(() { loading = false; });
+    }
+  }
+
+  Future<void> _leaveGroup() async {
+    setState(() { loading = true; error = null; });
+    try {
+      final headers = await _authHeaders(context);
+      final res = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/leave'),
+        headers: headers,
+      );
+      final data = json.decode(res.body);
+      if (res.statusCode == 200) {
+        setState(() { group = null; });
+        _fetchUserGroups();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Left group successfully')),
+        );
+      } else {
+        setState(() { error = data['error'] ?? 'Failed to leave group'; });
+      }
+    } catch (e) {
+      setState(() { error = e.toString(); });
+    } finally {
+      setState(() { loading = false; });
+    }
+  }
+
+  Future<void> _removeMember(String email) async {
+    setState(() { loading = true; error = null; });
+    try {
+      final headers = await _authHeaders(context);
+      final res = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
+        headers: headers,
+        body: json.encode({'email': email}),
+      );
+      final data = json.decode(res.body);
+      if (res.statusCode == 200) {
+        setState(() { group = data['group']; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Member removed successfully')),
+        );
+      } else {
+        setState(() { error = data['error'] ?? 'Failed to remove member'; });
+      }
+    } catch (e) {
+      setState(() { error = e.toString(); });
+    } finally {
+      setState(() { loading = false; });
+    }
+  }
+
+  Future<void> _deleteExpense(String expenseId) async {
+    setState(() { loading = true; error = null; });
+    try {
+      final headers = await _authHeaders(context);
+      final res = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId'),
+        headers: headers,
+      );
+      final data = json.decode(res.body);
+      if (res.statusCode == 200) {
+        setState(() { group = data['group']; });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Expense deleted successfully')),
+        );
+      } else {
+        setState(() { error = data['error'] ?? 'Failed to delete expense'; });
+      }
+    } catch (e) {
+      setState(() { error = e.toString(); });
+    } finally {
+      setState(() { loading = false; });
+    }
+  }
+
+  void _showDeleteGroupDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFDC2626), Color(0xFFEF4444)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Delete Group',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFFDC2626).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Color(0xFFDC2626).withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFFDC2626), size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Are you sure you want to delete this group?',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Color(0xFFFECACA)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This action cannot be undone. All group data will be permanently deleted.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Color(0xFF1E3A8A)),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Color(0xFF1E3A8A),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _deleteGroup();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFDC2626),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    elevation: 4,
+                    shadowColor: Color(0xFFDC2626).withOpacity(0.3),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.delete, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Delete',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLeaveGroupDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.exit_to_app, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Leave Group',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFFF59E0B).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Color(0xFFF59E0B).withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFFF59E0B), size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Are you sure you want to leave this group?',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFF59E0B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Color(0xFFFED7AA)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_outlined, color: Color(0xFFF59E0B), size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'You will no longer have access to this group and its expenses.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFFF59E0B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Color(0xFF1E3A8A)),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Color(0xFF1E3A8A),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _leaveGroup();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFF59E0B),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    elevation: 4,
+                    shadowColor: Color(0xFFF59E0B).withOpacity(0.3),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.exit_to_app, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Leave',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRemoveMemberDialog(String email) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFDC2626), Color(0xFFEF4444)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.person_remove, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Remove Member',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFFDC2626).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Color(0xFFDC2626).withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFFDC2626), size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Are you sure you want to remove this member?',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Color(0xFF1E3A8A).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.email, color: Color(0xFF1E3A8A), size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Member: $email',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E3A8A),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Color(0xFFFECACA)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This action cannot be undone.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Color(0xFF1E3A8A)),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Color(0xFF1E3A8A),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _removeMember(email);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFDC2626),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    elevation: 4,
+                    shadowColor: Color(0xFFDC2626).withOpacity(0.3),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.person_remove, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Remove',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExpensesDialog(List<Map<String, dynamic>> expenses) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.receipt_long, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Group Expenses',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          width: double.maxFinite,
+          height: 400,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF1E3A8A).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Total Expenses: ${expenses.length}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1E3A8A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+                if (expenses.isEmpty)
+                  Container(
+                    padding: EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.receipt_long, color: Colors.grey, size: 48),
+                          SizedBox(height: 8),
+                          Text(
+                            'No expenses yet',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Text(
+                            'Add your first expense to get started',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  ...expenses.take(3).map<Widget>((expense) {
+                    return Container(
+                      margin: EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Color(0xFF1E3A8A).withOpacity(0.2),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ListTile(
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        leading: CircleAvatar(
+                          radius: 20,
+                          backgroundColor: Color(0xFF1E3A8A),
+                          child: Icon(
+                            Icons.receipt,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        title: Text(
+                          expense['description'] ?? 'No description',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                              style: TextStyle(
+                                color: Colors.green[700],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'Added by: ${expense['addedBy'] ?? 'Unknown'}',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
+                            ),
+                            if (expense['createdAt'] != null)
+                              Text(
+                                'Date: ${expense['createdAt'].toString().substring(0, 10)}',
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 11,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF1E3A8A),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -918,9 +2055,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   Widget _buildGroupDetailsCard() {
-    final members = group?['members'] ?? [];
+    final members = (group?['members'] ?? []).cast<Map<String, dynamic>>();
     final creator = group?['creator'];
-    final expenses = group?['expenses'] ?? [];
+    final expenses = (group?['expenses'] ?? []).cast<Map<String, dynamic>>();
     final groupColor = group?['color'] != null
         ? Color(int.parse(group!['color'].toString().replaceFirst('#', '0xff')))
         : Colors.blue.shade300;
@@ -1000,49 +2137,190 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       child: Icon(Icons.edit, color: Colors.white, size: 18),
                     ),
                   ),
+                if (isCreator)
+                  SizedBox(width: 8),
+                if (isCreator)
+                  GestureDetector(
+                    onTap: loading ? null : _showDeleteGroupDialog,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: Color(0xFFDC2626),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Color(0xFFDC2626).withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Icon(Icons.delete, color: Colors.white, size: 18),
+                    ),
+                  ),
               ],
             ),
             SizedBox(height: 16),
             Text('Members:', style: TextStyle(fontWeight: FontWeight.bold)),
-            Wrap(
-              spacing: 8,
+            SizedBox(height: 8),
+            Row(
               children: [
-                if (creator != null) Chip(
-                  label: Text('${creator['email'] ?? ''} (Group Creator)'),
-                  backgroundColor: Colors.blue.shade100,
-                ),
-                ...members.where((m) => (creator == null || m['email'] != creator['email']) && m['email'] != null).map<Widget>((m) => Chip(
-                  label: Text(m['email'] as String),
-                )),
-              ],
-            ),
-            if (isCreator)
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _memberEmailController,
-                      decoration: InputDecoration(hintText: 'Add member by email', border: OutlineInputBorder()),
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: loading ? null : _addMember,
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showMembersDialog(members, creator),
+                    icon: Icon(Icons.people, color: Colors.white),
+                    label: Text('View Members (${members.length})', style: TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
+                      backgroundColor: Colors.blue,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: Icon(Icons.add, color: Colors.white),
                   ),
-                ],
+                ),
+                SizedBox(width: 12),
+                if (isCreator)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showAddMemberDialog(),
+                      icon: Icon(Icons.person_add, color: Colors.white),
+                      label: Text('Add Member', style: TextStyle(color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            SizedBox(height: 24),
+            Row(
+              children: [
+                Text('Expenses:', style: TextStyle(fontWeight: FontWeight.bold)),
+                Spacer(),
+                ElevatedButton.icon(
+                  onPressed: () => _showExpensesDialog(expenses),
+                  icon: Icon(Icons.receipt_long, color: Colors.white, size: 18),
+                  label: Text('View All (${expenses.length})', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF1E3A8A),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 8),
+            if (expenses.isEmpty)
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.receipt_long, color: Colors.grey, size: 48),
+                      SizedBox(height: 8),
+                      Text(
+                        'No expenses yet',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Text(
+                        'Add your first expense to get started',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[500],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ...expenses.take(3).map<Widget>((expense) {
+                return Container(
+                  margin: EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Color(0xFF1E3A8A).withOpacity(0.2),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ListTile(
+                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    leading: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Color(0xFF1E3A8A),
+                      child: Icon(
+                        Icons.receipt,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      expense['description'] ?? 'No description',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1E3A8A),
+                      ),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Added by: ${expense['addedBy'] ?? 'Unknown'}',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (expense['createdAt'] != null)
+                          Text(
+                            'Date: ${expense['createdAt'].toString().substring(0, 10)}',
+                            style: TextStyle(
+                              color: Colors.grey[500],
+                              fontSize: 11,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            if (expenses.length > 3)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  '... and ${expenses.length - 3} more expenses',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ),
             SizedBox(height: 24),
-            Text('Expenses:', style: TextStyle(fontWeight: FontWeight.bold)),
-            ...expenses.map<Widget>((e) => ListTile(
-              title: Text(e['description'] ?? ''),
-              subtitle: Text('Amount: ${e['amount']} | Added by: ${e['addedBy']}'),
-            )),
-            SizedBox(height: 16),
             ElevatedButton(
               onPressed: addingExpense ? null : () {
                 showDialog(
@@ -1103,15 +2381,32 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               child: Text('Add Expense', style: TextStyle(fontSize: 18, color: Colors.white)),
             ),
             SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: loading ? null : _requestLeave,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red[100],
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                padding: EdgeInsets.symmetric(vertical: 16),
+            if (!isCreator)
+              ElevatedButton(
+                onPressed: loading ? null : _showLeaveGroupDialog,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFFF59E0B),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  elevation: 4,
+                  shadowColor: Color(0xFFF59E0B).withOpacity(0.3),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.exit_to_app, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Leave Group',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Text('Settle/Leave Group', style: TextStyle(fontSize: 18, color: Colors.red[800])),
-            ),
             if (error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -1119,6 +2414,154 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeleteExpenseDialog(String expenseId, String description) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFDC2626), Color(0xFFEF4444)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Delete Expense',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFFDC2626).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Color(0xFFDC2626).withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFFDC2626), size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Are you sure you want to delete the expense "$description"?',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Color(0xFFFECACA)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This action cannot be undone.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Color(0xFF1E3A8A)),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Color(0xFF1E3A8A),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _deleteExpense(expenseId);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFDC2626),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    elevation: 4,
+                    shadowColor: Color(0xFFDC2626).withOpacity(0.3),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.delete, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Delete',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

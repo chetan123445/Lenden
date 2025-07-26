@@ -72,6 +72,7 @@ router.post('/group-transactions', auth, groupTransactionController.createGroup)
 router.post('/group-transactions/:groupId/add-member', auth, groupTransactionController.addMember);
 router.post('/group-transactions/:groupId/remove-member', auth, groupTransactionController.removeMember);
 router.post('/group-transactions/:groupId/add-expense', auth, groupTransactionController.addExpense);
+router.delete('/group-transactions/:groupId/expenses/:expenseId', auth, groupTransactionController.deleteExpense);
 router.post('/group-transactions/:groupId/request-leave', auth, groupTransactionController.requestLeave);
 router.post('/group-transactions/:groupId/settle-balance', auth, groupTransactionController.settleBalance);
 router.post('/group-transactions/:groupId/otp-verify-settle', auth, groupTransactionController.otpVerifySettle);
@@ -79,6 +80,10 @@ router.post('/group-transactions/:groupId/otp-verify-settle', auth, groupTransac
 router.get('/group-transactions/user-groups', auth, groupTransactionController.getUserGroups);
 // New: Update group color
 router.put('/group-transactions/:groupId/color', auth, groupTransactionController.updateGroupColor);
+// New: Delete group (creator only)
+router.delete('/group-transactions/:groupId', auth, groupTransactionController.deleteGroup);
+// New: Leave group (members only)
+router.post('/group-transactions/:groupId/leave', auth, groupTransactionController.leaveGroup);
 
 
 module.exports = router;

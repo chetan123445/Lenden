@@ -113,14 +113,44 @@ exports.removeMember = async (req, res) => {
     const group = await GroupTransaction.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
     if (group.creator.toString() !== req.user._id.toString()) return res.status(403).json({ error: 'Only creator can remove members' });
+    
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    if (!group.canRemoveMember(user._id)) return res.status(400).json({ error: 'User must settle balance before leaving' });
-    const member = group.members.find(m => m.user.toString() === user._id.toString() && !m.leftAt);
-    if (!member) return res.status(400).json({ error: 'User not a current member' });
-    member.leftAt = new Date();
+    
+    // Check if trying to remove the creator
+    if (user._id.toString() === group.creator.toString()) {
+      return res.status(400).json({ error: 'Cannot remove group creator' });
+    }
+    
+    // Check if user is a member
+    const memberIndex = group.members.findIndex(m => m.user.toString() === user._id.toString() && !m.leftAt);
+    if (memberIndex === -1) return res.status(400).json({ error: 'User is not a member of this group' });
+    
+    // Check if user has pending balances
+    const userBalance = group.balances.find(b => b.user.toString() === user._id.toString());
+    if (userBalance && userBalance.balance !== 0) {
+      return res.status(400).json({ error: 'Cannot remove member with pending balances. Please ask them to settle their balance first.' });
+    }
+    
+    // Mark member as left
+    group.members[memberIndex].leftAt = new Date();
     await group.save();
-    res.json({ group });
+    
+    const populatedGroup = await GroupTransaction.findById(group._id)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+    const groupObj = populatedGroup.toObject();
+    groupObj.members = groupObj.members.map(m => ({
+      _id: m.user._id,
+      email: m.user.email,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt
+    }));
+    groupObj.creator = {
+      _id: groupObj.creator._id,
+      email: groupObj.creator.email
+    };
+    res.json({ group: groupObj });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -133,6 +163,7 @@ exports.addExpense = async (req, res) => {
     const group = await GroupTransaction.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
     const userId = req.user._id;
+    const userEmail = req.user.email; // Get user's email
     if (!group.members.some(m => m.user.toString() === userId.toString() && !m.leftAt)) return res.status(403).json({ error: 'Not a group member' });
     if (!description || !amount || amount <= 0) return res.status(400).json({ error: 'Description and positive amount required' });
     let splitArr = [];
@@ -148,8 +179,8 @@ exports.addExpense = async (req, res) => {
     } else {
       return res.status(400).json({ error: 'Invalid split type' });
     }
-    // Add expense
-    group.expenses.push({ description, amount, addedBy: userId, date: date ? new Date(date) : new Date(), split: splitArr });
+    // Add expense with user's email instead of ID
+    group.expenses.push({ description, amount, addedBy: userEmail, date: date ? new Date(date) : new Date(), split: splitArr });
     // Update balances
     splitArr.forEach(s => {
       const bal = group.balances.find(b => b.user.toString() === s.user.toString());
@@ -158,7 +189,23 @@ exports.addExpense = async (req, res) => {
     const payerBal = group.balances.find(b => b.user.toString() === userId.toString());
     if (payerBal) payerBal.balance -= amount;
     await group.save();
-    res.json({ group });
+    
+    // Return populated group data
+    const populatedGroup = await GroupTransaction.findById(group._id)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+    const groupObj = populatedGroup.toObject();
+    groupObj.members = groupObj.members.map(m => ({
+      _id: m.user._id,
+      email: m.user.email,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt
+    }));
+    groupObj.creator = {
+      _id: groupObj.creator._id,
+      email: groupObj.creator.email
+    };
+    res.json({ group: groupObj });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -255,6 +302,9 @@ exports.getUserGroups = async (req, res) => {
           joinedAt: m.joinedAt,
           leftAt: m.leftAt
         })),
+        expenses: obj.expenses || [],
+        balances: obj.balances || [],
+        color: obj.color,
         createdAt: obj.createdAt,
         updatedAt: obj.updatedAt
       };
@@ -274,6 +324,109 @@ exports.updateGroupColor = async (req, res) => {
     if (group.creator.toString() !== req.user._id.toString()) return res.status(403).json({ error: 'Only creator can update color' });
     group.color = color || '#2196F3';
     await group.save();
+    const populatedGroup = await GroupTransaction.findById(group._id)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+    const groupObj = populatedGroup.toObject();
+    groupObj.members = groupObj.members.map(m => ({
+      _id: m.user._id,
+      email: m.user.email,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt
+    }));
+    groupObj.creator = {
+      _id: groupObj.creator._id,
+      email: groupObj.creator.email
+    };
+    res.json({ group: groupObj });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Delete group (only creator)
+exports.deleteGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const group = await GroupTransaction.findById(groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+    if (group.creator.toString() !== req.user._id.toString()) return res.status(403).json({ error: 'Only creator can delete group' });
+    
+    // Check if any member has pending balances
+    const hasPendingBalances = group.balances.some(b => b.balance !== 0);
+    if (hasPendingBalances) {
+      return res.status(400).json({ error: 'Cannot delete group with pending balances. Please settle all balances first.' });
+    }
+    
+    await GroupTransaction.findByIdAndDelete(groupId);
+    res.json({ message: 'Group deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Leave group (members only, not creator)
+exports.leaveGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const group = await GroupTransaction.findById(groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+    
+    // Check if user is the creator
+    if (group.creator.toString() === req.user._id.toString()) {
+      return res.status(400).json({ error: 'Group creator cannot leave. Use delete group instead.' });
+    }
+    
+    // Check if user is a member
+    const memberIndex = group.members.findIndex(m => m.user.toString() === req.user._id.toString() && !m.leftAt);
+    if (memberIndex === -1) return res.status(400).json({ error: 'You are not a member of this group' });
+    
+    // Check if user has pending balances
+    const userBalance = group.balances.find(b => b.user.toString() === req.user._id.toString());
+    if (userBalance && userBalance.balance !== 0) {
+      return res.status(400).json({ error: 'Cannot leave group with pending balances. Please settle your balance first.' });
+    }
+    
+    // Mark member as left
+    group.members[memberIndex].leftAt = new Date();
+    await group.save();
+    
+    const populatedGroup = await GroupTransaction.findById(group._id)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+    const groupObj = populatedGroup.toObject();
+    groupObj.members = groupObj.members.map(m => ({
+      _id: m.user._id,
+      email: m.user.email,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt
+    }));
+    groupObj.creator = {
+      _id: groupObj.creator._id,
+      email: groupObj.creator.email
+    };
+    res.json({ group: groupObj });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}; 
+
+// Delete expense (only creator)
+exports.deleteExpense = async (req, res) => {
+  try {
+    const { groupId, expenseId } = req.params;
+    const group = await GroupTransaction.findById(groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+    if (group.creator.toString() !== req.user._id.toString()) return res.status(403).json({ error: 'Only creator can delete expenses' });
+    
+    // Find and remove the expense
+    const expenseIndex = group.expenses.findIndex(e => e._id.toString() === expenseId);
+    if (expenseIndex === -1) return res.status(404).json({ error: 'Expense not found' });
+    
+    // Remove the expense
+    group.expenses.splice(expenseIndex, 1);
+    await group.save();
+    
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
       .populate('creator', 'email');
