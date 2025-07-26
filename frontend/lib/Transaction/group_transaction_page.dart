@@ -4,6 +4,7 @@ import 'dart:convert';
 import '../api_config.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 class GroupTransactionPage extends StatefulWidget {
   const GroupTransactionPage({Key? key}) : super(key: key);
@@ -35,8 +36,17 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   String? expenseError;
 
   List<Map<String, dynamic>> userGroups = [];
+  List<Map<String, dynamic>> filteredGroups = [];
   bool groupsLoading = true;
   bool showCreateGroupForm = false;
+  String groupSearchQuery = '';
+  String groupFilter = 'all'; // all, created, member
+  String groupSort = 'newest'; // newest, oldest, name_az, name_za, members_high, members_low
+  String memberCountFilter = 'all'; // all, 2-5, 6-10, 10+
+  String dateFilter = 'all'; // all, 7days, 30days, custom
+  DateTime? customStartDate;
+  DateTime? customEndDate;
+  Color? selectedGroupColor; // for group color customization
 
   @override
   void initState() {
@@ -82,7 +92,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     print('Current user email: $currentUserEmail');
     
     // Check if trying to add the group creator (current user)
-    if (email.toLowerCase() == currentUserEmail?.toLowerCase()) {
+    if (email.toLowerCase() == (currentUserEmail ?? '').toLowerCase()) {
       setState(() { 
         memberAddError = 'You (group creator) are already added by default.'; 
         _memberEmailController.clear();
@@ -135,6 +145,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         body: json.encode({
           'title': _titleController.text.trim(),
           'memberEmails': memberEmails, // Backend expects emails for group creation
+          'color': selectedGroupColor != null ? '#${selectedGroupColor!.value.toRadixString(16).substring(2).toUpperCase()}' : null,
         }),
       );
       final data = json.decode(res.body);
@@ -171,28 +182,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         });
       } else {
         setState(() { error = data['error'] ?? 'Failed to add member'; });
-      }
-    } catch (e) {
-      setState(() { error = e.toString(); });
-    } finally {
-      setState(() { loading = false; });
-    }
-  }
-
-  Future<void> _removeMember(String email) async {
-    setState(() { loading = true; error = null; });
-    try {
-      final headers = await _authHeaders(context);
-      final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
-        headers: headers,
-        body: json.encode({'email': email}),
-      );
-      final data = json.decode(res.body);
-      if (res.statusCode == 200) {
-        setState(() { group = data['group']; });
-      } else {
-        setState(() { error = data['error'] ?? 'Failed to remove member'; });
       }
     } catch (e) {
       setState(() { error = e.toString(); });
@@ -266,10 +255,97 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         final data = json.decode(res.body);
         setState(() {
           userGroups = List<Map<String, dynamic>>.from(data['groups'] ?? []);
+          _filterAndSearchGroups();
         });
       }
     } catch (_) {}
     setState(() { groupsLoading = false; });
+  }
+
+  void _filterAndSearchGroups() {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final myEmail = session.user?['email'] ?? '';
+    List<Map<String, dynamic>> temp = userGroups.where((g) {
+      final title = (g['title'] ?? '').toString().toLowerCase();
+      final creatorEmail = (g['creator']?['email'] ?? '').toString().toLowerCase();
+      final matchesSearch = groupSearchQuery.isEmpty ||
+        title.contains(groupSearchQuery.toLowerCase()) ||
+        creatorEmail.contains(groupSearchQuery.toLowerCase());
+      final isCreator = creatorEmail == myEmail.toLowerCase();
+      final isMember = (g['members'] as List).any((m) => (m['email'] ?? '').toLowerCase() == myEmail.toLowerCase());
+      if (groupFilter == 'created') return matchesSearch && isCreator;
+      if (groupFilter == 'member') return matchesSearch && !isCreator && isMember;
+      // Advanced filters
+      final memberCount = (g['members'] as List).length;
+      if (memberCountFilter == '2-5' && (memberCount < 2 || memberCount > 5)) return false;
+      if (memberCountFilter == '6-10' && (memberCount < 6 || memberCount > 10)) return false;
+      if (memberCountFilter == '10+' && memberCount < 11) return false;
+      if (dateFilter == '7days') {
+        final created = DateTime.tryParse(g['createdAt'] ?? '') ?? DateTime(2000);
+        if (created.isBefore(DateTime.now().subtract(Duration(days: 7)))) return false;
+      }
+      if (dateFilter == '30days') {
+        final created = DateTime.tryParse(g['createdAt'] ?? '') ?? DateTime(2000);
+        if (created.isBefore(DateTime.now().subtract(Duration(days: 30)))) return false;
+      }
+      if (dateFilter == 'custom' && customStartDate != null && customEndDate != null) {
+        final created = DateTime.tryParse(g['createdAt'] ?? '') ?? DateTime(2000);
+        if (created.isBefore(customStartDate!) || created.isAfter(customEndDate!)) return false;
+      }
+      return matchesSearch;
+    }).toList();
+    // Sorting (same as before)
+    temp.sort((a, b) {
+      switch (groupSort) {
+        case 'oldest':
+          return (a['createdAt'] ?? '').compareTo(b['createdAt'] ?? '');
+        case 'name_az':
+          return (a['title'] ?? '').toLowerCase().compareTo((b['title'] ?? '').toLowerCase());
+        case 'name_za':
+          return (b['title'] ?? '').toLowerCase().compareTo((a['title'] ?? '').toLowerCase());
+        case 'members_high':
+          return (b['members'] as List).length.compareTo((a['members'] as List).length);
+        case 'members_low':
+          return (a['members'] as List).length.compareTo((b['members'] as List).length);
+        case 'newest':
+        default:
+          return (b['createdAt'] ?? '').compareTo(a['createdAt'] ?? '');
+      }
+    });
+    setState(() {
+      filteredGroups = temp;
+    });
+  }
+
+  void _showMemberDetails(Map<String, dynamic> member) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              backgroundColor: Colors.primaries[(member['email'] ?? '').hashCode % Colors.primaries.length].shade300,
+              radius: 32,
+              child: Text(() {
+                final email = member['email'] ?? '';
+                return email.isNotEmpty ? email[0].toUpperCase() : '?';
+              }(),
+                style: TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+            SizedBox(height: 16),
+            Text(member['email'] ?? '', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            if (member['joinedAt'] != null)
+              Text('Joined: ${member['joinedAt'].toString().substring(0, 10)}', style: TextStyle(fontSize: 14, color: Colors.grey)),
+            if (member['leftAt'] != null)
+              Text('Left: ${member['leftAt'].toString().substring(0, 10)}', style: TextStyle(fontSize: 14, color: Colors.red)),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showGroupDetails(Map<String, dynamic> g) {
@@ -294,6 +370,27 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     setState(() {
       showCreateGroupForm = false;
     });
+  }
+
+  Future<void> _updateGroupColor(Color newColor) async {
+    if (group == null) return;
+    setState(() { loading = true; });
+    try {
+      final headers = await _authHeaders(context);
+      final res = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/color'),
+        headers: headers,
+        body: json.encode({'color': '#${newColor.value.toRadixString(16).substring(2).toUpperCase()}'}),
+      );
+      final data = json.decode(res.body);
+      if (res.statusCode == 200) {
+        setState(() {
+          group = data['group'];
+        });
+        _fetchUserGroups();
+      }
+    } catch (_) {}
+    setState(() { loading = false; });
   }
 
   @override
@@ -393,11 +490,131 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          // Search bar, filters, and sorting
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('Your Groups', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                              if (!showCreateGroupForm)
+                              Expanded(
+                                child: TextField(
+                                  decoration: InputDecoration(
+                                    hintText: 'Search by group name or creator email...',
+                                    prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                                    ),
+                                  ),
+                                  onChanged: (val) {
+                                    groupSearchQuery = val;
+                                    _filterAndSearchGroups();
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              DropdownButton<String>(
+                                value: groupFilter,
+                                borderRadius: BorderRadius.circular(16),
+                                style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                underline: Container(),
+                                items: const [
+                                  DropdownMenuItem(value: 'all', child: Text('All')),
+                                  DropdownMenuItem(value: 'created', child: Text('Created by Me')),
+                                  DropdownMenuItem(value: 'member', child: Text('Member')),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    groupFilter = val;
+                                    _filterAndSearchGroups();
+                                  }
+                                },
+                              ),
+                              SizedBox(width: 12),
+                              DropdownButton<String>(
+                                value: groupSort,
+                                borderRadius: BorderRadius.circular(16),
+                                style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                underline: Container(),
+                                items: const [
+                                  DropdownMenuItem(value: 'newest', child: Text('Newest')),
+                                  DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
+                                  DropdownMenuItem(value: 'name_az', child: Text('Name A-Z')),
+                                  DropdownMenuItem(value: 'name_za', child: Text('Name Z-A')),
+                                  DropdownMenuItem(value: 'members_high', child: Text('Members High-Low')),
+                                  DropdownMenuItem(value: 'members_low', child: Text('Members Low-High')),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    groupSort = val;
+                                    _filterAndSearchGroups();
+                                  }
+                                },
+                              ),
+                              SizedBox(width: 12),
+                              DropdownButton<String>(
+                                value: memberCountFilter,
+                                borderRadius: BorderRadius.circular(16),
+                                style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                underline: Container(),
+                                items: const [
+                                  DropdownMenuItem(value: 'all', child: Text('All Members')),
+                                  DropdownMenuItem(value: '2-5', child: Text('2-5')),
+                                  DropdownMenuItem(value: '6-10', child: Text('6-10')),
+                                  DropdownMenuItem(value: '10+', child: Text('10+')),
+                                ],
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    memberCountFilter = val;
+                                    _filterAndSearchGroups();
+                                  }
+                                },
+                              ),
+                              SizedBox(width: 12),
+                              DropdownButton<String>(
+                                value: dateFilter,
+                                borderRadius: BorderRadius.circular(16),
+                                style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                underline: Container(),
+                                items: const [
+                                  DropdownMenuItem(value: 'all', child: Text('All Dates')),
+                                  DropdownMenuItem(value: '7days', child: Text('Last 7 Days')),
+                                  DropdownMenuItem(value: '30days', child: Text('Last 30 Days')),
+                                  DropdownMenuItem(value: 'custom', child: Text('Custom')),
+                                ],
+                                onChanged: (val) async {
+                                  if (val != null) {
+                                    dateFilter = val;
+                                    if (val == 'custom') {
+                                      final picked = await showDateRangePicker(
+                                        context: context,
+                                        firstDate: DateTime(2020),
+                                        lastDate: DateTime.now(),
+                                      );
+                                      if (picked != null) {
+                                        customStartDate = picked.start;
+                                        customEndDate = picked.end;
+                                      }
+                                    }
+                                    _filterAndSearchGroups();
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 16),
+                          if (!showCreateGroupForm)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
                                 ElevatedButton.icon(
                                   onPressed: _showCreateGroup,
                                   icon: Icon(Icons.add),
@@ -407,9 +624,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   ),
                                 ),
-                            ],
-                          ),
-                          SizedBox(height: 16),
+                              ],
+                            ),
                           if (showCreateGroupForm) ...[
                             _buildCreateGroupCard(),
                             SizedBox(height: 12),
@@ -418,16 +634,111 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                               child: Text('Cancel', style: TextStyle(color: Colors.red)),
                             ),
                           ],
-                          ...userGroups.map((g) => Card(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                elevation: 2,
-                                child: ListTile(
-                                  leading: Icon(Icons.group, color: Colors.deepPurple),
-                                  title: Text(g['title'] ?? '', style: TextStyle(fontWeight: FontWeight.bold)),
-                                  subtitle: Text('Creator: ${g['creator']?['email'] ?? ''}'),
-                                  onTap: () => _showGroupDetails(g),
+                          ...filteredGroups.map((g) {
+                            final groupColor = g['color'] != null
+                                ? Color(int.parse(g['color'].toString().replaceFirst('#', '0xff')))
+                                : Colors.blue.shade300;
+                            final avatarText = () {
+                              final title = g['title'] ?? '';
+                              return title.isNotEmpty ? title[0].toUpperCase() : '?';
+                            }();
+                            return Card(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                              elevation: 6,
+                              margin: EdgeInsets.only(bottom: 18),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        CircleAvatar(
+                                          backgroundColor: groupColor,
+                                          radius: 22,
+                                          child: Text(avatarText, style: TextStyle(fontSize: 22, color: Colors.white, fontWeight: FontWeight.bold)),
+                                        ),
+                                        SizedBox(width: 14),
+                                        Expanded(
+                                          child: Text(
+                                            g['title'] ?? '',
+                                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF00B4D8)),
+                                          ),
+                                        ),
+                                        // Group color indicator
+                                        Container(
+                                          width: 18,
+                                          height: 18,
+                                          decoration: BoxDecoration(
+                                            color: groupColor,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: Colors.white, width: 2),
+                                          ),
+                                        ),
+                                        SizedBox(width: 10),
+                                        ElevatedButton(
+                                          onPressed: () => _showGroupDetails(g),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Color(0xFF48CAE4),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            elevation: 0,
+                                          ),
+                                          child: Text('View Details', style: TextStyle(color: Colors.white)),
+                                        ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.person, size: 18, color: Colors.grey),
+                                        SizedBox(width: 4),
+                                        Text('Creator: ${g['creator']?['email'] ?? ''}', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                                        SizedBox(width: 16),
+                                        Icon(Icons.people, size: 18, color: Colors.grey),
+                                        SizedBox(width: 4),
+                                        Text('Members: ${(g['members'] as List).length}', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                                        SizedBox(width: 12),
+                                        // Member avatars
+                                        ...((g['members'] as List).take(5).map((m) => GestureDetector(
+                                              onTap: () => _showMemberDetails(m),
+                                              child: Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                                child: CircleAvatar(
+                                                  radius: 12,
+                                                  backgroundColor: Colors.primaries[(m['email'] ?? '').hashCode % Colors.primaries.length].shade200,
+                                                  child: Text(() {
+                                                    final email = m['email'] ?? '';
+                                                    return email.isNotEmpty ? email[0].toUpperCase() : '?';
+                                                  }(),
+                                                    style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
+                                                  ),
+                                                ),
+                                              ),
+                                            ))),
+                                        if ((g['members'] as List).length > 5)
+                                          Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                                            child: CircleAvatar(
+                                              radius: 12,
+                                              backgroundColor: Colors.grey[400],
+                                              child: Text('+${(g['members'] as List).length - 5}', style: TextStyle(fontSize: 12, color: Colors.white)),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                                        SizedBox(width: 4),
+                                        Text('Created: ${g['createdAt'] != null ? g['createdAt'].toString().substring(0, 10) : ''}', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                              )),
+                              ),
+                            );
+                          }),
                         ],
                       ),
             ),
@@ -474,6 +785,61 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 labelText: 'Group Title',
                 border: OutlineInputBorder(),
               ),
+            ),
+            SizedBox(height: 20),
+            // Color picker
+            Row(
+              children: [
+                Text('Group Color:', style: TextStyle(fontWeight: FontWeight.bold)),
+                SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () async {
+                    Color picked = selectedGroupColor ?? Colors.blue;
+                    await showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text('Pick Group Color'),
+                        content: SingleChildScrollView(
+                          child: ColorPicker(
+                            pickerColor: picked,
+                            onColorChanged: (color) {
+                              picked = color;
+                            },
+                            showLabel: false,
+                            pickerAreaHeightPercent: 0.7,
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            child: Text('Cancel'),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                          TextButton(
+                            child: Text('Select'),
+                            onPressed: () {
+                              setState(() {
+                                selectedGroupColor = picked;
+                              });
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: selectedGroupColor ?? Colors.blue,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.grey, width: 2),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Text(selectedGroupColor != null ? '#${selectedGroupColor!.value.toRadixString(16).substring(2).toUpperCase()}' : 'Default'),
+              ],
             ),
             SizedBox(height: 20),
             Text('Add Members (by email):'),
@@ -555,6 +921,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     final members = group?['members'] ?? [];
     final creator = group?['creator'];
     final expenses = group?['expenses'] ?? [];
+    final groupColor = group?['color'] != null
+        ? Color(int.parse(group!['color'].toString().replaceFirst('#', '0xff')))
+        : Colors.blue.shade300;
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       elevation: 4,
@@ -573,9 +942,64 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             ),
             Row(
               children: [
-                Icon(Icons.group, color: Colors.deepPurple, size: 40),
+                CircleAvatar(
+                  backgroundColor: groupColor,
+                  radius: 28,
+                  child: Text(() {
+                    final title = group?['title'] ?? '';
+                    return title.isNotEmpty ? title[0].toUpperCase() : '?';
+                  }(),
+                      style: TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
                 SizedBox(width: 16),
-                Text('Group Details', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                Expanded(
+                  child: Text('Group Details', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                ),
+                if (isCreator)
+                  GestureDetector(
+                    onTap: () async {
+                      Color picked = groupColor;
+                      await showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: Text('Change Group Color'),
+                          content: SingleChildScrollView(
+                            child: ColorPicker(
+                              pickerColor: picked,
+                              onColorChanged: (color) {
+                                picked = color;
+                              },
+                              showLabel: false,
+                              pickerAreaHeightPercent: 0.7,
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              child: Text('Cancel'),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                            TextButton(
+                              child: Text('Update'),
+                              onPressed: () {
+                                _updateGroupColor(picked);
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: groupColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.grey, width: 2),
+                      ),
+                      child: Icon(Icons.edit, color: Colors.white, size: 18),
+                    ),
+                  ),
               ],
             ),
             SizedBox(height: 16),
@@ -584,12 +1008,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               spacing: 8,
               children: [
                 if (creator != null) Chip(
-                  label: Text('${creator['email']} (Group Creator)'),
+                  label: Text('${creator['email'] ?? ''} (Group Creator)'),
                   backgroundColor: Colors.blue.shade100,
                 ),
-                ...members.where((m) => creator == null || m['email'] != creator['email']).map<Widget>((m) => Chip(
-                  label: Text(m['email'] ?? ''),
-                  onDeleted: isCreator ? () => _removeMember(m['email'] ?? '') : null,
+                ...members.where((m) => (creator == null || m['email'] != creator['email']) && m['email'] != null).map<Widget>((m) => Chip(
+                  label: Text(m['email'] as String),
                 )),
               ],
             ),

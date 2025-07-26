@@ -14,7 +14,7 @@ exports.createGroup = async (req, res) => {
     if (!req.user || !req.user._id) {
       return res.status(401).json({ error: 'Authentication required' });
     }
-    const { title, memberEmails } = req.body;
+    const { title, memberEmails, color } = req.body;
     const creator = req.user._id;
     
     if (!title) {
@@ -41,7 +41,7 @@ exports.createGroup = async (req, res) => {
     memberIds.unshift(creator.toString());
     
     const members = memberIds.map(id => ({ user: id }));
-    const group = await GroupTransaction.create({ title, creator, members });
+    const group = await GroupTransaction.create({ title, creator, members, color });
     // Populate members and creator for response
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
@@ -260,6 +260,35 @@ exports.getUserGroups = async (req, res) => {
       };
     });
     res.json({ groups: groupSummaries });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}; 
+
+exports.updateGroupColor = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { color } = req.body;
+    const group = await GroupTransaction.findById(groupId);
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+    if (group.creator.toString() !== req.user._id.toString()) return res.status(403).json({ error: 'Only creator can update color' });
+    group.color = color || '#2196F3';
+    await group.save();
+    const populatedGroup = await GroupTransaction.findById(group._id)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+    const groupObj = populatedGroup.toObject();
+    groupObj.members = groupObj.members.map(m => ({
+      _id: m.user._id,
+      email: m.user.email,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt
+    }));
+    groupObj.creator = {
+      _id: groupObj.creator._id,
+      email: groupObj.creator.email
+    };
+    res.json({ group: groupObj });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

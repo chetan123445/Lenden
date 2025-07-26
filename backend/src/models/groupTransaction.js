@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const groupTransactionSchema = new mongoose.Schema({
   title: { type: String, required: true },
   creator: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  color: { type: String, default: '#2196F3' }, // New: group color hex code
   members: [{
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     joinedAt: { type: Date, default: Date.now },

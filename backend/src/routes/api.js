@@ -77,6 +77,8 @@ router.post('/group-transactions/:groupId/settle-balance', auth, groupTransactio
 router.post('/group-transactions/:groupId/otp-verify-settle', auth, groupTransactionController.otpVerifySettle);
 // New: Get all groups for the logged-in user
 router.get('/group-transactions/user-groups', auth, groupTransactionController.getUserGroups);
+// New: Update group color
+router.put('/group-transactions/:groupId/color', auth, groupTransactionController.updateGroupColor);
 
 
 module.exports = router;
