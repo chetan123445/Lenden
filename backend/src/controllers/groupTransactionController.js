@@ -7,20 +7,102 @@ const mongoose = require('mongoose');
 async function processExpenses(expenses) {
   return await Promise.all((expenses || []).map(async expense => {
     if (expense.addedBy) {
+      console.log('Processing expense addedBy:', expense.addedBy, 'type:', typeof expense.addedBy);
+      
       // If it's already an email (contains @), return as is
       if (typeof expense.addedBy === 'string' && expense.addedBy.includes('@')) {
+        console.log('Already an email, returning as is:', expense.addedBy);
         return expense;
       }
       
-      // If it's an Object ID (24 characters), try to find the user
+      // If it's an ObjectId object, convert to string and find user
+      console.log('Checking if ObjectId object...');
+      console.log('expense.addedBy:', expense.addedBy);
+      console.log('typeof expense.addedBy:', typeof expense.addedBy);
+      console.log('expense.addedBy.toString():', expense.addedBy.toString());
+      
+      if (expense.addedBy && typeof expense.addedBy === 'object') {
+        console.log('It is an object, checking toString content...');
+        const objectIdString = expense.addedBy.toString();
+        
+        // Check if it contains ObjectId in any form
+        if (objectIdString.includes('ObjectId') || objectIdString.includes('688067efc3d7d9551948a4ae')) {
+          console.log('Found ObjectId pattern, processing...');
+          try {
+            const User = require('../models/user');
+            console.log('Converting ObjectId object to string:', objectIdString);
+            
+            // Extract the ID from "new ObjectId("...")" format
+            const match = objectIdString.match(/ObjectId\("([^"]+)"\)/);
+            if (match) {
+              const id = match[1];
+              console.log('Extracted ID:', id);
+              const user = await User.findById(id);
+              if (user) {
+                console.log('Found user:', user.email, 'for ID:', id);
+                return { ...expense, addedBy: user.email };
+              } else {
+                console.log('User not found for extracted ID:', id);
+              }
+            } else {
+              console.log('Could not extract ID from ObjectId string:', objectIdString);
+              // Try direct lookup with the ObjectId object
+              try {
+                const user = await User.findById(expense.addedBy);
+                if (user) {
+                  console.log('Found user with direct ObjectId lookup:', user.email);
+                  return { ...expense, addedBy: user.email };
+                }
+              } catch (directErr) {
+                console.log('Direct ObjectId lookup failed:', directErr.message);
+              }
+            }
+          } catch (err) {
+            console.log('Error processing ObjectId object:', err.message);
+          }
+        } else {
+          console.log('Object does not contain ObjectId pattern');
+        }
+      }
+      
+      // If it's a string Object ID (24 characters), try to find the user
       if (typeof expense.addedBy === 'string' && expense.addedBy.length === 24) {
         try {
           const User = require('../models/user');
+          console.log('Looking up user with ID:', expense.addedBy);
           const user = await User.findById(expense.addedBy);
           if (user) {
+            console.log('Found user:', user.email, 'for ID:', expense.addedBy);
             return { ...expense, addedBy: user.email };
           } else {
             console.log('User not found for expense addedBy:', expense.addedBy);
+            // Try to find by ObjectId string conversion
+            try {
+              const mongoose = require('mongoose');
+              const ObjectId = mongoose.Types.ObjectId;
+              const user2 = await User.findById(new ObjectId(expense.addedBy));
+              if (user2) {
+                console.log('Found user with ObjectId conversion:', user2.email);
+                return { ...expense, addedBy: user2.email };
+              }
+            } catch (objErr) {
+              console.log('ObjectId conversion failed:', objErr.message);
+            }
+            
+            // Try to find by searching all users (as a last resort)
+            try {
+              const allUsers = await User.find({});
+              console.log('Searching through all users for ID:', expense.addedBy);
+              for (let user of allUsers) {
+                if (user._id.toString() === expense.addedBy) {
+                  console.log('Found user by string comparison:', user.email);
+                  return { ...expense, addedBy: user.email };
+                }
+              }
+            } catch (searchErr) {
+              console.log('Search through all users failed:', searchErr.message);
+            }
+            
             return { ...expense, addedBy: 'Unknown User' };
           }
         } catch (err) {
@@ -30,6 +112,7 @@ async function processExpenses(expenses) {
       }
       
       // If it's neither email nor Object ID, set to unknown
+      console.log('Invalid addedBy format:', expense.addedBy, 'type:', typeof expense.addedBy);
       return { ...expense, addedBy: 'Unknown User' };
     }
     return expense;
