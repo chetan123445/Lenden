@@ -5,7 +5,7 @@ const bcrypt = require('bcrypt');
 // Update user profile
 exports.updateUserProfile = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user._id;
     const update = {};
     const allowedFields = ['name', 'birthday', 'address', 'phone', 'gender', 'email'];
     allowedFields.forEach(field => {
@@ -34,7 +34,7 @@ exports.updateUserProfile = async (req, res) => {
 // Update admin profile
 exports.updateAdminProfile = async (req, res) => {
   try {
-    const adminId = req.user.id;
+    const adminId = req.user._id;
     const update = {};
     const allowedFields = ['name', 'birthday', 'address', 'phone', 'gender', 'email'];
     allowedFields.forEach(field => {

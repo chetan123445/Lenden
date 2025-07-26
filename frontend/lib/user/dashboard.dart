@@ -13,6 +13,7 @@ import '../Transaction/transaction_page.dart';
 import '../Transaction/user_transactions_page.dart';
 import '../Transaction/analytics_page.dart';
 import '../user/notes_page.dart';
+import '../Transaction/group_transaction_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -257,6 +258,31 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                                 Icon(Icons.analytics, color: Color(0xFF00B4D8), size: 40),
                                 SizedBox(width: 20),
                                 Text('Visual Analytics', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GroupTransactionPage())),
+                          child: Container(
+                            margin: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                            padding: EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.group, color: Colors.deepPurple, size: 40),
+                                SizedBox(width: 20),
+                                Text('Create Group Transaction', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
                               ],
                             ),
                           ),

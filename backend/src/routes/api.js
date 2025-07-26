@@ -15,6 +15,7 @@ const transactionController = require('../controllers/transactionController');
 const analyticController = require('../controllers/analyticController');
 const chatController = require('../controllers/chatController');
 const noteController = require('../controllers/noteController');
+const groupTransactionController = require('../controllers/groupTransactionController');
 
 // User routes
 router.post('/users/register', userController.register);
@@ -65,6 +66,17 @@ router.post('/notes', auth, noteController.createNote);
 router.get('/notes', auth, noteController.getNotes);
 router.put('/notes/:id', auth, noteController.updateNote);
 router.delete('/notes/:id', auth, noteController.deleteNote);
+
+// Group Transaction routes
+router.post('/group-transactions', auth, groupTransactionController.createGroup);
+router.post('/group-transactions/:groupId/add-member', auth, groupTransactionController.addMember);
+router.post('/group-transactions/:groupId/remove-member', auth, groupTransactionController.removeMember);
+router.post('/group-transactions/:groupId/add-expense', auth, groupTransactionController.addExpense);
+router.post('/group-transactions/:groupId/request-leave', auth, groupTransactionController.requestLeave);
+router.post('/group-transactions/:groupId/settle-balance', auth, groupTransactionController.settleBalance);
+router.post('/group-transactions/:groupId/otp-verify-settle', auth, groupTransactionController.otpVerifySettle);
+// New: Get all groups for the logged-in user
+router.get('/group-transactions/user-groups', auth, groupTransactionController.getUserGroups);
 
 
 module.exports = router;

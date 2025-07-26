@@ -224,7 +224,15 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                             contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
+                              borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
                             ),
                           ),
                           onChanged: filterNotes,

@@ -66,7 +66,14 @@ class SessionProvider extends ChangeNotifier {
           notifyListeners();
           return;
         }
-      } catch (_) {}
+        // If both endpoints fail, clear the invalid token
+        print('Both user and admin endpoints failed, clearing invalid token');
+        await clearToken();
+      } catch (e) {
+        print('Error during session initialization: $e');
+        // If there's an error, clear the token to be safe
+        await clearToken();
+      }
     }
     _user = null;
     _role = null;

@@ -3,7 +3,7 @@ const Admin = require('../models/admin');
 
 exports.getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user._id).select('-password');
     if (!user) return res.status(404).json({ error: 'User not found' });
     const userObj = user.toObject();
     if (userObj.profileImage) {
@@ -17,7 +17,7 @@ exports.getUserProfile = async (req, res) => {
 
 exports.getAdminProfile = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.user.id).select('-password');
+    const admin = await Admin.findById(req.user._id).select('-password');
     if (!admin) return res.status(404).json({ error: 'Admin not found' });
     const adminObj = admin.toObject();
     if (adminObj.profileImage) {
