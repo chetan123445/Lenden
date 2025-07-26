@@ -2334,7 +2334,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
               )
             else
-              ...expenses.map<Widget>((expense) {
+              ...expenses.take(3).map<Widget>((expense) {
                 return Container(
                   margin: EdgeInsets.only(bottom: 8),
                   decoration: BoxDecoration(

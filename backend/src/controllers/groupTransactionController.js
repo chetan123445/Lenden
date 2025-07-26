@@ -6,17 +6,31 @@ const mongoose = require('mongoose');
 // Helper function to process expenses and convert Object IDs to emails in addedBy field
 async function processExpenses(expenses) {
   return await Promise.all((expenses || []).map(async expense => {
-    if (expense.addedBy && typeof expense.addedBy === 'string' && expense.addedBy.length === 24) {
-      // This is likely an Object ID, try to find the user and get their email
-      try {
-        const User = require('../models/user');
-        const user = await User.findById(expense.addedBy);
-        if (user) {
-          return { ...expense, addedBy: user.email };
-        }
-      } catch (err) {
-        console.log('Error finding user for expense:', err.message);
+    if (expense.addedBy) {
+      // If it's already an email (contains @), return as is
+      if (typeof expense.addedBy === 'string' && expense.addedBy.includes('@')) {
+        return expense;
       }
+      
+      // If it's an Object ID (24 characters), try to find the user
+      if (typeof expense.addedBy === 'string' && expense.addedBy.length === 24) {
+        try {
+          const User = require('../models/user');
+          const user = await User.findById(expense.addedBy);
+          if (user) {
+            return { ...expense, addedBy: user.email };
+          } else {
+            console.log('User not found for expense addedBy:', expense.addedBy);
+            return { ...expense, addedBy: 'Unknown User' };
+          }
+        } catch (err) {
+          console.log('Error finding user for expense:', err.message);
+          return { ...expense, addedBy: 'Unknown User' };
+        }
+      }
+      
+      // If it's neither email nor Object ID, set to unknown
+      return { ...expense, addedBy: 'Unknown User' };
     }
     return expense;
   }));
@@ -159,6 +173,10 @@ exports.removeMember = async (req, res) => {
       .populate('members.user', 'email')
       .populate('creator', 'email');
     const groupObj = populatedGroup.toObject();
+    
+    // Process expenses to convert Object IDs to emails in addedBy field
+    const processedExpenses = await processExpenses(groupObj.expenses);
+    
     groupObj.members = groupObj.members.map(m => ({
       _id: m.user._id,
       email: m.user.email,
@@ -169,6 +187,8 @@ exports.removeMember = async (req, res) => {
       _id: groupObj.creator._id,
       email: groupObj.creator.email
     };
+    groupObj.expenses = processedExpenses;
+    
     res.json({ group: groupObj });
   } catch (err) {
     res.status(500).json({ error: err.message });

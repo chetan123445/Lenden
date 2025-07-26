@@ -108,7 +108,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
         final members = group['members'] ?? [];
         for (var member in members) {
           if (member['email'] == userEmail && member['_id'] == splitItem['user']) {
-            total += (splitItem['amount'] ?? 0).toDouble();
+            total += double.parse((splitItem['amount'] ?? 0).toString());
             break;
           }
         }
@@ -129,7 +129,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
         // Find the balance for this user
         for (var balance in balances) {
           if (balance['user'] == member['_id']) {
-            return (balance['balance'] ?? 0).toDouble();
+            return double.parse((balance['balance'] ?? 0).toString());
           }
         }
         break;
@@ -137,6 +137,189 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
     }
     
     return 0.0;
+  }
+
+  // Calculate total pending balance across all groups
+  double _calculateTotalPendingBalance() {
+    double total = 0.0;
+    final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
+    
+    for (var group in userGroups) {
+      total += _getUserPendingBalance(group, currentUserEmail ?? '');
+    }
+    return total;
+  }
+
+  // Calculate total expenses across all groups
+  int _calculateTotalExpenses() {
+    num total = 0;
+    for (var group in userGroups) {
+      total += (group['expenses'] ?? []).length;
+    }
+    return total.toInt();
+  }
+
+  void _showAllExpensesDialog(List<Map<String, dynamic>> expenses, String groupTitle) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.receipt_long, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'All Expenses - $groupTitle',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          width: double.maxFinite,
+          height: 400,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF00B4D8).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Color(0xFF00B4D8).withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Color(0xFF00B4D8), size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Total Expenses: ${expenses.length}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF00B4D8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+                ...expenses.map<Widget>((expense) {
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Color(0xFF00B4D8).withOpacity(0.2),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Color(0xFF00B4D8),
+                        child: Icon(
+                          Icons.receipt,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        expense['description'] ?? 'No description',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF00B4D8),
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: Colors.green[700],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Added by: ${expense['addedBy'] ?? 'Unknown'}',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (expense['createdAt'] != null || expense['date'] != null)
+                            Row(
+                              children: [
+                                Icon(Icons.access_time, color: Colors.grey[500], size: 12),
+                                SizedBox(width: 4),
+                                Text(
+                                  _formatDateTime(expense['createdAt'] ?? expense['date']),
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF00B4D8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -190,271 +373,398 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                     )
                   : RefreshIndicator(
                       onRefresh: _fetchUserGroups,
-                      child: ListView.builder(
-                        padding: EdgeInsets.all(16),
-                        itemCount: userGroups.length,
-                        itemBuilder: (context, index) {
-                          final group = userGroups[index];
-                          final expenses = group['expenses'] ?? [];
-                          final members = group['members'] ?? [];
-                          final creator = group['creator'];
-                          final isCreator = creator?['email'] == currentUserEmail;
-                          
-                          // Calculate user's total split amount
-                          final userTotalSplit = _calculateUserTotalSplit(group, currentUserEmail ?? '');
-                          
-                          // Get user's pending balance
-                          final userPendingBalance = _getUserPendingBalance(group, currentUserEmail ?? '');
-                          
-                          return Card(
-                            margin: EdgeInsets.only(bottom: 16),
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            child: ExpansionTile(
-                              leading: CircleAvatar(
-                                backgroundColor: Color(0xFF00B4D8),
-                                child: Text(
-                                  (group['title'] ?? 'G')[0].toUpperCase(),
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      child: Column(
+                        children: [
+                          // Summary Header
+                          Container(
+                            margin: EdgeInsets.all(16),
+                            padding: EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
                                 ),
-                              ),
-                              title: Text(
-                                group['title'] ?? 'Untitled Group',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Creator: ${creator?['email'] ?? 'Unknown'}'),
-                                  Text('Members: ${members.length}'),
-                                  Text('Expenses: ${expenses.length}'),
-                                ],
-                              ),
+                              ],
+                            ),
+                            child: Column(
                               children: [
-                                Container(
-                                  padding: EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      // Group Summary
-                                      Container(
-                                        padding: EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Color(0xFF00B4D8).withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(8),
+                                Row(
+                                  children: [
+                                    Icon(Icons.account_balance_wallet, color: Colors.white, size: 24),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Total Summary',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Groups',
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(0.8),
+                                            fontSize: 12,
+                                          ),
                                         ),
+                                        Text(
+                                          '${userGroups.length}',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          'Total Expenses',
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(0.8),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${_calculateTotalExpenses()}',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Text(
+                                          'Total Pending',
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(0.8),
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                        Text(
+                                          '\$${_calculateTotalPendingBalance().toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Groups List
+                          Expanded(
+                            child: ListView.builder(
+                              padding: EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: userGroups.length,
+                              itemBuilder: (context, index) {
+                                final group = userGroups[index];
+                                final expenses = group['expenses'] ?? [];
+                                final members = group['members'] ?? [];
+                                final creator = group['creator'];
+                                final isCreator = creator?['email'] == currentUserEmail;
+                                
+                                // Calculate user's total split amount
+                                final userTotalSplit = _calculateUserTotalSplit(group, currentUserEmail ?? '');
+                                
+                                // Get user's pending balance
+                                final userPendingBalance = _getUserPendingBalance(group, currentUserEmail ?? '');
+                                
+                                return Card(
+                                  margin: EdgeInsets.only(bottom: 16),
+                                  elevation: 4,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  child: ExpansionTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: Color(0xFF00B4D8),
+                                      child: Text(
+                                        (group['title'] ?? 'G')[0].toUpperCase(),
+                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                    title: Text(
+                                      group['title'] ?? 'Untitled Group',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Creator: ${creator?['email'] ?? 'Unknown'}'),
+                                        Text('Members: ${members.length}'),
+                                        Text('Expenses: ${expenses.length}'),
+                                      ],
+                                    ),
+                                    children: [
+                                      Container(
+                                        padding: EdgeInsets.all(16),
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(
-                                              'Your Summary',
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16,
-                                                color: Color(0xFF00B4D8),
+                                            // Group Summary
+                                            Container(
+                                              padding: EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: Color(0xFF00B4D8).withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(8),
                                               ),
-                                            ),
-                                            SizedBox(height: 8),
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Text('Total Split Amount:'),
-                                                Text(
-                                                  '\$${userTotalSplit.toStringAsFixed(2)}',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.green[700],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            SizedBox(height: 4),
-                                            Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Text('Pending Balance:'),
-                                                Text(
-                                                  '\$${userPendingBalance.toStringAsFixed(2)}',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: userPendingBalance > 0 ? Colors.red[700] : Colors.green[700],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      SizedBox(height: 16),
-                                      
-                                      // Expenses List
-                                      if (expenses.isNotEmpty) ...[
-                                        Text(
-                                          'All Expenses',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                        SizedBox(height: 8),
-                                        ...expenses.map<Widget>((expense) {
-                                          return Container(
-                                            margin: EdgeInsets.only(bottom: 8),
-                                            padding: EdgeInsets.all(12),
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey[50],
-                                              borderRadius: BorderRadius.circular(8),
-                                              border: Border.all(color: Colors.grey[300]!),
-                                            ),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Row(
-                                                  children: [
-                                                    Icon(Icons.receipt, color: Color(0xFF00B4D8), size: 20),
-                                                    SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: Text(
-                                                        expense['description'] ?? 'No description',
-                                                        style: TextStyle(
-                                                          fontWeight: FontWeight.w600,
-                                                          fontSize: 14,
-                                                        ),
-                                                      ),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    'Your Summary',
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 16,
+                                                      color: Color(0xFF00B4D8),
                                                     ),
-                                                    Text(
-                                                      '\$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
-                                                      style: TextStyle(
-                                                        fontWeight: FontWeight.bold,
-                                                        color: Colors.green[700],
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                SizedBox(height: 4),
-                                                Text(
-                                                  'Added by: ${expense['addedBy'] ?? 'Unknown'}',
-                                                  style: TextStyle(
-                                                    color: Colors.grey[600],
-                                                    fontSize: 12,
                                                   ),
-                                                ),
-                                                if (expense['createdAt'] != null || expense['date'] != null)
+                                                  SizedBox(height: 8),
                                                   Row(
+                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                     children: [
-                                                      Icon(Icons.access_time, color: Colors.grey[500], size: 12),
-                                                      SizedBox(width: 4),
+                                                      Text('Total Split Amount:'),
                                                       Text(
-                                                        _formatDateTime(expense['createdAt'] ?? expense['date']),
+                                                        '\$${userTotalSplit.toStringAsFixed(2)}',
                                                         style: TextStyle(
-                                                          color: Colors.grey[500],
-                                                          fontSize: 11,
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Colors.green[700],
                                                         ),
                                                       ),
                                                     ],
                                                   ),
-                                                
-                                                // Split Details
-                                                if (expense['split'] != null && expense['split'].isNotEmpty) ...[
-                                                  SizedBox(height: 8),
-                                                  Container(
-                                                    padding: EdgeInsets.all(8),
-                                                    decoration: BoxDecoration(
-                                                      color: Color(0xFF00B4D8).withOpacity(0.05),
-                                                      borderRadius: BorderRadius.circular(6),
-                                                      border: Border.all(color: Color(0xFF00B4D8).withOpacity(0.2)),
+                                                  SizedBox(height: 4),
+                                                  Row(
+                                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                    children: [
+                                                      Text('Pending Balance:'),
+                                                      Text(
+                                                        '\$${userPendingBalance.toStringAsFixed(2)}',
+                                                        style: TextStyle(
+                                                          fontWeight: FontWeight.bold,
+                                                          color: userPendingBalance > 0 ? Colors.red[700] : Colors.green[700],
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            SizedBox(height: 16),
+                                            
+                                            // Expenses List
+                                            if (expenses.isNotEmpty) ...[
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    'Recent Expenses',
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 16,
                                                     ),
-                                                    child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
+                                                  ),
+                                                  Spacer(),
+                                                  if (expenses.length > 3)
+                                                    TextButton(
+                                                      onPressed: () => _showAllExpensesDialog(expenses, group['title'] ?? 'Group'),
+                                                      child: Text(
+                                                        'View All (${expenses.length})',
+                                                        style: TextStyle(
+                                                          color: Color(0xFF00B4D8),
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                              SizedBox(height: 8),
+                                              ...expenses.take(3).map<Widget>((expense) {
+                                                return Container(
+                                                  margin: EdgeInsets.only(bottom: 8),
+                                                  padding: EdgeInsets.all(12),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey[50],
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(color: Colors.grey[300]!),
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Icon(Icons.receipt, color: Color(0xFF00B4D8), size: 20),
+                                                          SizedBox(width: 8),
+                                                          Expanded(
+                                                            child: Text(
+                                                              expense['description'] ?? 'No description',
+                                                              style: TextStyle(
+                                                                fontWeight: FontWeight.w600,
+                                                                fontSize: 14,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          Text(
+                                                            '\$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                                                            style: TextStyle(
+                                                              fontWeight: FontWeight.bold,
+                                                              color: Colors.green[700],
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                      SizedBox(height: 4),
+                                                      Text(
+                                                        'Added by: ${expense['addedBy'] ?? 'Unknown'}',
+                                                        style: TextStyle(
+                                                          color: Colors.grey[600],
+                                                          fontSize: 12,
+                                                        ),
+                                                      ),
+                                                      if (expense['createdAt'] != null || expense['date'] != null)
                                                         Row(
                                                           children: [
-                                                            Icon(Icons.people_outline, color: Color(0xFF00B4D8), size: 14),
+                                                            Icon(Icons.access_time, color: Colors.grey[500], size: 12),
                                                             SizedBox(width: 4),
                                                             Text(
-                                                              'Split Details:',
+                                                              _formatDateTime(expense['createdAt'] ?? expense['date']),
                                                               style: TextStyle(
-                                                                fontSize: 12,
-                                                                fontWeight: FontWeight.w600,
-                                                                color: Color(0xFF00B4D8),
+                                                                color: Colors.grey[500],
+                                                                fontSize: 11,
                                                               ),
                                                             ),
                                                           ],
                                                         ),
-                                                        SizedBox(height: 4),
-                                                        ...(expense['split'] as List).map<Widget>((splitItem) {
-                                                          final member = members.firstWhere(
-                                                            (m) => m['_id'] == splitItem['user'],
-                                                            orElse: () => {'email': 'Unknown User'},
-                                                          );
-                                                          final isCurrentUser = member['email'] == currentUserEmail;
-                                                          
-                                                          return Padding(
-                                                            padding: EdgeInsets.only(bottom: 2),
-                                                            child: Row(
-                                                              children: [
-                                                                Text(
-                                                                  '• ${member['email']}: ',
-                                                                  style: TextStyle(
-                                                                    fontSize: 11,
-                                                                    color: Colors.grey[600],
-                                                                    fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
-                                                                  ),
-                                                                ),
-                                                                Text(
-                                                                  '\$${splitItem['amount'].toStringAsFixed(2)}',
-                                                                  style: TextStyle(
-                                                                    fontSize: 11,
-                                                                    fontWeight: FontWeight.w600,
-                                                                    color: isCurrentUser ? Color(0xFF00B4D8) : Colors.green[700],
-                                                                  ),
-                                                                ),
-                                                                if (isCurrentUser)
+                                                      
+                                                      // Split Details
+                                                      if (expense['split'] != null && expense['split'].isNotEmpty) ...[
+                                                        SizedBox(height: 8),
+                                                        Container(
+                                                          padding: EdgeInsets.all(8),
+                                                          decoration: BoxDecoration(
+                                                            color: Color(0xFF00B4D8).withOpacity(0.05),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                            border: Border.all(color: Color(0xFF00B4D8).withOpacity(0.2)),
+                                                          ),
+                                                          child: Column(
+                                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                                            children: [
+                                                              Row(
+                                                                children: [
+                                                                  Icon(Icons.people_outline, color: Color(0xFF00B4D8), size: 14),
+                                                                  SizedBox(width: 4),
                                                                   Text(
-                                                                    ' (You)',
+                                                                    'Split Details:',
                                                                     style: TextStyle(
-                                                                      fontSize: 10,
+                                                                      fontSize: 12,
+                                                                      fontWeight: FontWeight.w600,
                                                                       color: Color(0xFF00B4D8),
-                                                                      fontStyle: FontStyle.italic,
                                                                     ),
                                                                   ),
-                                                              ],
-                                                            ),
-                                                          );
-                                                        }).toList(),
+                                                                ],
+                                                              ),
+                                                              SizedBox(height: 4),
+                                                              ...(expense['split'] as List).map<Widget>((splitItem) {
+                                                                final member = members.firstWhere(
+                                                                  (m) => m['_id'] == splitItem['user'],
+                                                                  orElse: () => {'email': 'Unknown User'},
+                                                                );
+                                                                final isCurrentUser = member['email'] == currentUserEmail;
+                                                                
+                                                                return Padding(
+                                                                  padding: EdgeInsets.only(bottom: 2),
+                                                                  child: Row(
+                                                                    children: [
+                                                                      Text(
+                                                                        '• ${member['email']}: ',
+                                                                        style: TextStyle(
+                                                                          fontSize: 11,
+                                                                          color: Colors.grey[600],
+                                                                          fontWeight: isCurrentUser ? FontWeight.bold : FontWeight.normal,
+                                                                        ),
+                                                                      ),
+                                                                      Text(
+                                                                        '\$${splitItem['amount'].toStringAsFixed(2)}',
+                                                                        style: TextStyle(
+                                                                          fontSize: 11,
+                                                                          fontWeight: FontWeight.w600,
+                                                                          color: isCurrentUser ? Color(0xFF00B4D8) : Colors.green[700],
+                                                                        ),
+                                                                      ),
+                                                                      if (isCurrentUser)
+                                                                        Text(
+                                                                          ' (You)',
+                                                                          style: TextStyle(
+                                                                            fontSize: 10,
+                                                                            color: Color(0xFF00B4D8),
+                                                                            fontStyle: FontStyle.italic,
+                                                                          ),
+                                                                        ),
+                                                                    ],
+                                                                  ),
+                                                                );
+                                                              }).toList(),
+                                                            ],
+                                                          ),
+                                                        ),
                                                       ],
+                                                    ],
+                                                  ),
+                                                );
+                                              }).toList(),
+                                            ] else ...[
+                                              Container(
+                                                padding: EdgeInsets.all(16),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[100],
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    'No expenses in this group yet',
+                                                    style: TextStyle(
+                                                      color: Colors.grey[600],
+                                                      fontStyle: FontStyle.italic,
                                                     ),
                                                   ),
-                                                ],
-                                              ],
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ] else ...[
-                                        Container(
-                                          padding: EdgeInsets.all(16),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[100],
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Center(
-                                            child: Text(
-                                              'No expenses in this group yet',
-                                              style: TextStyle(
-                                                color: Colors.grey[600],
-                                                fontStyle: FontStyle.italic,
+                                                ),
                                               ),
-                                            ),
-                                          ),
+                                            ],
+                                          ],
                                         ),
-                                      ],
+                                      ),
                                     ],
                                   ),
-                                ),
-                              ],
+                                );
+                              },
                             ),
-                          );
-                        },
+                          ),
+                        ],
                       ),
                     ),
     );
