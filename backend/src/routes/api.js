@@ -72,6 +72,7 @@ router.post('/group-transactions', auth, groupTransactionController.createGroup)
 router.post('/group-transactions/:groupId/add-member', auth, groupTransactionController.addMember);
 router.post('/group-transactions/:groupId/remove-member', auth, groupTransactionController.removeMember);
 router.post('/group-transactions/:groupId/add-expense', auth, groupTransactionController.addExpense);
+router.put('/group-transactions/:groupId/expenses/:expenseId', auth, groupTransactionController.editExpense);
 router.delete('/group-transactions/:groupId/expenses/:expenseId', auth, groupTransactionController.deleteExpense);
 router.post('/group-transactions/:groupId/request-leave', auth, groupTransactionController.requestLeave);
 router.post('/group-transactions/:groupId/settle-balance', auth, groupTransactionController.settleBalance);

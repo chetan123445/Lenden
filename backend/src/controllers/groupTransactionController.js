@@ -605,3 +605,174 @@ exports.deleteExpense = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 }; 
+
+// Edit expense (only the person who created the expense)
+exports.editExpense = async (req, res) => {
+  try {
+    const { groupId, expenseId } = req.params;
+    const { description, amount, selectedMembers, splitType, customSplitAmounts, date } = req.body;
+    // Handle both user and admin tokens (different field names)
+    let userEmail = req.user.email;
+    const userId = req.user._id || req.user.id;
+    
+    // Debug: Check what's in req.user
+    console.log('req.user object:', req.user);
+    console.log('req.user.email:', req.user.email);
+    console.log('req.user._id:', req.user._id);
+    console.log('req.user.id:', req.user.id);
+    
+    // If email is not in token, fetch it from database
+    if (!userEmail) {
+      console.log('Email not in token, fetching from database...');
+      const User = require('../models/user');
+      const Admin = require('../models/admin');
+      
+      // Try to find user first, then admin
+      let user = await User.findById(userId);
+      if (user) {
+        userEmail = user.email;
+        console.log('Found user email from database:', userEmail);
+      } else {
+        let admin = await Admin.findById(userId);
+        if (admin) {
+          userEmail = admin.email;
+          console.log('Found admin email from database:', userEmail);
+        }
+      }
+    }
+    
+    const group = await GroupTransaction.findById(groupId)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+    if (!group) return res.status(404).json({ error: 'Group not found' });
+    
+    // Find the expense
+    const expenseIndex = group.expenses.findIndex(e => e._id.toString() === expenseId);
+    if (expenseIndex === -1) return res.status(404).json({ error: 'Expense not found' });
+    
+    const expense = group.expenses[expenseIndex];
+    
+    // Check if the current user is the one who created this expense
+    console.log('Expense addedBy:', expense.addedBy);
+    console.log('Current user email:', userEmail);
+    console.log('Expense data:', expense);
+    
+    // Normalize email comparison (case-insensitive)
+    const normalizedExpenseAddedBy = (expense.addedBy || '').toLowerCase().trim();
+    const normalizedUserEmail = (userEmail || '').toLowerCase().trim();
+    
+    console.log('Normalized expense addedBy:', normalizedExpenseAddedBy);
+    console.log('Normalized user email:', normalizedUserEmail);
+    
+    if (normalizedExpenseAddedBy !== normalizedUserEmail) {
+      console.log('Permission denied - emails do not match');
+      return res.status(403).json({ 
+        error: 'Only the person who created this expense can edit it',
+        debug: {
+          expenseAddedBy: expense.addedBy,
+          userEmail: userEmail,
+          normalizedExpenseAddedBy: normalizedExpenseAddedBy,
+          normalizedUserEmail: normalizedUserEmail
+        }
+      });
+    }
+    
+    console.log('Permission granted - proceeding with edit');
+    
+    // Validate required fields
+    if (!description || !amount || amount <= 0) {
+      return res.status(400).json({ error: 'Description and valid amount are required' });
+    }
+    
+    // Validate that all selected members are active (haven't left the group)
+    const activeMembers = group.members.filter(m => !m.leftAt).map(m => m.user.email);
+    const inactiveSelectedMembers = selectedMembers.filter(email => !activeMembers.includes(email));
+    if (inactiveSelectedMembers.length > 0) {
+      return res.status(400).json({ 
+        error: `Cannot include members who have left the group: ${inactiveSelectedMembers.join(', ')}` 
+      });
+    }
+    
+    // Remove old expense from balances
+    const oldAmount = expense.amount;
+    expense.split.forEach(s => {
+      const bal = group.balances.find(b => b.user.toString() === s.user.toString());
+      if (bal) bal.balance -= s.amount;
+    });
+    const payerBal = group.balances.find(b => b.user.toString() === userId.toString());
+    if (payerBal) payerBal.balance += oldAmount;
+    
+    // Prepare new split data based on split type
+    let splitArr = [];
+    if (splitType === 'equal') {
+      const splitAmount = amount / selectedMembers.length;
+      splitArr = selectedMembers.map(memberEmail => {
+        const member = group.members.find(m => m.user.email === memberEmail && !m.leftAt);
+        if (!member) {
+          throw new Error(`Member with email ${memberEmail} not found`);
+        }
+        return {
+          user: member.user._id,
+          amount: splitAmount
+        };
+      });
+    } else if (splitType === 'custom') {
+      // Handle custom split with provided amounts
+      if (!customSplitAmounts) {
+        return res.status(400).json({ error: 'Custom split amounts are required for custom split type' });
+      }
+      
+      splitArr = selectedMembers.map(memberEmail => {
+        const member = group.members.find(m => m.user.email === memberEmail && !m.leftAt);
+        if (!member) {
+          throw new Error(`Member with email ${memberEmail} not found`);
+        }
+        const customAmount = customSplitAmounts[memberEmail] || 0;
+        return {
+          user: member.user._id,
+          amount: customAmount
+        };
+      });
+    } else {
+      return res.status(400).json({ error: 'Invalid split type' });
+    }
+    
+    // Update the expense
+    expense.description = description;
+    expense.amount = amount;
+    expense.date = date ? new Date(date) : new Date();
+    expense.selectedMembers = selectedMembers;
+    expense.split = splitArr;
+    
+    // Update balances with new expense
+    splitArr.forEach(s => {
+      const bal = group.balances.find(b => b.user.toString() === s.user.toString());
+      if (bal) bal.balance += s.amount;
+    });
+    const newPayerBal = group.balances.find(b => b.user.toString() === userId.toString());
+    if (newPayerBal) newPayerBal.balance -= amount;
+    
+    await group.save();
+    
+    const groupObj = group.toObject();
+    
+    // Process expenses to convert Object IDs to emails in addedBy field
+    const processedExpenses = await processExpenses(groupObj.expenses);
+    
+    groupObj.members = groupObj.members.map(m => ({
+      _id: m.user._id,
+      email: m.user.email,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt
+    }));
+    groupObj.creator = {
+      _id: groupObj.creator._id,
+      email: groupObj.creator.email
+    };
+    groupObj.expenses = processedExpenses;
+    
+    res.json({ group: groupObj });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}; 

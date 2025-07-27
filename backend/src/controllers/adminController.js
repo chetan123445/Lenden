@@ -42,7 +42,7 @@ exports.login = async (req, res) => {
     const match = await bcrypt.compare(password, admin.password);
     if (!match) return res.status(401).json({ error: 'Incorrect password' });
     // Generate JWT
-    const token = jwt.sign({ id: admin._id, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: admin._id, email: admin.email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ message: 'Login successful', admin, token });
   } catch (err) {
     res.status(500).json({ error: err.message });

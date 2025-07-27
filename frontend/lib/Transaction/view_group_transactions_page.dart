@@ -195,7 +195,309 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
     return total.toInt();
   }
 
-  void _showAllExpensesDialog(List<Map<String, dynamic>> expenses, String groupTitle) {
+  Future<void> _editExpense(String groupId, String expenseId, Map<String, dynamic> expenseData) async {
+    setState(() { loading = true; error = null; });
+    try {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      final token = session.token;
+      final headers = {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'};
+      
+      final res = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/$groupId/expenses/$expenseId'),
+        headers: headers,
+        body: json.encode(expenseData),
+      );
+      final data = json.decode(res.body);
+      if (res.statusCode == 200) {
+        // Refresh the groups data
+        await _fetchUserGroups();
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Expense updated successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        setState(() { error = data['error'] ?? 'Failed to update expense'; });
+      }
+    } catch (e) {
+      setState(() { error = e.toString(); });
+    } finally {
+      setState(() { loading = false; });
+    }
+  }
+
+  void _showEditExpenseDialog(Map<String, dynamic> expense, String groupId) {
+    final TextEditingController editDescController = TextEditingController(text: expense['description'] ?? '');
+    final TextEditingController editAmountController = TextEditingController(text: (expense['amount'] ?? 0).toString());
+    String editSplitType = 'equal';
+    
+    // Filter out members who have left the group from selected members
+    List<String> editSelectedMembers = List<String>.from(expense['selectedMembers'] ?? []);
+    // Note: In this view, we don't have access to group data, so we'll keep the original members
+    // The backend will handle filtering out inactive members
+    
+    Map<String, double> editCustomSplitAmounts = {};
+    
+    // Initialize custom split amounts from existing split data
+    if (expense['split'] != null) {
+      for (var splitItem in expense['split']) {
+        // Find the member by user ID in the group data
+        // Since we don't have direct access to group data here, we'll initialize with equal split
+        final splitAmount = (splitItem['amount'] ?? 0).toDouble();
+        // We'll need to find the member email from the group data
+        // For now, we'll use a placeholder approach
+      }
+    }
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          backgroundColor: Colors.white,
+          title: Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.edit, color: Colors.white, size: 28),
+                SizedBox(width: 12),
+                Text(
+                  'Edit Expense',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          content: Container(
+            width: double.maxFinite,
+            height: 500,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Description
+                  Text(
+                    'Description',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00B4D8),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  TextField(
+                    controller: editDescController,
+                    decoration: InputDecoration(
+                      hintText: 'Enter expense description',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  
+                  // Amount
+                  Text(
+                    'Amount',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00B4D8),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  TextField(
+                    controller: editAmountController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      hintText: 'Enter amount',
+                      prefixText: '\$',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  
+                  // Member Selection
+                  Text(
+                    'Select Members',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00B4D8),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Container(
+                    constraints: BoxConstraints(maxHeight: 120),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: editSelectedMembers.map<Widget>((memberEmail) {
+                          return CheckboxListTile(
+                            title: Text(memberEmail),
+                            value: true,
+                            onChanged: (bool? value) {
+                              setDialogState(() {
+                                if (value == false) {
+                                  editSelectedMembers.remove(memberEmail);
+                                }
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                            contentPadding: EdgeInsets.zero,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  
+                  // Split Type
+                  Text(
+                    'Split Type',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00B4D8),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: editSplitType,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                      ),
+                    ),
+                    items: [
+                      DropdownMenuItem(value: 'equal', child: Text('Equal Split')),
+                      DropdownMenuItem(value: 'custom', child: Text('Custom Split')),
+                    ],
+                    onChanged: (value) {
+                      setDialogState(() {
+                        editSplitType = value!;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    margin: EdgeInsets.only(left: 16, right: 8),
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[300],
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    margin: EdgeInsets.only(left: 8, right: 16),
+                    child: ElevatedButton(
+                                              onPressed: () async {
+                          if (editDescController.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Please enter a description')),
+                            );
+                            return;
+                          }
+                          
+                          final amount = double.tryParse(editAmountController.text);
+                          if (amount == null || amount <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Please enter a valid amount')),
+                            );
+                            return;
+                          }
+                          
+                          if (editSelectedMembers.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Please select at least one member')),
+                            );
+                            return;
+                          }
+                          
+                          Navigator.of(context).pop();
+                          
+                          final expenseData = {
+                            'description': editDescController.text.trim(),
+                            'amount': amount,
+                            'selectedMembers': editSelectedMembers,
+                            'splitType': editSplitType,
+                          };
+                          
+                          await _editExpense(groupId, expense['_id'], expenseData);
+                        },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF00B4D8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        'Update',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAllExpensesDialog(List<Map<String, dynamic>> expenses, String groupTitle, String groupId) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -324,6 +626,29 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                               ],
                             ),
                         ],
+                      ),
+                      trailing: Builder(
+                        builder: (context) {
+                          final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
+                          final expenseAddedBy = expense['addedBy'];
+                          final shouldShowEdit = expenseAddedBy == currentUserEmail;
+                          
+                          // Debug: Print the comparison
+                          print('View page - Edit button check:');
+                          print('Current user email: $currentUserEmail');
+                          print('Expense addedBy: $expenseAddedBy');
+                          print('Should show edit: $shouldShowEdit');
+                          
+                          return shouldShowEdit
+                              ? IconButton(
+                                  icon: Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    _showEditExpenseDialog(expense, groupId);
+                                  },
+                                )
+                              : SizedBox.shrink();
+                        },
                       ),
                     ),
                   );
@@ -628,7 +953,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                   Spacer(),
                                                   if (expenses.length > 3)
                                                     TextButton(
-                                                      onPressed: () => _showAllExpensesDialog(expenses, group['title'] ?? 'Group'),
+                                                      onPressed: () => _showAllExpensesDialog(expenses, group['title'] ?? 'Group', group['_id']),
                                                       child: Text(
                                                         'View All (${expenses.length})',
                                                         style: TextStyle(
