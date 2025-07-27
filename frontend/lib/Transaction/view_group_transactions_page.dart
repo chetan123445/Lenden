@@ -100,26 +100,55 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
   double _calculateUserTotalSplit(Map<String, dynamic> group, String userEmail) {
     double total = 0.0;
     final expenses = group['expenses'] ?? [];
+    final members = group['members'] ?? [];
+    
+    // Find the member with this email to get their ID
+    String? userMemberId;
+    for (var member in members) {
+      if (member['email'] == userEmail) {
+        userMemberId = member['_id'].toString();
+        break;
+      }
+    }
+    
+    if (userMemberId == null) {
+      print('User member ID not found for email: $userEmail');
+      return 0.0;
+    }
+    
+    print('User member ID: $userMemberId for email: $userEmail');
+    print('Total expenses in group: ${expenses.length}');
     
     for (var expense in expenses) {
       final split = expense['split'] ?? [];
+      print('Expense: ${expense['description']}, Split items: ${split.length}');
+      
       for (var splitItem in split) {
-        // Find the member with this user ID
-        final members = group['members'] ?? [];
-        for (var member in members) {
-          if (member['email'] == userEmail && member['_id'] == splitItem['user']) {
-            total += double.parse((splitItem['amount'] ?? 0).toString());
-            break;
-          }
+        // Check if this split item belongs to the current user
+        String splitUserId = splitItem['user'].toString();
+        double splitAmount = double.parse((splitItem['amount'] ?? 0).toString());
+        print('Split item - User ID: $splitUserId, Amount: $splitAmount');
+        
+        if (splitUserId == userMemberId) {
+          total += splitAmount;
+          print('Match found! Adding $splitAmount to total. New total: $total');
         }
       }
     }
     
+    print('Final total split amount for $userEmail: $total');
     return total;
   }
 
   // Get user's pending balance for a group
   double _getUserPendingBalance(Map<String, dynamic> group, String userEmail) {
+    // Calculate pending balance based on total split amounts for this user
+    double totalSplitAmount = _calculateUserTotalSplit(group, userEmail);
+    
+    // Debug print to understand the calculation
+    print('Group: ${group['title']}, User: $userEmail, Total Split: $totalSplitAmount');
+    
+    // Also check if there's a balance in the balances array (for backward compatibility)
     final balances = group['balances'] ?? [];
     final members = group['members'] ?? [];
     
@@ -129,14 +158,21 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
         // Find the balance for this user
         for (var balance in balances) {
           if (balance['user'] == member['_id']) {
-            return double.parse((balance['balance'] ?? 0).toString());
+            double balanceAmount = double.parse((balance['balance'] ?? 0).toString());
+            print('Balance from array: $balanceAmount');
+            // If balance is 0 or null, use the calculated split amount
+            if (balanceAmount == 0) {
+              return totalSplitAmount;
+            }
+            return balanceAmount;
           }
         }
-        break;
+        // If no balance found, return the calculated split amount
+        return totalSplitAmount;
       }
     }
     
-    return 0.0;
+    return totalSplitAmount;
   }
 
   // Calculate total pending balance across all groups
