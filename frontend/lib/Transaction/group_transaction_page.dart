@@ -239,6 +239,200 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     }
   }
 
+  Widget _buildFloatingErrorCard(String errorMessage, Function setDialogState) {
+    // Auto-dismiss error after 5 seconds
+    Future.delayed(Duration(seconds: 5), () {
+      if (memberAddError != null) {
+        setDialogState(() { memberAddError = null; });
+      }
+    });
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFFDC2626), // Red
+            Color(0xFFEF4444),
+            Color(0xFFF87171),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          stops: [0.0, 0.5, 1.0],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0xFFDC2626).withOpacity(0.3),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+            spreadRadius: 2,
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            setDialogState(() { memberAddError = null; });
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Error icon
+                Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.error_outline,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                SizedBox(width: 12),
+                
+                // Error message
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Error',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.2),
+                              offset: Offset(0, 1),
+                              blurRadius: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        errorMessage,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withOpacity(0.2),
+                              offset: Offset(0, 1),
+                              blurRadius: 2,
+                            ),
+                          ],
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Close button
+                Container(
+                  padding: EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addMemberWithDialog(Function setDialogState) async {
+    if (_memberEmailController.text.trim().isEmpty) return;
+    
+    final email = _memberEmailController.text.trim();
+    
+    // Check if user exists before adding
+    final exists = await _checkUserExists(email);
+    if (!exists) {
+      setDialogState(() { 
+        memberAddError = 'User with email "$email" does not exist in our database. Please check the email address.'; 
+      });
+      return;
+    }
+    
+    // Check if trying to add the group creator (current user)
+    final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
+    if (email.toLowerCase() == (currentUserEmail ?? '').toLowerCase()) {
+      setDialogState(() { 
+        memberAddError = 'You (group creator) are already a member of this group.'; 
+      });
+      return;
+    }
+    
+    // Check if user is already a member
+    final members = (group?['members'] ?? []) as List<dynamic>;
+    final isAlreadyMember = members.any((member) => 
+        (member['email'] ?? '').toString().toLowerCase() == email.toLowerCase() && member['leftAt'] == null);
+    
+    if (isAlreadyMember) {
+      setDialogState(() { 
+        memberAddError = 'User "$email" is already a member of this group.'; 
+      });
+      return;
+    }
+    
+    setDialogState(() { loading = true; memberAddError = null; });
+    try {
+      final headers = await _authHeaders(context);
+      final res = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
+        headers: headers,
+        body: json.encode({'email': email}),
+      );
+      final data = json.decode(res.body);
+      if (res.statusCode == 200) {
+        setState(() {
+          group = data['group'];
+          _memberEmailController.clear();
+        });
+        
+        // Close dialog and show success message
+        Navigator.of(context).pop();
+        
+        // Show stylish success popup
+        _showMemberAddedSuccessDialog(email);
+      } else {
+        setDialogState(() { 
+          memberAddError = data['error'] ?? 'Failed to add member. Please try again.'; 
+        });
+      }
+    } catch (e) {
+      setDialogState(() { 
+        memberAddError = 'Network error. Please check your connection and try again.'; 
+      });
+    } finally {
+      setDialogState(() { loading = false; });
+    }
+  }
+
   Future<void> _addMember() async {
     if (_memberEmailController.text.trim().isEmpty) return;
     
@@ -801,144 +995,259 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        backgroundColor: Colors.white,
-        title: Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
+      barrierDismissible: false, // Prevent closing by tapping outside
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return Stack(
             children: [
-              Icon(Icons.person_add, color: Colors.white, size: 28),
-              SizedBox(width: 12),
-              Text(
-                'Add New Member',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-        content: Container(
-          padding: EdgeInsets.symmetric(vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: memberAddError != null 
-                      ? Color(0xFFDC2626).withOpacity(0.5)
-                      : Color(0xFF1E3A8A).withOpacity(0.3)
+              AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                backgroundColor: Colors.white,
+                title: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Color(0xFF1E40AF), // Deep blue
+                        Color(0xFF3B82F6), // Medium blue
+                        Color(0xFF60A5FA), // Light blue
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      stops: [0.0, 0.5, 1.0],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0xFF1E40AF).withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 8,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: TextField(
-                  controller: _memberEmailController,
-                  decoration: InputDecoration(
-                    labelText: 'Email Address',
-                    labelStyle: TextStyle(
-                      color: memberAddError != null 
-                        ? Color(0xFFDC2626)
-                        : Color(0xFF1E3A8A)
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: memberAddError != null 
-                      ? Color(0xFFDC2626).withOpacity(0.05)
-                      : Color(0xFF1E3A8A).withOpacity(0.05),
-                    prefixIcon: Icon(
-                      Icons.email, 
-                      color: memberAddError != null 
-                        ? Color(0xFFDC2626)
-                        : Color(0xFF1E3A8A)
-                    ),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    errorText: memberAddError,
-                    errorStyle: TextStyle(
-                      color: Color(0xFFDC2626),
-                      fontSize: 12,
-                    ),
-                  ),
-                  onChanged: (value) {
-                    // Clear error when user starts typing
-                    if (memberAddError != null) {
-                      setState(() { memberAddError = null; });
-                    }
-                  },
-                ),
-              ),
-              SizedBox(height: 24),
-              Container(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: loading ? null : () async {
-                    await _addMember();
-                    if (memberAddError == null) {
-                      Navigator.of(context).pop();
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF1E3A8A),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    elevation: 4,
-                    shadowColor: Color(0xFF1E3A8A).withOpacity(0.3),
-                  ),
-                  child: loading 
-                    ? SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.person_add, color: Colors.white, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Add Member',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                        child: Icon(Icons.person_add, color: Colors.white, size: 28),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Add New Member',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            shadows: [
+                              Shadow(
+                                color: Colors.black.withOpacity(0.2),
+                                offset: Offset(0, 2),
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                content: Container(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Email input field with wavy blue design
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          gradient: LinearGradient(
+                            colors: [
+                              Color(0xFFEFF6FF), // Very light blue
+                              Color(0xFFDBEAFE), // Light blue
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          border: Border.all(
+                            color: Color(0xFF3B82F6).withOpacity(0.3),
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF3B82F6).withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: TextField(
+                          controller: _memberEmailController,
+                          decoration: InputDecoration(
+                            labelText: 'Email Address',
+                            labelStyle: TextStyle(
+                              color: Color(0xFF1E40AF),
+                              fontWeight: FontWeight.w600,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              borderSide: BorderSide.none,
+                            ),
+                            filled: true,
+                            fillColor: Colors.transparent,
+                            prefixIcon: Container(
+                              margin: EdgeInsets.all(8),
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Color(0xFF3B82F6).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.email, 
+                                color: Color(0xFF1E40AF),
+                                size: 20,
+                              ),
+                            ),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            hintText: 'Enter member\'s email address',
+                            hintStyle: TextStyle(
+                              color: Color(0xFF6B7280),
+                              fontSize: 14,
                             ),
                           ),
-                        ],
+                          onChanged: (value) {
+                            // Clear error when user starts typing
+                            if (memberAddError != null) {
+                              setDialogState(() { memberAddError = null; });
+                            }
+                          },
+                          onSubmitted: (value) async {
+                            // Allow submission on Enter key
+                            if (value.trim().isNotEmpty && !loading) {
+                              await _addMemberWithDialog(setDialogState);
+                            }
+                          },
+                        ),
                       ),
+                      SizedBox(height: 24),
+                      
+                      // Add Member button with wavy blue design
+                      Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          gradient: LinearGradient(
+                            colors: [
+                              Color(0xFF1E40AF),
+                              Color(0xFF3B82F6),
+                              Color(0xFF60A5FA),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            stops: [0.0, 0.5, 1.0],
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFF1E40AF).withOpacity(0.3),
+                              blurRadius: 12,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed: loading ? null : () async {
+                            await _addMemberWithDialog(setDialogState);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                          ),
+                          child: loading 
+                            ? SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(Icons.person_add, color: Colors.white, size: 20),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Add Member',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      shadows: [
+                                        Shadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          offset: Offset(0, 1),
+                                          blurRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                actions: [
+                  TextButton(
+                    onPressed: loading ? null : () {
+                      Navigator.of(context).pop();
+                      setState(() { memberAddError = null; });
+                    },
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Color(0xFF6B7280)),
+                      ),
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
+              // Floating error message overlay
+              if (memberAddError != null)
+                Positioned(
+                  top: 20,
+                  left: 20,
+                  right: 20,
+                  child: _buildFloatingErrorCard(memberAddError!, setDialogState),
+                ),
             ],
-          ),
-        ),
+          );
+        },
       ),
-    ).then((_) {
-      // Clear error when dialog is closed
-      setState(() { memberAddError = null; });
-    });
+    );
   }
 
   Future<void> _deleteGroup() async {
@@ -1372,6 +1681,191 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showMemberAddedSuccessDialog(String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFF059669), // Green
+                Color(0xFF10B981),
+                Color(0xFF34D399),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              stops: [0.0, 0.5, 1.0],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0xFF059669).withOpacity(0.3),
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.check_circle, color: Colors.white, size: 28),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Success!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.2),
+                        offset: Offset(0, 2),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Success icon with animation
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Color(0xFF059669).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(50),
+                  border: Border.all(
+                    color: Color(0xFF059669).withOpacity(0.3),
+                    width: 2,
+                  ),
+                ),
+                child: Icon(
+                  Icons.person_add,
+                  color: Color(0xFF059669),
+                  size: 40,
+                ),
+              ),
+              SizedBox(height: 16),
+              
+              // Success message
+              Text(
+                'Member Added Successfully!',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF059669),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 8),
+              
+              // Member email
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Color(0xFF059669).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Color(0xFF059669).withOpacity(0.3),
+                  ),
+                ),
+                child: Text(
+                  email,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF059669),
+                  ),
+                ),
+              ),
+              SizedBox(height: 16),
+              
+              // Additional info
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Color(0xFF059669).withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Color(0xFF059669).withOpacity(0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Color(0xFF059669),
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'The member has been added to the group and can now participate in expenses.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF059669),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF059669),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: EdgeInsets.symmetric(vertical: 12),
+                elevation: 4,
+                shadowColor: Color(0xFF059669).withOpacity(0.3),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Great!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
