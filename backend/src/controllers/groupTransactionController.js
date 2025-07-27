@@ -88,9 +88,28 @@ exports.addMember = async (req, res) => {
       return res.status(400).json({ error: 'Group creator is already a member by default' });
     }
     
-    if (group.members.some(m => m.user.toString() === user._id.toString() && !m.leftAt)) return res.status(400).json({ error: 'User already a member' });
-    group.members.push({ user: user._id, joinedAt: new Date() });
-    group.balances.push({ user: user._id, balance: 0 });
+    // Check if user is already an active member
+    if (group.members.some(m => m.user.toString() === user._id.toString() && !m.leftAt)) {
+      return res.status(400).json({ error: 'User already a member' });
+    }
+    
+    // Check if user was previously removed and handle re-adding
+    const existingMemberIndex = group.members.findIndex(m => m.user.toString() === user._id.toString());
+    if (existingMemberIndex !== -1) {
+      // User was previously in the group, reactivate them
+      group.members[existingMemberIndex].leftAt = null;
+      group.members[existingMemberIndex].joinedAt = new Date(); // Update join date
+      
+      // Check if balance entry exists, if not create one
+      const existingBalance = group.balances.find(b => b.user.toString() === user._id.toString());
+      if (!existingBalance) {
+        group.balances.push({ user: user._id, balance: 0 });
+      }
+    } else {
+      // User is completely new to the group
+      group.members.push({ user: user._id, joinedAt: new Date() });
+      group.balances.push({ user: user._id, balance: 0 });
+    }
     await group.save();
     // Populate members and creator for response
     const populatedGroup = await GroupTransaction.findById(group._id)
@@ -773,6 +792,99 @@ exports.editExpense = async (req, res) => {
     
     res.json({ group: groupObj });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}; 
+
+exports.settleMemberExpenses = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { email } = req.body;
+    const group = await GroupTransaction.findById(groupId);
+    
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    
+    // Check if user is the group creator
+    if (group.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only group creator can settle member expenses' });
+    }
+    
+    // Find the member to settle
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Check if trying to settle the creator
+    if (user._id.toString() === group.creator.toString()) {
+      return res.status(400).json({ error: 'Cannot settle group creator expenses' });
+    }
+    
+    // Check if user is a member
+    const memberIndex = group.members.findIndex(m => m.user.toString() === user._id.toString() && !m.leftAt);
+    if (memberIndex === -1) {
+      return res.status(400).json({ error: 'User is not an active member of this group' });
+    }
+    
+    console.log(`Settling expenses for member: ${email} in group: ${group.title}`);
+    
+    // Set all split amounts for this member to 0 in all expenses
+    let expensesUpdated = 0;
+    for (let expense of group.expenses) {
+      let expenseModified = false;
+      
+      for (let splitItem of expense.split) {
+        if (splitItem.user.toString() === user._id.toString()) {
+          // Remove this split amount from balances
+          const bal = group.balances.find(b => b.user.toString() === splitItem.user.toString());
+          if (bal) {
+            bal.balance -= splitItem.amount;
+            console.log(`Removed ${splitItem.amount} from balance for ${email}`);
+          }
+          
+          // Set split amount to 0
+          splitItem.amount = 0;
+          expenseModified = true;
+        }
+      }
+      
+      if (expenseModified) {
+        expensesUpdated++;
+      }
+    }
+    
+    console.log(`Updated ${expensesUpdated} expenses for member ${email}`);
+    
+    await group.save();
+    
+    const populatedGroup = await GroupTransaction.findById(group._id)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+    const groupObj = populatedGroup.toObject();
+    
+    // Process expenses to convert Object IDs to emails in addedBy field
+    const processedExpenses = await processExpenses(groupObj.expenses);
+    
+    groupObj.members = groupObj.members.map(m => ({
+      _id: m.user._id,
+      email: m.user.email,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt
+    }));
+    groupObj.creator = {
+      _id: groupObj.creator._id,
+      email: groupObj.creator.email
+    };
+    groupObj.expenses = processedExpenses;
+    
+    res.json({ 
+      group: groupObj,
+      message: `Successfully settled ${expensesUpdated} expenses for ${email}` 
+    });
+  } catch (err) {
+    console.error('Error settling member expenses:', err);
     res.status(500).json({ error: err.message });
   }
 }; 

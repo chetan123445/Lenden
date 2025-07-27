@@ -156,6 +156,52 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     return totalExpenseAmount - _totalCustomSplitAmount;
   }
 
+  // Calculate member's total split amount from all expenses in the group
+  double _getMemberBalance(String memberEmail) {
+    if (group == null) return 0.0;
+    
+    double total = 0.0;
+    final expenses = (group!['expenses'] ?? []) as List<dynamic>;
+    final members = (group!['members'] ?? []) as List<dynamic>;
+    
+    // Find the member with this email to get their ID
+    String? userMemberId;
+    for (var member in members) {
+      if (member['email'] == memberEmail) {
+        userMemberId = member['_id'].toString();
+        break;
+      }
+    }
+    
+    if (userMemberId == null) {
+      print('User member ID not found for email: $memberEmail');
+      return 0.0;
+    }
+    
+    print('Calculating total split for member: $memberEmail (ID: $userMemberId)');
+    print('Total expenses in group: ${expenses.length}');
+    
+    for (var expense in expenses) {
+      final split = (expense['split'] ?? []) as List<dynamic>;
+      print('Expense: ${expense['description']}, Split items: ${split.length}');
+      
+      for (var splitItem in split) {
+        // Check if this split item belongs to the current user
+        String splitUserId = splitItem['user'].toString();
+        double splitAmount = double.parse((splitItem['amount'] ?? 0).toString());
+        print('Split item - User ID: $splitUserId, Amount: $splitAmount');
+        
+        if (splitUserId == userMemberId) {
+          total += splitAmount;
+          print('Match found! Adding $splitAmount to total. New total: $total');
+        }
+      }
+    }
+    
+    print('Final total split amount for $memberEmail: $total');
+    return total;
+  }
+
   Future<Map<String, String>> _authHeaders(BuildContext context) async {
     final token = Provider.of<SessionProvider>(context, listen: false).token;
     return {
@@ -593,13 +639,24 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 SizedBox(height: 16),
                 ...members.map<Widget>((member) {
                   final isCreator = creator != null && (member['email'] ?? '').toString() == (creator['email'] ?? '').toString();
+                  final hasLeft = member['leftAt'] != null;
+                  final memberEmail = (member['email'] ?? '').toString();
+                  
                   return Container(
                     margin: EdgeInsets.only(bottom: 8),
                     decoration: BoxDecoration(
-                      color: isCreator ? Color(0xFF059669).withOpacity(0.1) : Colors.white,
+                      color: isCreator 
+                        ? Color(0xFF059669).withOpacity(0.1) 
+                        : hasLeft 
+                          ? Colors.grey[100]
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isCreator ? Color(0xFF059669).withOpacity(0.3) : Color(0xFF1E3A8A).withOpacity(0.2),
+                        color: isCreator 
+                          ? Color(0xFF059669).withOpacity(0.3) 
+                          : hasLeft 
+                            ? Colors.grey[300]!
+                            : Color(0xFF1E3A8A).withOpacity(0.2),
                         width: 1.5,
                       ),
                       boxShadow: [
@@ -616,10 +673,12 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         radius: 20,
                         backgroundColor: isCreator 
                           ? Color(0xFF059669)
-                          : Color(0xFF1E3A8A),
+                          : hasLeft 
+                            ? Colors.grey[400]!
+                            : Color(0xFF1E3A8A),
                         child: Text(
                           () {
-                            final email = (member['email'] ?? '').toString();
+                            final email = memberEmail;
                             return email.isNotEmpty ? email[0].toUpperCase() : '?';
                           }(),
                           style: TextStyle(
@@ -630,18 +689,24 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         ),
                       ),
                       title: Text(
-                        (member['email'] ?? '').toString(),
+                        memberEmail,
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF1E3A8A),
+                          color: hasLeft ? Colors.grey[600] : Color(0xFF1E3A8A),
                         ),
                       ),
                       subtitle: Text(
                         isCreator 
                           ? 'Group Creator' 
-                          : 'Joined: ${member['joinedAt'] != null ? member['joinedAt'].toString().substring(0, 10) : ''}',
+                          : hasLeft 
+                            ? 'Removed: ${member['leftAt'] != null ? member['leftAt'].toString().substring(0, 10) : ''}'
+                            : 'Joined: ${member['joinedAt'] != null ? member['joinedAt'].toString().substring(0, 10) : ''}',
                         style: TextStyle(
-                          color: isCreator ? Color(0xFF059669) : Colors.grey[600],
+                          color: isCreator 
+                            ? Color(0xFF059669) 
+                            : hasLeft 
+                              ? Colors.grey[500]
+                              : Colors.grey[600],
                           fontSize: 12,
                         ),
                       ),
@@ -661,13 +726,42 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                               ),
                             ),
                           )
-                        : IconButton(
-                            icon: Icon(Icons.person_remove, color: Color(0xFFDC2626)),
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              _showRemoveMemberDialog((member['email'] ?? '').toString());
-                            },
-                          ),
+                        : hasLeft 
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[400],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    'REMOVED',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                IconButton(
+                                  icon: Icon(Icons.person_add, color: Color(0xFF059669)),
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                    _showReAddMemberDialog(memberEmail);
+                                  },
+                                ),
+                              ],
+                            )
+                          : IconButton(
+                              icon: Icon(Icons.person_remove, color: Color(0xFFDC2626)),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                _showRemoveMemberDialog(memberEmail);
+                              },
+                            ),
                     ),
                   );
                 }).toList(),
@@ -909,11 +1003,80 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
         setState(() { group = data['group']; });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Member removed successfully')),
-        );
+        // Show stylish success dialog
+        _showMemberRemovedSuccessDialog(email);
       } else {
         setState(() { error = data['error'] ?? 'Failed to remove member'; });
+      }
+    } catch (e) {
+      setState(() { error = e.toString(); });
+    } finally {
+      setState(() { loading = false; });
+    }
+  }
+
+  Future<void> _reAddMember(String email) async {
+    setState(() { loading = true; error = null; });
+    try {
+      final headers = await _authHeaders(context);
+      final res = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
+        headers: headers,
+        body: json.encode({'email': email}),
+      );
+      final data = json.decode(res.body);
+      if (res.statusCode == 200) {
+        setState(() { group = data['group']; });
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ $email has been re-added to the group!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      } else {
+        setState(() { error = data['error'] ?? 'Failed to re-add member'; });
+      }
+    } catch (e) {
+      setState(() { error = e.toString(); });
+    } finally {
+      setState(() { loading = false; });
+    }
+  }
+
+  Future<void> _settleAndRemoveMember(String email) async {
+    setState(() { loading = true; error = null; });
+    try {
+      final headers = await _authHeaders(context);
+      
+      // First, settle all expenses for this member (set their split amounts to 0)
+      final res = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/settle-member-expenses'),
+        headers: headers,
+        body: json.encode({'email': email}),
+      );
+      
+      if (res.statusCode != 200) {
+        final data = json.decode(res.body);
+        setState(() { error = data['error'] ?? 'Failed to settle member expenses'; });
+        return;
+      }
+      
+      // Then remove the member
+      final removeRes = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
+        headers: headers,
+        body: json.encode({'email': email}),
+      );
+      
+      final removeData = json.decode(removeRes.body);
+      if (removeRes.statusCode == 200) {
+        setState(() { group = removeData['group']; });
+        // Show stylish success dialog
+        _showMemberSettledAndRemovedSuccessDialog(email);
+      } else {
+        setState(() { error = removeData['error'] ?? 'Failed to remove member'; });
       }
     } catch (e) {
       setState(() { error = e.toString(); });
@@ -1063,6 +1226,407 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               SizedBox(height: 8),
               Text(
                 'The expense has been removed from the group',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 32),
+              // Continue Button
+              Container(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Color(0xFF10B981),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Continue',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMemberRemovedSuccessDialog(String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              colors: [Color(0xFF10B981), Color(0xFF34D399)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0xFF10B981).withOpacity(0.3),
+                blurRadius: 20,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Success Icon with Animation
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.person_remove,
+                  size: 50,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+              SizedBox(height: 24),
+              // Success Title
+              Text(
+                'Member Removed!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              SizedBox(height: 12),
+              // Success Message
+              Text(
+                '$email has been removed',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'The member has been successfully removed from the group',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 32),
+              // Continue Button
+              Container(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Color(0xFF10B981),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Continue',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showReAddMemberDialog(String email) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF059669), Color(0xFF10B981)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.person_add, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Re-add Member',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Member info
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFF059669).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Color(0xFF059669).withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Color(0xFF059669),
+                      child: Text(
+                        email[0].toUpperCase(),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            email,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF059669),
+                            ),
+                          ),
+                          Text(
+                            'Previously removed from this group',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              
+              // Confirmation message
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFF059669).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Color(0xFF059669).withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Color(0xFF059669),
+                      size: 24,
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'This will re-add the member to the group with a fresh start (no previous expenses).',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF059669),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Color(0xFF1E3A8A)),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Color(0xFF1E3A8A),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _reAddMember(email);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF059669),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    elevation: 4,
+                    shadowColor: Color(0xFF059669).withOpacity(0.3),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.person_add, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Re-add',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMemberSettledAndRemovedSuccessDialog(String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              colors: [Color(0xFF10B981), Color(0xFF34D399)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0xFF10B981).withOpacity(0.3),
+                blurRadius: 20,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Success Icon with Animation
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.account_balance_wallet,
+                  size: 50,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+              SizedBox(height: 24),
+              // Success Title
+              Text(
+                'Member Settled & Removed!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              SizedBox(height: 12),
+              // Success Message
+              Text(
+                '$email has been settled and removed',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'All their expenses have been settled and they have been removed from the group',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.9),
                   fontSize: 14,
@@ -1398,7 +1962,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     );
   }
 
-  void _showRemoveMemberDialog(String email) {
+  void _showRemoveMemberDialog(String email) async {
+    // First check if member has any balance
+    final memberBalance = _getMemberBalance(email);
+    final hasBalance = memberBalance != 0;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1434,75 +2002,126 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Member info
               Container(
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Color(0xFFDC2626).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Color(0xFFDC2626).withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Color(0xFFDC2626), size: 24),
-                    SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Are you sure you want to remove this member?',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFDC2626),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 16),
-              Container(
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
                   color: Color(0xFF1E3A8A).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.email, color: Color(0xFF1E3A8A), size: 20),
-                    SizedBox(width: 8),
-                    Expanded(
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Color(0xFF1E3A8A),
                       child: Text(
-                        'Member: $email',
+                        email[0].toUpperCase(),
                         style: TextStyle(
-                          fontSize: 14,
+                          color: Colors.white,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1E3A8A),
                         ),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            email,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E3A8A),
+                            ),
+                          ),
+                          Text(
+                            'Total Split Amount: \$${memberBalance.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: memberBalance > 0 ? Colors.orange[700] : Colors.grey[600],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
               SizedBox(height: 16),
+              
+              // Balance warning if member has balance
+              if (hasBalance) ...[
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Color(0xFFFFF3CD),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Color(0xFFFFEAA7)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Color(0xFF856404), size: 24),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Member has expenses!',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF856404),
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'You can settle all their expenses and then remove them.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF856404),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+              ],
+              
+              // Confirmation message
               Container(
-                padding: EdgeInsets.all(12),
+                padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Color(0xFFFECACA)),
+                  color: hasBalance ? Color(0xFFFEF2F2) : Color(0xFFDC2626).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: hasBalance ? Color(0xFFFECACA) : Color(0xFFDC2626).withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
-                    SizedBox(width: 8),
+                    Icon(
+                      hasBalance ? Icons.error_outline : Icons.info_outline,
+                      color: hasBalance ? Color(0xFFDC2626) : Color(0xFFDC2626),
+                      size: 24,
+                    ),
+                    SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        'This action cannot be undone.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFFDC2626),
+                      child:                         Text(
+                          hasBalance 
+                            ? 'Click "Settle & Remove" to set all their split amounts to 0 and remove them.'
+                            : 'Are you sure you want to remove this member? This action cannot be undone.',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: hasBalance ? Color(0xFFDC2626) : Color(0xFFDC2626),
+                          ),
                         ),
-                      ),
                     ),
                   ],
                 ),
@@ -1533,37 +2152,71 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                 ),
               ),
-              SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _removeMember(email);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFDC2626),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    elevation: 4,
-                    shadowColor: Color(0xFFDC2626).withOpacity(0.3),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.person_remove, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Remove',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+              if (!hasBalance) ...[
+                SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _removeMember(email);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFFDC2626),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      elevation: 4,
+                      shadowColor: Color(0xFFDC2626).withOpacity(0.3),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.person_remove, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Remove',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ] else ...[
+                SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _settleAndRemoveMember(email);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFFDC2626),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      elevation: 4,
+                      shadowColor: Color(0xFFDC2626).withOpacity(0.3),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.account_balance_wallet, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Settle & Remove',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ],
