@@ -2802,6 +2802,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     editSelectedMembers = editSelectedMembers.where((email) => activeMembers.contains(email)).toList();
     
     Map<String, double> editCustomSplitAmounts = {};
+    String? validationError;
     
     // Initialize custom split amounts from existing split data
     if (expense['split'] != null) {
@@ -3003,22 +3004,143 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       ),
                     ),
                     SizedBox(height: 8),
-                    ...editSelectedMembers.map<Widget>((memberEmail) {
-                      return Container(
-                        margin: EdgeInsets.only(bottom: 8),
+                    
+                    // Total Split and Remaining Amount Display
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Total Split:',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF1E3A8A),
+                            ),
+                          ),
+                          Text(
+                            '\$${editSelectedMembers.fold<double>(0, (sum, email) => sum + (editCustomSplitAmounts[email] ?? 0)).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: editSelectedMembers.fold<double>(0, (sum, email) => sum + (editCustomSplitAmounts[email] ?? 0)) > 0 ? Colors.green[700] : Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Remaining:',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF1E3A8A),
+                            ),
+                          ),
+                          Text(
+                            '\$${((double.tryParse(editAmountController.text) ?? 0) - editSelectedMembers.fold<double>(0, (sum, email) => sum + (editCustomSplitAmounts[email] ?? 0))).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: ((double.tryParse(editAmountController.text) ?? 0) - editSelectedMembers.fold<double>(0, (sum, email) => sum + (editCustomSplitAmounts[email] ?? 0))) > 0 ? Colors.orange[700] : 
+                                     ((double.tryParse(editAmountController.text) ?? 0) - editSelectedMembers.fold<double>(0, (sum, email) => sum + (editCustomSplitAmounts[email] ?? 0))) < 0 ? Colors.red[700] : Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    
+                    // Validation error display
+                    if (validationError != null) ...[
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red[300]!),
+                        ),
                         child: Row(
                           children: [
+                            Icon(Icons.error_outline, color: Colors.red, size: 20),
+                            SizedBox(width: 8),
                             Expanded(
-                              flex: 2,
                               child: Text(
-                                memberEmail,
+                                validationError!,
                                 style: TextStyle(
+                                  color: Colors.red[700],
                                   fontSize: 14,
-                                  color: Colors.grey[700],
                                 ),
                               ),
                             ),
-                            SizedBox(width: 8),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                    ],
+                                          ...editSelectedMembers.map<Widget>((memberEmail) => Container(
+                        margin: EdgeInsets.only(bottom: 12),
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Color(0xFF1E3A8A),
+                              child: Text(
+                                memberEmail[0].toUpperCase(),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    memberEmail,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF1E3A8A),
+                                    ),
+                                  ),
+                                  Text(
+                                    'Amount: \$${(editCustomSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(width: 12),
                             Expanded(
                               child: TextField(
                                 keyboardType: TextInputType.number,
@@ -3036,13 +3158,19 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 onChanged: (value) {
                                   final amount = double.tryParse(value) ?? 0;
                                   editCustomSplitAmounts[memberEmail] = amount;
+                                  // Update dialog state to refresh the display
+                                  setDialogState(() {
+                                    // Clear validation error when user starts typing
+                                    if (validationError != null && validationError!.contains('Custom split amounts')) {
+                                      validationError = null;
+                                    }
+                                  });
                                 },
                               ),
                             ),
                           ],
                         ),
-                      );
-                    }).toList(),
+                      )).toList(),
                   ],
                 ],
               ),
@@ -3077,25 +3205,29 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     margin: EdgeInsets.only(left: 8, right: 16),
                     child: ElevatedButton(
                       onPressed: () async {
+                        setDialogState(() {
+                          validationError = null; // Clear previous errors
+                        });
+                        
                         if (editDescController.text.trim().isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Please enter a description')),
-                          );
+                          setDialogState(() {
+                            validationError = 'Please enter a description';
+                          });
                           return;
                         }
                         
                         final amount = double.tryParse(editAmountController.text);
                         if (amount == null || amount <= 0) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Please enter a valid amount')),
-                          );
+                          setDialogState(() {
+                            validationError = 'Please enter a valid amount';
+                          });
                           return;
                         }
                         
                         if (editSelectedMembers.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Please select at least one member')),
-                          );
+                          setDialogState(() {
+                            validationError = 'Please select at least one member';
+                          });
                           return;
                         }
                         
@@ -3107,9 +3239,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           }
                           
                           if ((totalCustomAmount - amount).abs() > 0.01) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Custom split amounts must equal the total amount')),
-                            );
+                            setDialogState(() {
+                              validationError = 'Custom split amounts must equal the total amount (\$${amount.toStringAsFixed(2)}). Current total: \$${totalCustomAmount.toStringAsFixed(2)}';
+                            });
                             return;
                           }
                         }
