@@ -32,6 +32,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   final TextEditingController _expenseAmountController = TextEditingController();
   String splitType = 'equal';
   List<Map<String, dynamic>> customSplits = [];
+  List<String> selectedMembers = []; // New: selected members for expense
+  Map<String, double> customSplitAmounts = {}; // New: track custom split amounts for each member
   bool addingExpense = false;
   String? expenseError;
 
@@ -127,6 +129,33 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     });
   }
 
+  // Initialize selected members for expense (start with no members selected)
+  void _initializeSelectedMembers() {
+    if (group != null) {
+      // Start with no members selected - user must explicitly choose
+      selectedMembers = [];
+    }
+  }
+
+  // Initialize custom split amounts for selected members
+  void _initializeCustomSplitAmounts() {
+    customSplitAmounts.clear();
+    for (String memberEmail in selectedMembers) {
+      customSplitAmounts[memberEmail] = 0.0;
+    }
+  }
+
+  // Get total amount entered for custom split
+  double get _totalCustomSplitAmount {
+    return customSplitAmounts.values.fold(0.0, (sum, amount) => sum + amount);
+  }
+
+  // Get remaining amount for custom split
+  double get _remainingCustomSplitAmount {
+    final totalExpenseAmount = double.tryParse(_expenseAmountController.text.trim()) ?? 0.0;
+    return totalExpenseAmount - _totalCustomSplitAmount;
+  }
+
   Future<Map<String, String>> _authHeaders(BuildContext context) async {
     final token = Provider.of<SessionProvider>(context, listen: false).token;
     return {
@@ -190,9 +219,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     }
     
     // Check if user is already a member
-    final members = (group?['members'] ?? []).cast<Map<String, dynamic>>();
+    final members = (group?['members'] ?? []) as List<dynamic>;
     final isAlreadyMember = members.any((member) => 
-        (member['email'] ?? '').toLowerCase() == email.toLowerCase());
+        (member['email'] ?? '').toString().toLowerCase() == email.toLowerCase());
     
     if (isAlreadyMember) {
       setState(() { 
@@ -234,19 +263,47 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   Future<void> _addExpense() async {
-    setState(() { addingExpense = true; expenseError = null; });
+    // Validation is now handled in the dialog, so we don't need to check here
+    
+    setState(() { addingExpense = true; });
     try {
       final headers = await _authHeaders(context);
+      
+      // Prepare split data based on split type
+      List<Map<String, dynamic>> splitData = [];
+      if (splitType == 'equal') {
+        // For equal split, send selected members with null amounts (backend will calculate)
+        splitData = selectedMembers.map((memberEmail) => {
+          'user': memberEmail,
+          'amount': null, // Backend will calculate equal amounts
+        }).toList();
+      } else if (splitType == 'custom') {
+        // For custom split, send the amounts for each member
+        splitData = selectedMembers.map((memberEmail) => {
+          'user': memberEmail,
+          'amount': customSplitAmounts[memberEmail] ?? 0.0,
+        }).toList();
+      }
+
+      // Debug: Print request data
+      final requestData = {
+        'description': _expenseDescController.text.trim(),
+        'amount': double.tryParse(_expenseAmountController.text.trim()),
+        'splitType': splitType,
+        'split': splitData,
+        'selectedMembers': selectedMembers,
+      };
+      print('Adding expense with data: ${json.encode(requestData)}');
+
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-expense'),
         headers: headers,
-        body: json.encode({
-          'description': _expenseDescController.text.trim(),
-          'amount': double.tryParse(_expenseAmountController.text.trim()),
-          'splitType': splitType,
-          'split': splitType == 'custom' ? customSplits : null,
-        }),
+        body: json.encode(requestData),
       );
+      
+      print('Response status: ${res.statusCode}');
+      print('Response body: ${res.body}');
+      
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
         setState(() {
@@ -254,12 +311,25 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           _expenseDescController.clear();
           _expenseAmountController.clear();
           customSplits.clear();
+          selectedMembers.clear();
+          customSplitAmounts.clear(); // Clear custom split amounts
         });
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Expense added successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
+        );
       } else {
-        setState(() { expenseError = data['error'] ?? 'Failed to add expense'; });
+        // Throw exception instead of setting error state
+        throw Exception(data['error'] ?? 'Failed to add expense');
       }
     } catch (e) {
-      setState(() { expenseError = e.toString(); });
+      print('Error adding expense: $e');
+      // Re-throw the exception so the dialog can handle it
+      rethrow;
     } finally {
       setState(() { addingExpense = false; });
     }
@@ -370,17 +440,17 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             CircleAvatar(
-              backgroundColor: Colors.primaries[(member['email'] ?? '').hashCode % Colors.primaries.length].shade300,
+              backgroundColor: Colors.primaries[(member['email'] ?? '').toString().hashCode % Colors.primaries.length].shade300,
               radius: 32,
               child: Text(() {
-                final email = member['email'] ?? '';
+                final email = (member['email'] ?? '').toString();
                 return email.isNotEmpty ? email[0].toUpperCase() : '?';
               }(),
                 style: TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
             SizedBox(height: 16),
-            Text(member['email'] ?? '', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text((member['email'] ?? '').toString(), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             if (member['joinedAt'] != null)
               Text('Joined: ${member['joinedAt'].toString().substring(0, 10)}', style: TextStyle(fontSize: 14, color: Colors.grey)),
             if (member['leftAt'] != null)
@@ -436,7 +506,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     setState(() { loading = false; });
   }
 
-  void _showMembersDialog(List<Map<String, dynamic>> members, Map<String, dynamic>? creator) {
+  void _showMembersDialog(List<dynamic> members, Map<String, dynamic>? creator) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -522,7 +592,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                 SizedBox(height: 16),
                 ...members.map<Widget>((member) {
-                  final isCreator = creator != null && member['email'] == creator['email'];
+                  final isCreator = creator != null && (member['email'] ?? '').toString() == (creator['email'] ?? '').toString();
                   return Container(
                     margin: EdgeInsets.only(bottom: 8),
                     decoration: BoxDecoration(
@@ -549,7 +619,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           : Color(0xFF1E3A8A),
                         child: Text(
                           () {
-                            final email = member['email'] ?? '';
+                            final email = (member['email'] ?? '').toString();
                             return email.isNotEmpty ? email[0].toUpperCase() : '?';
                           }(),
                           style: TextStyle(
@@ -560,7 +630,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         ),
                       ),
                       title: Text(
-                        member['email'] ?? '',
+                        (member['email'] ?? '').toString(),
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF1E3A8A),
@@ -595,7 +665,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             icon: Icon(Icons.person_remove, color: Color(0xFFDC2626)),
                             onPressed: () {
                               Navigator.of(context).pop();
-                              _showRemoveMemberDialog(member['email'] ?? '');
+                              _showRemoveMemberDialog((member['email'] ?? '').toString());
                             },
                           ),
                     ),
@@ -1345,9 +1415,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     );
   }
 
-  void _showExpensesDialog(List<Map<String, dynamic>> expenses) {
+  void _showExpensesDialog(List<dynamic> expenses) {
     // Get members from the current group
-    final members = (group?['members'] ?? []).cast<Map<String, dynamic>>();
+    final members = (group?['members'] ?? []) as List<dynamic>;
     
     showDialog(
       context: context,
@@ -1551,7 +1621,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                               child: Row(
                                                 children: [
                                                   Text(
-                                                    '• ${member['email']}: ',
+                                                    '• ${(member['email'] ?? '').toString()}: ',
                                                     style: TextStyle(
                                                       fontSize: 11,
                                                       color: Colors.grey[600],
@@ -1934,9 +2004,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                                 padding: const EdgeInsets.symmetric(horizontal: 2),
                                                 child: CircleAvatar(
                                                   radius: 12,
-                                                  backgroundColor: Colors.primaries[(m['email'] ?? '').hashCode % Colors.primaries.length].shade200,
+                                                  backgroundColor: Colors.primaries[(m['email'] ?? '').toString().hashCode % Colors.primaries.length].shade200,
                                                   child: Text(() {
-                                                    final email = m['email'] ?? '';
+                                                    final email = (m['email'] ?? '').toString();
                                                     return email.isNotEmpty ? email[0].toUpperCase() : '?';
                                                   }(),
                                                     style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
@@ -2147,9 +2217,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   Widget _buildGroupDetailsCard() {
-    final members = (group?['members'] ?? []).cast<Map<String, dynamic>>();
+    final members = (group?['members'] ?? []) as List<dynamic>;
     final creator = group?['creator'];
-    final expenses = (group?['expenses'] ?? []).cast<Map<String, dynamic>>();
+    final expenses = (group?['expenses'] ?? []) as List<dynamic>;
     final groupColor = group?['color'] != null
         ? Color(int.parse(group!['color'].toString().replaceFirst('#', '0xff')))
         : Colors.blue.shade300;
@@ -2444,7 +2514,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                           child: Row(
                                             children: [
                                               Text(
-                                                '• ${member['email']}: ',
+                                                '• ${(member['email'] ?? '').toString()}: ',
                                                 style: TextStyle(
                                                   fontSize: 11,
                                                   color: Colors.grey[600],
@@ -2683,39 +2753,630 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   void _showAddExpenseDialog() {
+    // Initialize selected members with all active members
+    _initializeSelectedMembers();
+    
+    // Local error state for the dialog
+    String? dialogError;
+    bool dialogAddingExpense = false;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        backgroundColor: Colors.white,
-        title: Container(
-          padding: EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.add_circle_outline, color: Colors.white, size: 28),
-              SizedBox(width: 12),
-              Text(
-                'Add New Expense',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          backgroundColor: Colors.white,
+          title: Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            ],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.add_circle_outline, color: Colors.white, size: 28),
+                SizedBox(width: 12),
+                Text(
+                  'Add New Expense',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
           ),
+          content: Container(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Color(0xFF1E3A8A).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Add expense details and choose split type',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: _expenseDescController,
+                      decoration: InputDecoration(
+                        labelText: 'Expense Description',
+                        labelStyle: TextStyle(
+                          color: Color(0xFF1E3A8A),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        prefixIcon: Icon(Icons.description, color: Color(0xFF1E3A8A)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: TextField(
+                      controller: _expenseAmountController,
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Amount (\$)',
+                        labelStyle: TextStyle(
+                          color: Color(0xFF1E3A8A),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        prefixIcon: Icon(Icons.attach_money, color: Color(0xFF1E3A8A)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  // Member Selection Field
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: InkWell(
+                      onTap: () => _showMemberSelectionDialog(),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                        child: Row(
+                          children: [
+                            Icon(Icons.people, color: Color(0xFF1E3A8A)),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Choose Members',
+                                    style: TextStyle(
+                                      color: Color(0xFF1E3A8A),
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    selectedMembers.isEmpty 
+                                      ? 'Select members to include in this expense'
+                                      : '${selectedMembers.length} member${selectedMembers.length == 1 ? '' : 's'} selected',
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.arrow_drop_down, color: Color(0xFF1E3A8A)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: DropdownButtonFormField<String>(
+                      value: splitType,
+                      items: [
+                        DropdownMenuItem(
+                          value: 'equal',
+                          child: Row(
+                            children: [
+                              Icon(Icons.equalizer, color: Color(0xFF1E3A8A)),
+                              SizedBox(width: 8),
+                              Text('Split Equally'),
+                            ],
+                          ),
+                        ),
+                        DropdownMenuItem(
+                          value: 'custom',
+                          child: Row(
+                            children: [
+                              Icon(Icons.person_outline, color: Color(0xFF1E3A8A)),
+                              SizedBox(width: 8),
+                              Text('Custom Split'),
+                            ],
+                          ),
+                        ),
+                      ],
+                      onChanged: (v) {
+                        setDialogState(() {
+                          splitType = v ?? 'equal';
+                          if (splitType == 'custom') {
+                            _initializeCustomSplitAmounts();
+                          }
+                        });
+                      },
+                      decoration: InputDecoration(
+                        labelText: 'Split Type',
+                        labelStyle: TextStyle(
+                          color: Color(0xFF1E3A8A),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        prefixIcon: Icon(Icons.share, color: Color(0xFF1E3A8A)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[50],
+                      ),
+                    ),
+                  ),
+                  if (splitType == 'custom')
+                    Container(
+                      margin: EdgeInsets.only(top: 16),
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Color(0xFF1E3A8A).withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Custom Split',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1E3A8A),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Enter amount for each selected member',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF1E3A8A),
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          // Amount summary
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Total Split:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF1E3A8A),
+                                  ),
+                                ),
+                                Text(
+                                  '\$${_totalCustomSplitAmount.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: _totalCustomSplitAmount > 0 ? Colors.green[700] : Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Container(
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Remaining:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF1E3A8A),
+                                  ),
+                                ),
+                                Text(
+                                  '\$${_remainingCustomSplitAmount.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: _remainingCustomSplitAmount > 0 ? Colors.orange[700] : 
+                                           _remainingCustomSplitAmount < 0 ? Colors.red[700] : Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(height: 16),
+                          // Member amount inputs
+                          ...selectedMembers.map((memberEmail) => Container(
+                            margin: EdgeInsets.only(bottom: 12),
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                            ),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 16,
+                                  backgroundColor: Color(0xFF1E3A8A),
+                                  child: Text(
+                                    memberEmail[0].toUpperCase(),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        memberEmail,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF1E3A8A),
+                                        ),
+                                      ),
+                                      Text(
+                                        'Amount: \$${(customSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Container(
+                                  width: 100,
+                                  child: TextField(
+                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                                    decoration: InputDecoration(
+                                      hintText: '0.00',
+                                      prefixText: '\$',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                                      ),
+                                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                    ),
+                                    style: TextStyle(fontSize: 14),
+                                    onChanged: (value) {
+                                      setDialogState(() {
+                                        final amount = double.tryParse(value) ?? 0.0;
+                                        customSplitAmounts[memberEmail] = amount;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )).toList(),
+                        ],
+                      ),
+                    ),
+                  if (dialogError != null)
+                    Container(
+                      margin: EdgeInsets.only(top: 16),
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red[300]!),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.red, size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              dialogError!,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.red[700],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    margin: EdgeInsets.only(left: 16, right: 8),
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[300],
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    margin: EdgeInsets.only(left: 8, right: 16),
+                    child: ElevatedButton(
+                      onPressed: dialogAddingExpense ? null : () async {
+                        // Clear previous error
+                        setDialogState(() { dialogError = null; });
+                        
+                        // Validate that at least one member is selected
+                        if (selectedMembers.isEmpty) {
+                          setDialogState(() { 
+                            dialogError = 'Please select at least one member for this expense'; 
+                          });
+                          return;
+                        }
+
+                        // Validate custom split amounts if split type is custom
+                        if (splitType == 'custom') {
+                          final totalExpenseAmount = double.tryParse(_expenseAmountController.text.trim()) ?? 0.0;
+                          final totalSplitAmount = _totalCustomSplitAmount;
+                          
+                          if (totalSplitAmount != totalExpenseAmount) {
+                            setDialogState(() { 
+                              dialogError = 'Total split amount (\$${totalSplitAmount.toStringAsFixed(2)}) must equal expense amount (\$${totalExpenseAmount.toStringAsFixed(2)})'; 
+                            });
+                            return;
+                          }
+                        }
+
+                        setDialogState(() { dialogAddingExpense = true; });
+                        try {
+                          await _addExpense();
+                          setDialogState(() { dialogAddingExpense = false; });
+                          Navigator.of(context).pop();
+                        } catch (e) {
+                          setDialogState(() { dialogAddingExpense = false; dialogError = e.toString(); });
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF1E3A8A),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: dialogAddingExpense
+                          ? SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(
+                              'Add Expense',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-        content: Container(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
+      ),
+    );
+  }
+
+  // Member Selection Dialog
+  void _showMemberSelectionDialog() {
+    if (group == null) return;
+    
+    final members = (group!['members'] ?? []) as List<dynamic>;
+    final activeMembers = members.where((member) => member['leftAt'] == null).toList();
+    
+    // Sort members alphabetically by email
+    activeMembers.sort((a, b) => (a['email'] ?? '').toString().compareTo((b['email'] ?? '').toString()));
+    
+    // Create a temporary list for the dialog
+    List<String> tempSelectedMembers = List.from(selectedMembers);
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          backgroundColor: Colors.white,
+          title: Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.people, color: Colors.white, size: 28),
+                SizedBox(width: 12),
+                Text(
+                  'Select Members',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          content: Container(
+            width: double.maxFinite,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -2730,276 +3391,186 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     children: [
                       Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
                       SizedBox(width: 8),
-                      Text(
-                        'Add expense details and choose split type',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF1E3A8A),
+                      Expanded(
+                        child: Text(
+                          'Select members who should be included in this expense split',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF1E3A8A),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                SizedBox(height: 20),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
+                SizedBox(height: 12),
+                // Select All / Clear All buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setDialogState(() {
+                            tempSelectedMembers.clear();
+                            tempSelectedMembers.addAll(
+                              activeMembers.map((member) => member['email'].toString())
+                            );
+                          });
+                        },
+                        icon: Icon(Icons.select_all, size: 18),
+                        label: Text('Select All'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF1E3A8A),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                        ),
                       ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _expenseDescController,
-                    decoration: InputDecoration(
-                      labelText: 'Expense Description',
-                      labelStyle: TextStyle(
-                        color: Color(0xFF1E3A8A),
-                        fontWeight: FontWeight.w500,
-                      ),
-                      prefixIcon: Icon(Icons.description, color: Color(0xFF1E3A8A)),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
                     ),
-                  ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setDialogState(() {
+                            tempSelectedMembers.clear();
+                          });
+                        },
+                        icon: Icon(Icons.clear_all, size: 18),
+                        label: Text('Clear All'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[300],
+                          foregroundColor: Colors.black87,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 SizedBox(height: 16),
                 Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: TextField(
-                    controller: _expenseAmountController,
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                    decoration: InputDecoration(
-                      labelText: 'Amount (\$)',
-                      labelStyle: TextStyle(
-                        color: Color(0xFF1E3A8A),
-                        fontWeight: FontWeight.w500,
-                      ),
-                      prefixIcon: Icon(Icons.attach_money, color: Color(0xFF1E3A8A)),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: splitType,
-                    items: [
-                      DropdownMenuItem(
-                        value: 'equal',
-                        child: Row(
-                          children: [
-                            Icon(Icons.equalizer, color: Color(0xFF1E3A8A)),
-                            SizedBox(width: 8),
-                            Text('Split Equally'),
-                          ],
-                        ),
-                      ),
-                      DropdownMenuItem(
-                        value: 'custom',
-                        child: Row(
-                          children: [
-                            Icon(Icons.person_outline, color: Color(0xFF1E3A8A)),
-                            SizedBox(width: 8),
-                            Text('Custom Split'),
-                          ],
-                        ),
-                      ),
-                    ],
-                    onChanged: (v) => setState(() => splitType = v ?? 'equal'),
-                    decoration: InputDecoration(
-                      labelText: 'Split Type',
-                      labelStyle: TextStyle(
-                        color: Color(0xFF1E3A8A),
-                        fontWeight: FontWeight.w500,
-                      ),
-                      prefixIcon: Icon(Icons.share, color: Color(0xFF1E3A8A)),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                    ),
-                  ),
-                ),
-                if (splitType == 'custom')
-                  Container(
-                    margin: EdgeInsets.only(top: 16),
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF1E3A8A).withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Custom split feature will be implemented in the next update',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF1E3A8A),
-                              fontStyle: FontStyle.italic,
-                            ),
+                  height: 300,
+                  child: ListView.builder(
+                    itemCount: activeMembers.length,
+                    itemBuilder: (context, index) {
+                      final member = activeMembers[index];
+                      final email = member['email'].toString(); // Convert to string safely
+                      final isSelected = tempSelectedMembers.contains(email);
+                      
+                      return Container(
+                        margin: EdgeInsets.only(bottom: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected ? Color(0xFF1E3A8A).withOpacity(0.1) : Colors.grey[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? Color(0xFF1E3A8A) : Colors.grey[300]!,
+                            width: isSelected ? 2 : 1,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                if (expenseError != null)
-                  Container(
-                    margin: EdgeInsets.only(top: 16),
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.red[300]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline, color: Colors.red, size: 20),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            expenseError!,
+                        child: CheckboxListTile(
+                          value: isSelected,
+                          onChanged: (bool? value) {
+                            setDialogState(() {
+                              if (value == true) {
+                                if (!tempSelectedMembers.contains(email)) {
+                                  tempSelectedMembers.add(email);
+                                }
+                              } else {
+                                tempSelectedMembers.remove(email);
+                              }
+                            });
+                          },
+                          title: Text(
+                            email,
                             style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.red[700],
+                              fontWeight: FontWeight.w500,
+                              color: isSelected ? Color(0xFF1E3A8A) : Colors.black87,
                             ),
                           ),
+                          subtitle: Text(
+                            isSelected ? 'Included in expense' : 'Not included',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isSelected ? Color(0xFF1E3A8A) : Colors.grey[600],
+                            ),
+                          ),
+                          activeColor: Color(0xFF1E3A8A),
+                          checkColor: Colors.white,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
+                ),
               ],
             ),
           ),
-        ),
-        actions: [
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  margin: EdgeInsets.only(left: 16, right: 8),
-                  child: ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[300],
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: Text(
-                      'Cancel',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    margin: EdgeInsets.only(left: 16, right: 8),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // Reset selected members when canceling
+                        selectedMembers.clear();
+                        setState(() {});
+                        Navigator.of(context).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[300],
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                          color: Colors.black87,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              Expanded(
-                child: Container(
-                  margin: EdgeInsets.only(left: 8, right: 16),
-                  child: ElevatedButton(
-                    onPressed: addingExpense ? null : () async {
-                      await _addExpense();
-                      Navigator.of(context).pop();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF1E3A8A),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                Expanded(
+                  child: Container(
+                    margin: EdgeInsets.only(left: 8, right: 16),
+                    child: ElevatedButton(
+                      onPressed: () {
+                        // Update the main widget state to reflect the changes
+                        setState(() {
+                          selectedMembers.clear();
+                          selectedMembers.addAll(tempSelectedMembers);
+                          // Initialize custom split amounts if split type is custom
+                          if (splitType == 'custom') {
+                            _initializeCustomSplitAmounts();
+                          }
+                        });
+                        Navigator.of(context).pop();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF1E3A8A),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text(
+                        'Done',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                    child: addingExpense
-                        ? SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Text(
-                            'Add Expense',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
