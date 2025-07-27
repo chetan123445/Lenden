@@ -933,9 +933,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
         setState(() { group = data['group']; });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Expense deleted successfully')),
-        );
+        // Show stylish success dialog
+        _showExpenseDeletedSuccessDialog();
       } else {
         setState(() { error = data['error'] ?? 'Failed to delete expense'; });
       }
@@ -944,6 +943,117 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     } finally {
       setState(() { loading = false; });
     }
+  }
+
+  void _showExpenseDeletedSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              colors: [Color(0xFF10B981), Color(0xFF34D399)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0xFF10B981).withOpacity(0.3),
+                blurRadius: 20,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Success Icon with Animation
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.check_circle,
+                  size: 50,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+              SizedBox(height: 24),
+              // Success Title
+              Text(
+                'Success!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              SizedBox(height: 12),
+              // Success Message
+              Text(
+                'Expense deleted successfully',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'The expense has been removed from the group',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 32),
+              // Continue Button
+              Container(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Color(0xFF10B981),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Continue',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showDeleteGroupDialog() {
@@ -2540,18 +2650,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           ),
                       ],
                     ),
-                    trailing: isCreator
-                        ? IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              _showDeleteExpenseDialog(
-                                expense['_id'],
-                                expense['description'] ?? 'Unknown',
-                              );
-                            },
-                          )
-                        : null,
+                    trailing: null,
                   ),
                 );
               }).toList(),
