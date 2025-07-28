@@ -86,6 +86,8 @@ router.put('/group-transactions/:groupId/color', auth, groupTransactionControlle
 router.delete('/group-transactions/:groupId', auth, groupTransactionController.deleteGroup);
 // New: Leave group (members only)
 router.post('/group-transactions/:groupId/leave', auth, groupTransactionController.leaveGroup);
+// New: Send leave request to group creator
+router.post('/group-transactions/:groupId/send-leave-request', auth, groupTransactionController.sendLeaveRequest);
 
 
 module.exports = router;

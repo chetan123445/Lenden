@@ -1,6 +1,7 @@
 const GroupTransaction = require('../models/groupTransaction');
 const User = require('../models/user');
 const { sendGroupSettleOtp } = require('../utils/groupSettleOtp');
+const { sendGroupLeaveRequestEmail } = require('../utils/groupLeaveRequestEmail');
 const mongoose = require('mongoose');
 
 // Helper function to process expenses and convert Object IDs to emails in addedBy field
@@ -518,12 +519,7 @@ exports.deleteGroup = async (req, res) => {
     if (!group) return res.status(404).json({ error: 'Group not found' });
     if (group.creator.toString() !== req.user._id.toString()) return res.status(403).json({ error: 'Only creator can delete group' });
     
-    // Check if any member has pending balances
-    const hasPendingBalances = group.balances.some(b => b.balance !== 0);
-    if (hasPendingBalances) {
-      return res.status(400).json({ error: 'Cannot delete group with pending balances. Please settle all balances first.' });
-    }
-    
+    // Delete the group regardless of pending balances
     await GroupTransaction.findByIdAndDelete(groupId);
     res.json({ message: 'Group deleted successfully' });
   } catch (err) {
@@ -547,10 +543,22 @@ exports.leaveGroup = async (req, res) => {
     const memberIndex = group.members.findIndex(m => m.user.toString() === req.user._id.toString() && !m.leftAt);
     if (memberIndex === -1) return res.status(400).json({ error: 'You are not a member of this group' });
     
+    // Calculate user's total split amount (pending balance) - same logic as frontend
+    let userBalance = 0;
+    for (let expense of group.expenses) {
+      for (let splitItem of expense.split) {
+        if (splitItem.user.toString() === req.user._id.toString()) {
+          userBalance += splitItem.amount;
+        }
+      }
+    }
+    
     // Check if user has pending balances
-    const userBalance = group.balances.find(b => b.user.toString() === req.user._id.toString());
-    if (userBalance && userBalance.balance !== 0) {
-      return res.status(400).json({ error: 'Cannot leave group with pending balances. Please settle your balance first.' });
+    if (userBalance !== 0) {
+      return res.status(400).json({ 
+        error: 'Cannot leave group with pending balances. Please settle your balance first or send a leave request to the group creator.',
+        userBalance: userBalance
+      });
     }
     
     // Mark member as left
@@ -888,3 +896,72 @@ exports.settleMemberExpenses = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 }; 
+
+// Send leave request to group creator
+exports.sendLeaveRequest = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const group = await GroupTransaction.findById(groupId)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+    
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    
+    // Check if user is a member (not creator)
+    if (group.creator._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({ error: 'Group creator cannot send leave request. Use delete group instead.' });
+    }
+    
+    const memberIndex = group.members.findIndex(m => m.user._id.toString() === req.user._id.toString() && !m.leftAt);
+    if (memberIndex === -1) {
+      return res.status(400).json({ error: 'You are not a member of this group' });
+    }
+    
+    // Calculate user's total split amount (pending balance)
+    let userBalance = 0;
+    for (let expense of group.expenses) {
+      for (let splitItem of expense.split) {
+        if (splitItem.user.toString() === req.user._id.toString()) {
+          userBalance += splitItem.amount;
+        }
+      }
+    }
+    
+    // Get user's email
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Prepare group details for email
+    const groupDetails = {
+      title: group.title,
+      members: group.members,
+      expenses: group.expenses,
+      creator: group.creator
+    };
+    
+    // Send email to group creator
+    const emailSent = await sendGroupLeaveRequestEmail(
+      group.creator.email,
+      groupDetails,
+      user.email,
+      userBalance
+    );
+    
+    if (emailSent) {
+      res.json({ 
+        success: true, 
+        message: 'Leave request sent to group creator successfully',
+        userBalance: userBalance
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to send leave request email' });
+    }
+  } catch (err) {
+    console.error('Error sending leave request:', err);
+    res.status(500).json({ error: err.message });
+  }
+};

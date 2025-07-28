@@ -202,6 +202,16 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     return total;
   }
 
+  // Calculate current user's total split amount from all expenses in the group
+  double _getCurrentUserBalance() {
+    if (group == null) return 0.0;
+    
+    final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
+    if (currentUserEmail == null) return 0.0;
+    
+    return _getMemberBalance(currentUserEmail);
+  }
+
   Future<Map<String, String>> _authHeaders(BuildContext context) async {
     final token = Provider.of<SessionProvider>(context, listen: false).token;
     return {
@@ -1262,9 +1272,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       if (res.statusCode == 200) {
         setState(() { group = null; });
         _fetchUserGroups();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Group deleted successfully')),
-        );
+        // Show stylish success dialog
+        _showGroupDeletedSuccessDialog();
       } else {
         setState(() { error = data['error'] ?? 'Failed to delete group'; });
       }
@@ -1287,11 +1296,43 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       if (res.statusCode == 200) {
         setState(() { group = null; });
         _fetchUserGroups();
+        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Left group successfully')),
+          SnackBar(
+            content: Text('✅ Successfully left the group!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+          ),
         );
       } else {
         setState(() { error = data['error'] ?? 'Failed to leave group'; });
+      }
+    } catch (e) {
+      setState(() { error = e.toString(); });
+    } finally {
+      setState(() { loading = false; });
+    }
+  }
+
+  Future<void> _sendLeaveRequest() async {
+    setState(() { loading = true; error = null; });
+    try {
+      final headers = await _authHeaders(context);
+      final res = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/send-leave-request'),
+        headers: headers,
+      );
+      final data = json.decode(res.body);
+      if (res.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Leave request sent to group creator successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      } else {
+        setState(() { error = data['error'] ?? 'Failed to send leave request'; });
       }
     } catch (e) {
       setState(() { error = e.toString(); });
@@ -1663,6 +1704,117 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: Color(0xFF10B981),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    'Continue',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showGroupDeletedSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: LinearGradient(
+              colors: [Color(0xFFDC2626), Color(0xFFEF4444)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0xFFDC2626).withOpacity(0.3),
+                blurRadius: 20,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Success Icon with Animation
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.delete_forever,
+                  size: 50,
+                  color: Color(0xFFDC2626),
+                ),
+              ),
+              SizedBox(height: 24),
+              // Success Title
+              Text(
+                'Group Deleted!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              SizedBox(height: 12),
+              // Success Message
+              Text(
+                'Group has been permanently deleted',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'All group data and expenses have been removed',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 32),
+              // Continue Button
+              Container(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Color(0xFFDC2626),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -2309,6 +2461,10 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   void _showLeaveGroupDialog() {
+    // Check if user has pending balances
+    final userBalance = _getCurrentUserBalance();
+    final hasBalance = userBalance != 0;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -2318,7 +2474,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           padding: EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFFF59E0B), Color(0xFFF97316)],
+              colors: hasBalance ? [Color(0xFFDC2626), Color(0xFFEF4444)] : [Color(0xFFF59E0B), Color(0xFFF97316)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -2326,10 +2482,14 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ),
           child: Row(
             children: [
-              Icon(Icons.exit_to_app, color: Colors.white, size: 28),
+              Icon(
+                hasBalance ? Icons.warning_amber_rounded : Icons.exit_to_app, 
+                color: Colors.white, 
+                size: 28
+              ),
               SizedBox(width: 12),
               Text(
-                'Leave Group',
+                hasBalance ? 'Cannot Leave Group' : 'Leave Group',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 22,
@@ -2344,48 +2504,145 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // User balance info
               Container(
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Color(0xFFF59E0B).withOpacity(0.1),
+                  color: hasBalance ? Color(0xFFDC2626).withOpacity(0.1) : Color(0xFFF59E0B).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Color(0xFFF59E0B).withOpacity(0.3)),
+                  border: Border.all(color: hasBalance ? Color(0xFFDC2626).withOpacity(0.3) : Color(0xFFF59E0B).withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Color(0xFFF59E0B), size: 24),
+                    Icon(
+                      hasBalance ? Icons.account_balance_wallet : Icons.info_outline, 
+                      color: hasBalance ? Color(0xFFDC2626) : Color(0xFFF59E0B), 
+                      size: 24
+                    ),
                     SizedBox(width: 12),
                     Expanded(
-                      child: Text(
-                        'Are you sure you want to leave this group?',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFF59E0B),
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            hasBalance ? 'You have pending expenses!' : 'Leave Group Confirmation',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: hasBalance ? Color(0xFFDC2626) : Color(0xFFF59E0B),
+                            ),
+                          ),
+                          if (hasBalance) ...[
+                            SizedBox(height: 4),
+                            Text(
+                              'Total Split Amount: \$${userBalance.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFFDC2626),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
               SizedBox(height: 16),
+              
+              // Balance warning if user has balance
+              if (hasBalance) ...[
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Color(0xFFFFF3CD),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Color(0xFFFFEAA7)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Color(0xFF856404), size: 24),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Cannot leave with pending expenses!',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF856404),
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'You need to settle your expenses before leaving. Send a request to the group creator.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF856404),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+              ] else ...[
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Color(0xFFFFFBEB),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Color(0xFFFED7AA)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_outlined, color: Color(0xFFF59E0B), size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You will no longer have access to this group and its expenses.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFFF59E0B),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+              ],
+              
+              // Confirmation message
               Container(
-                padding: EdgeInsets.all(12),
+                padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Color(0xFFFED7AA)),
+                  color: hasBalance ? Color(0xFFFEF2F2) : Color(0xFFF59E0B).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: hasBalance ? Color(0xFFFECACA) : Color(0xFFF59E0B).withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning_amber_outlined, color: Color(0xFFF59E0B), size: 20),
-                    SizedBox(width: 8),
+                    Icon(
+                      hasBalance ? Icons.email_outlined : Icons.info_outline,
+                      color: hasBalance ? Color(0xFFDC2626) : Color(0xFFF59E0B),
+                      size: 24,
+                    ),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'You will no longer have access to this group and its expenses.',
+                        hasBalance 
+                          ? 'Click "Send Request" to notify the group creator about your leave request.'
+                          : 'Are you sure you want to leave this group? This action cannot be undone.',
                         style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFFF59E0B),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: hasBalance ? Color(0xFFDC2626) : Color(0xFFF59E0B),
                         ),
                       ),
                     ),
@@ -2418,37 +2675,71 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                 ),
               ),
-              SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    _leaveGroup();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFFF59E0B),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    elevation: 4,
-                    shadowColor: Color(0xFFF59E0B).withOpacity(0.3),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.exit_to_app, color: Colors.white, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Leave',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+              if (!hasBalance) ...[
+                SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _leaveGroup();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFFF59E0B),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      elevation: 4,
+                      shadowColor: Color(0xFFF59E0B).withOpacity(0.3),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.exit_to_app, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Leave',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ] else ...[
+                SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      _sendLeaveRequest();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFFDC2626),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      elevation: 4,
+                      shadowColor: Color(0xFFDC2626).withOpacity(0.3),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.email_outlined, color: Colors.white, size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Send Request',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ],
