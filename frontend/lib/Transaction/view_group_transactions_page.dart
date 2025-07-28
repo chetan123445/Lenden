@@ -1146,6 +1146,14 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                   margin: EdgeInsets.only(bottom: 16),
                                   elevation: 4,
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      border: Border.all(
+                                        color: Color(0xFF00B4D8),
+                                        width: 2,
+                                      ),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
                                   child: ExpansionTile(
                                     leading: CircleAvatar(
                                       backgroundColor: Color(0xFF00B4D8),
@@ -1404,6 +1412,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                         ),
                                       ),
                                     ],
+                                  ),
                                   ),
                                 );
                               },

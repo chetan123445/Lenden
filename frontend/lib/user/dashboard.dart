@@ -258,7 +258,13 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                               children: [
                                 Icon(Icons.analytics, color: Color(0xFF00B4D8), size: 40),
                                 SizedBox(width: 20),
-                                Text('Visual Analytics', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Visual Analytics', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                                    Text('(for individual transactions)', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                                  ],
+                                ),
                               ],
                             ),
                           ),

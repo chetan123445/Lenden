@@ -3894,7 +3894,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                               elevation: 6,
                               margin: EdgeInsets.only(bottom: 18),
-                              child: Padding(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: groupColor,
+                                    width: 2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3983,6 +3991,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                       ],
                                     ),
                                   ],
+                                ),
                                 ),
                               ),
                             );
@@ -4175,7 +4184,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       elevation: 4,
-      child: Padding(
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: groupColor,
+            width: 2,
+          ),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -4550,6 +4567,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 child: Text(error!, style: TextStyle(color: Colors.red)),
               ),
           ],
+        ),
         ),
       ),
     );
