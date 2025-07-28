@@ -90,6 +90,60 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> refreshUserProfile() async {
+    if (_token == null) return;
+    
+    try {
+      final isAdmin = _role == 'admin';
+      final url = isAdmin
+          ? '${ApiConfig.baseUrl}/api/admins/me'
+          : '${ApiConfig.baseUrl}/api/users/me';
+      
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Authorization': 'Bearer $_token'},
+      );
+      
+      if (response.statusCode == 200) {
+        final user = jsonDecode(response.body);
+        setUser(user);
+      }
+    } catch (e) {
+      print('Error refreshing user profile: $e');
+    }
+  }
+
+  // Method to force clear image cache and refresh profile
+  Future<void> forceRefreshProfile() async {
+    if (_token == null) return;
+    
+    try {
+      final isAdmin = _role == 'admin';
+      final url = isAdmin
+          ? '${ApiConfig.baseUrl}/api/admins/me'
+          : '${ApiConfig.baseUrl}/api/users/me';
+      
+      // Add cache busting parameter
+      final cacheBustingUrl = '$url?t=${DateTime.now().millisecondsSinceEpoch}';
+      
+      final response = await http.get(
+        Uri.parse(cacheBustingUrl),
+        headers: {
+          'Authorization': 'Bearer $_token',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final user = jsonDecode(response.body);
+        setUser(user);
+      }
+    } catch (e) {
+      print('Error force refreshing user profile: $e');
+    }
+  }
+
   void clearUser() {
     _user = null;
     notifyListeners();

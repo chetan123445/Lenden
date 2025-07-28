@@ -19,6 +19,7 @@ exports.updateUserProfile = async (req, res) => {
     } else if (req.file) {
       update.profileImage = req.file.buffer;
     }
+    
     const user = await User.findByIdAndUpdate(userId, update, { new: true, runValidators: true }).select('-password');
     // Return user object with profileImage as URL if exists
     const userObj = user.toObject();
@@ -48,6 +49,7 @@ exports.updateAdminProfile = async (req, res) => {
     } else if (req.file) {
       update.profileImage = req.file.buffer;
     }
+    
     const admin = await Admin.findByIdAndUpdate(adminId, update, { new: true, runValidators: true }).select('-password');
     // Return admin object with profileImage as URL if exists
     const adminObj = admin.toObject();

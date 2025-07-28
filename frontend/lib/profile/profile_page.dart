@@ -17,6 +17,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Map<String, dynamic>? _profile;
   bool _loading = true;
   String? _error;
+  int _imageRefreshKey = 0; // Key to force avatar rebuild
 
   @override
   void initState() {
@@ -48,6 +49,7 @@ class _ProfilePageState extends State<ProfilePage> {
         setState(() {
           _profile = jsonDecode(response.body);
           _loading = false;
+          _imageRefreshKey++; // Force avatar rebuild
         });
       } else {
         setState(() {
@@ -73,27 +75,20 @@ class _ProfilePageState extends State<ProfilePage> {
     final username = user?['username'] ?? '';
     final email = user?['email'] ?? 'user@email.com';
     final gender = user?['gender'] ?? 'Other';
-    dynamic imageUrl = user?['profileImage'];
-    if (imageUrl is Map && imageUrl['url'] != null) {
-      imageUrl = imageUrl['url'];
-    }
-    // Debug print to help diagnose type issues
-    // ignore: avoid_print
-    print('Profile imageUrl type: ${imageUrl.runtimeType}, value: ${imageUrl}');
-    if (imageUrl != null && imageUrl is! String) {
-      imageUrl = null;
-    }
+    final imageUrl = user?['profileImage'];
     final birthday = user?['birthday'] ?? '';
     String birthdayDisplay = birthday;
     if (birthdayDisplay.contains('T')) {
       birthdayDisplay = birthdayDisplay.split('T').first;
     }
     final phone = user?['phone'] ?? '';
-    // Password is not shown, but you can add a placeholder
-    // Choose the correct avatar provider based on imageUrl type
+    
+    // Choose the correct avatar provider based on imageUrl
     ImageProvider avatarProvider;
     if (imageUrl != null && imageUrl is String && imageUrl.trim().isNotEmpty && imageUrl != 'null') {
-      avatarProvider = NetworkImage(imageUrl);
+      // Add cache busting parameter for real-time updates
+      final cacheBustingUrl = '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+      avatarProvider = NetworkImage(cacheBustingUrl);
     } else {
       avatarProvider = AssetImage(
         gender == 'Male'
@@ -147,6 +142,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               const SizedBox(height: 30),
                               Center(
                                 child: CircleAvatar(
+                                  key: ValueKey(_imageRefreshKey),
                                   radius: 54,
                                   backgroundColor: const Color(0xFF00B4D8),
                                   backgroundImage: avatarProvider,
@@ -169,14 +165,18 @@ class _ProfilePageState extends State<ProfilePage> {
                               if (gender.isNotEmpty) _profileField(Icons.transgender, 'Gender', gender),
                               const SizedBox(height: 32),
                               ElevatedButton(
-                                onPressed: () {
-                                  Navigator.push(
+                                onPressed: () async {
+                                  await Navigator.push(
                                     context,
                                     MaterialPageRoute(builder: (context) => const EditProfilePage()),
-                                  ).then((_) {
-                                    // Refresh profile after editing
-                                    _fetchProfile();
+                                  );
+                                  // Force refresh profile after editing to get updated image
+                                  final session = Provider.of<SessionProvider>(context, listen: false);
+                                  await session.forceRefreshProfile();
+                                  setState(() {
+                                    _imageRefreshKey++; // Force avatar rebuild
                                   });
+                                  _fetchProfile();
                                 },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF00B4D8),

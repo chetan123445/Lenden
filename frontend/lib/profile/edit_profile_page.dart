@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lenden_frontend/user/session.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:lenden_frontend/api_config.dart';
@@ -26,6 +27,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
   Uint8List? _newImageBytes;
   bool _removeImage = false;
   bool _obscurePassword = true;
+  int _imageRefreshKey = 0; // Key to force avatar rebuild
+  bool _isUpdating = false; // Loading state for profile update
 
   @override
   void initState() {
@@ -56,12 +59,32 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _pickImage() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.image);
-    if (result != null && result.files.single.bytes != null) {
-      setState(() {
-        _newImageBytes = result.files.single.bytes;
-        _removeImage = false;
-      });
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+      
+      if (image != null) {
+        final File imageFile = File(image.path);
+        final Uint8List imageBytes = await imageFile.readAsBytes();
+        
+        setState(() {
+          _newImageBytes = imageBytes;
+          _removeImage = false;
+          _imageRefreshKey++; // Force avatar rebuild
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error picking image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -69,11 +92,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
     setState(() {
       _newImageBytes = null;
       _removeImage = true;
+      _imageRefreshKey++; // Force avatar rebuild
     });
   }
 
   void _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
+    
+    setState(() {
+      _isUpdating = true;
+    });
+    
     final session = Provider.of<SessionProvider>(context, listen: false);
     final isAdmin = session.isAdmin;
     final url = isAdmin
@@ -93,81 +122,75 @@ class _EditProfilePageState extends State<EditProfilePage> {
     } else if (_newImageBytes != null) {
       request.files.add(http.MultipartFile.fromBytes('profileImage', _newImageBytes!, filename: 'profile.png'));
     }
-    final response = await request.send();
-    if (response.statusCode == 200) {
-      final respStr = await response.stream.bytesToString();
-      final updatedUser = jsonDecode(respStr);
-      // Normalize profileImage to always be a String
-      if (updatedUser != null && updatedUser['profileImage'] is Map && updatedUser['profileImage']['url'] != null) {
-        updatedUser['profileImage'] = updatedUser['profileImage']['url'];
-      }
-      session.setUser(updatedUser);
-      // Fetch latest user profile from backend to get updated image URL
-      final isAdmin = session.isAdmin;
-      final profileUrl = isAdmin
-          ? ApiConfig.baseUrl + '/api/admins/me'
-          : ApiConfig.baseUrl + '/api/users/me';
-      try {
-        final profileRes = await http.get(
-          Uri.parse(profileUrl),
-          headers: {'Authorization': 'Bearer ${session.token}'},
-        );
-        if (profileRes.statusCode == 200) {
-          final latestUser = jsonDecode(profileRes.body);
-          // Normalize profileImage to always be a String
-          if (latestUser != null && latestUser['profileImage'] is Map && latestUser['profileImage']['url'] != null) {
-            latestUser['profileImage'] = latestUser['profileImage']['url'];
-          }
-          session.setUser(latestUser);
-        }
-      } catch (_) {}
-      // Re-initialize form fields with latest user data for continuous editing
-      final newUser = session.user;
-      setState(() {
-        _nameController.text = newUser?['name'] ?? '';
-        String birthday = newUser?['birthday'] ?? '';
-        if (birthday.contains('T')) {
-          birthday = birthday.split('T').first;
-        }
-        _birthdayController.text = birthday;
-        _phoneController.text = newUser?['phone'] ?? '';
-        _emailController.text = newUser?['email'] ?? '';
-        _addressController.text = newUser?['address'] ?? '';
-        _gender = newUser?['gender'] ?? 'Other';
-        _newImageBytes = null;
-        _removeImage = false;
-      });
-      // Show stylish success SnackBar and allow immediate re-editing
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.check_circle, color: Colors.white, size: 28),
-              SizedBox(width: 12),
-              Text(
-                'Profile updated successfully!',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
+    
+        try {
+      final response = await request.send();
+      if (response.statusCode == 200) {
+          final respStr = await response.stream.bytesToString();
+          final updatedUser = jsonDecode(respStr);
+          
+          // Update session with new user data immediately
+          session.setUser(updatedUser);
+          
+          // Force refresh user profile to ensure we have the latest data with cache busting
+          await session.forceRefreshProfile();
+          
+                    // Force UI refresh by updating state
+          setState(() {
+            _newImageBytes = null;
+            _removeImage = false;
+            _imageRefreshKey++; // Force avatar rebuild
+            _isUpdating = false;
+          });
+          
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.check_circle, color: Colors.white, size: 28),
+                SizedBox(width: 12),
+                Text(
+                  'Profile updated successfully!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+            backgroundColor: const Color(0xFF00B4D8),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
           ),
-          backgroundColor: const Color(0xFF00B4D8),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          duration: const Duration(seconds: 2),
-          margin: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-        ),
-      );
-      // Do NOT pop the page, so user can continue editing
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to update profile.')),
-      );
-    }
+        );
+              } else {
+          final errorBody = await response.stream.bytesToString();
+          setState(() {
+            _isUpdating = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update profile'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        setState(() {
+          _isUpdating = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating profile: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
   }
 
   @override
@@ -175,18 +198,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final user = Provider.of<SessionProvider>(context).user;
     final gender = _gender ?? 'Other';
     final imageUrl = user?['profileImage'];
-    dynamic fixedImageUrl = imageUrl;
-    if (fixedImageUrl is Map && fixedImageUrl['url'] != null) {
-      fixedImageUrl = fixedImageUrl['url'];
-    }
-    if (fixedImageUrl != null && fixedImageUrl is! String) {
-      fixedImageUrl = null;
-    }
+    
     Widget avatar;
     if (_newImageBytes != null) {
-      avatar = CircleAvatar(radius: 54, backgroundImage: MemoryImage(_newImageBytes!));
-    } else if (_removeImage || fixedImageUrl == null || fixedImageUrl.toString().isEmpty || fixedImageUrl == 'null') {
+      // Show newly selected image
       avatar = CircleAvatar(
+        key: ValueKey(_imageRefreshKey),
+        radius: 54, 
+        backgroundImage: MemoryImage(_newImageBytes!),
+        backgroundColor: const Color(0xFF00B4D8),
+      );
+    } else if (_removeImage || imageUrl == null || imageUrl.toString().isEmpty || imageUrl == 'null') {
+      // Show default avatar based on gender
+      avatar = CircleAvatar(
+        key: ValueKey(_imageRefreshKey),
         radius: 54,
         backgroundImage: AssetImage(
           gender == 'Male'
@@ -195,9 +220,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ? 'assets/Female.png'
                   : 'assets/Other.png',
         ),
+        backgroundColor: const Color(0xFF00B4D8),
       );
     } else {
-      avatar = CircleAvatar(radius: 54, backgroundImage: NetworkImage(fixedImageUrl));
+      // Show network image with cache busting for real-time updates
+      final cacheBustingUrl = '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+      avatar = CircleAvatar(
+        key: ValueKey(_imageRefreshKey),
+        radius: 54, 
+        backgroundImage: NetworkImage(cacheBustingUrl),
+        backgroundColor: const Color(0xFF00B4D8),
+        onBackgroundImageError: (exception, stackTrace) {
+          // Fallback to default avatar if network image fails
+        },
+      );
     }
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FA),
@@ -219,24 +255,61 @@ class _EditProfilePageState extends State<EditProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Center(child: avatar),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _pickImage,
-                      icon: const Icon(Icons.upload, color: Color(0xFF00B4D8)),
-                      label: const Text('Upload', style: TextStyle(color: Color(0xFF00B4D8))),
-                    ),
-                    const SizedBox(width: 12),
-                    OutlinedButton.icon(
-                      onPressed: _removeProfileImage,
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      label: const Text('Remove', style: TextStyle(color: Colors.red)),
-                    ),
-                  ],
+                Center(
+                  child: Stack(
+                    children: [
+                      avatar,
+                      if (_isUpdating)
+                        Positioned.fill(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.3),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 12),
+                                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _isUpdating ? null : _pickImage,
+                        icon: Icon(
+                          Icons.upload, 
+                          color: _isUpdating ? Colors.grey : const Color(0xFF00B4D8)
+                        ),
+                        label: Text(
+                          'Upload', 
+                          style: TextStyle(
+                            color: _isUpdating ? Colors.grey : const Color(0xFF00B4D8)
+                          )
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      OutlinedButton.icon(
+                        onPressed: _isUpdating ? null : _removeProfileImage,
+                        icon: Icon(
+                          Icons.delete, 
+                          color: _isUpdating ? Colors.grey : Colors.red
+                        ),
+                        label: Text(
+                          'Remove', 
+                          style: TextStyle(
+                            color: _isUpdating ? Colors.grey : Colors.red
+                          )
+                        ),
+                      ),
+                    ],
+                  ),
+
                 const SizedBox(height: 24),
                 _editField(Icons.person, 'Name', _nameController),
                 _editField(Icons.account_circle, 'Username', TextEditingController(text: user?['username'] ?? ''), readOnly: true),
@@ -247,13 +320,29 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 _editGenderField(),
                 const SizedBox(height: 32),
                 ElevatedButton(
-                  onPressed: _saveProfile,
+                  onPressed: _isUpdating ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00B4D8),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text('Save', style: TextStyle(fontSize: 18, color: Colors.white)),
+                  child: _isUpdating 
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Saving...', style: TextStyle(fontSize: 18, color: Colors.white)),
+                        ],
+                      )
+                    : const Text('Save', style: TextStyle(fontSize: 18, color: Colors.white)),
                 ),
                 const SizedBox(height: 12),
                 OutlinedButton(
