@@ -53,10 +53,12 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     final userId = session.user?['_id'];
     final lendingList = transactions.where((t) => t['lender']?['_id'] == userId).toList();
     final borrowingList = transactions.where((t) => t['borrower']?['_id'] == userId).toList();
-    return WillPopScope(
-      onWillPop: () async {
-        Navigator.pushReplacementNamed(context, '/');
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) async {
+        if (!didPop) {
+          Navigator.pushReplacementNamed(context, '/');
+        }
       },
       child: Scaffold(
         drawer: Drawer(
@@ -179,148 +181,174 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
               ),
             ),
             SafeArea(
-              child: Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(
+                  top: 160, // Account for top blue wave + extra spacing
+                  bottom: 130, // Account for bottom blue wave + extra spacing
+                  left: 0,
+                  right: 0,
+                ),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        GestureDetector(
-                          onTap: showTransactionForm,
-                          child: Container(
-                            margin: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                            padding: EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 8,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
+                    GestureDetector(
+                      onTap: showTransactionForm,
+                      child: Container(
+                        margin: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
                             ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.swap_horiz, color: Colors.teal, size: 40),
-                                SizedBox(width: 20),
-                                Text('Create Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
-                              ],
-                            ),
-                          ),
+                          ],
                         ),
-                        GestureDetector(
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UserTransactionsPage())),
-                          child: Container(
-                            margin: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                            padding: EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 8,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.account_balance_wallet, color: Colors.blue, size: 40),
-                                SizedBox(width: 20),
-                                Text('Your Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
-                              ],
-                            ),
-                          ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.swap_horiz, color: Colors.teal, size: 40),
+                            SizedBox(width: 20),
+                            Text('Create Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                          ],
                         ),
-                        // New Analytics Box
-                        GestureDetector(
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AnalyticsPage())),
-                          child: Container(
-                            margin: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                            padding: EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 8,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UserTransactionsPage())),
+                      child: Container(
+                        margin: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
                             ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.analytics, color: Color(0xFF00B4D8), size: 40),
-                                SizedBox(width: 20),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Visual Analytics', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
-                                    Text('(for individual transactions)', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
+                          ],
                         ),
-                        GestureDetector(
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GroupTransactionPage())),
-                          child: Container(
-                            margin: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                            padding: EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 8,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.group, color: Colors.deepPurple, size: 40),
-                                SizedBox(width: 20),
-                                Text('Create Group Transaction', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
-                              ],
-                            ),
-                          ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.account_balance_wallet, color: Colors.blue, size: 40),
+                            SizedBox(width: 20),
+                            Text('Your Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                          ],
                         ),
-                        // New View Group Transactions Box
-                        GestureDetector(
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ViewGroupTransactionsPage())),
-                          child: Container(
-                            margin: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
-                            padding: EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 8,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
+                      ),
+                    ),
+                    // New Analytics Box
+                    GestureDetector(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AnalyticsPage())),
+                      child: Container(
+                        margin: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
                             ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.visibility, color: Colors.orange, size: 40),
-                                SizedBox(width: 20),
-                                Text('View Group Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
-                              ],
-                            ),
-                          ),
+                          ],
                         ),
-                      ],
+                        child: Row(
+                          children: [
+                            Icon(Icons.analytics, color: Color(0xFF00B4D8), size: 40),
+                            SizedBox(width: 20),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Visual Analytics', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                                Text('(for individual transactions)', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GroupTransactionPage())),
+                      child: Container(
+                        margin: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.group, color: Colors.deepPurple, size: 40),
+                            SizedBox(width: 20),
+                            Text('Create Group Transaction', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // New View Group Transactions Box
+                    GestureDetector(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ViewGroupTransactionsPage())),
+                      child: Container(
+                        margin: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.visibility, color: Colors.orange, size: 40),
+                            SizedBox(width: 20),
+                            Text('View Group Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // Add scroll indicator
+                    SizedBox(height: 20),
+                    Center(
+                      child: Container(
+                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.swipe_up, color: Colors.grey[600], size: 16),
+                            SizedBox(width: 4),
+                            Text(
+                              'Scroll for more options',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),

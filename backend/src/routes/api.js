@@ -51,6 +51,7 @@ router.post('/transactions/verify-counterparty-otp', transactionController.verif
 router.post('/transactions/send-user-otp', transactionController.sendUserOTP);
 router.post('/transactions/verify-user-otp', transactionController.verifyUserOTP);
 router.post('/transactions/clear', transactionController.clearTransaction);
+router.delete('/transactions/delete', transactionController.deleteTransaction);
 router.get('/transactions/user', transactionController.getUserTransactions);
 router.get('/transactions/:transactionId/chat', chatController.getChat);
 router.post('/transactions/:transactionId/chat', chatController.postMessage);

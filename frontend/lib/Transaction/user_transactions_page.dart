@@ -88,6 +88,190 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     }
   }
 
+  Future<void> _deleteTransaction(String transactionId) async {
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    final email = user?['email'];
+    if (email == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('User email not found.')),
+      );
+      return;
+    }
+
+    try {
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}/api/transactions/delete'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'transactionId': transactionId,
+          'email': email,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text('Transaction deleted successfully!')),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        
+        // Refresh the transactions list
+        await fetchTransactions();
+      } else {
+        // Show error message
+        String errorMessage = data['error'] ?? 'Failed to delete transaction';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text(errorMessage)),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Network error: ${e.toString()}')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    }
+  }
+
+  void _showDeleteConfirmationDialog(String transactionId) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with wave design
+              Stack(
+                children: [
+                  ClipPath(
+                    clipper: _TopWaveClipper(),
+                    child: Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.red[400]!, Colors.red[600]!],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: CircleAvatar(
+                          radius: 28,
+                          backgroundColor: Colors.white,
+                          child: Icon(Icons.delete_forever, color: Colors.red[600], size: 40),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'Delete Transaction',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                    color: Colors.red[600],
+                  ),
+                ),
+              ),
+              SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'Are you sure you want to delete this transaction? This action cannot be undone.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.black87),
+                ),
+              ),
+              SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[300],
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(color: Colors.black87),
+                      ),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[600],
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _deleteTransaction(transactionId);
+                      },
+                      child: Text(
+                        'Delete',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildTransactionCard(Map t, bool isLending) {
     List<Map<String, dynamic>> attachments = [];
     if (t['files'] != null && t['files'] is List && t['files'].isNotEmpty) {
@@ -243,6 +427,35 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         : (youCleared || otherCleared)
             ? Colors.orange
             : Colors.teal;
+    
+    // Add a subtle indicator for deletable transactions
+    Widget? deleteIndicator;
+    if (fullyCleared) {
+      deleteIndicator = Container(
+        margin: EdgeInsets.only(bottom: 8),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.red.withOpacity(0.3), width: 1),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.delete_outline, color: Colors.red, size: 16),
+            SizedBox(width: 4),
+            Text(
+              'Ready to delete',
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     List<Widget> statusWidgets = [];
     if (fullyCleared) {
       statusWidgets.add(Row(children: [Icon(Icons.verified, color: Colors.green), SizedBox(width: 6), Text('Fully Cleared', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))]));
@@ -259,6 +472,35 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         onPressed: () => _clearTransaction(t['transactionId']),
         child: Text('Clear Transaction'),
         style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+      ));
+    }
+    
+    // Add helpful message for uncleared transactions
+    if (!fullyCleared) {
+      statusWidgets.add(SizedBox(height: 8));
+      statusWidgets.add(Container(
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.blue.withOpacity(0.3), width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.blue, size: 16),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Both parties must clear this transaction before it can be deleted.',
+                style: TextStyle(
+                  color: Colors.blue[700],
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          ],
+        ),
       ));
     }
     // Always show See Description button
@@ -542,44 +784,67 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
               SizedBox(height: 10),
               ...interestWidgets,
             ],
+            if (deleteIndicator != null) deleteIndicator,
             seeDescriptionButton,
             SizedBox(height: 10),
             ...statusWidgets,
             SizedBox(height: 10),
-            ElevatedButton.icon(
-              icon: Icon(Icons.chat_bubble, color: Colors.white),
-              label: Text('Chat', style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green, // Make the chat button green
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () {
-                final transactionId = t != null && t['_id'] != null ? t['_id'] : '';
-                final session = Provider.of<SessionProvider>(context, listen: false);
-                final userObj = session.user;
-                final userEmail = userObj != null ? userObj['email'] : null;
-                String? counterpartyEmail;
-                if (t['userEmail'] == userEmail) {
-                  counterpartyEmail = t['counterpartyEmail'];
-                } else {
-                  counterpartyEmail = t['userEmail'];
-                }
-                print('transactionId: $transactionId');
-                print('userEmail: $userEmail');
-                print('counterpartyEmail: $counterpartyEmail');
-                if (transactionId != '' && counterpartyEmail != null) {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => ChatPage(
-                      transactionId: transactionId,
-                      counterpartyEmail: counterpartyEmail!, // Use null assertion operator
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: Icon(Icons.chat_bubble, color: Colors.white),
+                    label: Text('Chat', style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green, // Make the chat button green
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                  ));
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Unable to open chat: missing transaction or user info')),
-                  );
-                }
-              },
+                    onPressed: () {
+                      final transactionId = t != null && t['_id'] != null ? t['_id'] : '';
+                      final session = Provider.of<SessionProvider>(context, listen: false);
+                      final userObj = session.user;
+                      final userEmail = userObj != null ? userObj['email'] : null;
+                      String? counterpartyEmail;
+                      if (t['userEmail'] == userEmail) {
+                        counterpartyEmail = t['counterpartyEmail'];
+                      } else {
+                        counterpartyEmail = t['userEmail'];
+                      }
+                      print('transactionId: $transactionId');
+                      print('userEmail: $userEmail');
+                      print('counterpartyEmail: $counterpartyEmail');
+                      if (transactionId != '' && counterpartyEmail != null) {
+                        Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => ChatPage(
+                            transactionId: transactionId,
+                            counterpartyEmail: counterpartyEmail!, // Use null assertion operator
+                          ),
+                        ));
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Unable to open chat: missing transaction or user info')),
+                        );
+                      }
+                    },
+                  ),
+                ),
+                SizedBox(width: 8),
+                // Delete button - only show if both parties have cleared
+                if (fullyCleared)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: Icon(Icons.delete_forever, color: Colors.white),
+                      label: Text('Delete', style: TextStyle(color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () {
+                        _showDeleteConfirmationDialog(t['transactionId']);
+                      },
+                    ),
+                  ),
+              ],
             ),
           ],
         ),

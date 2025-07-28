@@ -195,4 +195,43 @@ exports.clearTransaction = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to clear transaction', details: err.message });
   }
+};
+
+// Delete transaction endpoint
+exports.deleteTransaction = async (req, res) => {
+  try {
+    const { transactionId, email } = req.body;
+    if (!transactionId || !email) {
+      return res.status(400).json({ error: 'transactionId and email required' });
+    }
+
+    const transaction = await Transaction.findOne({ transactionId });
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    // Check if the user is a party to this transaction
+    if (transaction.userEmail !== email && transaction.counterpartyEmail !== email) {
+      return res.status(403).json({ error: 'You are not a party to this transaction' });
+    }
+
+    // Check if both parties have cleared the transaction
+    if (!transaction.userCleared || !transaction.counterpartyCleared) {
+      return res.status(400).json({
+        error: 'Cannot delete transaction. Both parties must clear the transaction first.',
+        userCleared: transaction.userCleared,
+        counterpartyCleared: transaction.counterpartyCleared
+      });
+    }
+
+    // Delete the transaction
+    await Transaction.deleteOne({ transactionId });
+
+    res.json({
+      success: true,
+      message: 'Transaction deleted successfully'
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete transaction', details: err.message });
+  }
 }; 
