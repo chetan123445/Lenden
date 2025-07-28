@@ -26,6 +26,28 @@ app.use(express.json());
 // Routes
 app.use('/api', apiRoutes);
 
+// Root route handler
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Lenden Backend API is running!',
+    version: '1.0.0',
+    endpoints: {
+      base: '/api',
+      documentation: 'API endpoints are available under /api prefix'
+    }
+  });
+});
+
+// Catch-all route for undefined paths
+app.use('*', (req, res) => {
+  res.status(404).json({
+    error: 'Route not found',
+    message: 'The requested endpoint does not exist',
+    availableEndpoints: '/api',
+    suggestion: 'Try accessing /api endpoints for available routes'
+  });
+});
+
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
