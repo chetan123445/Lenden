@@ -430,9 +430,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         // Show stylish success popup
         _showMemberAddedSuccessDialog(email);
       } else {
-        setDialogState(() { 
-          memberAddError = data['error'] ?? 'Failed to add member. Please try again.'; 
-        });
+        final errorMessage = data['error'] ?? 'Failed to add member. Please try again.';
+        // Check if it's a permission error and show stylish dialog
+        if (errorMessage.toLowerCase().contains('only creator can add members') || 
+            errorMessage.toLowerCase().contains('only creator can add')) {
+          Navigator.of(context).pop(); // Close the add member dialog
+          _showAddMemberPermissionDeniedDialog();
+        } else {
+          setDialogState(() { memberAddError = errorMessage; });
+        }
       }
     } catch (e) {
       setDialogState(() { 
@@ -503,7 +509,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ),
         );
       } else {
-        setState(() { memberAddError = data['error'] ?? 'Failed to add member. Please try again.'; });
+        final errorMessage = data['error'] ?? 'Failed to add member. Please try again.';
+        // Check if it's a permission error and show stylish dialog
+        if (errorMessage.toLowerCase().contains('only creator can add members') || 
+            errorMessage.toLowerCase().contains('only creator can add')) {
+          Navigator.of(context).pop(); // Close the add member dialog
+          _showAddMemberPermissionDeniedDialog();
+        } else {
+          setState(() { memberAddError = errorMessage; });
+        }
       }
     } catch (e) {
       setState(() { memberAddError = 'Network error. Please check your connection and try again.'; });
@@ -842,21 +856,22 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                 SizedBox(height: 16),
                 ...members.map<Widget>((member) {
-                  final isCreator = creator != null && (member['email'] ?? '').toString() == (creator['email'] ?? '').toString();
+                  final isMemberCreator = creator != null && (member['email'] ?? '').toString() == (creator['email'] ?? '').toString();
+                  final isCurrentUserCreator = creator != null && (creator['email'] ?? '').toString() == (Provider.of<SessionProvider>(context, listen: false).user?['email'] ?? '').toString();
                   final hasLeft = member['leftAt'] != null;
                   final memberEmail = (member['email'] ?? '').toString();
                   
                   return Container(
                     margin: EdgeInsets.only(bottom: 8),
                     decoration: BoxDecoration(
-                      color: isCreator 
+                      color: isMemberCreator 
                         ? Color(0xFF059669).withOpacity(0.1) 
                         : hasLeft 
                           ? Colors.grey[100]
                           : Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isCreator 
+                        color: isMemberCreator 
                           ? Color(0xFF059669).withOpacity(0.3) 
                           : hasLeft 
                             ? Colors.grey[300]!
@@ -875,7 +890,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: CircleAvatar(
                         radius: 20,
-                        backgroundColor: isCreator 
+                        backgroundColor: isMemberCreator 
                           ? Color(0xFF059669)
                           : hasLeft 
                             ? Colors.grey[400]!
@@ -900,21 +915,21 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         ),
                       ),
                       subtitle: Text(
-                        isCreator 
+                        isMemberCreator 
                           ? 'Group Creator' 
                           : hasLeft 
-                            ? 'Removed: ${member['leftAt'] != null ? member['leftAt'].toString().substring(0, 10) : ''}'
+                            ? (isCurrentUserCreator ? 'Removed by Creator: ${member['leftAt'] != null ? member['leftAt'].toString().substring(0, 10) : ''}' : 'Left Group: ${member['leftAt'] != null ? member['leftAt'].toString().substring(0, 10) : ''}')
                             : 'Joined: ${member['joinedAt'] != null ? member['joinedAt'].toString().substring(0, 10) : ''}',
                         style: TextStyle(
-                          color: isCreator 
+                          color: isMemberCreator 
                             ? Color(0xFF059669) 
                             : hasLeft 
-                              ? Colors.grey[500]
+                              ? (isCurrentUserCreator ? Colors.red[500] : Colors.orange[500])
                               : Colors.grey[600],
                           fontSize: 12,
                         ),
                       ),
-                      trailing: isCreator 
+                      trailing: isMemberCreator 
                         ? Container(
                             padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
@@ -931,41 +946,59 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             ),
                           )
                         : hasLeft 
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey[400],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    'REMOVED',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
+                          ? isCurrentUserCreator 
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red[400],
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      'REMOVED',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
+                                  SizedBox(width: 8),
+                                  IconButton(
+                                    icon: Icon(Icons.person_add, color: Color(0xFF059669)),
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                      _showReAddMemberDialog(memberEmail);
+                                    },
+                                  ),
+                                ],
+                              )
+                            : Container(
+                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange[400],
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                SizedBox(width: 8),
-                                IconButton(
-                                  icon: Icon(Icons.person_add, color: Color(0xFF059669)),
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                    _showReAddMemberDialog(memberEmail);
-                                  },
+                                child: Text(
+                                  'LEFT',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ],
-                            )
-                          : IconButton(
-                              icon: Icon(Icons.person_remove, color: Color(0xFFDC2626)),
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                _showRemoveMemberDialog(memberEmail);
-                              },
-                            ),
+                              )
+                          : isCurrentUserCreator 
+                            ? IconButton(
+                                icon: Icon(Icons.person_remove, color: Color(0xFFDC2626)),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  _showRemoveMemberDialog(memberEmail);
+                                },
+                              )
+                            : null,
                     ),
                   );
                 }).toList(),
@@ -1833,6 +1866,264 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  void _showPermissionDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFDC2626), Color(0xFFEF4444)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.block, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Permission Denied',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Error icon
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Color(0xFFDC2626).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(50),
+                  border: Border.all(
+                    color: Color(0xFFDC2626).withOpacity(0.3),
+                    width: 2,
+                  ),
+                ),
+                child: Icon(
+                  Icons.security,
+                  size: 40,
+                  color: Color(0xFFDC2626),
+                ),
+              ),
+              SizedBox(height: 20),
+              
+              // Error message
+              Text(
+                'Only Group Creator Can Remove Members',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFDC2626),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 12),
+              Text(
+                'You don\'t have permission to remove members from this group. Only the group creator can perform this action.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 20),
+              
+              // Info box
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFFF3CD),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Color(0xFFFFEAA7)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFF856404), size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Contact the group creator if you need a member to be removed.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF856404),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFDC2626),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddMemberPermissionDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        title: Container(
+          padding: EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFFDC2626), Color(0xFFEF4444)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.block, color: Colors.white, size: 28),
+              SizedBox(width: 12),
+              Text(
+                'Permission Denied',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: Container(
+          padding: EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Error icon
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Color(0xFFDC2626).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(50),
+                  border: Border.all(
+                    color: Color(0xFFDC2626).withOpacity(0.3),
+                    width: 2,
+                  ),
+                ),
+                child: Icon(
+                  Icons.security,
+                  size: 40,
+                  color: Color(0xFFDC2626),
+                ),
+              ),
+              SizedBox(height: 20),
+              
+              // Error message
+              Text(
+                'Only Group Creator Can Add Members',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFDC2626),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 12),
+              Text(
+                'You don\'t have permission to add members to this group. Only the group creator can perform this action.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 20),
+              
+              // Info box
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFFF3CD),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Color(0xFFFFEAA7)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Color(0xFF856404), size: 24),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Contact the group creator if you need a member to be added.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF856404),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFDC2626),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text(
+                'OK',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -3412,125 +3703,160 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     : Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Search bar, filters, and sorting
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  decoration: InputDecoration(
-                                    hintText: 'Search by group name or creator email...',
-                                    prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                    contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
-                                    ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
-                                    ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                      borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
-                                    ),
+                          // Search bar at the top
+                          TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Search by group name or creator email...',
+                              prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                              ),
+                            ),
+                            onChanged: (val) {
+                              groupSearchQuery = val;
+                              _filterAndSearchGroups();
+                            },
+                          ),
+                          SizedBox(height: 16),
+                          
+                          // Filters in a scrollable row below search bar
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Color(0xFF00B4D8), width: 2),
                                   ),
-                                  onChanged: (val) {
-                                    groupSearchQuery = val;
-                                    _filterAndSearchGroups();
-                                  },
-                                ),
-                              ),
-                              SizedBox(width: 12),
-                              DropdownButton<String>(
-                                value: groupFilter,
-                                borderRadius: BorderRadius.circular(16),
-                                style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                underline: Container(),
-                                items: const [
-                                  DropdownMenuItem(value: 'all', child: Text('All')),
-                                  DropdownMenuItem(value: 'created', child: Text('Created by Me')),
-                                  DropdownMenuItem(value: 'member', child: Text('Member')),
-                                ],
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    groupFilter = val;
-                                    _filterAndSearchGroups();
-                                  }
-                                },
-                              ),
-                              SizedBox(width: 12),
-                              DropdownButton<String>(
-                                value: groupSort,
-                                borderRadius: BorderRadius.circular(16),
-                                style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                underline: Container(),
-                                items: const [
-                                  DropdownMenuItem(value: 'newest', child: Text('Newest')),
-                                  DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
-                                  DropdownMenuItem(value: 'name_az', child: Text('Name A-Z')),
-                                  DropdownMenuItem(value: 'name_za', child: Text('Name Z-A')),
-                                  DropdownMenuItem(value: 'members_high', child: Text('Members High-Low')),
-                                  DropdownMenuItem(value: 'members_low', child: Text('Members Low-High')),
-                                ],
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    groupSort = val;
-                                    _filterAndSearchGroups();
-                                  }
-                                },
-                              ),
-                              SizedBox(width: 12),
-                              DropdownButton<String>(
-                                value: memberCountFilter,
-                                borderRadius: BorderRadius.circular(16),
-                                style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                underline: Container(),
-                                items: const [
-                                  DropdownMenuItem(value: 'all', child: Text('All Members')),
-                                  DropdownMenuItem(value: '2-5', child: Text('2-5')),
-                                  DropdownMenuItem(value: '6-10', child: Text('6-10')),
-                                  DropdownMenuItem(value: '10+', child: Text('10+')),
-                                ],
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    memberCountFilter = val;
-                                    _filterAndSearchGroups();
-                                  }
-                                },
-                              ),
-                              SizedBox(width: 12),
-                              DropdownButton<String>(
-                                value: dateFilter,
-                                borderRadius: BorderRadius.circular(16),
-                                style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                underline: Container(),
-                                items: const [
-                                  DropdownMenuItem(value: 'all', child: Text('All Dates')),
-                                  DropdownMenuItem(value: '7days', child: Text('Last 7 Days')),
-                                  DropdownMenuItem(value: '30days', child: Text('Last 30 Days')),
-                                  DropdownMenuItem(value: 'custom', child: Text('Custom')),
-                                ],
-                                onChanged: (val) async {
-                                  if (val != null) {
-                                    dateFilter = val;
-                                    if (val == 'custom') {
-                                      final picked = await showDateRangePicker(
-                                        context: context,
-                                        firstDate: DateTime(2020),
-                                        lastDate: DateTime.now(),
-                                      );
-                                      if (picked != null) {
-                                        customStartDate = picked.start;
-                                        customEndDate = picked.end;
+                                  child: DropdownButton<String>(
+                                    value: groupFilter,
+                                    borderRadius: BorderRadius.circular(16),
+                                    style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                    underline: Container(),
+                                    items: const [
+                                      DropdownMenuItem(value: 'all', child: Text('All')),
+                                      DropdownMenuItem(value: 'created', child: Text('Created by Me')),
+                                      DropdownMenuItem(value: 'member', child: Text('Member')),
+                                    ],
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        groupFilter = val;
+                                        _filterAndSearchGroups();
                                       }
-                                    }
-                                    _filterAndSearchGroups();
-                                  }
-                                },
-                              ),
-                            ],
+                                    },
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Color(0xFF00B4D8), width: 2),
+                                  ),
+                                  child: DropdownButton<String>(
+                                    value: groupSort,
+                                    borderRadius: BorderRadius.circular(16),
+                                    style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                    underline: Container(),
+                                    items: const [
+                                      DropdownMenuItem(value: 'newest', child: Text('Newest')),
+                                      DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
+                                      DropdownMenuItem(value: 'name_az', child: Text('Name A-Z')),
+                                      DropdownMenuItem(value: 'name_za', child: Text('Name Z-A')),
+                                      DropdownMenuItem(value: 'members_high', child: Text('Members High-Low')),
+                                      DropdownMenuItem(value: 'members_low', child: Text('Members Low-High')),
+                                    ],
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        groupSort = val;
+                                        _filterAndSearchGroups();
+                                      }
+                                    },
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Color(0xFF00B4D8), width: 2),
+                                  ),
+                                  child: DropdownButton<String>(
+                                    value: memberCountFilter,
+                                    borderRadius: BorderRadius.circular(16),
+                                    style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                    underline: Container(),
+                                    items: const [
+                                      DropdownMenuItem(value: 'all', child: Text('All Members')),
+                                      DropdownMenuItem(value: '2-5', child: Text('2-5')),
+                                      DropdownMenuItem(value: '6-10', child: Text('6-10')),
+                                      DropdownMenuItem(value: '10+', child: Text('10+')),
+                                    ],
+                                    onChanged: (val) {
+                                      if (val != null) {
+                                        memberCountFilter = val;
+                                        _filterAndSearchGroups();
+                                      }
+                                    },
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Container(
+                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Color(0xFF00B4D8), width: 2),
+                                  ),
+                                  child: DropdownButton<String>(
+                                    value: dateFilter,
+                                    borderRadius: BorderRadius.circular(16),
+                                    style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                    underline: Container(),
+                                    items: const [
+                                      DropdownMenuItem(value: 'all', child: Text('All Dates')),
+                                      DropdownMenuItem(value: '7days', child: Text('Last 7 Days')),
+                                      DropdownMenuItem(value: '30days', child: Text('Last 30 Days')),
+                                      DropdownMenuItem(value: 'custom', child: Text('Custom')),
+                                    ],
+                                    onChanged: (val) async {
+                                      if (val != null) {
+                                        dateFilter = val;
+                                        if (val == 'custom') {
+                                          final picked = await showDateRangePicker(
+                                            context: context,
+                                            firstDate: DateTime(2020),
+                                            lastDate: DateTime.now(),
+                                          );
+                                          if (picked != null) {
+                                            customStartDate = picked.start;
+                                            customEndDate = picked.end;
+                                          }
+                                        }
+                                        _filterAndSearchGroups();
+                                      }
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           SizedBox(height: 16),
                           if (!showCreateGroupForm)
