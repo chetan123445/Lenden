@@ -19,9 +19,42 @@ const Admin = require('./models/admin');
 
 const PORT = process.env.PORT || 5000;
 
+// CORS Configuration
+const corsOptions = {
+  origin: [
+    'https://lenden-backend-kf3c.onrender.com',
+    'http://localhost:3000',
+    'http://localhost:8080',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8080',
+    // Add your Flutter app's domain if it has one
+    // For mobile apps, you might want to allow all origins
+    '*'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With',
+    'Accept',
+    'Origin'
+  ],
+  credentials: true,
+  optionsSuccessStatus: 200 // Some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
+
+// Add preflight handling for complex requests
+app.options('*', cors(corsOptions));
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`🌐 ${req.method} ${req.path} - Origin: ${req.headers.origin || 'No origin'} - User-Agent: ${req.headers['user-agent']?.substring(0, 50) || 'No user-agent'}`);
+  next();
+});
 
 // Routes
 app.use('/api', apiRoutes);
@@ -34,7 +67,22 @@ app.get('/', (req, res) => {
     endpoints: {
       base: '/api',
       documentation: 'API endpoints are available under /api prefix'
+    },
+    cors: {
+      enabled: true,
+      origins: corsOptions.origin,
+      methods: corsOptions.methods
     }
+  });
+});
+
+// CORS test endpoint
+app.get('/cors-test', (req, res) => {
+  res.json({
+    message: 'CORS is working!',
+    timestamp: new Date().toISOString(),
+    headers: req.headers,
+    origin: req.headers.origin || 'No origin header'
   });
 });
 

@@ -342,15 +342,44 @@ class _UserLoginPageState extends State<UserLoginPage> {
 
   Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
     try {
+      print('🌐 Making API call to: ${ApiConfig.baseUrl + path}');
+      print('📤 Request body: ${jsonEncode(body)}');
+      
       final response = await http.post(
         Uri.parse(ApiConfig.baseUrl + path),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Lenden-Flutter-App/1.0',
+        },
         body: jsonEncode(body),
       );
-      final data = jsonDecode(response.body);
-      return {'status': response.statusCode, 'data': data};
+      
+      print('📥 Response status: ${response.statusCode}');
+      print('📥 Response headers: ${response.headers}');
+      print('📥 Response body: ${response.body}');
+      
+      // Handle different response status codes
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(response.body);
+        return {'status': response.statusCode, 'data': data};
+      } else if (response.statusCode == 404) {
+        return {'status': 404, 'data': {'error': 'API endpoint not found'}};
+      } else if (response.statusCode == 500) {
+        return {'status': 500, 'data': {'error': 'Server error'}};
+      } else {
+        final data = jsonDecode(response.body);
+        return {'status': response.statusCode, 'data': data};
+      }
     } catch (e) {
-      return {'status': 500, 'data': {'error': e.toString()}};
+      print('❌ API call error: $e');
+      if (e.toString().contains('SocketException')) {
+        return {'status': 0, 'data': {'error': 'No internet connection'}};
+      } else if (e.toString().contains('HandshakeException')) {
+        return {'status': 0, 'data': {'error': 'SSL/TLS connection failed'}};
+      } else {
+        return {'status': 500, 'data': {'error': e.toString()}};
+      }
     }
   }
 

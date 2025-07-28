@@ -101,15 +101,32 @@ exports.verifyOtp = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     let { username, password } = req.body;
+    console.log('🔐 Login attempt for username/email:', username);
+    
     if (username && username.includes('@')) username = username.trim().toLowerCase();
     const user = await User.findOne({ $or: [{ username }, { email: username }] });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    console.log('👤 User found:', !!user);
+    
+    if (!user) {
+      console.log('❌ User not found for:', username);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
     const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: 'Incorrect password' });
+    console.log('🔑 Password match:', match);
+    
+    if (!match) {
+      console.log('❌ Incorrect password for user:', username);
+      return res.status(401).json({ error: 'Incorrect password' });
+    }
+    
     // Generate JWT
     const token = jwt.sign({ _id: user._id, email: user.email, role: 'user' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    console.log('✅ Login successful for user:', username);
     res.json({ message: 'Login successful', user, token });
   } catch (err) {
+    console.error('❌ Login error:', err.message);
     res.status(500).json({ error: err.message });
   }
 };
@@ -152,25 +169,40 @@ exports.checkEmail = async (req, res) => {
 exports.sendLoginOtp = async (req, res) => {
   try {
     const { email } = req.body;
+    console.log('🔍 Looking for user with email:', email);
+    
     let userType = null;
     let name = null;
     const user = await User.findOne({ email });
     const admin = await Admin.findOne({ email });
+    
+    console.log('👤 User found:', !!user);
+    console.log('👨‍💼 Admin found:', !!admin);
+    
     if (user) {
       userType = 'user';
       name = user.name;
+      console.log('✅ User found, sending OTP to:', email);
     } else if (admin) {
       userType = 'admin';
       name = admin.name;
+      console.log('✅ Admin found, sending OTP to:', email);
     } else {
+      console.log('❌ No user or admin found with email:', email);
       return res.status(404).json({ error: 'User not found' });
     }
+    
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore[email] = { otp, userType, created: Date.now() };
+    
+    console.log('📧 Sending OTP email to:', email);
     await sendLoginOTP(email, otp);
+    console.log('✅ OTP sent successfully');
+    
     res.status(200).json({ message: 'OTP sent to email', userType, name });
   } catch (err) {
+    console.error('❌ Error in sendLoginOtp:', err.message);
     res.status(400).json({ error: err.message });
   }
 };
