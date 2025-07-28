@@ -15,6 +15,7 @@ import '../Transaction/analytics_page.dart';
 import '../user/notes_page.dart';
 import '../Transaction/group_transaction_page.dart';
 import '../Transaction/view_group_transactions_page.dart';
+import '../profile/profile_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -26,11 +27,31 @@ class UserDashboardPage extends StatefulWidget {
 class _UserDashboardPageState extends State<UserDashboardPage> {
   List<Map<String, dynamic>> transactions = [];
   bool loading = true;
+  int _imageRefreshKey = 0; // Key to force avatar rebuild
 
   @override
   void initState() {
     super.initState();
     fetchTransactions();
+    
+    // Listen to session changes to refresh profile image
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      session.addListener(_onSessionChanged);
+    });
+  }
+
+  @override
+  void dispose() {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    session.removeListener(_onSessionChanged);
+    super.dispose();
+  }
+
+  void _onSessionChanged() {
+    setState(() {
+      _imageRefreshKey++;
+    });
   }
 
   Future<void> fetchTransactions() async {
@@ -46,6 +67,28 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
   }
 
   void showTransactionForm() => Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionPage()));
+
+  // Helper function to get user's profile image
+  ImageProvider _getUserAvatar() {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final user = session.user;
+    final gender = user?['gender'] ?? 'Other';
+    final imageUrl = user?['profileImage'];
+    
+    if (imageUrl != null && imageUrl is String && imageUrl.trim().isNotEmpty && imageUrl != 'null') {
+      // Add cache busting parameter for real-time updates
+      final cacheBustingUrl = '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+      return NetworkImage(cacheBustingUrl);
+    } else {
+      return AssetImage(
+        gender == 'Male'
+            ? 'assets/Male.png'
+            : gender == 'Female'
+                ? 'assets/Female.png'
+                : 'assets/Other.png',
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,81 +148,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
         backgroundColor: const Color(0xFFF8F6FA),
         body: Stack(
           children: [
-            // Top blue shape
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: ClipPath(
-                clipper: TopWaveClipper(),
-                child: Container(
-                  height: 120,
-                  color: const Color(0xFF00B4D8),
-                  child: SafeArea(
-                    bottom: false,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.arrow_back, color: Colors.white),
-                              onPressed: () async {
-                                final popped = await Navigator.of(context).maybePop();
-                                if (!popped && context.mounted) {
-                                  Navigator.pushReplacementNamed(context, '/');
-                                }
-                              },
-                            ),
-                            Builder(
-                              builder: (context) => IconButton(
-                                icon: const Icon(Icons.menu, color: Colors.white),
-                                onPressed: () => Scaffold.of(context).openDrawer(),
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.notifications, color: Colors.white, size: 28),
-                              tooltip: 'Notifications',
-                              onPressed: () {
-                                // TODO: Implement notifications page navigation
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.account_circle, color: Colors.white, size: 32),
-                              onPressed: () {
-                                Navigator.pushNamed(context, '/profile');
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.logout, color: Colors.white, size: 28),
-                              tooltip: 'Logout',
-                              onPressed: () => _confirmLogout(context),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // Bottom blue shape
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: ClipPath(
-                clipper: BottomWaveClipper(),
-                child: Container(
-                  height: 90,
-                  color: const Color(0xFF00B4D8),
-                ),
-              ),
-            ),
+            // Main content area
             SafeArea(
               child: SingleChildScrollView(
                 padding: EdgeInsets.only(
@@ -351,6 +320,118 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+            // Top blue shape (background)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ClipPath(
+                clipper: TopWaveClipper(),
+                child: Container(
+                  height: 120,
+                  color: const Color(0xFF00B4D8),
+                ),
+              ),
+            ),
+            // Bottom blue shape (background)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: ClipPath(
+                clipper: BottomWaveClipper(),
+                child: Container(
+                  height: 90,
+                  color: const Color(0xFF00B4D8),
+                ),
+              ),
+            ),
+            // Header buttons overlay (on top)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Container(
+                  height: 60,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            onPressed: () async {
+                              final popped = await Navigator.of(context).maybePop();
+                              if (!popped && context.mounted) {
+                                Navigator.pushReplacementNamed(context, '/');
+                              }
+                            },
+                          ),
+                          Builder(
+                            builder: (context) => IconButton(
+                              icon: const Icon(Icons.menu, color: Colors.white),
+                              onPressed: () => Scaffold.of(context).openDrawer(),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.notifications, color: Colors.white, size: 28),
+                            tooltip: 'Notifications',
+                            onPressed: () {
+                              // TODO: Implement notifications page navigation
+                            },
+                          ),
+                          GestureDetector(
+                            onTap: () async {
+                              print('Profile icon tapped - navigating to profile page');
+                              try {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => const ProfilePage()),
+                                );
+                                print('Returned from profile page');
+                                // Force refresh after returning from profile page
+                                final session = Provider.of<SessionProvider>(context, listen: false);
+                                await session.forceRefreshProfile();
+                                setState(() {
+                                  _imageRefreshKey++;
+                                });
+                              } catch (e) {
+                                print('Error navigating to profile: $e');
+                              }
+                            },
+                            child: CircleAvatar(
+                              key: ValueKey(_imageRefreshKey),
+                              radius: 16,
+                              backgroundColor: Colors.white,
+                              backgroundImage: _getUserAvatar(),
+                              onBackgroundImageError: (exception, stackTrace) {
+                                // Handle image loading error
+                              },
+                              child: _getUserAvatar() is AssetImage ? null : Icon(
+                                Icons.person,
+                                color: Colors.grey[400],
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.logout, color: Colors.white, size: 28),
+                            tooltip: 'Logout',
+                            onPressed: () => _confirmLogout(context),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
