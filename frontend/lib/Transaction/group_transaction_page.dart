@@ -192,10 +192,17 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         double splitAmount = double.parse((splitItem['amount'] ?? 0).toString());
         bool isSettled = splitItem['settled'] == true;
         print('Split item - User ID: $splitUserId, Amount: $splitAmount, Settled: $isSettled');
+        print('  - Raw settled value: ${splitItem['settled']}');
+        print('  - Type of settled: ${splitItem['settled'].runtimeType}');
         
-        if (splitUserId == userMemberId && !isSettled) {
-          total += splitAmount;
-          print('Match found! Adding $splitAmount to total. New total: $total');
+        if (splitUserId == userMemberId) {
+          print('  - This split belongs to current user');
+          if (!isSettled) {
+            total += splitAmount;
+            print('  - NOT SETTLED: Adding $splitAmount to total. New total: $total');
+          } else {
+            print('  - SETTLED: Skipping $splitAmount (already settled)');
+          }
         }
       }
     }
@@ -2595,7 +2602,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ],
                 ),
                 child: Icon(
-                  Icons.account_balance_wallet,
+                  Icons.check_circle,
                   size: 50,
                   color: Color(0xFF10B981),
                 ),
@@ -2603,7 +2610,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               SizedBox(height: 24),
               // Success Title
               Text(
-                'Member Settled & Removed!',
+                'Member Marked Settled & Removed!',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 28,
@@ -2614,7 +2621,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               SizedBox(height: 12),
               // Success Message
               Text(
-                '$email has been settled and removed',
+                '$email has been marked settled and removed',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -2624,7 +2631,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               ),
               SizedBox(height: 8),
               Text(
-                'All their expenses have been settled and they have been removed from the group',
+                'All their expenses have been marked as settled and they have been removed from the group',
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.9),
                   fontSize: 14,
@@ -2816,6 +2823,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     // Check if user has pending balances
     final userBalance = _getCurrentUserBalance();
     final hasBalance = userBalance != 0;
+    
+    // Debug: Print detailed balance information
+    print('=== LEAVE GROUP DEBUG ===');
+    print('User Balance: $userBalance');
+    print('Has Balance: $hasBalance');
+    print('Current User Email: ${Provider.of<SessionProvider>(context, listen: false).user?['email']}');
+    print('=======================');
     
     showDialog(
       context: context,
@@ -3217,7 +3231,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             ),
                             SizedBox(height: 4),
                             Text(
-                              'You can settle all their expenses and then remove them.',
+                              'You can mark all their expenses as settled and then remove them.',
                               style: TextStyle(
                                 fontSize: 14,
                                 color: Color(0xFF856404),
@@ -3251,7 +3265,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     Expanded(
                       child:                         Text(
                           hasBalance 
-                            ? 'Click "Settle & Remove" to set all their split amounts to 0 and remove them.'
+                            ? 'Click "Settle & Remove" to mark all their split amounts as settled and remove them.'
                             : 'Are you sure you want to remove this member? This action cannot be undone.',
                           style: TextStyle(
                             fontSize: 16,
@@ -3342,7 +3356,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         Icon(Icons.account_balance_wallet, color: Colors.white, size: 20),
                         SizedBox(width: 8),
                         Text(
-                          'Settle & Remove',
+                          'Mark Settled & Remove',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -4681,32 +4695,71 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               child: Text('Add Expense', style: TextStyle(fontSize: 18, color: Colors.white)),
             ),
             SizedBox(height: 24),
-            if (!isCreator)
-              ElevatedButton(
-                onPressed: loading ? null : _showLeaveGroupDialog,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFFF59E0B),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  elevation: 4,
-                  shadowColor: Color(0xFFF59E0B).withOpacity(0.3),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.exit_to_app, color: Colors.white, size: 20),
-                    SizedBox(width: 8),
-                    Text(
-                      'Leave Group',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+            if (!isCreator) ...[
+              // Check if current user is still an active member
+              Builder(
+                builder: (context) {
+                  final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
+                  final isActiveMember = (group?['members'] ?? []).any((member) => 
+                    member['email'] == currentUserEmail && member['leftAt'] == null);
+                  
+                  if (isActiveMember) {
+                    // User is still an active member - show Leave Group button
+                    return ElevatedButton(
+                      onPressed: loading ? null : _showLeaveGroupDialog,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFF59E0B),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        elevation: 4,
+                        shadowColor: Color(0xFFF59E0B).withOpacity(0.3),
                       ),
-                    ),
-                  ],
-                ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.exit_to_app, color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Leave Group',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  } else {
+                    // User is no longer an active member - show disabled button
+                    return ElevatedButton(
+                      onPressed: null, // Disabled
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[400],
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        elevation: 0,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.person_off, color: Colors.white, size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'No longer a member of this group',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                },
               ),
+            ],
             if (error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -4892,15 +4945,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     value: editSplitType,
-                    decoration: InputDecoration(
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
-                      ),
-                    ),
                     items: [
                       DropdownMenuItem(value: 'equal', child: Text('Equal Split')),
                       DropdownMenuItem(value: 'custom', child: Text('Custom Split')),
@@ -4918,6 +4962,28 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         }
                       });
                     },
+                    decoration: InputDecoration(
+                      labelText: 'Split Type',
+                      labelStyle: TextStyle(
+                        color: Color(0xFF1E3A8A),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      prefixIcon: Icon(Icons.share, color: Color(0xFF1E3A8A)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                    ),
                   ),
                   
                   // Custom Split Amounts (only show for custom split)
@@ -5387,165 +5453,125 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Container(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          backgroundColor: Colors.white,
+          title: Container(
+            padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
               gradient: LinearGradient(
                 colors: [Color(0xFF00B4D8), Color(0xFF0096CC)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Color(0xFF00B4D8).withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: Offset(0, 10),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 28),
+                SizedBox(width: 12),
+                Text(
+                  'Settle Expense',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header with wave design
-                Container(
-                  height: 80,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
-                    ),
-                  ),
-                  child: ClipPath(
-                    clipper: SettleWaveClipper(),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.white.withOpacity(0.2), Colors.white.withOpacity(0.1)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                // Content
-                Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Column(
-                    children: [
-                      // Title with icon
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 60,
-                            height: 60,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 10,
-                                  offset: Offset(0, 5),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              Icons.check_circle,
-                              size: 35,
-                              color: Color(0xFF00B4D8),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Settle Expense',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Container(
-                        width: double.maxFinite,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Select members to settle their split amounts:',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.9),
-                                fontSize: 16,
-                              ),
-                            ),
-                if (settledMembers.isNotEmpty) ...[
-                  SizedBox(height: 8),
+          ),
+          content: Container(
+            width: double.maxFinite,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Container(
-                    padding: EdgeInsets.all(10),
+                    padding: EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withOpacity(0.3)),
+                      color: Color(0xFF00B4D8).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Color(0xFF00B4D8).withOpacity(0.3)),
                     ),
-                    child: Text(
-                      'Already settled: ${settledMembers.join(', ')}',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                      ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Color(0xFF00B4D8), size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Select members to settle their split amounts:',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF00B4D8),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-                SizedBox(height: 16),
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.3)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Expense: ${expense['description'] ?? 'Unknown'}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.9),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 16),
-                // Select All / Clear All buttons
-                Row(
-                  children: [
+                  SizedBox(height: 20),
+                  if (settledMembers.isNotEmpty) ...[
+                    SizedBox(height: 8),
                     Container(
+                      padding: EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.1),
+                        color: Colors.grey[100],
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                        border: Border.all(color: Colors.grey[300]!),
                       ),
-                      child: TextButton(
+                      child: Text(
+                        'Already settled: ${settledMembers.join(', ')}',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                  SizedBox(height: 16),
+                  Container(
+                    padding: EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Color(0xFF00B4D8).withOpacity(0.2)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Expense: ${expense['description'] ?? 'Unknown'}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF00B4D8),
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  // Select All / Clear All buttons
+                  Row(
+                    children: [
+                      TextButton(
                         onPressed: () {
                           setDialogState(() {
                             if (selectAll) {
@@ -5560,136 +5586,102 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         child: Text(
                           selectAll ? 'Clear All' : 'Select All',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Color(0xFF00B4D8),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 8),
-                // Member checkboxes
-                Container(
-                  constraints: BoxConstraints(maxHeight: 200),
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: availableMembers.length,
-                    itemBuilder: (context, index) {
-                      final memberEmail = availableMembers[index];
-                      final splitItem = expenseSplit.firstWhere(
-                        (split) {
-                          final member = members.firstWhere(
-                            (m) => m['_id'] == split['user'],
-                            orElse: () => {'email': 'Unknown User'},
-                          );
-                          return member['email'] == memberEmail;
-                        },
-                        orElse: () => null,
-                      );
-                      
-                                             return Container(
-                         margin: EdgeInsets.only(bottom: 4),
-                         decoration: BoxDecoration(
-                           color: Colors.white.withOpacity(0.05),
-                           borderRadius: BorderRadius.circular(8),
-                           border: Border.all(color: Colors.white.withOpacity(0.2)),
-                         ),
-                         child: CheckboxListTile(
-                           title: Text(
-                             memberEmail,
-                             style: TextStyle(
-                               fontSize: 14,
-                               fontWeight: FontWeight.w500,
-                               color: Colors.white,
-                             ),
-                           ),
-                           subtitle: Text(
-                             'Amount: \$${(splitItem?['amount'] ?? 0).toStringAsFixed(2)}',
-                             style: TextStyle(
-                               fontSize: 12,
-                               color: Colors.white.withOpacity(0.8),
-                             ),
-                           ),
-                           value: selectedMembers.contains(memberEmail),
-                           onChanged: (bool? value) {
-                             setDialogState(() {
-                               if (value == true) {
-                                 selectedMembers.add(memberEmail);
-                               } else {
-                                 selectedMembers.remove(memberEmail);
-                               }
-                               selectAll = selectedMembers.length == availableMembers.length;
-                             });
-                           },
-                           activeColor: Colors.white,
-                           checkColor: Color(0xFF00B4D8),
-                           contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                         ),
-                       );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-                      SizedBox(height: 24),
-                      // Action buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.white.withOpacity(0.3)),
-                              ),
-                              child: TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: Text(
-                                  'Cancel',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: selectedMembers.isEmpty
-                                  ? null
-                                  : () async {
-                                      Navigator.of(context).pop();
-                                      await _settleExpenseSplits(expense['_id'], selectedMembers.toList());
-                                    },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Color(0xFF00B4D8),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                padding: EdgeInsets.symmetric(vertical: 16),
-                                elevation: 0,
-                              ),
-                              child: Text(
-                                'Settle Selected',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
-                ),
-              ],
+                  SizedBox(height: 8),
+                  // Member checkboxes
+                  Container(
+                    constraints: BoxConstraints(maxHeight: 200),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: availableMembers.length,
+                      itemBuilder: (context, index) {
+                        final memberEmail = availableMembers[index];
+                        final splitItem = expenseSplit.firstWhere(
+                          (split) {
+                            final member = members.firstWhere(
+                              (m) => m['_id'] == split['user'],
+                              orElse: () => {'email': 'Unknown User'},
+                            );
+                            return member['email'] == memberEmail;
+                          },
+                          orElse: () => null,
+                        );
+                        
+                        return CheckboxListTile(
+                          title: Text(
+                            memberEmail,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Amount: \$${(splitItem?['amount'] ?? 0).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          value: selectedMembers.contains(memberEmail),
+                          onChanged: (bool? value) {
+                            setDialogState(() {
+                              if (value == true) {
+                                selectedMembers.add(memberEmail);
+                              } else {
+                                selectedMembers.remove(memberEmail);
+                              }
+                              selectAll = selectedMembers.length == availableMembers.length;
+                            });
+                          },
+                          activeColor: Color(0xFF00B4D8),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 0),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.grey[600],
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: selectedMembers.isEmpty
+                  ? null
+                  : () async {
+                      Navigator.of(context).pop();
+                      await _settleExpenseSplits(expense['_id'], selectedMembers.toList());
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFF00B4D8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: Text(
+                'Settle Selected',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

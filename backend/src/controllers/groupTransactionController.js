@@ -543,12 +543,15 @@ exports.leaveGroup = async (req, res) => {
     const memberIndex = group.members.findIndex(m => m.user.toString() === req.user._id.toString() && !m.leftAt);
     if (memberIndex === -1) return res.status(400).json({ error: 'You are not a member of this group' });
     
-    // Calculate user's total split amount (pending balance) - same logic as frontend
+    // Calculate user's total split amount (pending balance) - excluding settled amounts
     let userBalance = 0;
     for (let expense of group.expenses) {
       for (let splitItem of expense.split) {
         if (splitItem.user.toString() === req.user._id.toString()) {
-          userBalance += splitItem.amount;
+          // Only include unsettled amounts
+          if (!splitItem.settled) {
+            userBalance += splitItem.amount;
+          }
         }
       }
     }
@@ -838,23 +841,24 @@ exports.settleMemberExpenses = async (req, res) => {
     
     console.log(`Settling expenses for member: ${email} in group: ${group.title}`);
     
-    // Set all split amounts for this member to 0 in all expenses
+    // Mark all split amounts for this member as settled in all expenses
     let expensesUpdated = 0;
+    const creator = await User.findById(req.user._id);
+    if (!creator) {
+      return res.status(404).json({ error: 'Creator not found' });
+    }
+    
     for (let expense of group.expenses) {
       let expenseModified = false;
       
       for (let splitItem of expense.split) {
-        if (splitItem.user.toString() === user._id.toString()) {
-          // Remove this split amount from balances
-          const bal = group.balances.find(b => b.user.toString() === splitItem.user.toString());
-          if (bal) {
-            bal.balance -= splitItem.amount;
-            console.log(`Removed ${splitItem.amount} from balance for ${email}`);
-          }
-          
-          // Set split amount to 0
-          splitItem.amount = 0;
+        if (splitItem.user.toString() === user._id.toString() && !splitItem.settled) {
+          // Mark this split as settled (don't change the amount, just mark as settled)
+          splitItem.settled = true;
+          splitItem.settledAt = new Date();
+          splitItem.settledBy = creator.email;
           expenseModified = true;
+          console.log(`Marked split amount ${splitItem.amount} as settled for ${email} in expense: ${expense.description}`);
         }
       }
       
@@ -889,7 +893,7 @@ exports.settleMemberExpenses = async (req, res) => {
     
     res.json({ 
       group: groupObj,
-      message: `Successfully settled ${expensesUpdated} expenses for ${email}` 
+      message: `Successfully marked ${expensesUpdated} expenses as settled for ${email}` 
     });
   } catch (err) {
     console.error('Error settling member expenses:', err);
@@ -1018,12 +1022,15 @@ exports.sendLeaveRequest = async (req, res) => {
       return res.status(400).json({ error: 'You are not a member of this group' });
     }
     
-    // Calculate user's total split amount (pending balance)
+    // Calculate user's total split amount (pending balance) - excluding settled amounts
     let userBalance = 0;
     for (let expense of group.expenses) {
       for (let splitItem of expense.split) {
         if (splitItem.user.toString() === req.user._id.toString()) {
-          userBalance += splitItem.amount;
+          // Only include unsettled amounts
+          if (!splitItem.settled) {
+            userBalance += splitItem.amount;
+          }
         }
       }
     }
