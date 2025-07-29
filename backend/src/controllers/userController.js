@@ -102,17 +102,26 @@ exports.login = async (req, res) => {
   try {
     let { username, password } = req.body;
     console.log('🔐 Login attempt for username/email:', username);
+    console.log('📝 Request body:', req.body);
     
     if (username && username.includes('@')) username = username.trim().toLowerCase();
+    console.log('🔍 Searching for user with username or email:', username);
+    
     const user = await User.findOne({ $or: [{ username }, { email: username }] });
     
     console.log('👤 User found:', !!user);
+    if (user) {
+      console.log('👤 User details:', { id: user._id, username: user.username, email: user.email });
+    }
     
     if (!user) {
       console.log('❌ User not found for:', username);
       return res.status(404).json({ error: 'User not found' });
     }
     
+    console.log('🔑 Comparing passwords...');
+    console.log('🔑 Input password length:', password.length);
+    console.log('🔑 Stored password hash length:', user.password.length);
     const match = await bcrypt.compare(password, user.password);
     console.log('🔑 Password match:', match);
     
@@ -124,9 +133,11 @@ exports.login = async (req, res) => {
     // Generate JWT
     const token = jwt.sign({ _id: user._id, email: user.email, role: 'user' }, process.env.JWT_SECRET, { expiresIn: '7d' });
     console.log('✅ Login successful for user:', username);
+    console.log('🎫 Token generated successfully');
     res.json({ message: 'Login successful', user, token });
   } catch (err) {
     console.error('❌ Login error:', err.message);
+    console.error('❌ Full error:', err);
     res.status(500).json({ error: err.message });
   }
 };
@@ -162,6 +173,17 @@ exports.checkEmail = async (req, res) => {
     return res.status(200).json({ unique: true });
   } catch (err) {
     res.status(500).json({ unique: false, error: err.message });
+  }
+};
+
+// Debug endpoint to list all users (for testing)
+exports.listUsers = async (req, res) => {
+  try {
+    const users = await User.find({}).select('username email name');
+    console.log('📋 All users in database:', users);
+    res.json({ users });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
 

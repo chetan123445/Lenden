@@ -36,15 +36,40 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     let { username, password } = req.body;
+    console.log('🔐 Admin login attempt for username/email:', username);
+    console.log('📝 Admin request body:', req.body);
+    
     if (username && username.includes('@')) username = username.trim().toLowerCase();
+    console.log('🔍 Searching for admin with username or email:', username);
+    
     const admin = await Admin.findOne({ $or: [{ username }, { email: username }] });
-    if (!admin) return res.status(404).json({ error: 'User not found' });
+    console.log('👤 Admin found:', !!admin);
+    if (admin) {
+      console.log('👤 Admin details:', { id: admin._id, username: admin.username, email: admin.email });
+    }
+    
+    if (!admin) {
+      console.log('❌ Admin not found for:', username);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    console.log('🔑 Comparing admin passwords...');
     const match = await bcrypt.compare(password, admin.password);
-    if (!match) return res.status(401).json({ error: 'Incorrect password' });
+    console.log('🔑 Admin password match:', match);
+    
+    if (!match) {
+      console.log('❌ Incorrect password for admin:', username);
+      return res.status(401).json({ error: 'Incorrect password' });
+    }
+    
     // Generate JWT
     const token = jwt.sign({ id: admin._id, email: admin.email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    console.log('✅ Admin login successful for:', username);
+    console.log('🎫 Admin token generated successfully');
     res.json({ message: 'Login successful', admin, token });
   } catch (err) {
+    console.error('❌ Admin login error:', err.message);
+    console.error('❌ Full admin error:', err);
     res.status(500).json({ error: err.message });
   }
 }; 

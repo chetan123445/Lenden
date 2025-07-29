@@ -12,6 +12,7 @@ const socketio = require('socket.io');
 const server = http.createServer(app);
 const io = socketio(server, { cors: { origin: '*' } });
 const ChatThread = require('./models/chatThread');
+const GroupChatThread = require('./models/groupChatThread');
 const leoProfanity = require('leo-profanity');
 
 const apiRoutes = require('./routes/api');
@@ -146,6 +147,7 @@ cron.schedule('0 8 * * *', async () => {
 });
 
 io.on('connection', (socket) => {
+  // Transaction chat
   socket.on('join', ({ transactionId }) => {
     socket.join(transactionId);
   });
@@ -165,6 +167,27 @@ io.on('connection', (socket) => {
     await thread.save();
     const populatedMsg = await ChatThread.populate(thread.messages[thread.messages.length - 1], { path: 'sender', select: 'name email' });
     io.to(transactionId).emit('chatMessage', populatedMsg);
+  });
+
+  // Group chat
+  socket.on('joinGroup', ({ groupTransactionId }) => {
+    socket.join(`group_${groupTransactionId}`);
+  });
+  socket.on('groupChatMessage', async ({ groupTransactionId, senderId, content, parentId }) => {
+    if (!content || leoProfanity.check(content)) return;
+    let thread = await GroupChatThread.findOne({ groupTransactionId });
+    if (!thread) {
+      thread = await GroupChatThread.create({ groupTransactionId, messages: [] });
+    }
+    const message = {
+      sender: senderId,
+      content: content || '',
+      parentId: parentId || null,
+    };
+    thread.messages.push(message);
+    await thread.save();
+    const populatedMsg = await GroupChatThread.populate(thread.messages[thread.messages.length - 1], { path: 'sender', select: 'name email' });
+    io.to(`group_${groupTransactionId}`).emit('groupChatMessage', populatedMsg);
   });
 });
 

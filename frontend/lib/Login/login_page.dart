@@ -54,45 +54,47 @@ class _UserLoginPageState extends State<UserLoginPage> {
     String? token;
     try {
       if (_loginMethod == 'Email + Password') {
-        // Try admin login first
+        // Try both user and admin login
+        final userRes = await _loginUser(username: _emailController.text, password: _passwordController.text, isEmail: true);
         final adminRes = await _loginAdmin(email: _emailController.text, password: _passwordController.text);
-        if (adminRes['success']) {
+        
+        if (userRes['success']) {
+          userOrAdmin = userRes['data'];
+          userType = 'user';
+          token = userRes['token'];
+        } else if (adminRes['success']) {
           userOrAdmin = adminRes['data'];
           userType = 'admin';
           token = adminRes['token'];
-        } else if (adminRes['error'] != null && adminRes['error'] != 'User not found') {
-          error = adminRes['error'];
-        } else if (adminRes['error'] == 'User not found') {
-          // Try user login only if not found in admin
-          final userRes = await _loginUser(username: _emailController.text, password: _passwordController.text, isEmail: true);
-          if (userRes['success']) {
-            userOrAdmin = userRes['data'];
-            userType = 'user';
-            token = userRes['token'];
-          } else if (userRes['error'] != null && userRes['error'] != 'User not found') {
+        } else {
+          // Both failed, show the most relevant error
+          if (userRes['error'] != null && userRes['error'] != 'User not found') {
             error = userRes['error'];
+          } else if (adminRes['error'] != null && adminRes['error'] != 'User not found') {
+            error = adminRes['error'];
           } else {
             error = 'User not found';
           }
         }
       } else if (_loginMethod == 'Username + Password') {
-        // Try admin login first
+        // Try both user and admin login
+        final userRes = await _loginUser(username: _usernameController.text, password: _passwordController.text);
         final adminRes = await _loginAdmin(username: _usernameController.text, password: _passwordController.text);
-        if (adminRes['success']) {
+        
+        if (userRes['success']) {
+          userOrAdmin = userRes['data'];
+          userType = 'user';
+          token = userRes['token'];
+        } else if (adminRes['success']) {
           userOrAdmin = adminRes['data'];
           userType = 'admin';
           token = adminRes['token'];
-        } else if (adminRes['error'] != null && adminRes['error'] != 'User not found') {
-          error = adminRes['error'];
-        } else if (adminRes['error'] == 'User not found') {
-          // Try user login only if not found in admin
-          final userRes = await _loginUser(username: _usernameController.text, password: _passwordController.text);
-          if (userRes['success']) {
-            userOrAdmin = userRes['data'];
-            userType = 'user';
-            token = userRes['token'];
-          } else if (userRes['error'] != null && userRes['error'] != 'User not found') {
+        } else {
+          // Both failed, show the most relevant error
+          if (userRes['error'] != null && userRes['error'] != 'User not found') {
             error = userRes['error'];
+          } else if (adminRes['error'] != null && adminRes['error'] != 'User not found') {
+            error = adminRes['error'];
           } else {
             error = 'User not found';
           }
@@ -196,32 +198,46 @@ class _UserLoginPageState extends State<UserLoginPage> {
 
   Future<Map<String, dynamic>> _loginAdmin({String? email, String? username, required String password}) async {
     try {
+      print('🔐 Attempting admin login for username/email: ${email ?? username}');
       final res = await _post('/api/admins/login', {
         if (email != null) 'username': email, // backend expects username, so use email as username if email login
         if (username != null) 'username': username,
         'password': password,
       });
+      print('📥 Admin login response status: ${res['status']}');
+      print('📥 Admin login response data: ${res['data']}');
+      
       if (res['status'] == 200 && res['data']['admin'] != null) {
+        print('✅ Admin login successful');
         return {'success': true, 'data': res['data']['admin'], 'token': res['data']['token']};
       }
+      print('❌ Admin login failed: ${res['data']['error']}');
       return {'success': false, 'error': res['data']['error']};
-    } catch (_) {
-      return {'success': false};
+    } catch (e) {
+      print('❌ Admin login exception: $e');
+      return {'success': false, 'error': e.toString()};
     }
   }
 
   Future<Map<String, dynamic>> _loginUser({String? username, required String password, bool isEmail = false}) async {
     try {
+      print('🔐 Attempting user login for username: $username');
       final res = await _post('/api/users/login', {
         'username': username,
         'password': password,
       });
+      print('📥 User login response status: ${res['status']}');
+      print('📥 User login response data: ${res['data']}');
+      
       if (res['status'] == 200 && res['data']['user'] != null) {
+        print('✅ User login successful');
         return {'success': true, 'data': res['data']['user'], 'token': res['data']['token']};
       }
+      print('❌ User login failed: ${res['data']['error']}');
       return {'success': false, 'error': res['data']['error']};
-    } catch (_) {
-      return {'success': false};
+    } catch (e) {
+      print('❌ User login exception: $e');
+      return {'success': false, 'error': e.toString()};
     }
   }
 

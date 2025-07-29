@@ -640,7 +640,7 @@ exports.editExpense = async (req, res) => {
     const { description, amount, selectedMembers, splitType, customSplitAmounts, date } = req.body;
     // Handle both user and admin tokens (different field names)
     let userEmail = req.user.email;
-    const userId = req.user._id || req.user.id;
+    const userId = req.user._id;
     
     // Debug: Check what's in req.user
     console.log('req.user object:', req.user);

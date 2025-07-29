@@ -14,6 +14,7 @@ const upload = multer({
 const transactionController = require('../controllers/transactionController');
 const analyticController = require('../controllers/analyticController');
 const chatController = require('../controllers/chatController');
+const groupChatController = require('../controllers/groupChatController');
 const noteController = require('../controllers/noteController');
 const groupTransactionController = require('../controllers/groupTransactionController');
 
@@ -24,6 +25,7 @@ router.post('/users/resend-otp', userController.resendOtp);
 router.post('/users/login', userController.login);
 router.post('/users/check-username', userController.checkUsername);
 router.post('/users/check-email', userController.checkEmail);
+router.get('/users/list', userController.listUsers); // Debug endpoint
 router.post('/users/send-login-otp', userController.sendLoginOtp);
 router.post('/users/verify-login-otp', userController.verifyLoginOtp);
 router.post('/users/send-reset-otp', forgotPasswordController.sendResetOtp);
@@ -89,6 +91,13 @@ router.delete('/group-transactions/:groupId', auth, groupTransactionController.d
 router.post('/group-transactions/:groupId/leave', auth, groupTransactionController.leaveGroup);
 // New: Send leave request to group creator
 router.post('/group-transactions/:groupId/send-leave-request', auth, groupTransactionController.sendLeaveRequest);
+
+// Group Chat routes
+router.get('/group-transactions/:groupTransactionId/chat', auth, groupChatController.getGroupChat);
+router.post('/group-transactions/:groupTransactionId/chat', auth, groupChatController.postGroupMessage);
+router.patch('/group-transactions/:groupTransactionId/chat/:messageId/react', auth, groupChatController.reactGroupMessage);
+router.patch('/group-transactions/:groupTransactionId/chat/:messageId/read', auth, groupChatController.readGroupMessage);
+router.delete('/group-transactions/:groupTransactionId/chat/:messageId', auth, groupChatController.deleteGroupMessage);
 
 
 module.exports = router;

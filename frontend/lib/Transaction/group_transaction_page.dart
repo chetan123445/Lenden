@@ -5,6 +5,7 @@ import '../api_config.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'group_chat_page.dart';
 
 class GroupTransactionPage extends StatefulWidget {
   const GroupTransactionPage({Key? key}) : super(key: key);
@@ -3941,6 +3942,33 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                           ),
                                           child: Text('View Details', style: TextStyle(color: Colors.white)),
                                         ),
+                                        SizedBox(width: 8),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => GroupChatPage(
+                                                  groupTransactionId: g['_id'],
+                                                  groupTitle: g['title'],
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Color(0xFF10B981),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            elevation: 0,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.chat, color: Colors.white, size: 16),
+                                              SizedBox(width: 4),
+                                              Text('Chat', style: TextStyle(color: Colors.white)),
+                                            ],
+                                          ),
+                                        ),
                                       ],
                                     ),
                                     SizedBox(height: 10),
@@ -4331,6 +4359,33 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   label: Text('View All (${expenses.length})', style: TextStyle(color: Colors.white)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFF1E3A8A),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 24),
+            Row(
+              children: [
+                Text('Chat:', style: TextStyle(fontWeight: FontWeight.bold)),
+                Spacer(),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => GroupChatPage(
+                          groupTransactionId: group!['_id'],
+                          groupTitle: group!['title'],
+                        ),
+                      ),
+                    );
+                  },
+                  icon: Icon(Icons.chat, color: Colors.white, size: 18),
+                  label: Text('Open Group Chat', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF10B981),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   ),
