@@ -895,6 +895,105 @@ exports.settleMemberExpenses = async (req, res) => {
     console.error('Error settling member expenses:', err);
     res.status(500).json({ error: err.message });
   }
+};
+
+// Settle expense splits for specific members
+exports.settleExpenseSplits = async (req, res) => {
+  try {
+    const { groupId, expenseId } = req.params;
+    const { memberEmails } = req.body; // Array of member emails to settle
+    
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    
+    const group = await GroupTransaction.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    
+    // Check if user is the group creator
+    if (group.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ error: 'Only group creator can settle expense splits' });
+    }
+    
+    // Find the expense
+    const expense = group.expenses.id(expenseId);
+    if (!expense) {
+      return res.status(404).json({ error: 'Expense not found' });
+    }
+    
+    // Get creator's email
+    const creator = await User.findById(req.user._id);
+    if (!creator) {
+      return res.status(404).json({ error: 'Creator not found' });
+    }
+    
+    let settledCount = 0;
+    let alreadySettledCount = 0;
+    let alreadySettledMembers = [];
+    
+    // Settle splits for the specified members
+    for (let splitItem of expense.split) {
+      const member = await User.findById(splitItem.user);
+      if (member && memberEmails.includes(member.email)) {
+        if (splitItem.settled) {
+          // Track already settled members
+          alreadySettledCount++;
+          alreadySettledMembers.push(member.email);
+          continue;
+        }
+        splitItem.settled = true;
+        splitItem.settledAt = new Date();
+        splitItem.settledBy = creator.email;
+        settledCount++;
+      }
+    }
+    
+    if (settledCount === 0) {
+      if (alreadySettledCount > 0) {
+        return res.status(400).json({ 
+          error: `All selected members are already settled: ${alreadySettledMembers.join(', ')}` 
+        });
+      }
+      return res.status(400).json({ error: 'No valid splits found to settle' });
+    }
+    
+    await group.save();
+    
+    // Populate and return updated group
+    const populatedGroup = await GroupTransaction.findById(group._id)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+    
+    const groupObj = populatedGroup.toObject();
+    groupObj.members = groupObj.members.map(m => ({
+      _id: m.user._id,
+      email: m.user.email,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt
+    }));
+    groupObj.creator = {
+      _id: groupObj.creator._id,
+      email: groupObj.creator.email
+    };
+    
+    let message = `Successfully settled ${settledCount} split(s) in expense`;
+    if (alreadySettledCount > 0) {
+      message += `. ${alreadySettledCount} member(s) were already settled: ${alreadySettledMembers.join(', ')}`;
+    }
+    
+    res.json({ 
+      group: groupObj,
+      message: message,
+      settledCount: settledCount,
+      alreadySettledCount: alreadySettledCount,
+      alreadySettledMembers: alreadySettledMembers
+    });
+  } catch (err) {
+    console.error('Error settling expense splits:', err);
+    res.status(500).json({ error: err.message });
+  }
 }; 
 
 // Send leave request to group creator

@@ -197,7 +197,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
     }
   }
 
-  // Calculate user's total split amount for all expenses in a group
+  // Calculate user's total split amount for all expenses in a group (excluding settled amounts)
   double _calculateUserTotalSplit(Map<String, dynamic> group, String userEmail) {
     double total = 0.0;
     final expenses = group['expenses'] ?? [];
@@ -225,12 +225,13 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
       print('Expense: ${expense['description']}, Split items: ${split.length}');
       
       for (var splitItem in split) {
-        // Check if this split item belongs to the current user
+        // Check if this split item belongs to the current user and is not settled
         String splitUserId = splitItem['user'].toString();
         double splitAmount = double.parse((splitItem['amount'] ?? 0).toString());
-        print('Split item - User ID: $splitUserId, Amount: $splitAmount');
+        bool isSettled = splitItem['settled'] == true;
+        print('Split item - User ID: $splitUserId, Amount: $splitAmount, Settled: $isSettled');
         
-        if (splitUserId == userMemberId) {
+        if (splitUserId == userMemberId && !isSettled) {
           total += splitAmount;
           print('Match found! Adding $splitAmount to total. New total: $total');
         }
@@ -1348,6 +1349,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                   orElse: () => {'email': 'Unknown User'},
                                                                 );
                                                                 final isCurrentUser = member['email'] == currentUserEmail;
+                                                                final isSettled = splitItem['settled'] == true;
                                                                 
                                                                 return Padding(
                                                                   padding: EdgeInsets.only(bottom: 2),
@@ -1366,7 +1368,8 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                         style: TextStyle(
                                                                           fontSize: 11,
                                                                           fontWeight: FontWeight.w600,
-                                                                          color: isCurrentUser ? Color(0xFF00B4D8) : Colors.green[700],
+                                                                          color: isSettled ? Colors.grey[500] : (isCurrentUser ? Color(0xFF00B4D8) : Colors.green[700]),
+                                                                          decoration: isSettled ? TextDecoration.lineThrough : null,
                                                                         ),
                                                                       ),
                                                                       if (isCurrentUser)
@@ -1375,6 +1378,15 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                           style: TextStyle(
                                                                             fontSize: 10,
                                                                             color: Color(0xFF00B4D8),
+                                                                            fontStyle: FontStyle.italic,
+                                                                          ),
+                                                                        ),
+                                                                      if (isSettled)
+                                                                        Text(
+                                                                          ' (Settled)',
+                                                                          style: TextStyle(
+                                                                            fontSize: 10,
+                                                                            color: Colors.grey[500],
                                                                             fontStyle: FontStyle.italic,
                                                                           ),
                                                                         ),

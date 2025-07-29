@@ -237,79 +237,123 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  Future<void> _confirmLogout(BuildContext context) async {
+    Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
-          padding: EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [Color(0xFF00B4D8), Color(0xFF0096CC)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: Offset(0, 4),
+                color: Color(0xFF00B4D8).withOpacity(0.3),
+                blurRadius: 20,
+                offset: Offset(0, 10),
               ),
             ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Title
-              Text(
-                'Are you sure?',
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              // Header with wave design
+              Container(
+                height: 60,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
                 ),
-              ),
-              SizedBox(height: 16),
-              
-              // Message
-              Text(
-                'Do you want to logout?',
-                style: TextStyle(
-                  color: Colors.black54,
-                  fontSize: 16,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 24),
-              
-                            // Buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: Text(
-                      'NO',
-                      style: TextStyle(
-                        color: Color(0xFF00B4D8),
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                child: ClipPath(
+                  clipper: LogoutWaveClipper(),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.white.withOpacity(0.2), Colors.white.withOpacity(0.1)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                       ),
                     ),
                   ),
-                  SizedBox(width: 16),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: Text(
-                      'YES',
+                ),
+              ),
+              // Content
+              Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    // Title
+                    Text(
+                      'Are you sure?',
                       style: TextStyle(
-                        color: Color(0xFF00B4D8),
-                        fontSize: 16,
+                        color: Colors.white,
+                        fontSize: 22,
                         fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
                       ),
                     ),
-                  ),
-                ],
-              ),
+                    SizedBox(height: 16),
+                    
+                    // Message
+                    Text(
+                      'Do you want to logout?',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 16,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: 24),
+                    
+                    // Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white.withOpacity(0.3)),
+                          ),
+                          child: TextButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: Text(
+                              'NO',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        ElevatedButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Color(0xFF00B4D8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            elevation: 0,
+                          ),
+                          child: Text(
+                            'YES',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

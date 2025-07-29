@@ -78,6 +78,7 @@ router.post('/group-transactions/:groupId/settle-member-expenses', auth, groupTr
 router.post('/group-transactions/:groupId/add-expense', auth, groupTransactionController.addExpense);
 router.put('/group-transactions/:groupId/expenses/:expenseId', auth, groupTransactionController.editExpense);
 router.delete('/group-transactions/:groupId/expenses/:expenseId', auth, groupTransactionController.deleteExpense);
+router.post('/group-transactions/:groupId/expenses/:expenseId/settle', auth, groupTransactionController.settleExpenseSplits);
 router.post('/group-transactions/:groupId/request-leave', auth, groupTransactionController.requestLeave);
 router.post('/group-transactions/:groupId/settle-balance', auth, groupTransactionController.settleBalance);
 router.post('/group-transactions/:groupId/otp-verify-settle', auth, groupTransactionController.otpVerifySettle);

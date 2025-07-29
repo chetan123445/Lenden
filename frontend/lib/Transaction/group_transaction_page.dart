@@ -157,7 +157,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     return totalExpenseAmount - _totalCustomSplitAmount;
   }
 
-  // Calculate member's total split amount from all expenses in the group
+  // Calculate member's total split amount from all expenses in the group (excluding settled amounts)
   double _getMemberBalance(String memberEmail) {
     if (group == null) return 0.0;
     
@@ -187,12 +187,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       print('Expense: ${expense['description']}, Split items: ${split.length}');
       
       for (var splitItem in split) {
-        // Check if this split item belongs to the current user
+        // Check if this split item belongs to the current user and is not settled
         String splitUserId = splitItem['user'].toString();
         double splitAmount = double.parse((splitItem['amount'] ?? 0).toString());
-        print('Split item - User ID: $splitUserId, Amount: $splitAmount');
+        bool isSettled = splitItem['settled'] == true;
+        print('Split item - User ID: $splitUserId, Amount: $splitAmount, Settled: $isSettled');
         
-        if (splitUserId == userMemberId) {
+        if (splitUserId == userMemberId && !isSettled) {
           total += splitAmount;
           print('Match found! Adding $splitAmount to total. New total: $total');
         }
@@ -1533,6 +1534,65 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       }
     } catch (e) {
       setState(() { error = e.toString(); });
+    } finally {
+      setState(() { loading = false; });
+    }
+  }
+
+  Future<void> _settleExpenseSplits(String expenseId, List<String> memberEmails) async {
+    setState(() { loading = true; error = null; });
+    try {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      final token = session.token;
+      final headers = {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'};
+      
+      final res = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId/settle'),
+        headers: headers,
+        body: json.encode({'memberEmails': memberEmails}),
+      );
+      final data = json.decode(res.body);
+      
+      if (res.statusCode == 200) {
+        setState(() { group = data['group']; });
+        // Show success message with details about already settled members
+        String message = '✅ ${data['message']}';
+        Color backgroundColor = Colors.green;
+        int duration = 4;
+        
+        if (data['alreadySettledCount'] > 0) {
+          backgroundColor = Colors.orange;
+          duration = 5;
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: backgroundColor,
+            duration: Duration(seconds: duration),
+          ),
+        );
+      } else {
+        setState(() { error = data['error'] ?? 'Failed to settle expense splits'; });
+        // Show error message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['error'] ?? 'Failed to settle expense splits'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() { error = e.toString(); });
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Network error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+        ),
+      );
     } finally {
       setState(() { loading = false; });
     }
@@ -3502,6 +3562,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                               (m) => m['_id'] == splitItem['user'],
                                               orElse: () => {'email': 'Unknown User'},
                                             );
+                                            final isSettled = splitItem['settled'] == true;
                                             return Padding(
                                               padding: EdgeInsets.only(bottom: 2),
                                               child: Row(
@@ -3518,9 +3579,19 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                                     style: TextStyle(
                                                       fontSize: 11,
                                                       fontWeight: FontWeight.w600,
-                                                      color: Colors.green[700],
+                                                      color: isSettled ? Colors.grey[500] : Colors.green[700],
+                                                      decoration: isSettled ? TextDecoration.lineThrough : null,
                                                     ),
                                                   ),
+                                                  if (isSettled)
+                                                    Text(
+                                                      ' (Settled)',
+                                                      style: TextStyle(
+                                                        fontSize: 10,
+                                                        color: Colors.grey[500],
+                                                        fontStyle: FontStyle.italic,
+                                                      ),
+                                                    ),
                                                 ],
                                               ),
                                             );
@@ -3560,6 +3631,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                     : SizedBox.shrink();
                               },
                             ),
+                            // Settle button - only for group creator
+                            if (isCreator)
+                              IconButton(
+                                icon: Icon(Icons.check_circle_outline, color: Colors.green),
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  _showSettleExpenseDialog(expense);
+                                },
+                              ),
                             // Delete button - only for group creator
                             if (isCreator)
                               IconButton(
@@ -4530,6 +4610,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                           (m) => m['_id'] == splitItem['user'],
                                           orElse: () => {'email': 'Unknown User'},
                                         );
+                                        final isSettled = splitItem['settled'] == true;
                                         return Padding(
                                           padding: EdgeInsets.only(bottom: 2),
                                           child: Row(
@@ -4546,9 +4627,19 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                                 style: TextStyle(
                                                   fontSize: 11,
                                                   fontWeight: FontWeight.w600,
-                                                  color: Colors.green[700],
+                                                  color: isSettled ? Colors.grey[500] : Colors.green[700],
+                                                  decoration: isSettled ? TextDecoration.lineThrough : null,
                                                 ),
                                               ),
+                                              if (isSettled)
+                                                Text(
+                                                  ' (Settled)',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    color: Colors.grey[500],
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
                                             ],
                                           ),
                                         );
@@ -5250,6 +5341,356 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSettleExpenseDialog(Map<String, dynamic> expense) {
+    final members = group?['members'] ?? [];
+    final expenseSplit = expense['split'] ?? [];
+    
+    // Get member emails that are in this expense and not already settled
+    List<String> availableMembers = [];
+    List<String> settledMembers = [];
+    for (var splitItem in expenseSplit) {
+      final member = members.firstWhere(
+        (m) => m['_id'] == splitItem['user'],
+        orElse: () => {'email': 'Unknown User'},
+      );
+      if (member['email'] != 'Unknown User') {
+        if (splitItem['settled'] == true) {
+          settledMembers.add(member['email']);
+        } else {
+          availableMembers.add(member['email']);
+        }
+      }
+    }
+    
+    if (availableMembers.isEmpty) {
+      String message = 'All splits in this expense are already settled!';
+      if (settledMembers.isNotEmpty) {
+        message += ' Settled members: ${settledMembers.join(', ')}';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+    
+    Set<String> selectedMembers = {};
+    bool selectAll = false;
+    
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: [Color(0xFF00B4D8), Color(0xFF0096CC)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFF00B4D8).withOpacity(0.3),
+                  blurRadius: 20,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header with wave design
+                Container(
+                  height: 80,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                    ),
+                  ),
+                  child: ClipPath(
+                    clipper: SettleWaveClipper(),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.white.withOpacity(0.2), Colors.white.withOpacity(0.1)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Content
+                Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      // Title with icon
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 10,
+                                  offset: Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: Icon(
+                              Icons.check_circle,
+                              size: 35,
+                              color: Color(0xFF00B4D8),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'Settle Expense',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Container(
+                        width: double.maxFinite,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Select members to settle their split amounts:',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.9),
+                                fontSize: 16,
+                              ),
+                            ),
+                if (settledMembers.isNotEmpty) ...[
+                  SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      'Already settled: ${settledMembers.join(', ')}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 12,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+                SizedBox(height: 16),
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Expense: ${expense['description'] ?? 'Unknown'}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+                // Select All / Clear All buttons
+                Row(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                      ),
+                      child: TextButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            if (selectAll) {
+                              selectedMembers.clear();
+                              selectAll = false;
+                            } else {
+                              selectedMembers.addAll(availableMembers);
+                              selectAll = true;
+                            }
+                          });
+                        },
+                        child: Text(
+                          selectAll ? 'Clear All' : 'Select All',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 8),
+                // Member checkboxes
+                Container(
+                  constraints: BoxConstraints(maxHeight: 200),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: availableMembers.length,
+                    itemBuilder: (context, index) {
+                      final memberEmail = availableMembers[index];
+                      final splitItem = expenseSplit.firstWhere(
+                        (split) {
+                          final member = members.firstWhere(
+                            (m) => m['_id'] == split['user'],
+                            orElse: () => {'email': 'Unknown User'},
+                          );
+                          return member['email'] == memberEmail;
+                        },
+                        orElse: () => null,
+                      );
+                      
+                                             return Container(
+                         margin: EdgeInsets.only(bottom: 4),
+                         decoration: BoxDecoration(
+                           color: Colors.white.withOpacity(0.05),
+                           borderRadius: BorderRadius.circular(8),
+                           border: Border.all(color: Colors.white.withOpacity(0.2)),
+                         ),
+                         child: CheckboxListTile(
+                           title: Text(
+                             memberEmail,
+                             style: TextStyle(
+                               fontSize: 14,
+                               fontWeight: FontWeight.w500,
+                               color: Colors.white,
+                             ),
+                           ),
+                           subtitle: Text(
+                             'Amount: \$${(splitItem?['amount'] ?? 0).toStringAsFixed(2)}',
+                             style: TextStyle(
+                               fontSize: 12,
+                               color: Colors.white.withOpacity(0.8),
+                             ),
+                           ),
+                           value: selectedMembers.contains(memberEmail),
+                           onChanged: (bool? value) {
+                             setDialogState(() {
+                               if (value == true) {
+                                 selectedMembers.add(memberEmail);
+                               } else {
+                                 selectedMembers.remove(memberEmail);
+                               }
+                               selectAll = selectedMembers.length == availableMembers.length;
+                             });
+                           },
+                           activeColor: Colors.white,
+                           checkColor: Color(0xFF00B4D8),
+                           contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                         ),
+                       );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+                      SizedBox(height: 24),
+                      // Action buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white.withOpacity(0.3)),
+                              ),
+                              child: TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: Text(
+                                  'Cancel',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: selectedMembers.isEmpty
+                                  ? null
+                                  : () async {
+                                      Navigator.of(context).pop();
+                                      await _settleExpenseSplits(expense['_id'], selectedMembers.toList());
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Color(0xFF00B4D8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                elevation: 0,
+                              ),
+                              child: Text(
+                                'Settle Selected',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -6148,6 +6589,28 @@ class BottomWaveClipper extends CustomClipper<Path> {
     path.close();
     return path;
   }
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+class SettleWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height * 0.7);
+    path.quadraticBezierTo(
+      size.width * 0.25, size.height,
+      size.width * 0.5, size.height * 0.7,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75, size.height * 0.4,
+      size.width, size.height * 0.7,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+  
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 } 

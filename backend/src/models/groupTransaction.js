@@ -18,6 +18,9 @@ const groupTransactionSchema = new mongoose.Schema({
     split: [{
       user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
       amount: { type: Number, required: true },
+      settled: { type: Boolean, default: false }, // New: track if this split is settled
+      settledAt: { type: Date, default: null }, // New: when it was settled
+      settledBy: { type: String, default: null }, // New: who settled it (email)
     }],
   }],
   balances: [{
