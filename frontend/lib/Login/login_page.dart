@@ -423,18 +423,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
               child: Container(
                 height: 120,
                 color: const Color(0xFF00B4D8),
-                child: SafeArea(
-                  bottom: false,
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: IconButton(
-                      icon: const Icon(Icons.home, color: Colors.white),
-                      onPressed: () {
-                        Navigator.pushReplacementNamed(context, '/');
-                      },
-                    ),
-                  ),
-                ),
+                child: Container(),
               ),
             ),
           ),

@@ -246,14 +246,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              colors: [Color(0xFF00B4D8), Color(0xFF0096CC)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Color(0xFF00B4D8).withOpacity(0.3),
+                color: Colors.black.withOpacity(0.1),
                 blurRadius: 20,
                 offset: Offset(0, 10),
               ),
@@ -262,9 +258,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header with wave design
+              // Blue wavy header bar
               Container(
-                height: 60,
+                height: 80,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(20),
@@ -276,16 +272,16 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [Colors.white.withOpacity(0.2), Colors.white.withOpacity(0.1)],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
+                        colors: [Color(0xFF00B4D8), Color(0xFF0096CC)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
                     ),
                   ),
                 ),
               ),
-              // Content
-              Padding(
+              // White content area
+              Container(
                 padding: EdgeInsets.all(24),
                 child: Column(
                   children: [
@@ -293,8 +289,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     Text(
                       'Are you sure?',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
+                        color: Colors.black,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.2,
                       ),
@@ -305,50 +301,80 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     Text(
                       'Do you want to logout?',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
+                        color: Colors.grey[700],
                         fontSize: 16,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    SizedBox(height: 24),
+                    SizedBox(height: 32),
                     
-                    // Buttons
+                    // Stylish buttons
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white.withOpacity(0.3)),
-                          ),
-                          child: TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: Text(
-                              'NO',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                        // NO button
+                        Expanded(
+                          child: Container(
+                            margin: EdgeInsets.only(right: 8),
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.of(context).pop(false),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.grey[100],
+                                foregroundColor: Colors.grey[700],
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  side: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                elevation: 0,
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.close, size: 20),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'NO',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
                         ),
-                        SizedBox(width: 16),
-                        ElevatedButton(
-                          onPressed: () => Navigator.of(context).pop(true),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Color(0xFF00B4D8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                            elevation: 0,
-                          ),
-                          child: Text(
-                            'YES',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                        // YES button
+                        Expanded(
+                          child: Container(
+                            margin: EdgeInsets.only(left: 8),
+                            child: ElevatedButton(
+                              onPressed: () => Navigator.of(context).pop(true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFF00B4D8),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                elevation: 2,
+                                shadowColor: Color(0xFF00B4D8).withOpacity(0.3),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.logout, size: 20),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'YES',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
