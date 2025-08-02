@@ -74,6 +74,9 @@ class _TransactionPageState extends State<TransactionPage> {
   int _compoundingFrequency = 1; // default annually
   final TextEditingController _descriptionController = TextEditingController();
 
+  // Computed property to check if both users are verified
+  bool get _bothUsersVerified => _counterpartyVerified && _userVerified;
+
   final List<Map<String, String>> _currencies = [
     {'code': 'INR', 'symbol': '₹'},
     {'code': 'USD', 'symbol': ' 24'},
@@ -127,6 +130,7 @@ class _TransactionPageState extends State<TransactionPage> {
     }
   }
   void _removeFile(int idx) {
+    if (_bothUsersVerified) return; // Prevent file removal when verified
     setState(() {
       _pickedFiles.removeAt(idx);
     });
@@ -174,7 +178,7 @@ class _TransactionPageState extends State<TransactionPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ElevatedButton.icon(
-          onPressed: _pickFiles,
+          onPressed: _bothUsersVerified ? null : _pickFiles,
           icon: Icon(Icons.attach_file),
           label: Text('Add Images'),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
@@ -191,10 +195,11 @@ class _TransactionPageState extends State<TransactionPage> {
                   borderRadius: BorderRadius.circular(8),
                   child: _buildFileThumbnail(i),
                 ),
-                GestureDetector(
-                  onTap: () => _removeFile(i),
-                  child: CircleAvatar(radius: 12, backgroundColor: Colors.red, child: Icon(Icons.close, size: 16, color: Colors.white)),
-                ),
+                if (!_bothUsersVerified)
+                  GestureDetector(
+                    onTap: () => _removeFile(i),
+                    child: CircleAvatar(radius: 12, backgroundColor: Colors.red, child: Icon(Icons.close, size: 16, color: Colors.white)),
+                  ),
                 if (_pickedFiles[i].extension == 'pdf')
                   Positioned(
                     bottom: 0,
@@ -512,14 +517,18 @@ class _TransactionPageState extends State<TransactionPage> {
         value: c['code'],
         child: Text('${c['symbol']} ${c['code']}'),
       )).toList(),
-      onChanged: (val) => setState(() => _currency = val ?? 'INR'),
-      decoration: InputDecoration(labelText: 'Currency', border: OutlineInputBorder()),
+      onChanged: _bothUsersVerified ? null : (val) => setState(() => _currency = val ?? 'INR'),
+      decoration: InputDecoration(
+        labelText: 'Currency', 
+        border: OutlineInputBorder(),
+        helperText: _bothUsersVerified ? 'Transaction details locked after verification' : null,
+      ),
     );
   }
 
   Widget _buildDatePicker() {
     return InkWell(
-      onTap: () async {
+      onTap: _bothUsersVerified ? null : () async {
         final picked = await showDatePicker(
           context: context,
           initialDate: _selectedDate ?? DateTime.now(),
@@ -543,7 +552,11 @@ class _TransactionPageState extends State<TransactionPage> {
         if (picked != null) setState(() => _selectedDate = picked);
       },
       child: InputDecorator(
-        decoration: InputDecoration(labelText: 'Date', border: OutlineInputBorder()),
+        decoration: InputDecoration(
+          labelText: 'Date', 
+          border: OutlineInputBorder(),
+          helperText: _bothUsersVerified ? 'Transaction details locked after verification' : null,
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -557,7 +570,7 @@ class _TransactionPageState extends State<TransactionPage> {
 
   Widget _buildTimePicker() {
     return InkWell(
-      onTap: () async {
+      onTap: _bothUsersVerified ? null : () async {
         final picked = await showTimePicker(
           context: context,
           initialTime: _selectedTime ?? TimeOfDay.now(),
@@ -579,7 +592,11 @@ class _TransactionPageState extends State<TransactionPage> {
         if (picked != null) setState(() => _selectedTime = picked);
       },
       child: InputDecorator(
-        decoration: InputDecoration(labelText: 'Time', border: OutlineInputBorder()),
+        decoration: InputDecoration(
+          labelText: 'Time', 
+          border: OutlineInputBorder(),
+          helperText: _bothUsersVerified ? 'Transaction details locked after verification' : null,
+        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -710,15 +727,45 @@ class _TransactionPageState extends State<TransactionPage> {
             left: 0,
             right: 0,
             child: Center(
-              child: Text(
-                'New Transaction',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                  shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
-                ),
+              child: Column(
+                children: [
+                  Text(
+                    'New Transaction',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
+                    ),
+                  ),
+                  if (_bothUsersVerified) ...[
+                    SizedBox(height: 8),
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.lock, color: Colors.white, size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            'Transaction Details Locked',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -743,18 +790,23 @@ class _TransactionPageState extends State<TransactionPage> {
                           child: Text('Borrower (taking money)'),
                         ),
                       ],
-                      onChanged: (val) => setState(() => _role = val ?? 'lender'),
+                      onChanged: _bothUsersVerified ? null : (val) => setState(() => _role = val ?? 'lender'),
                       decoration: InputDecoration(
                         labelText: 'Are you a Lender or Borrower?',
                         border: OutlineInputBorder(),
-                        helperText: 'Lender: You are giving money. Borrower: You are taking money.'
+                        helperText: _bothUsersVerified ? 'Transaction details locked after verification' : 'Lender: You are giving money. Borrower: You are taking money.'
                       ),
                     ),
                     SizedBox(height: 12),
                     TextFormField(
                       controller: _amountController,
+                      enabled: !_bothUsersVerified,
                       keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(labelText: 'Amount', border: OutlineInputBorder()),
+                      decoration: InputDecoration(
+                        labelText: 'Amount', 
+                        border: OutlineInputBorder(),
+                        helperText: _bothUsersVerified ? 'Transaction details locked after verification' : null,
+                      ),
                       validator: (val) => val == null || val.isEmpty ? 'Amount required' : null,
                     ),
                     SizedBox(height: 12),
@@ -766,7 +818,12 @@ class _TransactionPageState extends State<TransactionPage> {
                     SizedBox(height: 12),
                     TextFormField(
                       controller: _placeController,
-                      decoration: InputDecoration(labelText: 'Place', border: OutlineInputBorder()),
+                      enabled: !_bothUsersVerified,
+                      decoration: InputDecoration(
+                        labelText: 'Place', 
+                        border: OutlineInputBorder(),
+                        helperText: _bothUsersVerified ? 'Transaction details locked after verification' : null,
+                      ),
                       validator: (val) => val == null || val.isEmpty ? 'Place required' : null,
                     ),
                     SizedBox(height: 12),
@@ -779,7 +836,7 @@ class _TransactionPageState extends State<TransactionPage> {
                         DropdownMenuItem(value: 'simple', child: Text('Simple Interest')),
                         DropdownMenuItem(value: 'compound', child: Text('Compound Interest')),
                       ],
-                      onChanged: (val) {
+                      onChanged: _bothUsersVerified ? null : (val) {
                         setState(() {
                           _interestType = val ?? 'none';
                           // Reset expected return date and interest rate if switching back to no interest
@@ -792,17 +849,19 @@ class _TransactionPageState extends State<TransactionPage> {
                       decoration: InputDecoration(
                         labelText: 'Interest Type (Optional)',
                         border: OutlineInputBorder(),
-                        helperText: 'Leave as "No Interest" if no interest applies to this transaction.'
+                        helperText: _bothUsersVerified ? 'Transaction details locked after verification' : 'Leave as "No Interest" if no interest applies to this transaction.'
                       ),
                     ),
                     if (_interestType != 'none') ...[
                       SizedBox(height: 12),
                       TextFormField(
                         controller: _interestRateController,
+                        enabled: !_bothUsersVerified,
                         keyboardType: TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
                           labelText: 'Interest Rate (%)',
                           border: OutlineInputBorder(),
+                          helperText: _bothUsersVerified ? 'Transaction details locked after verification' : null,
                         ),
                         validator: (val) {
                           // Only validate if interest type is selected
@@ -818,20 +877,20 @@ class _TransactionPageState extends State<TransactionPage> {
                     ],
                     if (_interestType == 'compound') ...[
                       SizedBox(height: 12),
-                      DropdownButtonFormField<int>(
-                        value: _compoundingFrequency,
-                        items: [
-                          DropdownMenuItem(value: 1, child: Text('Annually (1x/year)')),
-                          DropdownMenuItem(value: 2, child: Text('Semi-annually (2x/year)')),
-                          DropdownMenuItem(value: 4, child: Text('Quarterly (4x/year)')),
-                          DropdownMenuItem(value: 12, child: Text('Monthly (12x/year)')),
-                        ],
-                        onChanged: (val) => setState(() => _compoundingFrequency = val ?? 1),
-                        decoration: InputDecoration(
-                          labelText: 'Compounding Frequency',
-                          border: OutlineInputBorder(),
-                          helperText: 'How often is interest compounded?'
-                        ),
+                                              DropdownButtonFormField<int>(
+                          value: _compoundingFrequency,
+                          items: [
+                            DropdownMenuItem(value: 1, child: Text('Annually (1x/year)')),
+                            DropdownMenuItem(value: 2, child: Text('Semi-annually (2x/year)')),
+                            DropdownMenuItem(value: 4, child: Text('Quarterly (4x/year)')),
+                            DropdownMenuItem(value: 12, child: Text('Monthly (12x/year)')),
+                          ],
+                          onChanged: _bothUsersVerified ? null : (val) => setState(() => _compoundingFrequency = val ?? 1),
+                          decoration: InputDecoration(
+                            labelText: 'Compounding Frequency',
+                            border: OutlineInputBorder(),
+                            helperText: _bothUsersVerified ? 'Transaction details locked after verification' : 'How often is interest compounded?'
+                          ),
                         validator: (val) {
                           // Only validate if compound interest is selected
                           if (_interestType != 'compound') return null;
@@ -844,7 +903,7 @@ class _TransactionPageState extends State<TransactionPage> {
                     if (_interestType != 'none') ...[
                       SizedBox(height: 12),
                       InkWell(
-                        onTap: () async {
+                        onTap: _bothUsersVerified ? null : () async {
                           final picked = await showDatePicker(
                             context: context,
                             initialDate: _expectedReturnDate ?? DateTime.now(),
@@ -857,10 +916,10 @@ class _TransactionPageState extends State<TransactionPage> {
                           decoration: InputDecoration(
                             labelText: 'Expected Return Date *',
                             border: OutlineInputBorder(
-                              borderSide: BorderSide(color: Colors.red.shade300),
+                              borderSide: BorderSide(color: _bothUsersVerified ? Colors.grey.shade300 : Colors.red.shade300),
                             ),
-                            helperText: 'Required when interest is applied',
-                            prefixIcon: Icon(Icons.calendar_today, color: Colors.red.shade300),
+                            helperText: _bothUsersVerified ? 'Transaction details locked after verification' : 'Required when interest is applied',
+                            prefixIcon: Icon(Icons.calendar_today, color: _bothUsersVerified ? Colors.grey.shade300 : Colors.red.shade300),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -875,11 +934,12 @@ class _TransactionPageState extends State<TransactionPage> {
                     SizedBox(height: 12),
                     TextFormField(
                       controller: _descriptionController,
+                      enabled: !_bothUsersVerified,
                       maxLines: 3,
                       decoration: InputDecoration(
                         labelText: 'Description (optional)',
                         border: OutlineInputBorder(),
-                        hintText: 'Add a note or description for this transaction',
+                        hintText: _bothUsersVerified ? 'Transaction details locked after verification' : 'Add a note or description for this transaction',
                       ),
                     ),
                     SizedBox(height: 12),
