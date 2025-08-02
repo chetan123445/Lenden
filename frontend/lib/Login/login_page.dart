@@ -6,6 +6,9 @@ import '../api_config.dart';
 import '../otp_input.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
+import 'email_password_login.dart';
+import 'username_password_login.dart';
+import 'email_otp_login.dart';
 
 class UserLoginPage extends StatefulWidget {
   const UserLoginPage({super.key});
@@ -54,111 +57,168 @@ class _UserLoginPageState extends State<UserLoginPage> {
     String? token;
     try {
       if (_loginMethod == 'Email + Password') {
-        // Try both user and admin login
-        final userRes = await _loginUser(username: _emailController.text, password: _passwordController.text, isEmail: true);
-        final adminRes = await _loginAdmin(email: _emailController.text, password: _passwordController.text);
+        final result = await EmailPasswordLogin.login(
+          email: _emailController.text,
+          password: _passwordController.text,
+          context: context,
+        );
         
-        if (userRes['success']) {
-          userOrAdmin = userRes['data'];
-          userType = 'user';
-          token = userRes['token'];
-        } else if (adminRes['success']) {
-          userOrAdmin = adminRes['data'];
-          userType = 'admin';
-          token = adminRes['token'];
+        if (result['success']) {
+          userOrAdmin = result['userOrAdmin'];
+          userType = result['userType'];
+          token = result['token'];
         } else {
-          // Both failed, show the most relevant error
-          if (userRes['error'] != null && userRes['error'] != 'User not found') {
-            error = userRes['error'];
-          } else if (adminRes['error'] != null && adminRes['error'] != 'User not found') {
-            error = adminRes['error'];
-          } else {
-            error = 'User not found';
-          }
+          error = result['error'];
         }
       } else if (_loginMethod == 'Username + Password') {
-        // Try both user and admin login
-        final userRes = await _loginUser(username: _usernameController.text, password: _passwordController.text);
-        final adminRes = await _loginAdmin(username: _usernameController.text, password: _passwordController.text);
+        final result = await UsernamePasswordLogin.login(
+          username: _usernameController.text,
+          password: _passwordController.text,
+          context: context,
+        );
         
-        if (userRes['success']) {
-          userOrAdmin = userRes['data'];
-          userType = 'user';
-          token = userRes['token'];
-        } else if (adminRes['success']) {
-          userOrAdmin = adminRes['data'];
-          userType = 'admin';
-          token = adminRes['token'];
+        if (result['success']) {
+          userOrAdmin = result['userOrAdmin'];
+          userType = result['userType'];
+          token = result['token'];
         } else {
-          // Both failed, show the most relevant error
-          if (userRes['error'] != null && userRes['error'] != 'User not found') {
-            error = userRes['error'];
-          } else if (adminRes['error'] != null && adminRes['error'] != 'User not found') {
-            error = adminRes['error'];
-          } else {
-            error = 'User not found';
-          }
+          error = result['error'];
         }
       } else if (_loginMethod == 'Email + OTP') {
         if (!_otpSent) {
           setState(() => _isLoading = true);
-          final otpSendRes = await _post('/api/users/send-login-otp', {
-            'email': _emailController.text,
-          });
+          final result = await EmailOtpLogin.sendOtp(
+            email: _emailController.text,
+            context: context,
+          );
           setState(() => _isLoading = false);
-          if (otpSendRes['status'] == 200) {
+          
+          if (result['success']) {
             setState(() {
               _otpSent = true;
               _otpErrorMessage = null;
               _otpSecondsLeft = 120;
             });
             _startOtpTimer();
+            return; // Return early to wait for OTP input
           } else {
             setState(() {
-              _otpErrorMessage = otpSendRes['data']['error'] ?? 'User not found';
+              _otpErrorMessage = result['error'];
             });
+            return; // Return early on error
           }
         } else if (_otpSecondsLeft > 0) {
           setState(() => _isVerifyingOtp = true);
-          final otpVerifyRes = await _post('/api/users/verify-login-otp', {
-            'email': _emailController.text,
-            'otp': _loginOtp,
-          });
+          final result = await EmailOtpLogin.verifyOtp(
+            email: _emailController.text,
+            otp: _loginOtp,
+            context: context,
+          );
           setState(() => _isVerifyingOtp = false);
-          if (otpVerifyRes['status'] == 200) {
+          
+          if (result['success']) {
             setState(() {
               _otpSent = false;
               _loginOtp = '';
               _otpErrorMessage = null;
               _otpSecondsLeft = 0;
             });
-            if (otpVerifyRes['data']['userType'] == 'admin') {
-              Navigator.pushReplacementNamed(context, '/admin/dashboard');
-            } else {
-              Navigator.pushReplacementNamed(context, '/user/dashboard');
-            }
-            return;
+            userOrAdmin = result['userOrAdmin'];
+            userType = result['userType'];
+            token = result['token'];
           } else {
             setState(() {
-              _otpErrorMessage = otpVerifyRes['data']['error'] ?? 'OTP verification failed.';
+              _otpErrorMessage = result['error'];
             });
+            return; // Return early on error
           }
         }
       }
+      
       // Save token and fetch user info
       if (token != null && userType != null) {
+        print('🔐 Saving authentication data for login method: $_loginMethod');
+        print('🎫 Token: ${token != null ? 'Present' : 'Missing'}');
+        print('👤 User type: $userType');
+        print('👤 User data: $userOrAdmin');
+        
         final session = Provider.of<SessionProvider>(context, listen: false);
+        print('🔐 About to save token to session');
+        print('🔐 Token to save: ${token != null ? 'Present' : 'Missing'}');
+        print('🔐 Token length: ${token?.length ?? 0}');
         await session.saveToken(token);
-        final profileRes = await _fetchProfile(token, userType);
-        if (profileRes != null) {
-          if (userType == 'admin') {
-            profileRes['role'] = 'admin';
-          } else {
-            profileRes['role'] = 'user';
+        print('✅ Token saved to session');
+        
+        // Verify token was saved
+        print('🔍 Token verification after save:');
+        print('   Session token: ${session.token != null ? 'Present' : 'Missing'}');
+        print('   Session token length: ${session.token?.length ?? 0}');
+        
+        // For Email + OTP, also fetch the complete profile to ensure all fields are present
+        if (_loginMethod == 'Email + OTP' && userOrAdmin != null) {
+          print('📱 Using user data from OTP response and fetching complete profile');
+          final userData = Map<String, dynamic>.from(userOrAdmin);
+          
+          // Ensure required fields are present
+          if (!userData.containsKey('name') || userData['name'] == null) {
+            userData['name'] = userData['username'] ?? 'User';
           }
-          session.setUser(profileRes);
+          if (!userData.containsKey('email') || userData['email'] == null) {
+            userData['email'] = _emailController.text;
+          }
+          if (!userData.containsKey('username') || userData['username'] == null) {
+            userData['username'] = userData['name'] ?? 'user';
+          }
+          
+          if (userType == 'admin') {
+            userData['role'] = 'admin';
+          } else {
+            userData['role'] = 'user';
+          }
+          
+          // Also fetch the complete profile to ensure we have all fields including profileImage
+          print('🌐 Fetching complete profile for email+OTP login');
+          final profileRes = await _fetchProfile(token, userType);
+          if (profileRes != null) {
+            // Merge the profile data with the OTP response data
+            final completeUserData = Map<String, dynamic>.from(profileRes);
+            completeUserData['role'] = userType == 'admin' ? 'admin' : 'user';
+            print('👤 Setting complete user data: $completeUserData');
+            session.setUser(completeUserData);
+            print('✅ Complete user data set in session');
+          } else {
+            // Fallback to OTP response data if profile fetch fails
+            print('⚠️ Profile fetch failed, using OTP response data');
+            print('👤 Setting user data from OTP response: $userData');
+            session.setUser(userData);
+            print('✅ User data set in session');
+          }
+          
+          // Verify the session was set correctly
+          print('🔍 Verifying session data after setting:');
+          print('   Token: ${session.token != null ? 'Present' : 'Missing'}');
+          print('   User: ${session.user}');
+          print('   Role: ${session.role}');
+          print('   Is Admin: ${session.isAdmin}');
+        } else {
+          // For other login methods, fetch profile
+          print('🌐 Fetching user profile from API');
+          final profileRes = await _fetchProfile(token, userType);
+          if (profileRes != null) {
+            if (userType == 'admin') {
+              profileRes['role'] = 'admin';
+            } else {
+              profileRes['role'] = 'user';
+            }
+            print('👤 Setting user data from profile: $profileRes');
+            session.setUser(profileRes);
+            print('✅ User data set in session');
+          } else {
+            print('❌ Failed to fetch user profile');
+          }
         }
       }
+      
       if (userOrAdmin != null && userType != null) {
         // Navigate to dashboard
         if (userType == 'admin') {
@@ -185,108 +245,28 @@ class _UserLoginPageState extends State<UserLoginPage> {
         ? ApiConfig.baseUrl + '/api/admins/me'
         : ApiConfig.baseUrl + '/api/users/me';
     try {
+      print('🌐 Fetching profile from: $url');
       final response = await http.get(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer $token'},
       );
+      print('🌐 Profile response status: ${response.statusCode}');
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final profileData = jsonDecode(response.body);
+        print('🌐 Profile data received: $profileData');
+        print('🌐 Profile image URL: ${profileData['profileImage']}');
+        return profileData;
+      } else {
+        print('❌ Profile fetch failed with status: ${response.statusCode}');
+        print('❌ Response body: ${response.body}');
       }
-    } catch (_) {}
+    } catch (e) {
+      print('❌ Error fetching profile: $e');
+    }
     return null;
   }
 
-  Future<Map<String, dynamic>> _loginAdmin({String? email, String? username, required String password}) async {
-    try {
-      print('🔐 Attempting admin login for username/email: ${email ?? username}');
-      final res = await _post('/api/admins/login', {
-        if (email != null) 'username': email, // backend expects username, so use email as username if email login
-        if (username != null) 'username': username,
-        'password': password,
-      });
-      print('📥 Admin login response status: ${res['status']}');
-      print('📥 Admin login response data: ${res['data']}');
-      
-      if (res['status'] == 200 && res['data']['admin'] != null) {
-        print('✅ Admin login successful');
-        return {'success': true, 'data': res['data']['admin'], 'token': res['data']['token']};
-      }
-      print('❌ Admin login failed: ${res['data']['error']}');
-      return {'success': false, 'error': res['data']['error']};
-    } catch (e) {
-      print('❌ Admin login exception: $e');
-      return {'success': false, 'error': e.toString()};
-    }
-  }
 
-  Future<Map<String, dynamic>> _loginUser({String? username, required String password, bool isEmail = false}) async {
-    try {
-      print('🔐 Attempting user login for username: $username');
-      final res = await _post('/api/users/login', {
-        'username': username,
-        'password': password,
-      });
-      print('📥 User login response status: ${res['status']}');
-      print('📥 User login response data: ${res['data']}');
-      
-      if (res['status'] == 200 && res['data']['user'] != null) {
-        print('✅ User login successful');
-        return {'success': true, 'data': res['data']['user'], 'token': res['data']['token']};
-      }
-      print('❌ User login failed: ${res['data']['error']}');
-      return {'success': false, 'error': res['data']['error']};
-    } catch (e) {
-      print('❌ User login exception: $e');
-      return {'success': false, 'error': e.toString()};
-    }
-  }
-
-  Future<String?> _showOtpInputDialog() async {
-    String? otpValue;
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          backgroundColor: const Color(0xFFF8F6FA),
-          title: Row(
-            children: const [
-              Icon(Icons.lock_clock, color: Color(0xFF00B4D8), size: 28),
-              SizedBox(width: 8),
-              Text('Enter OTP', style: TextStyle(color: Colors.black)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Enter the 6-digit OTP sent to your email:', style: TextStyle(fontSize: 16)),
-              const SizedBox(height: 16),
-              OtpInput(
-                onChanged: (val) => _loginOtp = val,
-                enabled: true,
-                autoFocus: true,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel', style: TextStyle(color: Colors.deepPurple)),
-            ),
-            TextButton(
-              onPressed: () {
-                otpValue = _loginOtp;
-                Navigator.of(context).pop();
-              },
-              child: const Text('Verify', style: TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-    return otpValue;
-  }
 
   void _startOtpTimer() {
     _otpSecondsLeft = 120;
@@ -301,111 +281,14 @@ class _UserLoginPageState extends State<UserLoginPage> {
   }
 
   void _showIncorrectPasswordDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        backgroundColor: const Color(0xFFF8F6FA),
-        title: Row(
-          children: const [
-            Icon(Icons.lock_outline, color: Colors.orange, size: 28),
-            SizedBox(width: 8),
-            Text('Incorrect Password', style: TextStyle(color: Colors.black)),
-          ],
-        ),
-        content: const Text(
-          'The password you entered is incorrect.',
-          style: TextStyle(fontSize: 16, color: Colors.black87),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close', style: TextStyle(color: Colors.deepPurple)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.pushNamed(context, '/forgot-password');
-            },
-            child: const Text('Forgot Password', style: TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<Map<String, dynamic>> _verifyOtp(String email, String otp) async {
-    try {
-      final res = await _post('/api/users/verify-otp', {
-        'email': email,
-        'otp': otp,
-      });
-      if (res['status'] == 201 && res['data']['message'] != null) {
-        // After OTP verification, fetch user
-        final userRes = await _post('/api/users/login', {
-          'username': email,
-          'password': '', // No password for OTP
-        });
-        if (userRes['status'] == 200 && userRes['data']['user'] != null) {
-          return {'success': true, 'data': userRes['data']['user'], 'type': 'user'};
-        }
-      }
-      return {'success': false, 'error': res['data']['error']};
-    } catch (_) {
-      return {'success': false};
+    if (_loginMethod == 'Email + Password') {
+      EmailPasswordLogin.showIncorrectPasswordDialog(context);
+    } else if (_loginMethod == 'Username + Password') {
+      UsernamePasswordLogin.showIncorrectPasswordDialog(context);
     }
   }
 
-  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
-    try {
-      print('🌐 Making API call to: ${ApiConfig.baseUrl + path}');
-      print('📤 Request body: ${jsonEncode(body)}');
-      
-      final response = await http.post(
-        Uri.parse(ApiConfig.baseUrl + path),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'Lenden-Flutter-App/1.0',
-        },
-        body: jsonEncode(body),
-      );
-      
-      print('📥 Response status: ${response.statusCode}');
-      print('📥 Response headers: ${response.headers}');
-      print('📥 Response body: ${response.body}');
-      
-      // Handle different response status codes
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final data = jsonDecode(response.body);
-        return {'status': response.statusCode, 'data': data};
-      } else if (response.statusCode == 404) {
-        return {'status': 404, 'data': {'error': 'API endpoint not found'}};
-      } else if (response.statusCode == 500) {
-        return {'status': 500, 'data': {'error': 'Server error'}};
-      } else {
-        final data = jsonDecode(response.body);
-        return {'status': response.statusCode, 'data': data};
-      }
-    } catch (e) {
-      print('❌ API call error: $e');
-      if (e.toString().contains('SocketException')) {
-        return {'status': 0, 'data': {'error': 'No internet connection'}};
-      } else if (e.toString().contains('HandshakeException')) {
-        return {'status': 0, 'data': {'error': 'SSL/TLS connection failed'}};
-      } else {
-        return {'status': 500, 'data': {'error': e.toString()}};
-      }
-    }
-  }
 
-  void _sendOtp() async {
-    // TODO: Implement send OTP logic
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    setState(() => _isLoading = false);
-    // TODO: Show message that OTP is sent
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -720,53 +603,31 @@ class _UserLoginPageState extends State<UserLoginPage> {
   }
 
   void _showUserNotFoundDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        backgroundColor: const Color(0xFFF8F6FA),
-        title: Row(
-          children: const [
-            Icon(Icons.person_off, color: Colors.redAccent, size: 28),
-            SizedBox(width: 8),
-            Text('User Not Found', style: TextStyle(color: Colors.black)),
-          ],
-        ),
-        content: const Text(
-          'No user found with these credentials. Would you like to register?',
-          style: TextStyle(fontSize: 16, color: Colors.black87),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close', style: TextStyle(color: Colors.deepPurple)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.pushReplacementNamed(context, '/register');
-            },
-            child: const Text('Register', style: TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
+    if (_loginMethod == 'Email + Password') {
+      EmailPasswordLogin.showUserNotFoundDialog(context);
+    } else if (_loginMethod == 'Username + Password') {
+      UsernamePasswordLogin.showUserNotFoundDialog(context);
+    }
   }
 
   void _showErrorDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Error'),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
+    if (_loginMethod == 'Email + OTP') {
+      EmailOtpLogin.showErrorDialog(context, message);
+    } else {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
 

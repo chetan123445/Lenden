@@ -45,11 +45,23 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final gender = user?['gender'] ?? 'Other';
     final imageUrl = user?['profileImage'];
     
+    print('🖼️ Admin Dashboard - _getAdminAvatar called:');
+    print('   User: ${user != null ? 'Present' : 'Missing'}');
+    print('   User data: $user');
+    print('   Gender: $gender');
+    print('   Profile image URL: $imageUrl');
+    print('   Image URL type: ${imageUrl.runtimeType}');
+    print('   Image URL is null: ${imageUrl == null}');
+    print('   Image URL is empty: ${imageUrl == ""}');
+    print('   Image URL is "null": ${imageUrl == "null"}');
+    
     if (imageUrl != null && imageUrl is String && imageUrl.trim().isNotEmpty && imageUrl != 'null') {
       // Add cache busting parameter for real-time updates
       final cacheBustingUrl = '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+      print('   ✅ Using network image: $cacheBustingUrl');
       return NetworkImage(cacheBustingUrl);
     } else {
+      print('   ⚠️ Using default asset image for gender: $gender');
       return AssetImage(
         gender == 'Male'
             ? 'assets/Male.png'
@@ -212,11 +224,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               onBackgroundImageError: (exception, stackTrace) {
                                 // Handle image loading error
                               },
-                              child: _getAdminAvatar() is AssetImage ? null : Icon(
+                              child: _getAdminAvatar() is AssetImage ? Icon(
                                 Icons.person,
                                 color: Colors.grey[400],
                                 size: 20,
-                              ),
+                              ) : null,
                             ),
                           ),
                           IconButton(

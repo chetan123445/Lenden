@@ -22,14 +22,26 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    _fetchProfile();
+    // Add a small delay to ensure session is properly initialized
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _fetchProfile();
+    });
   }
 
   Future<void> _fetchProfile() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
     final user = session.user;
+    
+    print('🔍 Profile page - Session check:');
+    print('   Token: ${token != null ? 'Present' : 'Missing'}');
+    print('   User: ${user != null ? 'Present' : 'Missing'}');
+    print('   User data: $user');
+    print('   Role: ${session.role}');
+    print('   Is Admin: ${session.isAdmin}');
+    
     if (token == null || user == null) {
+      print('❌ Profile page - Not logged in detected');
       setState(() {
         _error = 'Not logged in.';
         _loading = false;

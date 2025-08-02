@@ -233,34 +233,73 @@ exports.sendLoginOtp = async (req, res) => {
 exports.verifyLoginOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
+    console.log('🔐 OTP verification attempt for email:', email);
+    console.log('🔐 OTP provided:', otp);
+    
     const entry = otpStore[email];
     if (!entry) {
+      console.log('❌ No OTP found for email:', email);
       return res.status(400).json({ error: 'No OTP found for this email' });
     }
+    
     const now = Date.now();
     if (now - entry.created > OTP_EXPIRY_MS) {
+      console.log('❌ OTP expired for email:', email);
       delete otpStore[email];
       return res.status(400).json({ error: 'OTP expired. Please request a new OTP.' });
     }
+    
     if (entry.otp !== otp) {
+      console.log('❌ Invalid OTP for email:', email);
       return res.status(400).json({ error: 'Invalid OTP' });
     }
+    
+    console.log('✅ OTP verified successfully for email:', email);
+    console.log('👤 User type from OTP store:', entry.userType);
+    
     // Find user or admin
     let user = null;
     let admin = null;
     if (entry.userType === 'user') {
       user = await User.findOne({ email });
-      if (!user) return res.status(404).json({ error: 'User not found' });
+      if (!user) {
+        console.log('❌ User not found in database for email:', email);
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      console.log('✅ User found in database:', { id: user._id, name: user.name, email: user.email });
+      
+      // Generate JWT token for user
+      const token = jwt.sign({ _id: user._id, email: user.email, role: 'user' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      console.log('✅ OTP login successful for user:', email);
+      console.log('🎫 User token generated successfully');
+      console.log('🎫 Token length:', token.length);
+      
       delete otpStore[email];
-      return res.status(200).json({ message: 'Login successful', userType: 'user', user });
+      return res.status(200).json({ message: 'Login successful', userType: 'user', user, token });
     } else if (entry.userType === 'admin') {
       admin = await Admin.findOne({ email });
-      if (!admin) return res.status(404).json({ error: 'User not found' });
+      if (!admin) {
+        console.log('❌ Admin not found in database for email:', email);
+        return res.status(404).json({ error: 'User not found' });
+      }
+      
+      console.log('✅ Admin found in database:', { id: admin._id, name: admin.name, email: admin.email });
+      
+      // Generate JWT token for admin
+      const token = jwt.sign({ _id: admin._id, email: admin.email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      console.log('✅ OTP login successful for admin:', email);
+      console.log('🎫 Admin token generated successfully');
+      console.log('🎫 Token length:', token.length);
+      
       delete otpStore[email];
-      return res.status(200).json({ message: 'Login successful', userType: 'admin', admin });
+      return res.status(200).json({ message: 'Login successful', userType: 'admin', admin, token });
     }
+    
+    console.log('❌ Unknown user type:', entry.userType);
     return res.status(404).json({ error: 'User not found' });
   } catch (err) {
+    console.error('❌ Error in verifyLoginOtp:', err);
     res.status(400).json({ error: err.message });
   }
 }; 

@@ -63,7 +63,7 @@ exports.login = async (req, res) => {
     }
     
     // Generate JWT
-    const token = jwt.sign({ id: admin._id, email: admin.email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ _id: admin._id, email: admin.email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '7d' });
     console.log('✅ Admin login successful for:', username);
     console.log('🎫 Admin token generated successfully');
     res.json({ message: 'Login successful', admin, token });
