@@ -288,7 +288,20 @@ class _TransactionPageState extends State<TransactionPage> {
 
   Future<void> _submit() async {
     setState(() => _sameEmailError = null);
-    if (!_formKey.currentState!.validate()) return;
+    
+    // Custom validation for expected return date when interest is selected
+    if (_interestType != 'none' && _expectedReturnDate == null) {
+      _showStylishErrorDialog('Expected Return Date Required', 'Please select an expected return date when interest is applied.');
+      return;
+    }
+    
+    // Validate form
+    if (!_formKey.currentState!.validate()) {
+      print('Form validation failed');
+      return;
+    }
+    
+    print('Form validation passed, proceeding with submission');
     setState(() => _isLoading = true);
     var uri = Uri.parse('${ApiConfig.baseUrl}/api/transactions/create');
     var request = http.MultipartRequest('POST', uri);
@@ -300,10 +313,20 @@ class _TransactionPageState extends State<TransactionPage> {
     request.fields['counterpartyEmail'] = _counterpartyEmailController.text;
     request.fields['userEmail'] = _userEmailController.text;
     request.fields['role'] = _role;
-    request.fields['interestType'] = _interestType == 'none' ? '' : _interestType;
-    request.fields['interestRate'] = _interestType == 'none' ? '' : _interestRateController.text;
-    request.fields['expectedReturnDate'] = _expectedReturnDate?.toIso8601String() ?? '';
-    request.fields['compoundingFrequency'] = _interestType == 'compound' ? _compoundingFrequency.toString() : '';
+    // Always send interest type, even if it's 'none'
+    request.fields['interestType'] = _interestType;
+    
+    // Only send other interest-related fields if interest type is selected
+    if (_interestType != 'none') {
+      request.fields['interestRate'] = _interestRateController.text;
+      request.fields['expectedReturnDate'] = _expectedReturnDate?.toIso8601String() ?? '';
+      if (_interestType == 'compound') {
+        request.fields['compoundingFrequency'] = _compoundingFrequency.toString();
+      }
+    }
+    
+    // Debug: Print the fields being sent
+    print('Sending transaction with fields: ${request.fields}');
     request.fields['description'] = _descriptionController.text;
     for (var file in _pickedFiles) {
       if (file.bytes != null) {
@@ -404,11 +427,82 @@ class _TransactionPageState extends State<TransactionPage> {
       try {
         final data = jsonDecode(resp);
         errorMsg = data['error'] ?? errorMsg;
+        // Also log the full response for debugging
+        print('Backend error response: $data');
       } catch (_) {
         errorMsg = resp;
+        print('Raw error response: $resp');
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg)));
+      _showStylishErrorDialog('Transaction Failed', errorMsg);
     }
+  }
+
+  void _showStylishErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: Colors.white,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  ClipPath(
+                    clipper: TopWaveClipper(),
+                    child: Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFFFF6B6B), Color(0xFFFF8E8E)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 16,
+                    child: CircleAvatar(
+                      radius: 28,
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.error_outline, color: Color(0xFFFF6B6B), size: 48),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 24),
+              Text(title, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFFFF6B6B))),
+              SizedBox(height: 12),
+              Text(
+                message,
+                style: TextStyle(fontSize: 16, color: Colors.black87),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFFF6B6B),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('OK', style: TextStyle(fontSize: 16, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildCurrencyDropdown() {
@@ -681,15 +775,24 @@ class _TransactionPageState extends State<TransactionPage> {
                     DropdownButtonFormField<String>(
                       value: _interestType,
                       items: [
-                        DropdownMenuItem(value: 'none', child: Text('No Interest')),
+                        DropdownMenuItem(value: 'none', child: Text('No Interest (Default)')),
                         DropdownMenuItem(value: 'simple', child: Text('Simple Interest')),
                         DropdownMenuItem(value: 'compound', child: Text('Compound Interest')),
                       ],
-                      onChanged: (val) => setState(() => _interestType = val ?? 'none'),
+                      onChanged: (val) {
+                        setState(() {
+                          _interestType = val ?? 'none';
+                          // Reset expected return date and interest rate if switching back to no interest
+                          if (_interestType == 'none') {
+                            _expectedReturnDate = null;
+                            _interestRateController.clear();
+                          }
+                        });
+                      },
                       decoration: InputDecoration(
-                        labelText: 'Interest Type (optional)',
+                        labelText: 'Interest Type (Optional)',
                         border: OutlineInputBorder(),
-                        helperText: 'Choose interest calculation method if applicable.'
+                        helperText: 'Leave as "No Interest" if no interest applies to this transaction.'
                       ),
                     ),
                     if (_interestType != 'none') ...[
@@ -702,8 +805,13 @@ class _TransactionPageState extends State<TransactionPage> {
                           border: OutlineInputBorder(),
                         ),
                         validator: (val) {
-                          if (_interestType != 'none' && (val == null || val.isEmpty)) return 'Interest rate required';
-                          if (val != null && val.isNotEmpty && double.tryParse(val) == null) return 'Enter a valid number';
+                          // Only validate if interest type is selected
+                          if (_interestType == 'none') return null;
+                          
+                          if (val == null || val.isEmpty) return 'Interest rate required when interest type is selected';
+                          if (double.tryParse(val) == null) return 'Enter a valid number';
+                          if (double.tryParse(val)! <= 0) return 'Interest rate must be greater than 0';
+                          if (double.tryParse(val)! > 100) return 'Interest rate cannot exceed 100%';
                           return null;
                         },
                       ),
@@ -725,30 +833,45 @@ class _TransactionPageState extends State<TransactionPage> {
                           helperText: 'How often is interest compounded?'
                         ),
                         validator: (val) {
-                          if (_interestType == 'compound' && (val == null || val <= 0)) return 'Select frequency';
+                          // Only validate if compound interest is selected
+                          if (_interestType != 'compound') return null;
+                          
+                          if (val == null || val <= 0) return 'Select frequency';
                           return null;
                         },
                       ),
                     ],
-                    SizedBox(height: 12),
-                    InkWell(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _expectedReturnDate ?? DateTime.now(),
-                          firstDate: DateTime(2000),
-                          lastDate: DateTime(2100),
-                        );
-                        if (picked != null) setState(() => _expectedReturnDate = picked);
-                      },
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: 'Expected Return Date (optional)',
-                          border: OutlineInputBorder(),
+                    if (_interestType != 'none') ...[
+                      SizedBox(height: 12),
+                      InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: _expectedReturnDate ?? DateTime.now(),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) setState(() => _expectedReturnDate = picked);
+                        },
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            labelText: 'Expected Return Date *',
+                            border: OutlineInputBorder(
+                              borderSide: BorderSide(color: Colors.red.shade300),
+                            ),
+                            helperText: 'Required when interest is applied',
+                            prefixIcon: Icon(Icons.calendar_today, color: Colors.red.shade300),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(_expectedReturnDate == null ? 'Select date' : DateFormat('yyyy-MM-dd').format(_expectedReturnDate!)),
+                              Icon(Icons.calendar_today, color: Colors.teal),
+                            ],
+                          ),
                         ),
-                        child: Text(_expectedReturnDate == null ? 'Select date' : DateFormat('yyyy-MM-dd').format(_expectedReturnDate!)),
                       ),
-                    ),
+                    ],
                     SizedBox(height: 12),
                     TextFormField(
                       controller: _descriptionController,

@@ -33,8 +33,8 @@ const transactionSchema = new mongoose.Schema({
   }],
   interestType: {
     type: String,
-    enum: ['simple', 'compound'],
-    default: null
+    enum: ['simple', 'compound', 'none'],
+    default: 'none'
   },
   interestRate: {
     type: Number,
@@ -72,6 +72,42 @@ const transactionSchema = new mongoose.Schema({
   description: {
     type: String,
     default: ''
+  },
+  // New fields for partial payments
+  remainingAmount: {
+    type: Number,
+    default: function() {
+      return this.amount; // Initialize with original amount
+    }
+  },
+  totalAmountWithInterest: {
+    type: Number,
+    default: function() {
+      return this.amount; // Will be calculated when interest is applied
+    }
+  },
+  partialPayments: [{
+    amount: {
+      type: Number,
+      required: true
+    },
+    paidBy: {
+      type: String,
+      required: true,
+      enum: ['lender', 'borrower']
+    },
+    paidAt: {
+      type: Date,
+      default: Date.now
+    },
+    description: {
+      type: String,
+      default: ''
+    }
+  }],
+  isPartiallyPaid: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 

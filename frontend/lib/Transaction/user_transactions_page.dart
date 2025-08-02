@@ -7,10 +7,12 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:async';
 import 'package:open_file/open_file.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:string_similarity/string_similarity.dart';
+import '../otp_input.dart';
 import 'chat_page.dart'; // Corrected import for ChatPage
 
 class UserTransactionsPage extends StatefulWidget {
@@ -367,8 +369,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     }
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     final email = user?['email'];
-    final counterpartyEmail = t['counterpartyEmail'];
     final userEmail = t['userEmail'];
+    // Determine the counterparty email based on current user's role
+    final counterpartyEmail = (email == userEmail) ? t['counterpartyEmail'] : userEmail;
     bool youCleared = (isLending ? t['userCleared'] : t['counterpartyCleared']) == true;
     bool otherCleared = (isLending ? t['counterpartyCleared'] : t['userCleared']) == true;
     bool fullyCleared = youCleared && otherCleared;
@@ -415,7 +418,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         children: [
           Icon(Icons.attach_money, color: Colors.green, size: 20),
           SizedBox(width: 6),
-          Text('Expected Amount: ${expectedAmount.toStringAsFixed(2)} ${t['currency']}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[800])),
+          Text('Expected Amount: ${expectedAmount.toStringAsFixed(2)} ${t['currency']} (expected amount till expected return date)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[800])),
         ],
       ));
     }
@@ -424,9 +427,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     String counterparty = isLending ? t['counterpartyEmail'] : t['counterpartyEmail'];
     Color borderColor = fullyCleared
         ? Colors.green
-        : (youCleared || otherCleared)
-            ? Colors.orange
-            : Colors.teal;
+        : (t['isPartiallyPaid'] == true)
+            ? Colors.purple
+            : (youCleared || otherCleared)
+                ? Colors.orange
+                : Colors.teal;
     
     // Add a subtle indicator for deletable transactions
     Widget? deleteIndicator;
@@ -470,10 +475,46 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       statusWidgets.add(SizedBox(height: 8));
       statusWidgets.add(ElevatedButton(
         onPressed: () => _clearTransaction(t['transactionId']),
-        child: Text('Clear Transaction'),
-        style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+        child: Text('Clear Transaction', style: TextStyle(color: Colors.black)),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
       ));
     }
+    
+    // Add partial payment button only to the borrower (person who owes money)
+    if (!fullyCleared) {
+      final user = Provider.of<SessionProvider>(context, listen: false).user;
+      final userEmail = user?['email'];
+      
+      // Check if current user is the borrower
+      bool isBorrower = false;
+      if (isLending) {
+        // If this is a lending transaction, the borrower is the counterparty
+        isBorrower = (userEmail == t['counterpartyEmail']);
+      } else {
+        // If this is a borrowing transaction, the borrower is the user
+        isBorrower = (userEmail == t['userEmail']);
+      }
+      
+      // Only show partial payment button to the borrower
+      if (isBorrower) {
+        statusWidgets.add(SizedBox(height: 8));
+        statusWidgets.add(ElevatedButton(
+          onPressed: () => _showPartialPaymentDialog(Map<String, dynamic>.from(t)),
+          child: Text('Make Partial Payment', style: TextStyle(color: Colors.black)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
+        ));
+      }
+      
+      // Show "See Partial Payment" button to both parties
+      statusWidgets.add(SizedBox(height: 8));
+      statusWidgets.add(ElevatedButton(
+        onPressed: () => _showPartialPaymentHistoryDialog(Map<String, dynamic>.from(t)),
+        child: Text('See Partial Payment', style: TextStyle(color: Colors.black)),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.lightGreen),
+      ));
+    }
+    
+
     
     // Add helpful message for uncleared transactions
     if (!fullyCleared) {
@@ -616,6 +657,24 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             Row(
               children: [
                 Icon(isLending ? Icons.arrow_upward : Icons.arrow_downward, color: isLending ? Colors.green : Colors.orange, size: 28),
+                if (t['isPartiallyPaid'] == true) ...[
+                  SizedBox(width: 4),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.purple,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Partial',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
                 SizedBox(width: 10),
                 // Only one profile icon for the logged-in user
                 GestureDetector(
@@ -784,6 +843,79 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
               SizedBox(height: 10),
               ...interestWidgets,
             ],
+            
+            // Original and remaining amount section
+            SizedBox(height: 10),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.account_balance_wallet, color: Colors.blue, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Amount Details',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.attach_money, color: Colors.green, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'Original Amount: ${t['amount']} ${t['currency']}',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  // Amount Paid Till Now
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.payments, color: Colors.green, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'Amount Paid Till Now: ${_calculateAmountPaidTillNow(t)} ${t['currency']}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Remaining Amount (Original + Interest - Partial Payments)
+                  SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.account_balance_wallet, color: Colors.orange, size: 16),
+                      SizedBox(width: 6),
+                      Text(
+                        'Remaining Amount: ${_calculateRemainingAmount(t)} ${t['currency']}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
             if (deleteIndicator != null) deleteIndicator,
             seeDescriptionButton,
             SizedBox(height: 10),
@@ -1109,8 +1241,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         if (a.contains(b) || b.contains(a)) return true;
         return StringSimilarity.compareTwoStrings(a, b) > 0.6;
       }
-      final isLending = t['role'] == 'lender' || (t['userEmail'] == Provider.of<SessionProvider>(context, listen: false).user?['email'] && t['role'] == 'lender');
-      final isBorrowing = t['role'] == 'borrower' || (t['userEmail'] == Provider.of<SessionProvider>(context, listen: false).user?['email'] && t['role'] == 'borrower');
+      final user = Provider.of<SessionProvider>(context, listen: false).user;
+      final userEmail = user?['email'];
+      final isLending = userEmail == t['userEmail'];
+      final isBorrowing = userEmail == t['counterpartyEmail'];
       if (
         fuzzyMatch(t['counterpartyEmail']?.toString(), q) ||
         fuzzyMatch(t['place']?.toString(), q) ||
@@ -1200,8 +1334,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       if (globalSearch.isNotEmpty) {
         final q = globalSearch.toLowerCase();
         bool match(String? s) => s != null && s.toLowerCase().contains(q);
-        final isLending = t['role'] == 'lender' || (t['userEmail'] == Provider.of<SessionProvider>(context, listen: false).user?['email'] && t['role'] == 'lender');
-        final isBorrowing = t['role'] == 'borrower' || (t['userEmail'] == Provider.of<SessionProvider>(context, listen: false).user?['email'] && t['role'] == 'borrower');
+        final user = Provider.of<SessionProvider>(context, listen: false).user;
+        final userEmail = user?['email'];
+        final isLending = userEmail == t['userEmail'];
+        final isBorrowing = userEmail == t['counterpartyEmail'];
         if (
           fuzzyMatch((t['counterpartyEmail']?.toString() ?? ''), q) ||
           fuzzyMatch((t['place']?.toString() ?? ''), q) ||
@@ -1366,6 +1502,1165 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       }
     } catch (_) {}
     return null;
+  }
+
+  String _calculateCurrentAmountWithInterest(Map transaction) {
+    double originalAmount = transaction['amount']?.toDouble() ?? 0.0;
+    double currentAmountWithInterest = originalAmount;
+    
+    if (transaction['interestType'] != null && transaction['interestRate'] != null) {
+      final transactionDate = DateTime.tryParse(transaction['date'] ?? '');
+      if (transactionDate != null) {
+        final now = DateTime.now();
+        final daysDiff = now.difference(transactionDate).inDays;
+        
+        if (daysDiff > 0) {
+          final interestRate = transaction['interestRate']?.toDouble() ?? 0.0;
+          final interestType = transaction['interestType'];
+          
+          if (interestType == 'simple') {
+            currentAmountWithInterest = originalAmount + (originalAmount * interestRate * daysDiff / 365);
+          } else if (interestType == 'compound') {
+            final compoundingFrequency = transaction['compoundingFrequency']?.toInt() ?? 1;
+            final periods = daysDiff / compoundingFrequency;
+            currentAmountWithInterest = originalAmount * pow(1 + interestRate / 100, periods);
+          }
+        }
+      }
+    }
+    
+    return currentAmountWithInterest.toStringAsFixed(2);
+  }
+
+  String _calculateAmountPaidTillNow(Map transaction) {
+    double amountPaid = 0.0;
+    
+    // Check if transaction is fully cleared by both parties
+    bool isFullyCleared = (transaction['userCleared'] == true && transaction['counterpartyCleared'] == true);
+    
+    if (isFullyCleared) {
+      // If fully cleared, consider the full amount as paid
+      amountPaid = transaction['amount']?.toDouble() ?? 0.0;
+    } else if (transaction['isPartiallyPaid'] == true && transaction['partialPayments'] != null) {
+      // If partially paid, sum up all partial payments
+      List partialPayments = transaction['partialPayments'] as List;
+      amountPaid = partialPayments.fold<double>(0, (sum, payment) => sum + (payment['amount'] as num).toDouble());
+    }
+    
+    return amountPaid.toStringAsFixed(2);
+  }
+
+  String _calculateRemainingAmount(Map transaction) {
+    double originalAmount = transaction['amount']?.toDouble() ?? 0.0;
+    double amountPaid = double.parse(_calculateAmountPaidTillNow(transaction));
+    
+    // Calculate remaining principal (original amount - partial payments)
+    double remainingPrincipal = originalAmount - amountPaid;
+    
+    // If fully cleared, no remaining amount
+    if (amountPaid >= originalAmount) {
+      return "0.00";
+    }
+    
+    // Calculate interest on the remaining principal
+    double totalRemainingAmount = remainingPrincipal;
+    
+    if (transaction['interestType'] != null && transaction['interestRate'] != null) {
+      final transactionDate = DateTime.tryParse(transaction['date'] ?? '');
+      if (transactionDate != null) {
+        final now = DateTime.now();
+        final daysDiff = now.difference(transactionDate).inDays;
+        
+        if (daysDiff > 0) {
+          final interestRate = transaction['interestRate']?.toDouble() ?? 0.0;
+          final interestType = transaction['interestType'];
+          
+          if (interestType == 'simple') {
+            // Calculate interest on remaining principal
+            totalRemainingAmount = remainingPrincipal + (remainingPrincipal * interestRate * daysDiff / 365);
+          } else if (interestType == 'compound') {
+            // For compound interest, we need to calculate based on the remaining principal
+            // and the time since the last payment or transaction date
+            final compoundingFrequency = transaction['compoundingFrequency']?.toInt() ?? 1;
+            final periods = daysDiff / compoundingFrequency;
+            totalRemainingAmount = remainingPrincipal * pow(1 + interestRate / 100, periods);
+          }
+        }
+      }
+    }
+    
+    return totalRemainingAmount.toStringAsFixed(2);
+  }
+
+  void _showPartialPaymentDialog(Map<String, dynamic> transaction) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return PartialPaymentDialog(
+          transaction: transaction,
+          onPaymentComplete: () {
+            Navigator.pop(context);
+            fetchTransactions();
+          },
+        );
+      },
+    );
+  }
+
+  void _showPartialPaymentHistoryDialog(Map<String, dynamic> transaction) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return PartialPaymentHistoryDialog(transaction: transaction);
+      },
+    );
+  }
+}
+
+class PartialPaymentDialog extends StatefulWidget {
+  final Map<String, dynamic> transaction;
+  final VoidCallback onPaymentComplete;
+
+  const PartialPaymentDialog({
+    Key? key,
+    required this.transaction,
+    required this.onPaymentComplete,
+  }) : super(key: key);
+
+  @override
+  _PartialPaymentDialogState createState() => _PartialPaymentDialogState();
+}
+
+class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
+  final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _lenderOtpController = TextEditingController();
+  final TextEditingController _borrowerOtpController = TextEditingController();
+  
+  String? lenderEmail;
+  String? borrowerEmail;
+  String? paidBy;
+  bool lenderOtpSent = false;
+  bool borrowerOtpSent = false;
+  bool lenderOtpVerified = false;
+  bool borrowerOtpVerified = false;
+  bool isProcessing = false;
+  bool isSendingLenderOtp = false;
+  bool isSendingBorrowerOtp = false;
+  bool isVerifyingLenderOtp = false;
+  bool isVerifyingBorrowerOtp = false;
+  String? message;
+  bool isMessageError = false;
+  
+  // OTP expiration functionality
+  int lenderOtpSecondsLeft = 0;
+  int borrowerOtpSecondsLeft = 0;
+  bool lenderOtpExpired = false;
+  bool borrowerOtpExpired = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeEmails();
+    
+    // Start timer to check OTP expiration
+    Timer.periodic(Duration(seconds: 1), (timer) {
+      if (mounted) {
+        _checkOtpExpiration();
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  void _initializeEmails() {
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    final userEmail = user?['email'];
+    
+    if (widget.transaction['role'] == 'lender') {
+      lenderEmail = widget.transaction['userEmail'];
+      borrowerEmail = widget.transaction['counterpartyEmail'];
+    } else {
+      lenderEmail = widget.transaction['counterpartyEmail'];
+      borrowerEmail = widget.transaction['userEmail'];
+    }
+    
+    if (userEmail == lenderEmail) {
+      paidBy = 'lender';
+    } else if (userEmail == borrowerEmail) {
+      paidBy = 'borrower';
+    }
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _descriptionController.dispose();
+    _lenderOtpController.dispose();
+    _borrowerOtpController.dispose();
+    super.dispose();
+  }
+
+  void _showMessage(String msg, {bool isError = false}) {
+    setState(() {
+      message = msg;
+      isMessageError = isError;
+    });
+    
+    // Auto-hide message after 3 seconds
+    Future.delayed(Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          message = null;
+        });
+      }
+    });
+  }
+
+  String _calculateRemainingAmount(Map transaction) {
+    double originalAmount = transaction['amount']?.toDouble() ?? 0.0;
+    double amountPaid = 0.0;
+    
+    // Calculate amount paid so far
+    bool isFullyCleared = (transaction['userCleared'] == true && transaction['counterpartyCleared'] == true);
+    if (isFullyCleared) {
+      amountPaid = originalAmount;
+    } else if (transaction['isPartiallyPaid'] == true && transaction['partialPayments'] != null) {
+      List partialPayments = transaction['partialPayments'] as List;
+      amountPaid = partialPayments.fold<double>(0, (sum, payment) => sum + (payment['amount'] as num).toDouble());
+    }
+    
+    // Calculate remaining principal (original amount - partial payments)
+    double remainingPrincipal = originalAmount - amountPaid;
+    
+    // If fully cleared, no remaining amount
+    if (amountPaid >= originalAmount) {
+      return "0.00";
+    }
+    
+    // Calculate interest on the remaining principal
+    double totalRemainingAmount = remainingPrincipal;
+    
+    if (transaction['interestType'] != null && transaction['interestRate'] != null) {
+      final transactionDate = DateTime.tryParse(transaction['date'] ?? '');
+      if (transactionDate != null) {
+        final now = DateTime.now();
+        final daysDiff = now.difference(transactionDate).inDays;
+        
+        if (daysDiff > 0) {
+          final interestRate = transaction['interestRate']?.toDouble() ?? 0.0;
+          final interestType = transaction['interestType'];
+          
+          if (interestType == 'simple') {
+            // Calculate interest on remaining principal
+            totalRemainingAmount = remainingPrincipal + (remainingPrincipal * interestRate * daysDiff / 365);
+          } else if (interestType == 'compound') {
+            // For compound interest, we need to calculate based on the remaining principal
+            // and the time since the last payment or transaction date
+            final compoundingFrequency = transaction['compoundingFrequency']?.toInt() ?? 1;
+            final periods = daysDiff / compoundingFrequency;
+            totalRemainingAmount = remainingPrincipal * pow(1 + interestRate / 100, periods);
+          }
+        }
+      }
+    }
+    
+    return totalRemainingAmount.toStringAsFixed(2);
+  }
+
+  void _checkOtpExpiration() {
+    // Check lender OTP expiration
+    if (lenderOtpSecondsLeft > 0 && lenderOtpSent && !lenderOtpVerified) {
+      setState(() {
+        lenderOtpSecondsLeft--;
+      });
+      if (lenderOtpSecondsLeft == 0) {
+        setState(() {
+          lenderOtpExpired = true;
+        });
+        _showMessage('Lender OTP has expired. Please resend.', isError: true);
+      }
+    }
+    
+    // Check borrower OTP expiration
+    if (borrowerOtpSecondsLeft > 0 && borrowerOtpSent && !borrowerOtpVerified) {
+      setState(() {
+        borrowerOtpSecondsLeft--;
+      });
+      if (borrowerOtpSecondsLeft == 0) {
+        setState(() {
+          borrowerOtpExpired = true;
+        });
+        _showMessage('Borrower OTP has expired. Please resend.', isError: true);
+      }
+    }
+  }
+
+
+
+  Future<void> _sendOtp(String email, bool isLender) async {
+    setState(() {
+      if (isLender) {
+        isSendingLenderOtp = true;
+      } else {
+        isSendingBorrowerOtp = true;
+      }
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/transactions/send-partial-payment-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          if (isLender) {
+            lenderOtpSent = true;
+            lenderOtpSecondsLeft = 120;
+            lenderOtpExpired = false;
+            isSendingLenderOtp = false;
+          } else {
+            borrowerOtpSent = true;
+            borrowerOtpSecondsLeft = 120;
+            borrowerOtpExpired = false;
+            isSendingBorrowerOtp = false;
+          }
+        });
+        _showMessage('OTP sent to ${isLender ? 'lender' : 'borrower'} email');
+      } else {
+        final data = jsonDecode(response.body);
+        _showMessage(data['error'] ?? 'Failed to send OTP', isError: true);
+        setState(() {
+          if (isLender) {
+            isSendingLenderOtp = false;
+          } else {
+            isSendingBorrowerOtp = false;
+          }
+        });
+      }
+    } catch (e) {
+      _showMessage('Network error: ${e.toString()}', isError: true);
+      setState(() {
+        if (isLender) {
+          isSendingLenderOtp = false;
+        } else {
+          isSendingBorrowerOtp = false;
+        }
+      });
+    }
+  }
+
+  Future<void> _verifyOtp(String email, String otp, bool isLender) async {
+    // Check if OTP has expired
+    if (isLender && lenderOtpExpired) {
+      _showMessage('Lender OTP has expired. Please resend.', isError: true);
+      return;
+    }
+    if (!isLender && borrowerOtpExpired) {
+      _showMessage('Borrower OTP has expired. Please resend.', isError: true);
+      return;
+    }
+
+    setState(() {
+      if (isLender) {
+        isVerifyingLenderOtp = true;
+      } else {
+        isVerifyingBorrowerOtp = true;
+      }
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/transactions/verify-partial-payment-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email, 'otp': otp}),
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          if (isLender) {
+            lenderOtpVerified = true;
+            isVerifyingLenderOtp = false;
+          } else {
+            borrowerOtpVerified = true;
+            isVerifyingBorrowerOtp = false;
+          }
+        });
+        _showMessage('OTP verified for ${isLender ? 'lender' : 'borrower'}');
+      } else {
+        final data = jsonDecode(response.body);
+        _showMessage(data['error'] ?? 'Failed to verify OTP', isError: true);
+        setState(() {
+          if (isLender) {
+            isVerifyingLenderOtp = false;
+          } else {
+            isVerifyingBorrowerOtp = false;
+          }
+        });
+      }
+    } catch (e) {
+      _showMessage('Network error: ${e.toString()}', isError: true);
+      setState(() {
+        if (isLender) {
+          isVerifyingLenderOtp = false;
+        } else {
+          isVerifyingBorrowerOtp = false;
+        }
+      });
+    }
+  }
+
+  Future<void> _processPartialPayment() async {
+    if (!lenderOtpVerified || !borrowerOtpVerified) {
+      _showMessage('Both parties must verify their OTP', isError: true);
+      return;
+    }
+
+    final amount = double.tryParse(_amountController.text);
+    if (amount == null || amount <= 0) {
+      _showMessage('Please enter a valid amount', isError: true);
+      return;
+    }
+
+    // Check if amount exceeds remaining amount
+    final remainingAmount = double.tryParse(_calculateRemainingAmount(widget.transaction)) ?? 0.0;
+    if (amount > remainingAmount) {
+      _showMessage('Payment amount cannot exceed remaining amount of ${remainingAmount.toStringAsFixed(2)} ${widget.transaction['currency']}', isError: true);
+      return;
+    }
+
+    setState(() {
+      isProcessing = true;
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/transactions/partial-payment'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'transactionId': widget.transaction['transactionId'],
+          'amount': amount,
+          'description': _descriptionController.text,
+          'paidBy': paidBy,
+          'lenderEmail': lenderEmail,
+          'borrowerEmail': borrowerEmail,
+          'lenderOtpVerified': lenderOtpVerified,
+          'borrowerOtpVerified': borrowerOtpVerified,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        _showMessage('Partial payment processed successfully');
+        Future.delayed(Duration(seconds: 2), () {
+          Navigator.pop(context);
+          widget.onPaymentComplete();
+        });
+      } else {
+        final data = jsonDecode(response.body);
+        _showMessage(data['error'] ?? 'Failed to process partial payment', isError: true);
+      }
+    } catch (e) {
+      _showMessage('Network error: ${e.toString()}', isError: true);
+    } finally {
+      setState(() {
+        isProcessing = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    double originalAmount = widget.transaction['amount']?.toDouble() ?? 0.0;
+    double currentAmountWithInterest = originalAmount;
+    
+    if (widget.transaction['interestType'] != null && widget.transaction['interestRate'] != null) {
+      final transactionDate = DateTime.tryParse(widget.transaction['date'] ?? '');
+      if (transactionDate != null) {
+        final now = DateTime.now();
+        final daysDiff = now.difference(transactionDate).inDays;
+        
+        if (daysDiff > 0) {
+          final interestRate = widget.transaction['interestRate']?.toDouble() ?? 0.0;
+          final interestType = widget.transaction['interestType'];
+          
+          if (interestType == 'simple') {
+            currentAmountWithInterest = originalAmount + (originalAmount * interestRate * daysDiff / 365);
+          } else if (interestType == 'compound') {
+            final compoundingFrequency = widget.transaction['compoundingFrequency']?.toInt() ?? 1;
+            final periods = daysDiff / compoundingFrequency;
+            currentAmountWithInterest = originalAmount * pow(1 + interestRate / 100, periods);
+          }
+        }
+      }
+    }
+    
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      backgroundColor: const Color(0xFFF8F6FA),
+      child: Container(
+        width: 400,
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+        padding: EdgeInsets.all(24),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.payment, color: Color(0xFF00B4D8), size: 28),
+                  SizedBox(width: 12),
+                  Text(
+                    'Partial Payment',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 20),
+
+              TextFormField(
+                controller: _amountController,
+                decoration: InputDecoration(
+                  labelText: 'Payment Amount',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.attach_money),
+                  helperText: (lenderOtpVerified && borrowerOtpVerified) 
+                      ? 'Amount locked after OTP verification'
+                      : 'Maximum: ${_calculateRemainingAmount(widget.transaction)} ${widget.transaction['currency']}',
+                  helperMaxLines: 2,
+                ),
+                keyboardType: TextInputType.numberWithOptions(decimal: true),
+                enabled: !(lenderOtpVerified && borrowerOtpVerified),
+              ),
+              SizedBox(height: 12),
+              TextFormField(
+                controller: _descriptionController,
+                decoration: InputDecoration(
+                  labelText: 'Description (Optional)',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.description),
+                  helperText: (lenderOtpVerified && borrowerOtpVerified) 
+                      ? 'Description locked after OTP verification'
+                      : null,
+                ),
+                maxLines: 2,
+                enabled: !(lenderOtpVerified && borrowerOtpVerified),
+              ),
+              SizedBox(height: 20),
+              // Lender OTP Section
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      spreadRadius: 1,
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.lock_clock, color: Color(0xFF00B4D8), size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Lender OTP Verification',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Text('Email: ${lenderEmail ?? ''}'),
+                    SizedBox(height: 8),
+                    if (lenderOtpSent) ...[
+                      Text(
+                        'Enter the 6-digit OTP sent to ${lenderEmail}:',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                      SizedBox(height: 12),
+                      OtpInput(
+                        onChanged: (val) => _lenderOtpController.text = val,
+                        enabled: lenderOtpSent,
+                        autoFocus: false,
+                      ),
+                      SizedBox(height: 12),
+                    ],
+                                        Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: (lenderEmail != null && !isSendingLenderOtp && !lenderOtpVerified) ? () => _sendOtp(lenderEmail!, true) : null,
+                            child: isSendingLenderOtp
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text('Sending OTP...'),
+                                    ],
+                                  )
+                                : lenderOtpVerified
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.check_circle, color: Colors.white, size: 16),
+                                          SizedBox(width: 8),
+                                          Text('Verified'),
+                                        ],
+                                      )
+                                    : lenderOtpExpired
+                                        ? Text('Resend OTP')
+                                        : Text('Send OTP'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: lenderOtpVerified ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Show expiration status
+                    if (lenderOtpSent && !lenderOtpVerified) ...[
+                      SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            lenderOtpExpired ? Icons.warning : Icons.timer,
+                            color: lenderOtpExpired ? Colors.red : Colors.orange,
+                            size: 14,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            lenderOtpExpired 
+                                ? 'OTP expired. Please resend.'
+                                : 'OTP expires in ${lenderOtpSecondsLeft ~/ 60}:${(lenderOtpSecondsLeft % 60).toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: lenderOtpExpired ? Colors.red : Colors.orange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    // Show message near the button if it's related to lender OTP
+                    if (message != null && (message!.contains('lender') || message!.contains('Lender'))) ...[
+                      SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isMessageError ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isMessageError ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isMessageError ? Icons.error : Icons.check_circle,
+                              color: isMessageError ? Colors.red : Colors.green,
+                              size: 16,
+                            ),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                message!,
+                                style: TextStyle(
+                                  color: isMessageError ? Colors.red[700] : Colors.green[700],
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (lenderOtpSent && !lenderOtpVerified) ...[
+                      SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: (!isVerifyingLenderOtp) ? () => _verifyOtp(lenderEmail!, _lenderOtpController.text, true) : null,
+                        child: isVerifyingLenderOtp
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('Verifying OTP...'),
+                                ],
+                              )
+                            : Text('Verify OTP'),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              SizedBox(height: 16),
+              // Borrower OTP Section
+              Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      spreadRadius: 1,
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.lock_clock, color: Color(0xFF00B4D8), size: 20),
+                        SizedBox(width: 8),
+                        Text(
+                          'Borrower OTP Verification',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Text('Email: ${borrowerEmail ?? ''}'),
+                    SizedBox(height: 8),
+                    if (borrowerOtpSent) ...[
+                      Text(
+                        'Enter the 6-digit OTP sent to ${borrowerEmail}:',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                      SizedBox(height: 12),
+                      OtpInput(
+                        onChanged: (val) => _borrowerOtpController.text = val,
+                        enabled: borrowerOtpSent,
+                        autoFocus: false,
+                      ),
+                      SizedBox(height: 12),
+                    ],
+                                        Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: (borrowerEmail != null && !isSendingBorrowerOtp && !borrowerOtpVerified) ? () => _sendOtp(borrowerEmail!, false) : null,
+                            child: isSendingBorrowerOtp
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text('Sending OTP...'),
+                                    ],
+                                  )
+                                : borrowerOtpVerified
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.check_circle, color: Colors.white, size: 16),
+                                          SizedBox(width: 8),
+                                          Text('Verified'),
+                                        ],
+                                      )
+                                    : borrowerOtpExpired
+                                        ? Text('Resend OTP')
+                                        : Text('Send OTP'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: borrowerOtpVerified ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Show expiration status
+                    if (borrowerOtpSent && !borrowerOtpVerified) ...[
+                      SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            borrowerOtpExpired ? Icons.warning : Icons.timer,
+                            color: borrowerOtpExpired ? Colors.red : Colors.orange,
+                            size: 14,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            borrowerOtpExpired 
+                                ? 'OTP expired. Please resend.'
+                                : 'OTP expires in ${borrowerOtpSecondsLeft ~/ 60}:${(borrowerOtpSecondsLeft % 60).toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: borrowerOtpExpired ? Colors.red : Colors.orange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    // Show message near the button if it's related to borrower OTP
+                    if (message != null && (message!.contains('borrower') || message!.contains('Borrower'))) ...[
+                      SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isMessageError ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: isMessageError ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isMessageError ? Icons.error : Icons.check_circle,
+                              color: isMessageError ? Colors.red : Colors.green,
+                              size: 16,
+                            ),
+                            SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                message!,
+                                style: TextStyle(
+                                  color: isMessageError ? Colors.red[700] : Colors.green[700],
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (borrowerOtpSent && !borrowerOtpVerified) ...[
+                      SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: (!isVerifyingBorrowerOtp) ? () => _verifyOtp(borrowerEmail!, _borrowerOtpController.text, false) : null,
+                        child: isVerifyingBorrowerOtp
+                            ? Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Text('Verifying OTP...'),
+                                ],
+                              )
+                            : Text('Verify OTP'),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              SizedBox(height: 20),
+              // Show general messages near the bottom buttons
+              if (message != null && !message!.contains('lender') && !message!.contains('Lender') && !message!.contains('borrower') && !message!.contains('Borrower')) ...[
+                Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isMessageError ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isMessageError ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isMessageError ? Icons.error : Icons.check_circle,
+                        color: isMessageError ? Colors.red : Colors.green,
+                        size: 20,
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          message!,
+                          style: TextStyle(
+                            color: isMessageError ? Colors.red[700] : Colors.green[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 16),
+              ],
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton(
+                    onPressed: isProcessing ? null : () => Navigator.pop(context),
+                    child: Text('Cancel'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  ),
+                  ElevatedButton(
+                    onPressed: (lenderOtpVerified && borrowerOtpVerified && !isProcessing)
+                        ? _processPartialPayment
+                        : null,
+                    child: isProcessing
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text('Process Payment'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class PartialPaymentHistoryDialog extends StatelessWidget {
+  final Map<String, dynamic> transaction;
+
+  const PartialPaymentHistoryDialog({
+    Key? key,
+    required this.transaction,
+  }) : super(key: key);
+
+  String _getPaidByEmail(Map payment, Map transaction) {
+    String paidBy = payment['paidBy'] ?? '';
+    if (paidBy == 'lender') {
+      return transaction['userEmail'] ?? 'Lender';
+    } else if (paidBy == 'borrower') {
+      return transaction['counterpartyEmail'] ?? 'Borrower';
+    }
+    return paidBy;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final partialPayments = transaction['partialPayments'] as List? ?? [];
+    final isPartiallyPaid = transaction['isPartiallyPaid'] == true;
+    final remainingAmount = transaction['remainingAmount'];
+    final originalAmount = transaction['amount'];
+    final currency = transaction['currency'] ?? '';
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        width: 400,
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+        padding: EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Row(
+              children: [
+                Icon(Icons.history, color: Colors.purple, size: 28),
+                SizedBox(width: 12),
+                Text(
+                  'Partial Payment History',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple[700],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+            
+            // Partial payments list
+            if (!isPartiallyPaid || partialPayments.isEmpty) ...[
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.history, color: Colors.grey, size: 64),
+                      SizedBox(height: 16),
+                      Text(
+                        'No partial payments as of now',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Partial payment history will appear here once payments are made.',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[500],
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ] else ...[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Payment History',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple[700],
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: partialPayments.length,
+                        itemBuilder: (context, index) {
+                          final payment = partialPayments[index];
+                          final isLast = index == partialPayments.length - 1;
+                          
+                          return Container(
+                            margin: EdgeInsets.only(bottom: isLast ? 0 : 12),
+                            padding: EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.payment,
+                                      color: Colors.green,
+                                      size: 20,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Payment ${index + 1}',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    Spacer(),
+                                    Text(
+                                      '${payment['amount']} $currency',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Colors.green[700],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 8),
+                                                                 Row(
+                                   children: [
+                                     Icon(Icons.person, color: Colors.blue, size: 16),
+                                     SizedBox(width: 6),
+                                     Text(
+                                       'Paid by: ${_getPaidByEmail(payment, transaction)}',
+                                       style: TextStyle(fontSize: 14),
+                                     ),
+                                   ],
+                                 ),
+                                 SizedBox(height: 4),
+                                 Row(
+                                   children: [
+                                     Icon(Icons.calendar_today, color: Colors.orange, size: 16),
+                                     SizedBox(width: 6),
+                                     Text(
+                                       'Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(payment['paidAt']))}',
+                                       style: TextStyle(fontSize: 14),
+                                     ),
+                                   ],
+                                 ),
+                                 SizedBox(height: 4),
+                                 Row(
+                                   children: [
+                                     Icon(Icons.access_time, color: Colors.purple, size: 16),
+                                     SizedBox(width: 6),
+                                     Text(
+                                       'Time: ${DateFormat('HH:mm').format(DateTime.parse(payment['paidAt']))}',
+                                       style: TextStyle(fontSize: 14),
+                                     ),
+                                   ],
+                                 ),
+                                if (payment['description'] != null && payment['description'].toString().isNotEmpty) ...[
+                                  SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.description, color: Colors.purple, size: 16),
+                                      SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Note: ${payment['description']}',
+                                          style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            SizedBox(height: 20),
+
+            // Close button
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Close'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1574,4 +2869,4 @@ class _StylishProfileDialog extends StatelessWidget {
       ),
     );
   }
-} 
+}

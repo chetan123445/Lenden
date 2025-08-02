@@ -74,14 +74,6 @@ class _OtpInputState extends State<OtpInput> {
               fillColor: Colors.white,
               border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
             ),
-            onChanged: (val) {
-              if (val.isNotEmpty && i < 5) {
-                _focusNodes[i + 1].requestFocus();
-              } else if (val.isEmpty && i > 0) {
-                _focusNodes[i - 1].requestFocus();
-              }
-              _onChanged();
-            },
             onTap: () => _controllers[i].selection = TextSelection(baseOffset: 0, extentOffset: _controllers[i].text.length),
           ),
         );

@@ -32,12 +32,20 @@ exports.createTransaction = async (req, res) => {
     if (!['lender', 'borrower'].includes(role)) {
       return res.status(400).json({ error: 'Role must be lender or borrower' });
     }
-    if (interestType && !['simple', 'compound'].includes(interestType)) {
-      return res.status(400).json({ error: 'Interest type must be simple or compound' });
+    
+    // Handle interest validation - make it optional
+    if (interestType && !['simple', 'compound', 'none'].includes(interestType)) {
+      return res.status(400).json({ error: 'Interest type must be simple, compound, or none' });
     }
     if (interestType === 'compound' && (!compoundingFrequency || isNaN(compoundingFrequency))) {
       return res.status(400).json({ error: 'Compounding frequency required for compound interest' });
     }
+    
+    // Set default interest type if not provided
+    const finalInterestType = interestType || 'none';
+    const finalInterestRate = (finalInterestType === 'none') ? null : interestRate;
+    const finalExpectedReturnDate = (finalInterestType === 'none') ? null : expectedReturnDate;
+    const finalCompoundingFrequency = (finalInterestType === 'none') ? null : compoundingFrequency;
 
     // Check if both emails exist
     const counterparty = await User.findOne({ email: counterpartyEmail });
@@ -56,6 +64,18 @@ exports.createTransaction = async (req, res) => {
       }
     }
 
+    // Calculate total amount with interest if applicable
+    let totalAmountWithInterest = amount;
+    if (finalInterestType && finalInterestRate) {
+      if (finalInterestType === 'simple') {
+        // For new transactions, no interest has accumulated yet
+        totalAmountWithInterest = amount;
+      } else if (finalInterestType === 'compound') {
+        // For new transactions, no interest has accumulated yet
+        totalAmountWithInterest = amount;
+      }
+    }
+
     // Save transaction
     const transaction = await Transaction.create({
       amount,
@@ -67,11 +87,13 @@ exports.createTransaction = async (req, res) => {
       counterpartyEmail,
       userEmail,
       role,
-      interestType: interestType || null,
-      interestRate: interestRate || null,
-      expectedReturnDate: expectedReturnDate || null,
-      compoundingFrequency: compoundingFrequency || null,
-      description: description || ''
+      interestType: finalInterestType,
+      interestRate: finalInterestRate,
+      expectedReturnDate: finalExpectedReturnDate,
+      compoundingFrequency: finalCompoundingFrequency,
+      description: description || '',
+      remainingAmount: totalAmountWithInterest,
+      totalAmountWithInterest: totalAmountWithInterest
     });
     res.json({ success: true, transactionId: transaction.transactionId, transaction });
 
@@ -233,5 +255,204 @@ exports.deleteTransaction = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete transaction', details: err.message });
+  }
+};
+
+// Send OTP for partial payment verification
+exports.sendPartialPaymentOTP = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Check if email exists in user schema
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ error: 'Email not registered' });
+    }
+
+    // Send OTP
+    await lendingborrowingotp.resendOtp(email);
+    res.json({ message: 'OTP sent successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to send OTP', details: err.message });
+  }
+};
+
+// Verify OTP for partial payment
+exports.verifyPartialPaymentOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return res.status(400).json({ error: 'Email and OTP are required' });
+    }
+
+    const valid = lendingborrowingotp.verifyLendingBorrowingOtp(email, otp);
+    if (valid) {
+      res.json({ verified: true });
+    } else {
+      res.status(400).json({ verified: false, error: 'Invalid or expired OTP' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to verify OTP', details: err.message });
+  }
+};
+
+// Process partial payment
+exports.processPartialPayment = async (req, res) => {
+  try {
+    const { 
+      transactionId, 
+      amount, 
+      description, 
+      paidBy, 
+      lenderEmail, 
+      borrowerEmail,
+      lenderOtpVerified,
+      borrowerOtpVerified 
+    } = req.body;
+
+    if (!transactionId || !amount || !paidBy || !lenderEmail || !borrowerEmail) {
+      return res.status(400).json({ error: 'All required fields are missing' });
+    }
+
+    if (!lenderOtpVerified || !borrowerOtpVerified) {
+      return res.status(400).json({ error: 'Both parties must verify their OTP' });
+    }
+
+    if (!['lender', 'borrower'].includes(paidBy)) {
+      return res.status(400).json({ error: 'paidBy must be lender or borrower' });
+    }
+
+    const transaction = await Transaction.findOne({ transactionId });
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    // Verify that the emails match the transaction parties
+    if (transaction.userEmail !== lenderEmail && transaction.counterpartyEmail !== lenderEmail) {
+      return res.status(400).json({ error: 'Lender email does not match transaction parties' });
+    }
+    if (transaction.userEmail !== borrowerEmail && transaction.counterpartyEmail !== borrowerEmail) {
+      return res.status(400).json({ error: 'Borrower email does not match transaction parties' });
+    }
+
+    // Calculate interest on the current remaining amount (not the original amount)
+    let currentRemainingAmount = transaction.remainingAmount || transaction.amount;
+    let totalAmountWithInterest = currentRemainingAmount;
+    
+    if (transaction.interestType && transaction.interestRate) {
+      // Get the last partial payment date or transaction date
+      let lastPaymentDate = new Date(transaction.date);
+      if (transaction.partialPayments && transaction.partialPayments.length > 0) {
+        // Get the date of the last partial payment
+        const lastPayment = transaction.partialPayments[transaction.partialPayments.length - 1];
+        lastPaymentDate = new Date(lastPayment.paidAt);
+      }
+      
+      const now = new Date();
+      const daysDiff = Math.ceil((now - lastPaymentDate) / (1000 * 60 * 60 * 24));
+      
+      if (daysDiff > 0) { // Only calculate interest if time has passed
+        if (transaction.interestType === 'simple') {
+          totalAmountWithInterest = currentRemainingAmount + (currentRemainingAmount * transaction.interestRate * daysDiff / 365);
+        } else if (transaction.interestType === 'compound') {
+          const periods = daysDiff / transaction.compoundingFrequency;
+          totalAmountWithInterest = currentRemainingAmount * Math.pow(1 + transaction.interestRate / 100, periods);
+        }
+      }
+    }
+    
+    // For display purposes, also calculate the total amount with interest from transaction date
+    let displayTotalAmountWithInterest = transaction.amount;
+    if (transaction.interestType && transaction.interestRate) {
+      const transactionDate = new Date(transaction.date);
+      const now = new Date();
+      const daysDiff = Math.ceil((now - transactionDate) / (1000 * 60 * 60 * 24));
+      
+      if (daysDiff > 0) {
+        if (transaction.interestType === 'simple') {
+          displayTotalAmountWithInterest = transaction.amount + (transaction.amount * transaction.interestRate * daysDiff / 365);
+        } else if (transaction.interestType === 'compound') {
+          const periods = daysDiff / transaction.compoundingFrequency;
+          displayTotalAmountWithInterest = transaction.amount * Math.pow(1 + transaction.interestRate / 100, periods);
+        }
+      }
+    }
+
+    // Initialize remaining amount if not set
+    if (!transaction.remainingAmount) {
+      transaction.remainingAmount = totalAmountWithInterest;
+      transaction.totalAmountWithInterest = totalAmountWithInterest;
+    } else {
+      // Update the total amount with interest for the current remaining amount
+      transaction.totalAmountWithInterest = totalAmountWithInterest;
+    }
+
+    // Validate payment amount
+    if (amount <= 0) {
+      return res.status(400).json({ error: 'Payment amount must be greater than 0' });
+    }
+
+    if (amount > totalAmountWithInterest) {
+      return res.status(400).json({ 
+        error: 'Payment amount cannot exceed total amount with interest',
+        totalAmountWithInterest: totalAmountWithInterest,
+        remainingAmount: transaction.remainingAmount,
+        currentAmountWithInterest: totalAmountWithInterest
+      });
+    }
+
+    // Process the partial payment
+    transaction.remainingAmount = totalAmountWithInterest - amount;
+    transaction.isPartiallyPaid = true;
+
+    // Add to partial payments history
+    transaction.partialPayments.push({
+      amount: amount,
+      paidBy: paidBy,
+      paidAt: new Date(),
+      description: description || ''
+    });
+
+    // If remaining amount is 0 or less, mark transaction as cleared
+    if (transaction.remainingAmount <= 0) {
+      transaction.userCleared = true;
+      transaction.counterpartyCleared = true;
+      transaction.remainingAmount = 0;
+    }
+
+    await transaction.save();
+
+    res.json({
+      success: true,
+      message: 'Partial payment processed successfully',
+      remainingAmount: transaction.remainingAmount,
+      isFullyPaid: transaction.remainingAmount <= 0,
+      displayTotalAmountWithInterest: displayTotalAmountWithInterest
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to process partial payment', details: err.message });
+  }
+};
+
+// Get transaction details with partial payment history
+exports.getTransactionDetails = async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    if (!transactionId) {
+      return res.status(400).json({ error: 'Transaction ID is required' });
+    }
+
+    const transaction = await Transaction.findOne({ transactionId });
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    res.json({ transaction });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch transaction details', details: err.message });
   }
 }; 

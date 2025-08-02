@@ -55,6 +55,12 @@ router.post('/transactions/verify-user-otp', transactionController.verifyUserOTP
 router.post('/transactions/clear', transactionController.clearTransaction);
 router.delete('/transactions/delete', transactionController.deleteTransaction);
 router.get('/transactions/user', transactionController.getUserTransactions);
+
+// Partial payment routes
+router.post('/transactions/send-partial-payment-otp', transactionController.sendPartialPaymentOTP);
+router.post('/transactions/verify-partial-payment-otp', transactionController.verifyPartialPaymentOTP);
+router.post('/transactions/partial-payment', transactionController.processPartialPayment);
+router.get('/transactions/:transactionId', transactionController.getTransactionDetails);
 router.get('/transactions/:transactionId/chat', chatController.getChat);
 router.post('/transactions/:transactionId/chat', chatController.postMessage);
 router.patch('/transactions/:transactionId/chat/:messageId/react', chatController.reactMessage);
