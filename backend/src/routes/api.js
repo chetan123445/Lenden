@@ -17,6 +17,7 @@ const chatController = require('../controllers/chatController');
 const groupChatController = require('../controllers/groupChatController');
 const noteController = require('../controllers/noteController');
 const groupTransactionController = require('../controllers/groupTransactionController');
+const activityController = require('../controllers/activityController');
 
 // User routes
 router.post('/users/register', userController.register);
@@ -98,6 +99,11 @@ router.delete('/group-transactions/:groupId', auth, groupTransactionController.d
 router.post('/group-transactions/:groupId/leave', auth, groupTransactionController.leaveGroup);
 // New: Send leave request to group creator
 router.post('/group-transactions/:groupId/send-leave-request', auth, groupTransactionController.sendLeaveRequest);
+
+// Activity routes
+router.get('/activities', auth, activityController.getUserActivities);
+router.get('/activities/stats', auth, activityController.getActivityStats);
+router.delete('/activities/cleanup', auth, activityController.cleanupOldActivities);
 
 // Group Chat routes
 router.get('/group-transactions/:groupTransactionId/chat', auth, groupChatController.getGroupChat);

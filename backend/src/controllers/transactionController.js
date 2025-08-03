@@ -2,6 +2,7 @@ const Transaction = require('../models/transaction');
 const User = require('../models/user');
 const lendingborrowingotp = require('../utils/lendingborrowingotp');
 const { sendTransactionReceipt, sendTransactionClearedNotification } = require('../utils/lendingborrowingotp');
+const { logTransactionActivity } = require('./activityController');
 const multer = require('multer');
 const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg'];
 const PDFDocument = require('pdfkit');
@@ -95,6 +96,28 @@ exports.createTransaction = async (req, res) => {
       remainingAmount: totalAmountWithInterest,
       totalAmountWithInterest: totalAmountWithInterest
     });
+    
+    // Log activity for both users with creator context
+    try {
+      const user = await User.findOne({ email: userEmail });
+      const counterparty = await User.findOne({ email: counterpartyEmail });
+      
+      // Determine who created the transaction (the user making the request)
+      const creatorInfo = {
+        creatorId: user._id,
+        creatorEmail: userEmail
+      };
+      
+      if (user) {
+        await logTransactionActivity(user._id, 'transaction_created', transaction, {}, creatorInfo);
+      }
+      if (counterparty) {
+        await logTransactionActivity(counterparty._id, 'transaction_created', transaction, {}, creatorInfo);
+      }
+    } catch (e) {
+      console.error('Failed to log transaction activity:', e);
+    }
+    
     res.json({ success: true, transactionId: transaction.transactionId, transaction });
 
     // Send receipt emails to both parties (fire and forget)
@@ -211,6 +234,24 @@ exports.clearTransaction = async (req, res) => {
         sendTransactionClearedNotification(otherPartyEmail, transaction, email);
       } catch (e) {
         console.error('Failed to send cleared notification:', e);
+      }
+      
+      // Log activity for transaction clearing - both parties get notified
+      try {
+        const creatorInfo = {
+          creatorId: req.user._id,
+          creatorEmail: email
+        };
+        await logTransactionActivity(transaction.userEmail === email ? transaction.userEmail : transaction.counterpartyEmail, 'transaction_cleared', transaction, {
+          clearedBy: email,
+          otherParty: otherPartyEmail
+        }, creatorInfo);
+        await logTransactionActivity(otherPartyEmail, 'transaction_cleared', transaction, {
+          clearedBy: email,
+          otherParty: email
+        }, creatorInfo);
+      } catch (e) {
+        console.error('Failed to log transaction activity:', e);
       }
     }
     res.json({ success: true, userCleared: transaction.userCleared, counterpartyCleared: transaction.counterpartyCleared, fullyCleared: transaction.userCleared && transaction.counterpartyCleared });
@@ -424,6 +465,30 @@ exports.processPartialPayment = async (req, res) => {
     }
 
     await transaction.save();
+
+    // Log activity for partial payment - both parties get notified
+    try {
+      const creatorInfo = {
+        creatorId: req.user._id,
+        creatorEmail: paidBy === 'lender' ? lenderEmail : borrowerEmail
+      };
+      
+      // Log for the payer
+      await logTransactionActivity(paidBy === 'lender' ? lenderEmail : borrowerEmail, 'partial_payment_made', transaction, {
+        amount: amount,
+        description: description || '',
+        remainingAmount: transaction.remainingAmount
+      }, creatorInfo);
+      
+      // Log for the other party
+      await logTransactionActivity(paidBy === 'lender' ? borrowerEmail : lenderEmail, 'partial_payment_received', transaction, {
+        amount: amount,
+        description: description || '',
+        remainingAmount: transaction.remainingAmount
+      }, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log transaction activity:', e);
+    }
 
     res.json({
       success: true,

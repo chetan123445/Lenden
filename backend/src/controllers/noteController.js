@@ -1,4 +1,5 @@
 const Note = require('../models/note');
+const { logNoteActivity } = require('./activityController');
 
 // Create a new note
 exports.createNote = async (req, res) => {
@@ -16,6 +17,18 @@ exports.createNote = async (req, res) => {
     
     const note = await Note.create({ user: userId, role, title, content });
     console.log('✅ Note created successfully:', note._id);
+    
+    // Log activity
+    try {
+      const creatorInfo = {
+        creatorId: userId,
+        creatorEmail: user.email
+      };
+      await logNoteActivity(userId, 'note_created', note, {}, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log note activity:', e);
+    }
+    
     res.status(201).json({ note });
   } catch (err) {
     console.error('❌ Failed to create note:', err.message);
@@ -55,6 +68,18 @@ exports.updateNote = async (req, res) => {
     if (content) update.content = content;
     const note = await Note.findOneAndUpdate({ _id: id, user: userId, role }, update, { new: true });
     if (!note) return res.status(404).json({ error: 'Note not found' });
+    
+    // Log activity
+    try {
+      const creatorInfo = {
+        creatorId: userId,
+        creatorEmail: user.email
+      };
+      await logNoteActivity(userId, 'note_edited', note, {}, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log note activity:', e);
+    }
+    
     res.json({ note });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update note', details: err.message });
@@ -70,6 +95,18 @@ exports.deleteNote = async (req, res) => {
     const userId = user._id || user.id; // Handle both user and admin JWT structures
     const note = await Note.findOneAndDelete({ _id: id, user: userId, role });
     if (!note) return res.status(404).json({ error: 'Note not found' });
+    
+    // Log activity
+    try {
+      const creatorInfo = {
+        creatorId: userId,
+        creatorEmail: user.email
+      };
+      await logNoteActivity(userId, 'note_deleted', note, {}, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log note activity:', e);
+    }
+    
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete note', details: err.message });

@@ -3,6 +3,7 @@ const User = require('../models/user');
 const { sendGroupSettleOtp } = require('../utils/groupSettleOtp');
 const { sendGroupLeaveRequestEmail } = require('../utils/groupLeaveRequestEmail');
 const mongoose = require('mongoose');
+const { logGroupActivity, logGroupActivityForAllMembers } = require('./activityController');
 
 // Helper function to process expenses and convert Object IDs to emails in addedBy field
 async function processExpenses(expenses) {
@@ -68,6 +69,17 @@ exports.createGroup = async (req, res) => {
       email: groupObj.creator.email
     };
     res.status(201).json({ group: groupObj });
+    
+    // Log activity for group creation - all members get notified
+    try {
+      const creatorInfo = {
+        creatorId: creator,
+        creatorEmail: creatorUser.email
+      };
+      await logGroupActivityForAllMembers('group_created', group, {}, null, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log group activity:', e);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -129,6 +141,19 @@ exports.addMember = async (req, res) => {
       email: groupObj.creator.email
     };
     res.json({ group: groupObj });
+    
+    // Log activity for member addition - all members get notified
+    try {
+      const creatorInfo = {
+        creatorId: req.user._id,
+        creatorEmail: req.user.email
+      };
+      await logGroupActivityForAllMembers('member_added', group, {
+        memberEmail: email
+      }, null, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log group activity:', e);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -185,6 +210,19 @@ exports.removeMember = async (req, res) => {
     groupObj.expenses = processedExpenses;
     
     res.json({ group: groupObj });
+    
+    // Log activity for member removal - all members get notified
+    try {
+      const creatorInfo = {
+        creatorId: req.user._id,
+        creatorEmail: req.user.email
+      };
+      await logGroupActivityForAllMembers('member_removed', group, {
+        memberEmail: email
+      }, null, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log group activity:', e);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -360,6 +398,21 @@ exports.addExpense = async (req, res) => {
     
     console.log('Sending response with updated group');
     res.json({ group: groupObj });
+    
+    // Log activity for expense addition - all members get notified
+    try {
+      const creatorInfo = {
+        creatorId: userId,
+        creatorEmail: req.user.email
+      };
+      await logGroupActivityForAllMembers('expense_added', group, {
+        expenseDescription: description,
+        expenseAmount: amount,
+        currency: '₹' // Default currency, you might want to make this configurable
+      }, null, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log group activity:', e);
+    }
   } catch (err) {
     console.error('Error in addExpense:', err);
     res.status(500).json({ error: err.message });
@@ -606,6 +659,9 @@ exports.deleteExpense = async (req, res) => {
     const expenseIndex = group.expenses.findIndex(e => e._id.toString() === expenseId);
     if (expenseIndex === -1) return res.status(404).json({ error: 'Expense not found' });
     
+    // Store expense details before removal for activity logging
+    const deletedExpense = group.expenses[expenseIndex];
+    
     // Remove the expense
     group.expenses.splice(expenseIndex, 1);
     await group.save();
@@ -631,6 +687,21 @@ exports.deleteExpense = async (req, res) => {
     groupObj.expenses = processedExpenses;
     
     res.json({ group: groupObj });
+    
+    // Log activity for expense deletion - all members get notified
+    try {
+      const creatorInfo = {
+        creatorId: req.user._id,
+        creatorEmail: req.user.email
+      };
+      await logGroupActivityForAllMembers('expense_deleted', group, {
+        expenseDescription: deletedExpense.description,
+        expenseAmount: deletedExpense.amount,
+        currency: '₹' // Default currency, you might want to make this configurable
+      }, null, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log group activity:', e);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -802,6 +873,21 @@ exports.editExpense = async (req, res) => {
     groupObj.expenses = processedExpenses;
     
     res.json({ group: groupObj });
+    
+    // Log activity for expense editing - all members get notified
+    try {
+      const creatorInfo = {
+        creatorId: userId,
+        creatorEmail: userEmail
+      };
+      await logGroupActivityForAllMembers('expense_edited', group, {
+        expenseDescription: description,
+        expenseAmount: amount,
+        currency: '₹' // Default currency, you might want to make this configurable
+      }, null, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log group activity:', e);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -895,6 +981,20 @@ exports.settleMemberExpenses = async (req, res) => {
       group: groupObj,
       message: `Successfully marked ${expensesUpdated} expenses as settled for ${email}` 
     });
+    
+    // Log activity for expense settlement - all members get notified
+    try {
+      const creatorInfo = {
+        creatorId: req.user._id,
+        creatorEmail: req.user.email
+      };
+      await logGroupActivityForAllMembers('expense_settled', group, {
+        memberEmail: email,
+        expensesUpdated: expensesUpdated
+      }, null, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log group activity:', e);
+    }
   } catch (err) {
     console.error('Error settling member expenses:', err);
     res.status(500).json({ error: err.message });
@@ -994,6 +1094,21 @@ exports.settleExpenseSplits = async (req, res) => {
       alreadySettledCount: alreadySettledCount,
       alreadySettledMembers: alreadySettledMembers
     });
+    
+    // Log activity for expense split settlement - all members get notified
+    try {
+      const creatorInfo = {
+        creatorId: req.user._id,
+        creatorEmail: req.user.email
+      };
+      await logGroupActivityForAllMembers('expense_settled', group, {
+        expenseDescription: expense.description,
+        settledCount: settledCount,
+        memberEmails: memberEmails
+      }, null, creatorInfo);
+    } catch (e) {
+      console.error('Failed to log group activity:', e);
+    }
   } catch (err) {
     console.error('Error settling expense splits:', err);
     res.status(500).json({ error: err.message });

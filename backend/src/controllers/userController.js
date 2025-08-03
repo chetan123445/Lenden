@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt');
 const { sendRegistrationOTP } = require('../utils/registrationemailotp');
 const { sendLoginOTP } = require('../utils/loginsendotp');
 const jwt = require('jsonwebtoken');
+const { logProfileActivity } = require('./activityController');
 
 // In-memory OTP store (for demo; use DB or cache in production)
 const otpStore = {};
@@ -134,6 +135,17 @@ exports.login = async (req, res) => {
     const token = jwt.sign({ _id: user._id, email: user.email, role: 'user' }, process.env.JWT_SECRET, { expiresIn: '7d' });
     console.log('✅ Login successful for user:', username);
     console.log('🎫 Token generated successfully');
+    
+    // Log login activity
+    try {
+      await logProfileActivity(user._id, 'login', {
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent')
+      });
+    } catch (e) {
+      console.error('Failed to log login activity:', e);
+    }
+    
     res.json({ message: 'Login successful', user, token });
   } catch (err) {
     console.error('❌ Login error:', err.message);

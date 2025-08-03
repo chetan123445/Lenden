@@ -16,6 +16,7 @@ import '../user/notes_page.dart';
 import '../Transaction/group_transaction_page.dart';
 import '../Transaction/view_group_transactions_page.dart';
 import '../profile/profile_page.dart';
+import 'activity_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -29,7 +30,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
   bool loading = true;
   int _imageRefreshKey = 0; // Key to force avatar rebuild
   final ScrollController _scrollController = ScrollController();
-  bool _showAllOptions = false; // Control visibility of additional options
+  bool _showScrollIndicator = false; // Control visibility of scroll indicator
 
   @override
   void initState() {
@@ -41,12 +42,17 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
       final session = Provider.of<SessionProvider>(context, listen: false);
       session.addListener(_onSessionChanged);
     });
+    
+    // Listen to scroll events to show/hide scroll indicator
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     final session = Provider.of<SessionProvider>(context, listen: false);
     session.removeListener(_onSessionChanged);
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -54,6 +60,18 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     setState(() {
       _imageRefreshKey++;
     });
+  }
+
+  void _onScroll() {
+    // Show scroll indicator when user scrolls down past the first few items
+    if (_scrollController.hasClients) {
+      final showIndicator = _scrollController.offset > 200; // Show after scrolling 200px
+      if (showIndicator != _showScrollIndicator) {
+        setState(() {
+          _showScrollIndicator = showIndicator;
+        });
+      }
+    }
   }
 
   Future<void> fetchTransactions() async {
@@ -144,6 +162,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.timeline),
+                title: const Text('Activity'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => ActivityPage()));
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.note),
                 title: Text('Notes'),
                 onTap: () {
@@ -196,7 +222,15 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                           children: [
                             Icon(Icons.swap_horiz, color: Colors.teal, size: 40),
                             SizedBox(width: 20),
-                            Text('Create Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Text(
+                                  'Create Transactions',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -221,7 +255,15 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                           children: [
                             Icon(Icons.account_balance_wallet, color: Colors.blue, size: 40),
                             SizedBox(width: 20),
-                            Text('Your Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Text(
+                                  'Your Transactions',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -246,77 +288,69 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                           children: [
                             Icon(Icons.analytics, color: Color(0xFF00B4D8), size: 40),
                             SizedBox(width: 20),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Visual Analytics', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
-                                Text('(for individual transactions)', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                              ],
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Text(
+                                      'Visual Analytics',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                                    ),
+                                  ),
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Text(
+                                      '(for individual transactions)',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
                     ),
                     
-                    // More options button (always visible)
-                    SizedBox(height: 20),
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _showAllOptions = !_showAllOptions;
-                        });
-                      },
-                      child: Center(
+                    // Scroll indicator (appears when user scrolls down)
+                    if (_showScrollIndicator) ...[
+                      SizedBox(height: 20),
+                      Center(
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Color(0xFF00B4D8).withOpacity(0.1), Color(0xFF00B4D8).withOpacity(0.2)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(25),
+                            color: Color(0xFF00B4D8).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: Color(0xFF00B4D8).withOpacity(0.3)),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Color(0xFF00B4D8).withOpacity(0.2),
-                                blurRadius: 8,
-                                offset: Offset(0, 2),
-                              ),
-                            ],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                _showAllOptions ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                                Icons.keyboard_arrow_down,
                                 color: Color(0xFF00B4D8),
-                                size: 24,
+                                size: 20,
                               ),
                               SizedBox(width: 8),
                               Text(
-                                _showAllOptions ? 'Hide additional options' : 'Show more options',
+                                'Scroll for more options',
                                 style: TextStyle(
                                   color: Color(0xFF00B4D8),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                              ),
-                              SizedBox(width: 8),
-                              Icon(
-                                _showAllOptions ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                color: Color(0xFF00B4D8),
-                                size: 24,
                               ),
                             ],
                           ),
                         ),
                       ),
-                    ),
-                    
-                    // Additional options (only visible when _showAllOptions is true)
-                    if (_showAllOptions) ...[
                       SizedBox(height: 20),
+                    ],
+                    
+                    // Additional options (always visible, but scroll indicator suggests more content)
+                    SizedBox(height: 20),
                       GestureDetector(
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GroupTransactionPage())),
                         child: Container(
@@ -337,7 +371,15 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                             children: [
                               Icon(Icons.group, color: Colors.deepPurple, size: 40),
                               SizedBox(width: 20),
-                              Text('Create Group Transaction', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Text(
+                                    'Create Group Transaction',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -362,12 +404,19 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                             children: [
                               Icon(Icons.visibility, color: Colors.orange, size: 40),
                               SizedBox(width: 20),
-                              Text('View Group Transactions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Text(
+                                    'View Group Transactions',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
                       ),
-                    ],
                   ],
                 ),
               ),
