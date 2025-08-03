@@ -15,17 +15,27 @@ class ActivityPage extends StatefulWidget {
 
 class _ActivityPageState extends State<ActivityPage> {
   List<Map<String, dynamic>> activities = [];
+  List<Map<String, dynamic>> allActivities = []; // Store all activities for search
   Map<String, dynamic> stats = {};
   bool loading = true;
   bool loadingStats = true;
   String? selectedType;
   DateTime? startDate;
   DateTime? endDate;
+  String searchQuery = ''; // For smart search
   int currentPage = 1;
   bool hasNextPage = false;
   bool hasPrevPage = false;
   int totalItems = 0;
   int totalPages = 0;
+  
+  // Activity insights data
+  Map<String, int> activityTypeCounts = {};
+  Map<String, double> activityTypeAmounts = {};
+  String mostActiveDay = '';
+  String mostActiveTime = '';
+  int totalAmount = 0;
+  int averageAmount = 0;
   
   final List<String> activityTypes = [
     'transaction_created',
@@ -75,7 +85,7 @@ class _ActivityPageState extends State<ActivityPage> {
       // Build query parameters
       final queryParams = <String, String>{
         'page': currentPage.toString(),
-        'limit': '20',
+        'limit': '50', // Increased limit for better search experience
       };
       
       if (selectedType != null) {
@@ -90,6 +100,10 @@ class _ActivityPageState extends State<ActivityPage> {
         queryParams['endDate'] = endDate!.toIso8601String();
       }
       
+      if (searchQuery.isNotEmpty) {
+        queryParams['search'] = searchQuery;
+      }
+      
       final uri = Uri.parse('$baseUrl/api/activities').replace(queryParameters: queryParams);
       final response = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
       
@@ -98,8 +112,10 @@ class _ActivityPageState extends State<ActivityPage> {
         setState(() {
           if (refresh) {
             activities = List<Map<String, dynamic>>.from(data['activities']);
+            allActivities = List<Map<String, dynamic>>.from(data['activities']);
           } else {
             activities.addAll(List<Map<String, dynamic>>.from(data['activities']));
+            allActivities.addAll(List<Map<String, dynamic>>.from(data['activities']));
           }
           final pagination = data['pagination'];
           currentPage = pagination['currentPage'];
@@ -109,6 +125,9 @@ class _ActivityPageState extends State<ActivityPage> {
           hasPrevPage = pagination['hasPrev'];
           loading = false;
         });
+        
+        // Calculate insights after loading activities
+        _calculateActivityInsights();
       } else {
         setState(() => loading = false);
         _showErrorDialog('Failed to load activities');
@@ -165,6 +184,95 @@ class _ActivityPageState extends State<ActivityPage> {
         ],
       ),
     );
+  }
+
+  // Calculate activity insights
+  void _calculateActivityInsights() {
+    if (allActivities.isEmpty) return;
+    
+    // Reset insights
+    activityTypeCounts.clear();
+    activityTypeAmounts.clear();
+    totalAmount = 0;
+    
+    // Count activities by type and calculate amounts
+    for (final activity in allActivities) {
+      final type = activity['type'] as String;
+      final amount = activity['amount'] as num?;
+      
+      // Count by type
+      activityTypeCounts[type] = (activityTypeCounts[type] ?? 0) + 1;
+      
+      // Sum amounts
+      if (amount != null) {
+        activityTypeAmounts[type] = (activityTypeAmounts[type] ?? 0) + amount.toDouble();
+        totalAmount += amount.toInt();
+      }
+    }
+    
+    // Calculate average amount
+    final activitiesWithAmount = allActivities.where((a) => a['amount'] != null).length;
+    averageAmount = activitiesWithAmount > 0 ? totalAmount ~/ activitiesWithAmount : 0;
+    
+    // Find most active day and time
+    _calculateMostActiveTime();
+    
+    setState(() {});
+  }
+
+  void _calculateMostActiveTime() {
+    final dayCounts = <String, int>{};
+    final timeCounts = <String, int>{};
+    
+    for (final activity in allActivities) {
+      final createdAt = DateTime.parse(activity['createdAt'] as String);
+      
+      // Count by day of week
+      final dayName = DateFormat('EEEE').format(createdAt);
+      dayCounts[dayName] = (dayCounts[dayName] ?? 0) + 1;
+      
+      // Count by hour
+      final hour = createdAt.hour;
+      String timeSlot;
+      if (hour < 6) timeSlot = 'Night (12 AM - 6 AM)';
+      else if (hour < 12) timeSlot = 'Morning (6 AM - 12 PM)';
+      else if (hour < 18) timeSlot = 'Afternoon (12 PM - 6 PM)';
+      else timeSlot = 'Evening (6 PM - 12 AM)';
+      
+      timeCounts[timeSlot] = (timeCounts[timeSlot] ?? 0) + 1;
+    }
+    
+    // Find most active day
+    if (dayCounts.isNotEmpty) {
+      mostActiveDay = dayCounts.entries
+          .reduce((a, b) => a.value > b.value ? a : b)
+          .key;
+    }
+    
+    // Find most active time
+    if (timeCounts.isNotEmpty) {
+      mostActiveTime = timeCounts.entries
+          .reduce((a, b) => a.value > b.value ? a : b)
+          .key;
+    }
+  }
+
+  // Search functionality
+  void _performSearch(String query) {
+    setState(() {
+      searchQuery = query;
+      currentPage = 1;
+    });
+    fetchActivities(refresh: true);
+  }
+
+  // Clear search
+  void _clearSearch() {
+    setState(() {
+      searchQuery = '';
+      currentPage = 1;
+    });
+    fetchActivities(refresh: true);
   }
 
   String _getActivityTypeDisplayName(String type) {
@@ -313,23 +421,95 @@ class _ActivityPageState extends State<ActivityPage> {
         ],
       ),
       backgroundColor: const Color(0xFFF8F6FA),
-      body: Column(
-        children: [
-          // Stats Section
-          if (!loadingStats) _buildStatsSection(),
-          
-          // Filter chips
-          if (selectedType != null || startDate != null || endDate != null)
-            _buildFilterChips(),
-          
-          // Activities List
-          Expanded(
-            child: loading
-                ? const Center(child: CircularProgressIndicator())
-                : activities.isEmpty
-                    ? _buildEmptyState()
-                    : _buildActivitiesList(),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await fetchActivities(refresh: true);
+          await fetchStats();
+        },
+        child: CustomScrollView(
+          slivers: [
+            // Search Bar
+            SliverToBoxAdapter(child: _buildSearchBar()),
+            
+            // Stats Section
+            if (!loadingStats) SliverToBoxAdapter(child: _buildStatsSection()),
+            
+            // Activity Insights Section
+            if (!loading && allActivities.isNotEmpty) SliverToBoxAdapter(child: _buildActivityInsights()),
+            
+            // Filter chips
+            if (selectedType != null || startDate != null || endDate != null || searchQuery.isNotEmpty)
+              SliverToBoxAdapter(child: _buildFilterChips()),
+
+            // Activities List
+            if (loading)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: const Center(child: CircularProgressIndicator()),
+              )
+            else if (activities.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _buildEmptyState(),
+              )
+            else
+              SliverList.builder(
+                itemCount: activities.length + (hasNextPage ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == activities.length) {
+                    return _buildLoadMoreButton();
+                  }
+                  return _buildSwipeableActivityCard(activities[index]);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(25),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.search,
+            color: Colors.grey[600],
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              onChanged: _performSearch,
+              decoration: InputDecoration(
+                hintText: 'Search activities...',
+                hintStyle: TextStyle(color: Colors.grey[400]),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+              style: const TextStyle(fontSize: 16),
+            ),
+          ),
+          if (searchQuery.isNotEmpty)
+            IconButton(
+              icon: Icon(Icons.clear, color: Colors.grey[600], size: 20),
+              onPressed: _clearSearch,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
         ],
       ),
     );
@@ -337,7 +517,7 @@ class _ActivityPageState extends State<ActivityPage> {
 
   Widget _buildStatsSection() {
     return Container(
-      margin: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -421,12 +601,204 @@ class _ActivityPageState extends State<ActivityPage> {
     );
   }
 
+  Widget _buildActivityInsights() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF667eea), Color(0xFF764ba2)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.insights,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Activity Insights',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Insights Grid
+          Row(
+            children: [
+              Expanded(
+                child: _buildInsightCard(
+                  'Total Amount',
+                  '₹$totalAmount',
+                  Icons.account_balance_wallet,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildInsightCard(
+                  'Average',
+                  '₹$averageAmount',
+                  Icons.trending_up,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          Row(
+            children: [
+              Expanded(
+                child: _buildInsightCard(
+                  'Most Active Day',
+                  mostActiveDay.isNotEmpty ? mostActiveDay : 'N/A',
+                  Icons.calendar_today,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildInsightCard(
+                  'Peak Time',
+                  mostActiveTime.isNotEmpty ? mostActiveTime : 'N/A',
+                  Icons.access_time,
+                ),
+              ),
+            ],
+          ),
+          
+          // Top Activity Types
+          if (activityTypeCounts.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Top Activity Types',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...activityTypeCounts.entries
+                .take(3)
+                .map((entry) => _buildActivityTypeRow(entry.key, entry.value)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightCard(String title, String value, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: Colors.white, size: 20),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+          ),
+          Text(
+            title,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 10,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityTypeRow(String type, int count) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _getActivityIcon(type),
+            color: Colors.white,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _getActivityTypeDisplayName(type),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          Text(
+            '$count',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFilterChips() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       child: Wrap(
         spacing: 8,
         children: [
+          if (searchQuery.isNotEmpty)
+            Chip(
+              label: Text('Search: "$searchQuery"'),
+              onDeleted: _clearSearch,
+              backgroundColor: Colors.purple.withOpacity(0.2),
+              deleteIcon: const Icon(Icons.clear, size: 18),
+            ),
           if (selectedType != null)
             Chip(
               label: Text(_getActivityTypeDisplayName(selectedType!)),
@@ -503,8 +875,113 @@ class _ActivityPageState extends State<ActivityPage> {
           if (index == activities.length) {
             return _buildLoadMoreButton();
           }
-          return _buildActivityCard(activities[index]);
+          return _buildSwipeableActivityCard(activities[index]);
         },
+      ),
+    );
+  }
+
+  Widget _buildSwipeableActivityCard(Map<String, dynamic> activity) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Dismissible(
+        key: Key(activity['_id'] ?? DateTime.now().toString()),
+        direction: DismissDirection.endToStart, // Only swipe from right to left
+        background: _buildSwipeBackground(),
+        confirmDismiss: (direction) => _showSwipeActionDialog(activity),
+        child: _buildActivityCard(activity),
+      ),
+    );
+  }
+
+  Widget _buildSwipeBackground() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Colors.red, Colors.orange],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.more_vert,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Actions',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool?> _showSwipeActionDialog(Map<String, dynamic> activity) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Activity Actions'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.info, color: Colors.blue),
+              title: const Text('View Details'),
+              onTap: () {
+                Navigator.of(context).pop(false);
+                _showActivityDetails(activity);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.share, color: Colors.green),
+              title: const Text('Share Activity'),
+              onTap: () {
+                Navigator.of(context).pop(false);
+                _shareActivity(activity);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.bookmark, color: Colors.orange),
+              title: const Text('Bookmark'),
+              onTap: () {
+                Navigator.of(context).pop(false);
+                _bookmarkActivity(activity);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Delete'),
+              onTap: () {
+                Navigator.of(context).pop(true);
+                _deleteActivity(activity);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     );
   }
@@ -518,7 +995,6 @@ class _ActivityPageState extends State<ActivityPage> {
     final currency = activity['currency'];
     
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
@@ -583,12 +1059,30 @@ class _ActivityPageState extends State<ActivityPage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    _formatDate(createdAt, activityType: type),
-                    style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 12,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _formatDate(createdAt, activityType: type),
+                          style: TextStyle(
+                            color: Colors.grey[500],
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                      // Delete Button
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                          size: 20,
+                        ),
+                        onPressed: () => _deleteActivity(activity),
+                        tooltip: 'Delete Activity',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -600,8 +1094,8 @@ class _ActivityPageState extends State<ActivityPage> {
   }
 
   Widget _buildLoadMoreButton() {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 16),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Center(
         child: ElevatedButton(
           onPressed: () {
@@ -618,7 +1112,336 @@ class _ActivityPageState extends State<ActivityPage> {
     );
   }
 
+  // Swipe Action Methods
+  void _showActivityDetails(Map<String, dynamic> activity) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(activity['title'] ?? 'Activity Details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Type: ${_getActivityTypeDisplayName(activity['type'])}'),
+            const SizedBox(height: 8),
+            Text('Description: ${activity['description']}'),
+            const SizedBox(height: 8),
+            Text('Date: ${_formatDate(activity['createdAt'], activityType: activity['type'])}'),
+            if (activity['amount'] != null) ...[
+              const SizedBox(height: 8),
+              Text('Amount: ${activity['currency']}${activity['amount']}'),
+            ],
+            if (activity['metadata'] != null) ...[
+              const SizedBox(height: 8),
+              Text('Additional Info: ${activity['metadata']}'),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _shareActivity(Map<String, dynamic> activity) {
+    // This would integrate with device sharing
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Sharing: ${activity['title']}'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _bookmarkActivity(Map<String, dynamic> activity) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Bookmarked: ${activity['title']}'),
+        backgroundColor: Colors.orange,
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: Colors.white,
+          onPressed: () {
+            // Undo bookmark action
+          },
+        ),
+      ),
+    );
+  }
+
+  void _deleteActivity(Map<String, dynamic> activity) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            shape: BoxShape.rectangle,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                offset: const Offset(0, 10),
+                blurRadius: 20,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with gradient background
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Colors.red, Colors.redAccent],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(20),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.delete_forever,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Delete Activity',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'This action cannot be undone',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.9),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Content
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    // Warning Icon
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                      child: const Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.red,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Activity Title
+                    Text(
+                      activity['title'] ?? 'Unknown Activity',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // Activity Type
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _getActivityColor(activity['type']).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _getActivityTypeDisplayName(activity['type']),
+                        style: TextStyle(
+                          color: _getActivityColor(activity['type']),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Confirmation Text
+                    Text(
+                      'Are you sure you want to delete this activity? This action cannot be undone.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Action Buttons
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.cancel, color: Colors.grey),
+                        label: const Text(
+                          'Cancel',
+                          style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            side: const BorderSide(color: Colors.grey),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          Navigator.of(context).pop();
+                          
+                          try {
+                            final session = Provider.of<SessionProvider>(context, listen: false);
+                            final token = session.token;
+                            final baseUrl = ApiConfig.baseUrl;
+                            
+                            final uri = Uri.parse('$baseUrl/api/activities/${activity['_id']}');
+                            final response = await http.delete(
+                              uri,
+                              headers: {'Authorization': 'Bearer $token'},
+                            );
+                            
+                            if (response.statusCode == 200) {
+                              // Remove from local list
+                              setState(() {
+                                activities.removeWhere((a) => a['_id'] == activity['_id']);
+                                allActivities.removeWhere((a) => a['_id'] == activity['_id']);
+                              });
+                              _calculateActivityInsights();
+                              
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      const Icon(Icons.check_circle, color: Colors.white),
+                                      const SizedBox(width: 8),
+                                      const Text('Activity deleted successfully'),
+                                    ],
+                                  ),
+                                  backgroundColor: Colors.red,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            } else {
+                              final errorData = json.decode(response.body);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      const Icon(Icons.error, color: Colors.white),
+                                      const SizedBox(width: 8),
+                                      Text(errorData['error'] ?? 'Failed to delete activity'),
+                                    ],
+                                  ),
+                                  backgroundColor: Colors.red,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Row(
+                                  children: [
+                                    const Icon(Icons.error, color: Colors.white),
+                                    const SizedBox(width: 8),
+                                    Text('Error: $e'),
+                                  ],
+                                ),
+                                backgroundColor: Colors.red,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.delete_forever, color: Colors.white),
+                        label: const Text(
+                          'Delete',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          elevation: 2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showFilterDialog() {
+    print('Filter dialog opened'); // Debug print
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -698,85 +1521,91 @@ class _ActivityPageState extends State<ActivityPage> {
               // Filter Content
               Padding(
                 padding: const EdgeInsets.all(20),
-                child: StatefulBuilder(
-                  builder: (context, setState) => Column(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Activity Type Filter with enhanced styling
-                      Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                        ),
-                        child: DropdownButtonFormField<String>(
-                          value: selectedType,
-                          decoration: InputDecoration(
-                            labelText: 'Activity Type',
-                            labelStyle: const TextStyle(
-                              color: Color(0xFF00B4D8),
-                              fontWeight: FontWeight.w600,
-                            ),
-                            prefixIcon: Container(
-                              margin: const EdgeInsets.all(8),
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF00B4D8).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.category,
-                                color: Color(0xFF00B4D8),
-                                size: 20,
-                              ),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          ),
-                          items: [
-                            DropdownMenuItem<String>(
-                              value: null,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Icon(Icons.all_inclusive, size: 16, color: Colors.grey),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text('All Types', style: TextStyle(fontWeight: FontWeight.w500)),
-                                ],
-                              ),
-                            ),
-                            ...activityTypes.map((type) => DropdownMenuItem<String>(
-                              value: type,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: _getActivityColor(type).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Icon(_getActivityIcon(type), size: 16, color: _getActivityColor(type)),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      _getActivityTypeDisplayName(type),
-                                      style: const TextStyle(fontWeight: FontWeight.w500),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )),
-                          ],
-                          onChanged: (value) {
-                            setState(() => selectedType = value);
-                          },
-                        ),
+                    // Activity Type Filter with enhanced styling
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
                       ),
+                      child: DropdownButtonFormField<String>(
+                        value: selectedType,
+                        decoration: InputDecoration(
+                          labelText: 'Activity Type',
+                          labelStyle: const TextStyle(
+                            color: Color(0xFF00B4D8),
+                            fontWeight: FontWeight.w600,
+                          ),
+                          prefixIcon: Container(
+                            margin: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00B4D8).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.category,
+                              color: Color(0xFF00B4D8),
+                              size: 20,
+                            ),
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        items: [
+                          DropdownMenuItem<String>(
+                            value: null,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Icon(Icons.all_inclusive, size: 16, color: Colors.grey),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text('All Types', style: TextStyle(fontWeight: FontWeight.w500)),
+                              ],
+                            ),
+                          ),
+                          ...activityTypes.map((type) => DropdownMenuItem<String>(
+                            value: type,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: _getActivityColor(type).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Icon(_getActivityIcon(type), size: 16, color: _getActivityColor(type)),
+                                ),
+                                const SizedBox(width: 12),
+                                Flexible(
+                                  child: Text(
+                                    _getActivityTypeDisplayName(type),
+                                    style: const TextStyle(fontWeight: FontWeight.w500),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )),
+                        ],
+                        onChanged: (value) {
+                          setState(() {
+                            selectedType = value;
+                          });
+                        },
+                      ),
+                    ),
                       
                       const SizedBox(height: 24),
                       
@@ -846,9 +1675,9 @@ class _ActivityPageState extends State<ActivityPage> {
                                           );
                                         },
                                       );
-                                      if (date != null) {
-                                        setState(() => startDate = date);
-                                      }
+                                                                             if (date != null) {
+                                         setState(() => startDate = date);
+                                       }
                                     },
                                   ),
                                 ),
@@ -883,9 +1712,9 @@ class _ActivityPageState extends State<ActivityPage> {
                                           );
                                         },
                                       );
-                                      if (date != null) {
-                                        setState(() => endDate = date);
-                                      }
+                                                                             if (date != null) {
+                                         setState(() => endDate = date);
+                                       }
                                     },
                                   ),
                                 ),

@@ -26,7 +26,7 @@ const createActivityLog = async (userId, type, title, description, metadata = {}
 exports.getUserActivities = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { page = 1, limit = 20, type, startDate, endDate } = req.query;
+    const { page = 1, limit = 20, type, startDate, endDate, search } = req.query;
     
     // Build query
     const query = { user: userId };
@@ -39,6 +39,18 @@ exports.getUserActivities = async (req, res) => {
       query.createdAt = {};
       if (startDate) query.createdAt.$gte = new Date(startDate);
       if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+    
+    // Add search functionality
+    if (search && search.trim()) {
+      const searchRegex = new RegExp(search.trim(), 'i');
+      query.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { 'metadata.description': searchRegex },
+        { 'metadata.otherParty': searchRegex },
+        { 'metadata.clearedBy': searchRegex }
+      ];
     }
     
     // Calculate pagination
@@ -386,6 +398,32 @@ exports.logProfileActivity = async (userId, type, metadata = {}) => {
   }
   
   return await createActivityLog(userId, type, activityData.title, activityData.description, metadata);
+};
+
+// Delete a specific activity
+exports.deleteActivity = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { activityId } = req.params;
+    
+    // Find the activity and ensure it belongs to the user
+    const activity = await Activity.findOne({ _id: activityId, user: userId });
+    
+    if (!activity) {
+      return res.status(404).json({ error: 'Activity not found or you do not have permission to delete it' });
+    }
+    
+    // Delete the activity
+    await Activity.findByIdAndDelete(activityId);
+    
+    res.json({ 
+      message: 'Activity deleted successfully',
+      deletedActivityId: activityId
+    });
+  } catch (error) {
+    console.error('Error deleting activity:', error);
+    res.status(500).json({ error: 'Failed to delete activity' });
+  }
 };
 
 // Delete old activities (cleanup function)

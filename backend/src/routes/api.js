@@ -103,6 +103,7 @@ router.post('/group-transactions/:groupId/send-leave-request', auth, groupTransa
 // Activity routes
 router.get('/activities', auth, activityController.getUserActivities);
 router.get('/activities/stats', auth, activityController.getActivityStats);
+router.delete('/activities/:activityId', auth, activityController.deleteActivity);
 router.delete('/activities/cleanup', auth, activityController.cleanupOldActivities);
 
 // Group Chat routes
