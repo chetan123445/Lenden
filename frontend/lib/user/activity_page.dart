@@ -606,11 +606,7 @@ class _ActivityPageState extends State<ActivityPage> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF667eea), Color(0xFF764ba2)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: const Color(0xFF00B4D8),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -717,28 +713,27 @@ class _ActivityPageState extends State<ActivityPage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withOpacity(0.2)),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
       ),
       child: Column(
         children: [
-          Icon(icon, color: Colors.white, size: 20),
+          Icon(icon, color: Colors.black, size: 20),
           const SizedBox(height: 4),
           Text(
             value,
             style: const TextStyle(
-              color: Colors.white,
+              color: Colors.black,
               fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
-            overflow: TextOverflow.ellipsis,
           ),
           Text(
             title,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.grey[700],
               fontSize: 10,
             ),
             textAlign: TextAlign.center,
@@ -753,14 +748,15 @@ class _ActivityPageState extends State<ActivityPage> {
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
       ),
       child: Row(
         children: [
           Icon(
             _getActivityIcon(type),
-            color: Colors.white,
+            color: Colors.black,
             size: 16,
           ),
           const SizedBox(width: 8),
@@ -768,7 +764,7 @@ class _ActivityPageState extends State<ActivityPage> {
             child: Text(
               _getActivityTypeDisplayName(type),
               style: const TextStyle(
-                color: Colors.white,
+                color: Colors.black,
                 fontSize: 12,
               ),
             ),
@@ -776,7 +772,7 @@ class _ActivityPageState extends State<ActivityPage> {
           Text(
             '$count',
             style: const TextStyle(
-              color: Colors.white,
+              color: Colors.black,
               fontSize: 12,
               fontWeight: FontWeight.bold,
             ),
@@ -996,7 +992,13 @@ class _ActivityPageState extends State<ActivityPage> {
     
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: _getActivityColor(type).withOpacity(0.3),
+          width: 1.5,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -1008,6 +1010,10 @@ class _ActivityPageState extends State<ActivityPage> {
               decoration: BoxDecoration(
                 color: _getActivityColor(type).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _getActivityColor(type).withOpacity(0.2),
+                  width: 1,
+                ),
               ),
               child: Icon(
                 _getActivityIcon(type),
@@ -1039,6 +1045,10 @@ class _ActivityPageState extends State<ActivityPage> {
                           decoration: BoxDecoration(
                             color: Colors.green.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.green.withOpacity(0.3),
+                              width: 1,
+                            ),
                           ),
                           child: Text(
                             '$currency$amount',
