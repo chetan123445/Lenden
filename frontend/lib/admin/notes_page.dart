@@ -239,54 +239,91 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          decoration: InputDecoration(
-                            hintText: 'Search by title...',
-                            prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
-                            filled: true,
-                            fillColor: Colors.white,
-                            contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
-                            ),
-                          ),
-                          onChanged: filterNotes,
+                  // Search Bar
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(25),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      DropdownButton<String>(
-                        value: sortBy,
-                        borderRadius: BorderRadius.circular(16),
-                        style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                        underline: Container(),
-                        items: const [
-                          DropdownMenuItem(value: 'created_desc', child: Text('Newest')),
-                          DropdownMenuItem(value: 'created_asc', child: Text('Oldest')),
-                          DropdownMenuItem(value: 'updated_desc', child: Text('Recently Updated')),
-                          DropdownMenuItem(value: 'updated_asc', child: Text('Least Updated')),
-                          DropdownMenuItem(value: 'title_az', child: Text('Title A-Z')),
-                          DropdownMenuItem(value: 'title_za', child: Text('Title Z-A')),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              sortBy = val;
-                              sortNotes();
-                            });
-                          }
-                        },
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search,
+                          color: Colors.grey[600],
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            onChanged: filterNotes,
+                            decoration: InputDecoration(
+                              hintText: 'Search by title...',
+                              hintStyle: TextStyle(color: Colors.grey[400]),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                            ),
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ),
+                        if (searchQuery.isNotEmpty)
+                          IconButton(
+                            icon: Icon(Icons.clear, color: Colors.grey[600], size: 20),
+                            onPressed: () => filterNotes(''),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Filter Dropdown
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Color(0xFF00B4D8), width: 2),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: DropdownButton<String>(
+                          value: sortBy,
+                          borderRadius: BorderRadius.circular(16),
+                          style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                          underline: Container(),
+                          items: const [
+                            DropdownMenuItem(value: 'created_desc', child: Text('Newest')),
+                            DropdownMenuItem(value: 'created_asc', child: Text('Oldest')),
+                            DropdownMenuItem(value: 'updated_desc', child: Text('Recently Updated')),
+                            DropdownMenuItem(value: 'updated_asc', child: Text('Least Updated')),
+                            DropdownMenuItem(value: 'title_az', child: Text('Title A-Z')),
+                            DropdownMenuItem(value: 'title_za', child: Text('Title Z-A')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                sortBy = val;
+                                sortNotes();
+                              });
+                            }
+                          },
+                        ),
                       ),
                     ],
                   ),
