@@ -21,11 +21,17 @@ function isPasswordValid(password) {
 // Register user with OTP
 exports.register = async (req, res) => {
   try {
-    let { name, username, email, password, gender } = req.body;
+    let { name, username, email, password, gender, rating } = req.body;
     email = email.trim().toLowerCase();
     if (!name || !username || !email || !password || !gender || !['Male', 'Female', 'Other'].includes(gender)) {
       return res.status(400).json({ error: 'All fields including gender are required and must be valid.' });
     }
+    
+    // Validate rating (optional, default to 0)
+    if (rating !== undefined && (rating < 0 || rating > 5)) {
+      return res.status(400).json({ error: 'Rating must be between 0 and 5.' });
+    }
+    
     // Check if user/email/username exists in users or admins
     const userExists = await User.findOne({ $or: [{ username }, { email }] });
     const adminExists = await Admin.findOne({ $or: [{ username }, { email }] });
@@ -38,7 +44,7 @@ exports.register = async (req, res) => {
     }
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore[email] = { otp, data: { name, username, password, email, gender }, created: Date.now() };
+    otpStore[email] = { otp, data: { name, username, password, email, gender, rating: rating || 0 }, created: Date.now() };
     await sendRegistrationOTP(email, otp);
     res.status(200).json({ message: 'OTP sent to email' });
   } catch (err) {
@@ -81,7 +87,7 @@ exports.verifyOtp = async (req, res) => {
       return res.status(400).json({ error: 'Invalid OTP' });
     }
     // Register user
-    const { name, username, password, gender } = entry.data;
+    const { name, username, password, gender, rating } = entry.data;
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({
       name,
@@ -89,6 +95,8 @@ exports.verifyOtp = async (req, res) => {
       email,
       password: hashedPassword,
       gender,
+      rating,
+      memberSince: new Date(), // Set member since date
     });
     await newUser.save();
     delete otpStore[email];
@@ -98,7 +106,7 @@ exports.verifyOtp = async (req, res) => {
   }
 };
 
-// Login user
+// Login user or admin
 exports.login = async (req, res) => {
   try {
     let { username, password } = req.body;
@@ -106,47 +114,83 @@ exports.login = async (req, res) => {
     console.log('📝 Request body:', req.body);
     
     if (username && username.includes('@')) username = username.trim().toLowerCase();
-    console.log('🔍 Searching for user with username or email:', username);
+    console.log('🔍 Searching for user or admin with username or email:', username);
     
+    // Search in both User and Admin tables
     const user = await User.findOne({ $or: [{ username }, { email: username }] });
+    const admin = await Admin.findOne({ $or: [{ username }, { email: username }] });
     
     console.log('👤 User found:', !!user);
+    console.log('👨‍💼 Admin found:', !!admin);
+    
     if (user) {
       console.log('👤 User details:', { id: user._id, username: user.username, email: user.email });
     }
+    if (admin) {
+      console.log('👨‍💼 Admin details:', { id: admin._id, username: admin.username, email: admin.email });
+    }
     
-    if (!user) {
-      console.log('❌ User not found for:', username);
+    if (!user && !admin) {
+      console.log('❌ User/Admin not found for:', username);
       return res.status(404).json({ error: 'User not found' });
     }
     
-    console.log('🔑 Comparing passwords...');
-    console.log('🔑 Input password length:', password.length);
-    console.log('🔑 Stored password hash length:', user.password.length);
-    const match = await bcrypt.compare(password, user.password);
-    console.log('🔑 Password match:', match);
-    
-    if (!match) {
-      console.log('❌ Incorrect password for user:', username);
-      return res.status(401).json({ error: 'Incorrect password' });
+    // Check if it's a user
+    if (user) {
+      console.log('🔑 Comparing passwords for user...');
+      console.log('🔑 Input password length:', password.length);
+      console.log('🔑 Stored password hash length:', user.password.length);
+      const match = await bcrypt.compare(password, user.password);
+      console.log('🔑 Password match:', match);
+      
+      if (!match) {
+        console.log('❌ Incorrect password for user:', username);
+        return res.status(401).json({ error: 'Incorrect password' });
+      }
+      
+      // Generate JWT for user
+      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
+      const token = jwt.sign({ _id: user._id, email: user.email, role: 'user' }, jwtSecret, { expiresIn: '7d' });
+      console.log('✅ Login successful for user:', username);
+      console.log('🎫 Token generated successfully');
+      
+      // Log login activity
+      try {
+        await logProfileActivity(user._id, 'login', {
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent')
+        });
+      } catch (e) {
+        console.error('Failed to log login activity:', e);
+      }
+      
+      res.json({ message: 'Login successful', user, token });
+      return;
     }
     
-    // Generate JWT
-    const token = jwt.sign({ _id: user._id, email: user.email, role: 'user' }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    console.log('✅ Login successful for user:', username);
-    console.log('🎫 Token generated successfully');
-    
-    // Log login activity
-    try {
-      await logProfileActivity(user._id, 'login', {
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
-      });
-    } catch (e) {
-      console.error('Failed to log login activity:', e);
+    // Check if it's an admin
+    if (admin) {
+      console.log('🔑 Comparing passwords for admin...');
+      console.log('🔑 Input password length:', password.length);
+      console.log('🔑 Stored password hash length:', admin.password.length);
+      const match = await bcrypt.compare(password, admin.password);
+      console.log('🔑 Password match:', match);
+      
+      if (!match) {
+        console.log('❌ Incorrect password for admin:', username);
+        return res.status(401).json({ error: 'Incorrect password' });
+      }
+      
+      // Generate JWT for admin
+      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
+      const token = jwt.sign({ _id: admin._id, email: admin.email, role: 'admin' }, jwtSecret, { expiresIn: '7d' });
+      console.log('✅ Login successful for admin:', username);
+      console.log('🎫 Token generated successfully');
+      
+      res.json({ message: 'Login successful', admin, token });
+      return;
     }
     
-    res.json({ message: 'Login successful', user, token });
   } catch (err) {
     console.error('❌ Login error:', err.message);
     console.error('❌ Full error:', err);
@@ -282,7 +326,8 @@ exports.verifyLoginOtp = async (req, res) => {
       console.log('✅ User found in database:', { id: user._id, name: user.name, email: user.email });
       
       // Generate JWT token for user
-      const token = jwt.sign({ _id: user._id, email: user.email, role: 'user' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
+      const token = jwt.sign({ _id: user._id, email: user.email, role: 'user' }, jwtSecret, { expiresIn: '7d' });
       console.log('✅ OTP login successful for user:', email);
       console.log('🎫 User token generated successfully');
       console.log('🎫 Token length:', token.length);
@@ -299,7 +344,8 @@ exports.verifyLoginOtp = async (req, res) => {
       console.log('✅ Admin found in database:', { id: admin._id, name: admin.name, email: admin.email });
       
       // Generate JWT token for admin
-      const token = jwt.sign({ _id: admin._id, email: admin.email, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
+      const token = jwt.sign({ _id: admin._id, email: admin.email, role: 'admin' }, jwtSecret, { expiresIn: '7d' });
       console.log('✅ OTP login successful for admin:', email);
       console.log('🎫 Admin token generated successfully');
       console.log('🎫 Token length:', token.length);

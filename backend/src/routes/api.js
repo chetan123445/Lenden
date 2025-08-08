@@ -18,6 +18,7 @@ const groupChatController = require('../controllers/groupChatController');
 const noteController = require('../controllers/noteController');
 const groupTransactionController = require('../controllers/groupTransactionController');
 const activityController = require('../controllers/activityController');
+const settingsController = require('../controllers/settingsController');
 
 // User routes
 router.post('/users/register', userController.register);
@@ -38,9 +39,57 @@ router.put('/users/me', auth, upload.single('profileImage'), editProfileControll
 router.get('/users/:id/profile-image', profileController.getUserProfileImage);
 router.get('/users/profile-by-email', profileController.getUserProfileByEmail);
 
-// Admin routes
+// Admin routes (only register, login is now unified)
 router.post('/admins/register', adminController.register);
-router.post('/admins/login', adminController.login);
+// Test endpoint to create a simple admin (for testing only)
+router.post('/admins/create-test', async (req, res) => {
+  try {
+    const Admin = require('../models/admin');
+    const bcrypt = require('bcryptjs');
+    
+    // Check if test admin already exists
+    const existingAdmin = await Admin.findOne({ email: 'admin@test.com' });
+    if (existingAdmin) {
+      return res.json({
+        success: true,
+        message: 'Test admin already exists',
+        admin: {
+          email: 'admin@test.com',
+          username: 'admin',
+          password: 'Admin123!'
+        }
+      });
+    }
+    
+    // Create test admin
+    const hashedPassword = await bcrypt.hash('Admin123!', 10);
+    const admin = new Admin({
+      name: 'Test Admin',
+      username: 'admin',
+      email: 'admin@test.com',
+      password: hashedPassword,
+      gender: 'Other'
+    });
+    
+    await admin.save();
+    
+    res.json({
+      success: true,
+      message: 'Test admin created successfully',
+      admin: {
+        email: 'admin@test.com',
+        username: 'admin',
+        password: 'Admin123!'
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create test admin',
+      error: error.message
+    });
+  }
+});
 router.get('/admins/me', auth, profileController.getAdminProfile);
 router.put('/admins/me', auth, upload.single('profileImage'), editProfileController.updateAdminProfile);
 // Serve admin profile image
@@ -113,5 +162,53 @@ router.patch('/group-transactions/:groupTransactionId/chat/:messageId/react', au
 router.patch('/group-transactions/:groupTransactionId/chat/:messageId/read', auth, groupChatController.readGroupMessage);
 router.delete('/group-transactions/:groupTransactionId/chat/:messageId', auth, groupChatController.deleteGroupMessage);
 
+// Settings routes
+// Change Password
+router.post('/users/change-password', auth, settingsController.changePassword);
+
+// Alternative Email
+router.post('/users/alternative-email/send-otp', auth, settingsController.sendAlternativeEmailOTP);
+router.post('/users/alternative-email/verify-otp', auth, settingsController.verifyAlternativeEmailOTP);
+router.put('/users/alternative-email', auth, settingsController.updateAlternativeEmail);
+router.delete('/users/alternative-email', auth, settingsController.removeAlternativeEmail);
+
+// Notification Settings
+router.get('/users/notification-settings', auth, settingsController.getNotificationSettings);
+router.put('/users/notification-settings', auth, settingsController.updateNotificationSettings);
+
+// Privacy Settings
+router.get('/users/privacy-settings', auth, settingsController.getPrivacySettings);
+router.put('/users/privacy-settings', auth, settingsController.updatePrivacySettings);
+
+// Account Information
+router.put('/users/account-information', auth, settingsController.updateAccountInformation);
+
+// Data Management
+router.get('/users/download-data', auth, settingsController.downloadUserData);
+router.delete('/users/delete-account', auth, settingsController.deleteAccount);
+
+// Admin routes
+// User Management
+router.get('/admin/users', auth, adminController.getAllUsers);
+router.get('/admin/users/:userId/details', auth, adminController.getUserDetails);
+router.patch('/admin/users/:userId/status', auth, adminController.updateUserStatus);
+router.put('/admin/users/:userId', auth, adminController.updateUser);
+router.delete('/admin/users/:userId', auth, adminController.deleteUser);
+
+// System Settings
+router.get('/admin/system-settings', auth, adminController.getSystemSettings);
+router.put('/admin/system-settings', auth, adminController.updateSystemSettings);
+
+// Analytics Settings
+router.get('/admin/analytics-settings', auth, adminController.getAnalyticsSettings);
+router.put('/admin/analytics-settings', auth, adminController.updateAnalyticsSettings);
+
+// Security Settings
+router.get('/admin/security-settings', auth, adminController.getSecuritySettings);
+router.put('/admin/security-settings', auth, adminController.updateSecuritySettings);
+
+// Notification Settings
+router.get('/admin/notification-settings', auth, adminController.getNotificationSettings);
+router.put('/admin/notification-settings', auth, adminController.updateNotificationSettings);
 
 module.exports = router;

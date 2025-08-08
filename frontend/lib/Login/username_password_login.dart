@@ -10,80 +10,49 @@ class UsernamePasswordLogin {
     required BuildContext context,
   }) async {
     try {
-      final userRes = await _loginUser(username: username, password: password);
-      final adminRes = await _loginAdmin(username: username, password: password);
-      
-      if (userRes['success']) {
-        return {
-          'success': true,
-          'userOrAdmin': userRes['data'],
-          'userType': 'user',
-          'token': userRes['token'],
-        };
-      } else if (adminRes['success']) {
-        return {
-          'success': true,
-          'userOrAdmin': adminRes['data'],
-          'userType': 'admin',
-          'token': adminRes['token'],
-        };
-      } else {
-        String? error;
-        if (userRes['error'] != null && userRes['error'] != 'User not found') {
-          error = userRes['error'];
-        } else if (adminRes['error'] != null && adminRes['error'] != 'User not found') {
-          error = adminRes['error'];
-        } else {
-          error = 'User not found';
-        }
-        return {'success': false, 'error': error};
-      }
+      final result = await _loginUserOrAdmin(username: username, password: password);
+      return result;
     } catch (e) {
       return {'success': false, 'error': 'Login failed. Please try again.'};
     }
   }
 
-  static Future<Map<String, dynamic>> _loginAdmin({String? email, String? username, required String password}) async {
+  static Future<Map<String, dynamic>> _loginUserOrAdmin({String? username, required String password}) async {
     try {
-      print('🔐 Attempting admin login for username: $username');
-      final res = await _post('/api/admins/login', {
-        if (email != null) 'username': email,
-        if (username != null) 'username': username,
-        'password': password,
-      });
-      print('📥 Admin login response status: ${res['status']}');
-      print('📥 Admin login response data: ${res['data']}');
-      
-      if (res['status'] == 200 && res['data']['admin'] != null) {
-        print('✅ Admin login successful');
-        return {'success': true, 'data': res['data']['admin'], 'token': res['data']['token']};
-      }
-      print('❌ Admin login failed: ${res['data']['error']}');
-      return {'success': false, 'error': res['data']['error']};
-    } catch (e) {
-      print('❌ Admin login exception: $e');
-      return {'success': false, 'error': e.toString()};
-    }
-  }
-
-  static Future<Map<String, dynamic>> _loginUser({String? username, required String password, bool isEmail = false}) async {
-    try {
-      print('🔐 Attempting user login for username: $username');
+      print('🔐 Attempting login for username: $username');
       final res = await _post('/api/users/login', {
         'username': username,
         'password': password,
       });
-      print('📥 User login response status: ${res['status']}');
-      print('📥 User login response data: ${res['data']}');
+      print('📥 Login response status: ${res['status']}');
+      print('📥 Login response data: ${res['data']}');
       
-      if (res['status'] == 200 && res['data']['user'] != null) {
-        print('✅ User login successful');
-        return {'success': true, 'data': res['data']['user'], 'token': res['data']['token']};
+      if (res['status'] == 200) {
+        // Check if it's a user login
+        if (res['data']['user'] != null) {
+          print('✅ User login successful');
+          return {
+            'success': true, 
+            'data': res['data']['user'], 
+            'token': res['data']['token'],
+            'userType': 'user'
+          };
+        }
+        // Check if it's an admin login
+        else if (res['data']['admin'] != null) {
+          print('✅ Admin login successful');
+          return {
+            'success': true, 
+            'data': res['data']['admin'], 
+            'token': res['data']['token'],
+            'userType': 'admin'
+          };
+        }
       }
-      print('❌ User login failed: ${res['data']['error']}');
+      print('❌ Login failed: ${res['data']['error']}');
       return {'success': false, 'error': res['data']['error']};
     } catch (e) {
-      print('❌ User login exception: $e');
+      print('❌ Login exception: $e');
       return {'success': false, 'error': e.toString()};
     }
   }

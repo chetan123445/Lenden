@@ -29,6 +29,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
   int _otpSecondsLeft = 0;
   String _registerOtp = '';
   String? _selectedGender;
+  double _rating = 0.0;
 
   // Uniqueness check state
   bool _isUsernameUnique = true;
@@ -97,6 +98,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
       'email': _emailController.text,
       'password': _passwordController.text,
       'gender': _selectedGender,
+      'rating': _rating,
     });
     if (res['status'] == 200) {
       setState(() { _otpSent = true; _isLoading = false; _otpSecondsLeft = 120; });
@@ -415,6 +417,70 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                         ],
                         onChanged: (val) => setState(() => _selectedGender = val),
                         validator: (val) => val == null ? 'Please select gender' : null,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    // Rating Field
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(left: 16, top: 16, bottom: 8),
+                            child: Text(
+                              'Rate yourself (optional)',
+                              style: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(5, (index) {
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _rating = index + 1.0;
+                                  });
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  child: Icon(
+                                    index < _rating.floor() 
+                                        ? Icons.star 
+                                        : (index < _rating ? Icons.star_half : Icons.star_border),
+                                    color: Colors.amber,
+                                    size: 32,
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                          const SizedBox(height: 8),
+                          Center(
+                            child: Text(
+                              '${_rating.toStringAsFixed(1)}/5',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 18),

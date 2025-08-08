@@ -197,6 +197,18 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                                 child: const Text('Edit profile', style: TextStyle(fontSize: 18, color: Colors.white)),
                               ),
+                              const SizedBox(height: 16),
+                              OutlinedButton(
+                                onPressed: () {
+                                  Navigator.pushNamed(context, '/settings');
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: Color(0xFF00B4D8), width: 2),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                ),
+                                child: const Text('Settings', style: TextStyle(fontSize: 18, color: Color(0xFF00B4D8))),
+                              ),
                             ],
                           ),
                         ),

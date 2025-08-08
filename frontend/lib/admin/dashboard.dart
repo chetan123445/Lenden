@@ -93,9 +93,13 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 leading: Icon(Icons.dashboard),
                 title: Text('Dashboard'),
               ),
-              const ListTile(
-                leading: Icon(Icons.settings),
-                title: Text('Settings'),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('Settings'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.pushNamed(context, '/admin/settings');
+                },
               ),
               ListTile(
                 leading: Icon(Icons.note),

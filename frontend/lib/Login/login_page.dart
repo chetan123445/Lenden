@@ -78,7 +78,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
         );
         
         if (result['success']) {
-          userOrAdmin = result['userOrAdmin'];
+          userOrAdmin = result['data'];
           userType = result['userType'];
           token = result['token'];
         } else {

@@ -149,9 +149,13 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 leading: Icon(Icons.dashboard),
                 title: Text('Dashboard'),
               ),
-              const ListTile(
-                leading: Icon(Icons.settings),
-                title: Text('Settings'),
+              ListTile(
+                leading: const Icon(Icons.settings),
+                title: const Text('Settings'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.pushNamed(context, '/settings');
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.list_alt),

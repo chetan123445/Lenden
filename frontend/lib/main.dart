@@ -7,6 +7,9 @@ import 'user/dashboard.dart';
 import 'admin/dashboard.dart';
 import 'profile/profile_page.dart';
 import 'user/session.dart';
+import 'settings/settings_page.dart';
+import 'settings/admin_settings_page.dart';
+import 'admin/manage_and_track_users/user_management_page.dart';
 
 void main() {
   runApp(
@@ -79,6 +82,9 @@ class MyApp extends StatelessWidget {
         '/user/dashboard': (context) => const UserDashboardPage(),
         '/admin/dashboard': (context) => const AdminDashboardPage(),
         '/profile': (context) => const ProfilePage(),
+        '/settings': (context) => const SettingsPage(),
+        '/admin/settings': (context) => const AdminSettingsPage(),
+        '/admin/manage-users': (context) => const UserManagementPage(),
       },
     );
   }

@@ -720,7 +720,6 @@ exports.editExpense = async (req, res) => {
     console.log('req.user object:', req.user);
     console.log('req.user.email:', req.user.email);
     console.log('req.user._id:', req.user._id);
-    console.log('req.user.id:', req.user.id);
     
     // If email is not in token, fetch it from database
     if (!userEmail) {
