@@ -195,6 +195,11 @@ router.patch('/admin/users/:userId/status', auth, adminController.updateUserStat
 router.put('/admin/users/:userId', auth, adminController.updateUser);
 router.delete('/admin/users/:userId', auth, adminController.deleteUser);
 
+// Admin Management routes
+router.get('/admin/admins', auth, adminController.getAllAdmins);
+router.post('/admin/admins', auth, adminController.addAdmin);
+router.delete('/admin/admins/:adminId', auth, adminController.removeAdmin);
+
 // System Settings
 router.get('/admin/system-settings', auth, adminController.getSystemSettings);
 router.put('/admin/system-settings', auth, adminController.updateSystemSettings);

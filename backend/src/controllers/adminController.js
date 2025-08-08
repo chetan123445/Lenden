@@ -2,6 +2,7 @@ const User = require('../models/user');
 const Admin = require('../models/admin');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { sendAdminWelcomeEmail, sendAdminRemovalEmail } = require('../utils/adminEmailNotifications');
 
 // Admin registration
 const register = async (req, res) => {
@@ -496,6 +497,151 @@ const updateNotificationSettings = async (req, res) => {
   }
 };
 
+// Get all admins
+const getAllAdmins = async (req, res) => {
+  try {
+    const admins = await Admin.find({}, '-password');
+    res.json({
+      success: true,
+      admins
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch admins'
+    });
+  }
+};
+
+function isPasswordValid(password) {
+  const lengthValid = password.length >= 8 && password.length <= 30;
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+  return lengthValid && hasUpper && hasLower && hasSpecial;
+}
+
+// Add new admin
+const addAdmin = async (req, res) => {
+  try {
+    const { username, email, password, name, gender } = req.body;
+
+    // Password validation
+    if (!isPasswordValid(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be 8-30 characters and include uppercase, lowercase, and special character'
+      });
+    }
+
+    // Check in Admin collection
+    const existingAdmin = await Admin.findOne({ 
+      $or: [{ email }, { username }]
+    });
+
+    if (existingAdmin) {
+      return res.status(400).json({
+        success: false,
+        message: existingAdmin.email === email ? 
+          'Email already registered as an admin' : 
+          'Username already taken by an admin'
+      });
+    }
+
+    // Check in User collection
+    const existingUser = await User.findOne({
+      $or: [{ email }, { username }]
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: existingUser.email === email ? 
+          'Email already registered as a user' : 
+          'Username already taken by a user'
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const admin = new Admin({
+      username,
+      email,
+      password: hashedPassword,
+      name,
+      gender: gender || 'Other',
+      isSuperAdmin: false
+    });
+
+    await admin.save();
+
+    // Send welcome email with credentials
+    await sendAdminWelcomeEmail(email, {
+      name,
+      username,
+      email,
+      password: password
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Admin added successfully and welcome email sent',
+      admin: {
+        id: admin._id,
+        username: admin.username,
+        email: admin.email,
+        name: admin.name
+      }
+    });
+  } catch (error) {
+    console.error('Error adding admin:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to add admin'
+    });
+  }
+};
+
+// Remove admin
+const removeAdmin = async (req, res) => {
+  try {
+    const { adminId } = req.params;
+    
+    const adminToRemove = await Admin.findById(adminId);
+    
+    if (!adminToRemove) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin not found'
+      });
+    }
+
+    // Check if trying to remove protected admin
+    if (adminToRemove.isProtectedAdmin()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot remove protected admin account'
+      });
+    }
+
+    // Send removal notification email before deleting
+    await sendAdminRemovalEmail(adminToRemove.email, adminToRemove.name);
+    
+    await Admin.findByIdAndDelete(adminId);
+
+    res.json({
+      success: true,
+      message: 'Admin removed successfully and notification email sent'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove admin'
+    });
+  }
+};
+
 module.exports = {
   register,
   getAllUsers,
@@ -510,5 +656,8 @@ module.exports = {
   getSecuritySettings,
   updateSecuritySettings,
   getNotificationSettings,
-  updateNotificationSettings
-}; 
+  updateNotificationSettings,
+  getAllAdmins,
+  addAdmin,
+  removeAdmin,
+};

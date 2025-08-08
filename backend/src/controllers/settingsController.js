@@ -1,7 +1,7 @@
 const User = require('../models/user');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { sendAlternativeEmailOTP } = require('../utils/alternativeEmailOtp');
+const { sendAlternativeEmailOTP: sendEmail } = require('../utils/alternativeEmailOtp');
 
 // Change Password
 const changePassword = async (req, res) => {
@@ -80,8 +80,8 @@ const sendAlternativeEmailOTP = async (req, res) => {
     };
     await user.save();
 
-    // Send OTP email
-    await sendAlternativeEmailOTP(altEmail, otp, user.name);
+    // Send OTP email using the utility function
+    await sendEmail(altEmail, otp, user.name);
 
     res.json({ 
       message: 'OTP sent successfully to alternative email',
@@ -474,4 +474,4 @@ module.exports = {
   updateAccountInformation,
   downloadUserData,
   deleteAccount,
-}; 
+};

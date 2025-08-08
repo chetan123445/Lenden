@@ -5,6 +5,7 @@ import 'admin_system_settings_page.dart';
 import 'admin_analytics_settings_page.dart';
 import 'admin_security_settings_page.dart';
 import 'admin_notification_settings_page.dart';
+import 'admin_management_page.dart';
 
 class AdminSettingsPage extends StatefulWidget {
   const AdminSettingsPage({super.key});
@@ -23,7 +24,7 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
   @override
   Widget build(BuildContext context) {
     final session = Provider.of<SessionProvider>(context);
-    
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FA),
       appBar: AppBar(
@@ -77,7 +78,10 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                                     fit: BoxFit.cover,
                                     errorBuilder: (context, error, stackTrace) {
                                       return Text(
-                                        (session.user?['name'] as String?)?.substring(0, 1).toUpperCase() ?? 'A',
+                                        (session.user?['name'] as String?)
+                                                ?.substring(0, 1)
+                                                .toUpperCase() ??
+                                            'A',
                                         style: const TextStyle(
                                           fontSize: 24,
                                           fontWeight: FontWeight.bold,
@@ -94,7 +98,10 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                                   ),
                           )
                         : Text(
-                            (session.user?['name'] as String?)?.substring(0, 1).toUpperCase() ?? 'A',
+                            (session.user?['name'] as String?)
+                                    ?.substring(0, 1)
+                                    .toUpperCase() ??
+                                'A',
                             style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
@@ -128,7 +135,8 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Colors.red.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
@@ -156,9 +164,9 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // System Management Section
             _buildSettingsSection(
               context,
@@ -200,7 +208,8 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const AdminAnalyticsSettingsPage(),
+                        builder: (context) =>
+                            const AdminAnalyticsSettingsPage(),
                       ),
                     ).then((_) => setState(() {}));
                   },
@@ -208,9 +217,36 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
+            // Admin Management Section
+            _buildSettingsSection(
+              context,
+              'Admin Management',
+              [
+                _buildSettingsTile(
+                  context,
+                  'Manage Admins',
+                  Icons.admin_panel_settings,
+                  Icons.arrow_forward_ios,
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AdminManagementPage(),
+                      ),
+                    );
+                  },
+                  subtitle: 'Add or remove admin accounts',
+                  showStatus: true,
+                  isActive: true,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
             // Security & Access Section
             _buildSettingsSection(
               context,
@@ -240,7 +276,8 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const AdminNotificationSettingsPage(),
+                        builder: (context) =>
+                            const AdminNotificationSettingsPage(),
                       ),
                     ).then((_) => setState(() {}));
                   },
@@ -261,9 +298,9 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Data Management Section
             _buildSettingsSection(
               context,
@@ -277,7 +314,8 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                   () {
                     // TODO: Implement backup and restore
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Backup & Restore coming soon!')),
+                      const SnackBar(
+                          content: Text('Backup & Restore coming soon!')),
                     );
                   },
                   subtitle: 'Manage system backups and data restoration',
@@ -303,16 +341,17 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                   () {
                     // TODO: Implement system maintenance
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('System Maintenance coming soon!')),
+                      const SnackBar(
+                          content: Text('System Maintenance coming soon!')),
                     );
                   },
                   subtitle: 'Perform system maintenance tasks',
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 24),
-            
+
             // Logout Button
             SizedBox(
               width: double.infinity,
@@ -343,7 +382,8 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
     );
   }
 
-  Widget _buildSettingsSection(BuildContext context, String title, List<Widget> children) {
+  Widget _buildSettingsSection(
+      BuildContext context, String title, List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -466,7 +506,8 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
             ),
             ElevatedButton(
               onPressed: () {
-                final session = Provider.of<SessionProvider>(context, listen: false);
+                final session =
+                    Provider.of<SessionProvider>(context, listen: false);
                 session.logout();
                 Navigator.of(context).pop();
                 Navigator.of(context).pushReplacementNamed('/');
@@ -487,4 +528,4 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
       },
     );
   }
-} 
+}

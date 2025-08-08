@@ -19,7 +19,16 @@ const adminSchema = new mongoose.Schema({
   phone: { type: String },
   altEmail: { type: String },
   profileImage: { type: Buffer }, // Store image as binary
+  isSuperAdmin: { 
+    type: Boolean, 
+    default: false 
+  },
 }, { timestamps: true });
+
+// Add method to check if admin is protected
+adminSchema.methods.isProtectedAdmin = function() {
+  return this.email === 'chetandudi791@gmail.com';
+};
 
 adminSchema.index({ email: 1 });
 adminSchema.index({ username: 1 });
@@ -50,4 +59,4 @@ adminSchema.statics.createDefaultAdmin = async function() {
   }
 };
 
-module.exports = mongoose.model('Admin', adminSchema); 
+module.exports = mongoose.model('Admin', adminSchema);
