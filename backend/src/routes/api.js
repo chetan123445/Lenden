@@ -196,7 +196,7 @@ router.put('/admin/users/:userId', auth, adminController.updateUser);
 router.delete('/admin/users/:userId', auth, adminController.deleteUser);
 
 // Admin Management routes
-router.get('/admin/admins', auth, adminController.getAllAdmins);
+router.get('/admin/admins', auth, adminController.getAllAdmins); // This route now supports ?search=query
 router.post('/admin/admins', auth, adminController.addAdmin);
 router.delete('/admin/admins/:adminId', auth, adminController.removeAdmin);
 

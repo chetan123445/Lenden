@@ -4,6 +4,7 @@ import '../user/session.dart';
 import '../api_config.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'dart:math';
 
 class AdminManagementPage extends StatefulWidget {
   const AdminManagementPage({Key? key}) : super(key: key);
@@ -41,13 +42,24 @@ class TopWaveClipper extends CustomClipper<Path> {
 class _AdminManagementPageState extends State<AdminManagementPage> {
   List<dynamic> admins = [];
   bool isLoading = true;
-  String?
-      adminBeingRemoved; // Add this variable to track which admin is being removed
+  String? adminBeingRemoved;
+  bool showAllAdmins = false; // Add this line
+
+  final TextEditingController _searchController = TextEditingController();
+  List<dynamic> filteredAdmins = [];
+  bool isSearchMode = false;
 
   @override
   void initState() {
     super.initState();
     fetchAdmins();
+    _searchController.addListener(_filterAdmins);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> fetchAdmins() async {
@@ -65,6 +77,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
         final data = json.decode(response.body);
         setState(() {
           admins = data['admins'];
+          filteredAdmins = data['admins']; // Initialize filteredAdmins
           isLoading = false;
         });
       }
@@ -598,6 +611,29 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
     );
   }
 
+  void _filterAdmins() {
+    if (_searchController.text.isEmpty) {
+      setState(() {
+        filteredAdmins = admins;
+        isSearchMode = false;
+      });
+      return;
+    }
+
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      isSearchMode = true;
+      filteredAdmins = admins.where((admin) {
+        final email = admin['email'].toString().toLowerCase();
+        final username = admin['username'].toString().toLowerCase();
+        final name = admin['name'].toString().toLowerCase();
+        return email.contains(query) ||
+            username.contains(query) ||
+            name.contains(query);
+      }).toList();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -651,11 +687,28 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                 ),
               ),
 
+              // Add search bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search admins...',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                ),
+              ),
+              SizedBox(height: 10),
+
               // Admin list container with margin from wave
               Expanded(
                 child: Container(
-                  margin:
-                      EdgeInsets.only(top: 20), // Space between wave and list
+                  margin: EdgeInsets.only(top: 20),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius:
@@ -673,167 +726,259 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                         BorderRadius.vertical(top: Radius.circular(30)),
                     child: isLoading
                         ? Center(child: CircularProgressIndicator())
-                        : ListView.builder(
-                            padding: EdgeInsets.fromLTRB(16, 24, 16, 16),
-                            itemCount: admins.length,
-                            itemBuilder: (context, index) {
-                              final admin = admins[index];
-                              final isProtected =
-                                  admin['email'] == 'chetandudi791@gmail.com';
-
-                              return Container(
-                                margin: EdgeInsets.only(bottom: 16),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: Color(0xFF00B4D8).withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.03),
-                                      blurRadius: 10,
-                                      spreadRadius: 0,
-                                      offset: Offset(0, 2),
+                        : admins.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.people_outline,
+                                      size: 64,
+                                      color: Colors.grey[400],
+                                    ),
+                                    SizedBox(height: 16),
+                                    Text(
+                                      'No admins found',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.grey[600],
+                                      ),
                                     ),
                                   ],
                                 ),
-                                child: Stack(
-                                  children: [
-                                    if (isProtected)
-                                      Positioned(
-                                        top: 8,
-                                        right: 8,
-                                        child: Container(
-                                          padding: EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 4),
+                              )
+                            : Column(
+                                children: [
+                                  Expanded(
+                                    child: ListView.builder(
+                                      padding:
+                                          EdgeInsets.fromLTRB(16, 24, 16, 16),
+                                      itemCount: isSearchMode
+                                          ? filteredAdmins.length
+                                          : (showAllAdmins
+                                              ? admins.length
+                                              : min(3, admins.length)),
+                                      itemBuilder: (context, index) {
+                                        final admin = isSearchMode
+                                            ? filteredAdmins[index]
+                                            : admins[index];
+                                        final isProtected = admin['email'] ==
+                                            'chetandudi791@gmail.com';
+
+                                        return Container(
+                                          margin: EdgeInsets.only(bottom: 16),
                                           decoration: BoxDecoration(
-                                            color: Colors.grey.shade200,
+                                            color: Colors.white,
                                             borderRadius:
-                                                BorderRadius.circular(20),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.verified_user,
-                                                  size: 16,
-                                                  color: Colors.grey.shade700),
-                                              SizedBox(width: 4),
-                                              Text(
-                                                'Protected',
-                                                style: TextStyle(
-                                                  color: Colors.grey.shade700,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
+                                                BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: Color(0xFF00B4D8)
+                                                  .withOpacity(0.2),
+                                              width: 1,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black
+                                                    .withOpacity(0.03),
+                                                blurRadius: 10,
+                                                spreadRadius: 0,
+                                                offset: Offset(0, 2),
                                               ),
                                             ],
                                           ),
-                                        ),
-                                      ),
-                                    Padding(
-                                      padding: EdgeInsets.all(16),
-                                      child: Row(
-                                        children: [
-                                          CircleAvatar(
-                                            radius: 30,
-                                            backgroundColor: Color(0xFF00B4D8),
-                                            child: Text(
-                                              admin['name'][0].toUpperCase(),
-                                              style: TextStyle(
-                                                fontSize: 24,
-                                                color: Colors.white,
-                                                fontWeight: FontWeight.bold,
+                                          child: Stack(
+                                            children: [
+                                              if (isProtected)
+                                                Positioned(
+                                                  top: 8,
+                                                  right: 8,
+                                                  child: Container(
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                            horizontal: 12,
+                                                            vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          Colors.grey.shade200,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              20),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        Icon(
+                                                            Icons.verified_user,
+                                                            size: 16,
+                                                            color: Colors
+                                                                .grey.shade700),
+                                                        SizedBox(width: 4),
+                                                        Text(
+                                                          'Protected',
+                                                          style: TextStyle(
+                                                            color: Colors
+                                                                .grey.shade700,
+                                                            fontSize: 12,
+                                                            fontWeight:
+                                                                FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              Padding(
+                                                padding: EdgeInsets.all(16),
+                                                child: Row(
+                                                  children: [
+                                                    CircleAvatar(
+                                                      radius: 30,
+                                                      backgroundColor:
+                                                          Color(0xFF00B4D8),
+                                                      child: Text(
+                                                        admin['name'][0]
+                                                            .toUpperCase(),
+                                                        style: TextStyle(
+                                                          fontSize: 24,
+                                                          color: Colors.white,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    SizedBox(width: 16),
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            admin['name'],
+                                                            style: TextStyle(
+                                                              fontSize: 18,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                            ),
+                                                          ),
+                                                          SizedBox(height: 4),
+                                                          Text(
+                                                            admin['email'],
+                                                            style: TextStyle(
+                                                              color: Colors.grey
+                                                                  .shade600,
+                                                            ),
+                                                          ),
+                                                          Text(
+                                                            '@${admin['username']}',
+                                                            style: TextStyle(
+                                                              color: Colors.grey
+                                                                  .shade500,
+                                                              fontSize: 13,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    if (!isProtected)
+                                                      IconButton(
+                                                        icon: Icon(
+                                                            Icons
+                                                                .delete_outline,
+                                                            color: Colors.red),
+                                                        onPressed: () =>
+                                                            _showDeleteConfirmation(
+                                                                admin),
+                                                      ),
+                                                  ],
+                                                ),
                                               ),
-                                            ),
+                                              // Add loading overlay when this admin is being removed
+                                              if (adminBeingRemoved ==
+                                                  admin['_id'])
+                                                Positioned.fill(
+                                                  child: Container(
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white
+                                                          .withOpacity(0.7),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              16),
+                                                    ),
+                                                    child: Center(
+                                                      child: Column(
+                                                        mainAxisSize:
+                                                            MainAxisSize.min,
+                                                        children: [
+                                                          SizedBox(
+                                                            width: 24,
+                                                            height: 24,
+                                                            child:
+                                                                CircularProgressIndicator(
+                                                              strokeWidth: 2,
+                                                              valueColor:
+                                                                  AlwaysStoppedAnimation<
+                                                                          Color>(
+                                                                      Color(
+                                                                          0xFF00B4D8)),
+                                                            ),
+                                                          ),
+                                                          SizedBox(height: 8),
+                                                          Text(
+                                                            'Removing admin...',
+                                                            style: TextStyle(
+                                                              color: Color(
+                                                                  0xFF00B4D8),
+                                                              fontSize: 12,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w500,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
                                           ),
-                                          SizedBox(width: 16),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  admin['name'],
-                                                  style: TextStyle(
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                                SizedBox(height: 4),
-                                                Text(
-                                                  admin['email'],
-                                                  style: TextStyle(
-                                                    color: Colors.grey.shade600,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  '@${admin['username']}',
-                                                  style: TextStyle(
-                                                    color: Colors.grey.shade500,
-                                                    fontSize: 13,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  if (!isSearchMode &&
+                                      admins.length > 3 &&
+                                      !showAllAdmins)
+                                    Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: ElevatedButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            showAllAdmins = true;
+                                          });
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Color(0xFF00B4D8),
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: 30, vertical: 15),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(30),
                                           ),
-                                          if (!isProtected)
-                                            IconButton(
-                                              icon: Icon(Icons.delete_outline,
-                                                  color: Colors.red),
-                                              onPressed: () =>
-                                                  _showDeleteConfirmation(
-                                                      admin),
-                                            ),
-                                        ],
+                                        ),
+                                        child: Text(
+                                          'View All Admins',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                    // Add loading overlay when this admin is being removed
-                                    if (adminBeingRemoved == admin['_id'])
-                                      Positioned.fill(
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color:
-                                                Colors.white.withOpacity(0.7),
-                                            borderRadius:
-                                                BorderRadius.circular(16),
-                                          ),
-                                          child: Center(
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                SizedBox(
-                                                  width: 24,
-                                                  height: 24,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                    valueColor:
-                                                        AlwaysStoppedAnimation<
-                                                                Color>(
-                                                            Color(0xFF00B4D8)),
-                                                  ),
-                                                ),
-                                                SizedBox(height: 8),
-                                                Text(
-                                                  'Removing admin...',
-                                                  style: TextStyle(
-                                                    color: Color(0xFF00B4D8),
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
+                                ],
+                              ),
                   ),
                 ),
               ),
@@ -841,11 +986,29 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: addAdmin,
-        icon: Icon(Icons.person_add),
-        label: Text('Add Admin'),
-        backgroundColor: Color(0xFF00B4D8),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'viewAll',
+            onPressed: () {
+              _searchController.clear();
+              FocusScope.of(context).unfocus();
+              fetchAdmins();
+            },
+            backgroundColor: Color(0xFF48CAE4),
+            child: Icon(Icons.people_outline),
+            mini: true,
+          ),
+          SizedBox(height: 8),
+          FloatingActionButton.extended(
+            heroTag: 'addAdmin',
+            onPressed: addAdmin,
+            icon: Icon(Icons.person_add),
+            label: Text('Add Admin'),
+            backgroundColor: Color(0xFF00B4D8),
+          ),
+        ],
       ),
     );
   }

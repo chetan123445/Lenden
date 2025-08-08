@@ -500,12 +500,28 @@ const updateNotificationSettings = async (req, res) => {
 // Get all admins
 const getAllAdmins = async (req, res) => {
   try {
-    const admins = await Admin.find({}, '-password');
+    const { search } = req.query;
+    let query = {};
+
+    if (search) {
+      query = {
+        $or: [
+          { email: { $regex: search, $options: 'i' } },
+          { username: { $regex: search, $options: 'i' } },
+          { name: { $regex: search, $options: 'i' } }
+        ]
+      };
+    }
+
+    const admins = await Admin.find(query, '-password').sort({ createdAt: -1 });
+    
     res.json({
       success: true,
-      admins
+      admins,
+      total: admins.length
     });
   } catch (error) {
+    console.error('Error fetching admins:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch admins'
