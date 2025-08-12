@@ -9,7 +9,8 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class ManageSupportQueriesPage extends StatefulWidget {
   @override
-  _ManageSupportQueriesPageState createState() => _ManageSupportQueriesPageState();
+  _ManageSupportQueriesPageState createState() =>
+      _ManageSupportQueriesPageState();
 }
 
 class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
@@ -18,6 +19,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
   bool _isLoading = true;
   String? _error;
   IO.Socket? socket;
+  String _searchTerm = ''; // Add search term
 
   @override
   void initState() {
@@ -61,26 +63,44 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
       socket?.onConnectError((err) => print('Socket Connect Error: $err'));
       socket?.onError((err) => print('Socket Error: $err'));
 
+      socket?.on('support_query_created', (data) {
+        print('Received support_query_created: $data');
+        setState(() {
+          _queries.insert(0, data);
+          _queries.sort((a, b) => DateTime.parse(b['createdAt'])
+              .compareTo(DateTime.parse(a['createdAt'])));
+        });
+        _showStylishSnackBar('New query created!', Colors.green);
+      });
+
       socket?.on('support_query_updated', (data) {
         print('Received support_query_updated: $data');
-        // Find the updated query and replace it, or add if new
         final updatedQuery = data;
         setState(() {
-          int index = _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
+          int index =
+              _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
           if (index != -1) {
             _queries[index] = updatedQuery;
           } else {
-            // This case might happen if a new query is created by a user
             _queries.add(updatedQuery);
           }
-          // Sort to maintain order
-          _queries.sort((a, b) => DateTime.parse(b['createdAt']).compareTo(DateTime.parse(a['createdAt'])));
+          _queries.sort((a, b) => DateTime.parse(b['createdAt'])
+              .compareTo(DateTime.parse(a['createdAt'])));
         });
+        _showStylishSnackBar('Query updated!', Colors.orange);
+      });
+
+      socket?.on('support_query_deleted', (data) {
+        print('Received support_query_deleted: $data');
+        final deletedQueryId = data['queryId'];
+        setState(() {
+          _queries.removeWhere((q) => q['_id'] == deletedQueryId);
+        });
+        _showStylishSnackBar('Query deleted!', Colors.red);
       });
 
       // Optionally, join a room for admin-specific updates if needed
       // socket?.emit('join_admin_room', {'adminId': session.user?['_id']});
-
     } catch (e) {
       print('Error connecting to socket: $e');
     }
@@ -104,7 +124,8 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     }
 
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}/api/admin/support/queries').replace(
+      final uri =
+          Uri.parse('${ApiConfig.baseUrl}/api/admin/support/queries').replace(
         queryParameters: searchTerm != null && searchTerm.isNotEmpty
             ? {'searchTerm': searchTerm}
             : null,
@@ -139,7 +160,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
 
   Future<void> _replyToQuery(String queryId, String replyText) async {
     if (replyText.isEmpty) {
-      _showSnackBar('Reply cannot be empty.');
+      _showStylishSnackBar('Reply cannot be empty.', Colors.red);
       return;
     }
 
@@ -147,13 +168,14 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     final token = session.token;
 
     if (token == null) {
-      _showSnackBar('Authentication token not found.');
+      _showStylishSnackBar('Authentication token not found.', Colors.red);
       return;
     }
 
     try {
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/reply'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/reply'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -162,26 +184,29 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
       );
 
       if (response.statusCode == 200) {
-        _showSnackBar('Reply added successfully!');
+        _showStylishSnackBar('Reply added successfully!', Colors.green);
         final updatedQuery = jsonDecode(response.body);
         setState(() {
-          int index = _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
+          int index =
+              _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
           if (index != -1) {
             _queries[index] = updatedQuery;
           }
         });
       } else {
         final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to add reply.');
+        _showStylishSnackBar(
+            data['error'] ?? 'Failed to add reply.', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('An error occurred: $e');
+      _showStylishSnackBar('An error occurred: $e', Colors.red);
     }
   }
 
-  Future<void> _editReply(String queryId, String replyId, String newReplyText) async {
+  Future<void> _editReply(
+      String queryId, String replyId, String newReplyText) async {
     if (newReplyText.isEmpty) {
-      _showSnackBar('Reply cannot be empty.');
+      _showStylishSnackBar('Reply cannot be empty.', Colors.red);
       return;
     }
 
@@ -189,13 +214,14 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     final token = session.token;
 
     if (token == null) {
-      _showSnackBar('Authentication token not found.');
+      _showStylishSnackBar('Authentication token not found.', Colors.red);
       return;
     }
 
     try {
       final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/replies/$replyId'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/replies/$replyId'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -204,20 +230,22 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
       );
 
       if (response.statusCode == 200) {
-        _showSnackBar('Reply updated successfully!');
+        _showStylishSnackBar('Reply updated successfully!', Colors.green);
         final updatedQuery = jsonDecode(response.body);
         setState(() {
-          int index = _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
+          int index =
+              _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
           if (index != -1) {
             _queries[index] = updatedQuery;
           }
         });
       } else {
         final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to update reply.');
+        _showStylishSnackBar(
+            data['error'] ?? 'Failed to update reply.', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('An error occurred: $e');
+      _showStylishSnackBar('An error occurred: $e', Colors.red);
     }
   }
 
@@ -226,33 +254,36 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     final token = session.token;
 
     if (token == null) {
-      _showSnackBar('Authentication token not found.');
+      _showStylishSnackBar('Authentication token not found.', Colors.red);
       return;
     }
 
     try {
       final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/replies/$replyId'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/replies/$replyId'),
         headers: {
           'Authorization': 'Bearer $token',
         },
       );
 
       if (response.statusCode == 200) {
-        _showSnackBar('Reply deleted successfully!');
+        _showStylishSnackBar('Reply deleted successfully!', Colors.green);
         final updatedQuery = jsonDecode(response.body);
         setState(() {
-          int index = _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
+          int index =
+              _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
           if (index != -1) {
             _queries[index] = updatedQuery;
           }
         });
       } else {
         final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to delete reply.');
+        _showStylishSnackBar(
+            data['error'] ?? 'Failed to delete reply.', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('An error occurred: $e');
+      _showStylishSnackBar('An error occurred: $e', Colors.red);
     }
   }
 
@@ -261,13 +292,14 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     final token = session.token;
 
     if (token == null) {
-      _showSnackBar('Authentication token not found.');
+      _showStylishSnackBar('Authentication token not found.', Colors.red);
       return;
     }
 
     try {
       final response = await http.patch(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/status'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/status'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -276,26 +308,43 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
       );
 
       if (response.statusCode == 200) {
-        _showSnackBar('Query status updated successfully!');
+        _showStylishSnackBar(
+            'Query status updated successfully!', Colors.green);
         final updatedQuery = jsonDecode(response.body);
         setState(() {
-          int index = _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
+          int index =
+              _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
           if (index != -1) {
             _queries[index] = updatedQuery;
           }
         });
       } else {
         final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to update status.');
+        _showStylishSnackBar(
+            data['error'] ?? 'Failed to update status.', Colors.red);
       }
     } catch (e) {
-      _showSnackBar('An error occurred: $e');
+      _showStylishSnackBar('An error occurred: $e', Colors.red);
     }
   }
 
-  void _showSnackBar(String message) {
+  void _showStylishSnackBar(String message, Color color) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.info_outline, color: color),
+            SizedBox(width: 12),
+            Expanded(
+                child: Text(message,
+                    style: TextStyle(fontWeight: FontWeight.bold))),
+          ],
+        ),
+        backgroundColor: color.withOpacity(0.15),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        duration: Duration(seconds: 2),
+      ),
     );
   }
 
@@ -306,49 +355,97 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Filter queries by search term if present
+    List<dynamic> filteredQueries = _searchTerm.isEmpty
+        ? _queries
+        : _queries
+            .where((q) => (q['topic'] ?? '')
+                .toString()
+                .toLowerCase()
+                .contains(_searchTerm.toLowerCase()))
+            .toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Manage Support Queries'),
         backgroundColor: Color(0xFF00B4D8),
         foregroundColor: Colors.white,
+        elevation: 2,
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: 'Search by Topic',
-                suffixIcon: IconButton(
-                  icon: Icon(Icons.search),
-                  onPressed: () {
-                    _fetchAllQueries(searchTerm: _searchController.text);
-                  },
+      body: Container(
+        color: Color(0xFFF6FBFF),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  labelText: 'Search by Topic',
+                  prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  filled: true,
+                  fillColor: Colors.white,
+                  suffixIcon: _searchTerm.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              _searchTerm = '';
+                              _searchController.clear();
+                            });
+                          },
+                        )
+                      : null,
                 ),
-                border: OutlineInputBorder(),
+                onChanged: (value) {
+                  setState(() {
+                    _searchTerm = value;
+                  });
+                },
               ),
-              onSubmitted: (value) {
-                _fetchAllQueries(searchTerm: value);
-              },
             ),
-          ),
-          Expanded(
-            child: _isLoading
-                ? Center(child: CircularProgressIndicator())
-                : _error != null
-                    ? Center(child: Text(_error!, style: TextStyle(color: Colors.red)))
-                    : _queries.isEmpty
-                        ? Center(child: Text('No support queries found.'))
-                        : ListView.builder(
-                            itemCount: _queries.length,
-                            itemBuilder: (context, index) {
-                              final query = _queries[index];
-                              return _buildQueryCard(query);
-                            },
-                          ),
-          ),
-        ],
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.support_agent, color: Color(0xFF00B4D8)),
+                  SizedBox(width: 8),
+                  Text(
+                    'All Support Queries',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Color(0xFF0077B5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 8),
+            Expanded(
+              child: _isLoading
+                  ? Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Text(_error!,
+                              style: TextStyle(color: Colors.red)))
+                      : filteredQueries.isEmpty
+                          ? Center(child: Text('No support queries found.'))
+                          : ListView.builder(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              itemCount: filteredQueries.length,
+                              itemBuilder: (context, index) {
+                                final query = filteredQueries[index];
+                                return _buildQueryCard(query);
+                              },
+                            ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -370,25 +467,32 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
 
   Widget _buildQueryCard(Map<String, dynamic> query) {
     return Card(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 4,
+      margin: EdgeInsets.symmetric(vertical: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: 6,
+      color: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  query['topic'],
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0077B5)),
+                Icon(Icons.question_answer, color: Color(0xFF00B4D8)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    query['topic'],
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0077B5)),
+                  ),
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(query['status']).withOpacity(0.1),
+                    color: _getStatusColor(query['status']).withOpacity(0.12),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -396,27 +500,39 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
                     style: TextStyle(
                       color: _getStatusColor(query['status']),
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 13,
                     ),
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 8),
-            Text(
-              'User: ${query['user']?['email'] ?? query['user']?['username'] ?? 'Unknown'}',
-              style: TextStyle(color: Colors.grey[700]),
+            SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.person, size: 18, color: Colors.grey[700]),
+                SizedBox(width: 6),
+                Text(
+                  'User: ${query['user']?['email'] ?? query['user']?['username'] ?? 'Unknown'}',
+                  style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                ),
+              ],
             ),
-            SizedBox(height: 8),
+            SizedBox(height: 10),
             Text(query['description'], style: TextStyle(fontSize: 16)),
-            SizedBox(height: 8),
-            Text(
-              'Submitted: ${_formatDateTime(query['createdAt'])}',
-              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+                SizedBox(width: 4),
+                Text(
+                  'Submitted: ${_formatDateTime(query['createdAt'])}',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                ),
+              ],
             ),
             if (query['replies'] != null && query['replies'].isNotEmpty)
               _buildReplies(query['replies']),
-            SizedBox(height: 16),
+            SizedBox(height: 18),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -434,14 +550,21 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
                       child: Text(value.toUpperCase()),
                     );
                   }).toList(),
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, color: Color(0xFF0077B5)),
+                  dropdownColor: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                SizedBox(width: 8),
-                ElevatedButton(
+                SizedBox(width: 10),
+                ElevatedButton.icon(
                   onPressed: () => _showReplyDialog(query['_id']),
-                  child: Text('Reply'),
+                  icon: Icon(Icons.reply, size: 18),
+                  label: Text('Reply'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFF00B4D8),
                     foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
               ],
@@ -454,33 +577,47 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
 
   Widget _buildReplies(List<dynamic> replies) {
     return Padding(
-      padding: const EdgeInsets.only(top: 16.0),
+      padding: const EdgeInsets.only(top: 18.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Replies:',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87),
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Color(0xFF00B4D8)),
           ),
-          SizedBox(height: 8),
+          SizedBox(height: 10),
           ...replies.map<Widget>((reply) {
             return Container(
-              margin: EdgeInsets.only(bottom: 8),
-              padding: EdgeInsets.all(12),
+              margin: EdgeInsets.only(bottom: 10),
+              padding: EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: Colors.blue[50],
+                border: Border.all(color: Color(0xFF00B4D8), width: 1),
                 borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                  bottomRight: Radius.circular(12),
+                  topLeft: Radius.circular(14),
+                  topRight: Radius.circular(14),
+                  bottomRight: Radius.circular(14),
                 ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Admin: ${reply['admin']?['email'] ?? 'Unknown'}',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF0077B5)),
+                  Row(
+                    children: [
+                      Icon(Icons.admin_panel_settings,
+                          size: 16, color: Color(0xFF0077B5)),
+                      SizedBox(width: 4),
+                      Text(
+                        'Admin: ${reply['admin']?['email'] ?? 'Unknown'}',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: Color(0xFF0077B5)),
+                      ),
+                    ],
                   ),
                   SizedBox(height: 4),
                   Text(
@@ -488,20 +625,33 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
                     style: TextStyle(fontSize: 15, color: Colors.black87),
                   ),
                   SizedBox(height: 4),
-                  Text(
-                    'Replied: ${_formatDateTime(reply['timestamp'])}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time,
+                          size: 13, color: Colors.grey[600]),
+                      SizedBox(width: 3),
+                      Text(
+                        'Replied: ${_formatDateTime(reply['timestamp'])}',
+                        style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                      ),
+                    ],
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       IconButton(
-                        icon: Icon(Icons.edit, size: 18, color: Color(0xFF0077B5)),
-                        onPressed: () => _showEditReplyDialog(reply['queryId'], reply['_id'], reply['replyText']),
+                        icon: Icon(Icons.edit,
+                            size: 18, color: Color(0xFF0077B5)),
+                        onPressed: () => _showEditReplyDialog(
+                            reply['queryId'], reply['_id'], reply['replyText']),
+                        tooltip: 'Edit Reply',
                       ),
                       IconButton(
-                        icon: Icon(Icons.delete, size: 18, color: Colors.red[700]),
-                        onPressed: () => _deleteReply(reply['queryId'], reply['_id']),
+                        icon: Icon(Icons.delete,
+                            size: 18, color: Colors.red[700]),
+                        onPressed: () =>
+                            _deleteReply(reply['queryId'], reply['_id']),
+                        tooltip: 'Delete Reply',
                       ),
                     ],
                   ),
@@ -518,54 +668,120 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     final TextEditingController replyController = TextEditingController();
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Add Reply'),
-        content: TextField(
-          controller: replyController,
-          decoration: InputDecoration(labelText: 'Your Reply'),
-          maxLines: 3,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        backgroundColor: Colors.white,
+        child: Container(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Add Reply',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: Color(0xFF00B4D8))),
+              SizedBox(height: 16),
+              TextField(
+                controller: replyController,
+                decoration: InputDecoration(
+                  labelText: 'Your Reply',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: Icon(Icons.reply, color: Color(0xFF00B4D8)),
+                ),
+                maxLines: 3,
+              ),
+              SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel'),
+                  ),
+                  SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    icon: Icon(Icons.send, color: Colors.white),
+                    label: Text('Send Reply'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF00B4D8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () {
+                      _replyToQuery(queryId, replyController.text);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _replyToQuery(queryId, replyController.text);
-              Navigator.of(context).pop();
-            },
-            child: Text('Send Reply'),
-          ),
-        ],
       ),
     );
   }
 
-  void _showEditReplyDialog(String queryId, String replyId, String currentReplyText) {
-    final TextEditingController editReplyController = TextEditingController(text: currentReplyText);
+  void _showEditReplyDialog(
+      String queryId, String replyId, String currentReplyText) {
+    final TextEditingController editReplyController =
+        TextEditingController(text: currentReplyText);
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Edit Reply'),
-        content: TextField(
-          controller: editReplyController,
-          decoration: InputDecoration(labelText: 'Edit Your Reply'),
-          maxLines: 3,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        backgroundColor: Colors.white,
+        child: Container(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Edit Reply',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: Color(0xFF00B4D8))),
+              SizedBox(height: 16),
+              TextField(
+                controller: editReplyController,
+                decoration: InputDecoration(
+                  labelText: 'Edit Your Reply',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                ),
+                maxLines: 3,
+              ),
+              SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel'),
+                  ),
+                  SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    icon: Icon(Icons.save, color: Colors.white),
+                    label: Text('Save Changes'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF00B4D8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () {
+                      _editReply(queryId, replyId, editReplyController.text);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              _editReply(queryId, replyId, editReplyController.text);
-              Navigator.of(context).pop();
-            },
-            child: Text('Save Changes'),
-          ),
-        ],
       ),
     );
   }

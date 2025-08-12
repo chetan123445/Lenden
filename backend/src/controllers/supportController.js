@@ -3,10 +3,21 @@ const Activity = require('../models/activity');
 const User = require('../models/user');
 const Admin = require('../models/admin');
 
+// Helper: Delete queries older than 7 days
+const deleteOldQueries = async () => {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const oldQueries = await SupportQuery.find({ createdAt: { $lt: sevenDaysAgo } });
+  for (const query of oldQueries) {
+    await query.deleteOne();
+    io.emit('support_query_deleted', { queryId: query._id });
+  }
+};
+
 module.exports = (io) => {
   // User creates a new support query
   const createSupportQuery = async (req, res) => {
     try {
+      await deleteOldQueries();
       const { topic, description } = req.body;
       const userId = req.user._id; // Assuming user ID is available from auth middleware
 
@@ -45,6 +56,7 @@ module.exports = (io) => {
   // User views their own support queries
   const getUserSupportQueries = async (req, res) => {
     try {
+      await deleteOldQueries();
       const userId = req.user._id;
       const queries = await SupportQuery.find({ user: userId }).sort({ createdAt: -1 });
       console.log('Backend: getUserSupportQueries - Success', queries.length, 'queries found');
@@ -58,6 +70,7 @@ module.exports = (io) => {
   // User updates their own support query (only if no admin reply yet)
   const updateSupportQuery = async (req, res) => {
     try {
+      await deleteOldQueries();
       const { queryId } = req.params;
       const { topic, description } = req.body;
       const userId = req.user._id;
@@ -105,6 +118,7 @@ module.exports = (io) => {
   // Admin views all support queries
   const getAllSupportQueries = async (req, res) => {
     try {
+      await deleteOldQueries();
       const { searchTerm } = req.query; // Search by topic
       let query = {};
 
