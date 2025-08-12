@@ -58,7 +58,7 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/api', apiRoutes);
+app.use('/api', apiRoutes(io));
 
 // Root route handler
 app.get('/', (req, res) => {

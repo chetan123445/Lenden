@@ -17,6 +17,8 @@ import '../Transaction/group_transaction_page.dart';
 import '../Transaction/view_group_transactions_page.dart';
 import '../profile/profile_page.dart';
 import 'activity_page.dart';
+import 'help_support_page.dart';
+
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -179,6 +181,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 onTap: () {
                   Navigator.of(context).pop();
                   Navigator.push(context, MaterialPageRoute(builder: (_) => NotesPage()));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.help_center), // New icon
+                title: const Text('Help & Support'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => HelpSupportPage()));
                 },
               ),
               ListTile(

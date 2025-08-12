@@ -37,7 +37,11 @@ const activitySchema = new mongoose.Schema({
       
       // Other activities
       'login',
-      'logout'
+      'logout',
+      'support_query_created',
+      'support_query_updated',
+      'support_query_deleted',
+      'support_query_replied'
     ],
     required: true
   },

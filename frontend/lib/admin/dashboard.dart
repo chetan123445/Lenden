@@ -7,6 +7,44 @@ import 'manage_transactions_page.dart';
 import 'manage_and_track_users/user_management_page.dart';
 import 'manage_group_transactions_page.dart';
 import 'track_user_activity_page.dart';
+import 'manage_support_queries_page.dart';
+
+
+
+class DashboardBottomWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.moveTo(0, 0);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6, size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+    return path;
+  }
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+class LogoutDialogWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.moveTo(0, 0);
+    path.lineTo(size.width, 0);
+    path.lineTo(size.width, size.height);
+    
+    // Create wavy effect
+    path.quadraticBezierTo(size.width * 0.75, size.height * 0.8, size.width * 0.5, size.height);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.8, 0, size.height);
+    path.close();
+    return path;
+  }
+  
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -114,6 +152,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.help_center), // New icon
+                title: const Text('Help & Support'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => ManageSupportQueriesPage()));
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.logout),
                 title: const Text('Logout'),
                 onTap: () => _confirmLogout(context),
@@ -192,7 +238,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               left: 0,
               right: 0,
               child: ClipPath(
-                clipper: BottomWaveClipper(),
+                clipper: DashboardBottomWaveClipper(),
                 child: Container(
                   height: 90,
                   color: const Color(0xFF00B4D8),
@@ -339,7 +385,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   ),
                 ),
                 child: ClipPath(
-                  clipper: LogoutWaveClipper(),
+                  clipper: LogoutDialogWaveClipper(),
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
