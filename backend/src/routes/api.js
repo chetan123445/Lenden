@@ -20,6 +20,14 @@ const groupTransactionController = require('../controllers/groupTransactionContr
 const activityController = require('../controllers/activityController');
 const settingsController = require('../controllers/settingsController');
 
+// Middleware to check for admin role
+const isAdmin = (req, res, next) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Access denied. Admins only.' });
+  }
+  next();
+};
+
 // User routes
 router.post('/users/register', userController.register);
 router.post('/users/verify-otp', userController.verifyOtp);
@@ -189,31 +197,47 @@ router.delete('/users/delete-account', auth, settingsController.deleteAccount);
 
 // Admin routes
 // User Management
-router.get('/admin/users', auth, adminController.getAllUsers);
-router.get('/admin/users/:userId/details', auth, adminController.getUserDetails);
-router.patch('/admin/users/:userId/status', auth, adminController.updateUserStatus);
-router.put('/admin/users/:userId', auth, adminController.updateUser);
-router.delete('/admin/users/:userId', auth, adminController.deleteUser);
+router.get('/admin/users', auth, isAdmin, adminController.getAllUsers);
+router.get('/admin/users/:userId/details', auth, isAdmin, adminController.getUserDetails);
+router.patch('/admin/users/:userId/status', auth, isAdmin, adminController.updateUserStatus);
+router.put('/admin/users/:userId', auth, isAdmin, adminController.updateUser);
+router.delete('/admin/users/:userId', auth, isAdmin, adminController.deleteUser);
+
+// Transaction Management (Admin)
+router.get('/admin/transactions', auth, isAdmin, adminController.getAllTransactions);
+router.put('/admin/transactions/:transactionId', auth, isAdmin, adminController.updateTransaction);
+router.delete('/admin/transactions/:transactionId', auth, isAdmin, adminController.deleteTransaction);
+
+// Group Transaction Management (Admin)
+router.get('/admin/group-transactions', auth, isAdmin, adminController.getAllGroupTransactions);
+router.put('/admin/group-transactions/:groupId', auth, isAdmin, adminController.updateGroupTransaction);
+router.delete('/admin/group-transactions/:groupId', auth, isAdmin, adminController.deleteGroupTransaction);
+router.post('/admin/group-transactions/:groupId/members', auth, isAdmin, adminController.addMemberToGroup);
+router.delete('/admin/group-transactions/:groupId/members/:memberId', auth, isAdmin, adminController.removeMemberFromGroup);
+router.post('/admin/group-transactions/:groupId/expenses', auth, isAdmin, adminController.addExpenseToGroup);
+router.put('/admin/group-transactions/:groupId/expenses/:expenseId', auth, isAdmin, adminController.updateExpenseInGroup);
+router.delete('/admin/group-transactions/:groupId/expenses/:expenseId', auth, isAdmin, adminController.deleteExpenseFromGroup);
+router.post('/admin/group-transactions/:groupId/expenses/:expenseId/settle', auth, isAdmin, adminController.settleExpenseSplitsInGroup);
 
 // Admin Management routes
-router.get('/admin/admins', auth, adminController.getAllAdmins); // This route now supports ?search=query
-router.post('/admin/admins', auth, adminController.addAdmin);
-router.delete('/admin/admins/:adminId', auth, adminController.removeAdmin);
+router.get('/admin/admins', auth, isAdmin, adminController.getAllAdmins); // This route now supports ?search=query
+router.post('/admin/admins', auth, isAdmin, adminController.addAdmin);
+router.delete('/admin/admins/:adminId', auth, isAdmin, adminController.removeAdmin);
 
 // System Settings
-router.get('/admin/system-settings', auth, adminController.getSystemSettings);
-router.put('/admin/system-settings', auth, adminController.updateSystemSettings);
+router.get('/admin/system-settings', auth, isAdmin, adminController.getSystemSettings);
+router.put('/admin/system-settings', auth, isAdmin, adminController.updateSystemSettings);
 
 // Analytics Settings
-router.get('/admin/analytics-settings', auth, adminController.getAnalyticsSettings);
-router.put('/admin/analytics-settings', auth, adminController.updateAnalyticsSettings);
+router.get('/admin/analytics-settings', auth, isAdmin, adminController.getAnalyticsSettings);
+router.put('/admin/analytics-settings', auth, isAdmin, adminController.updateAnalyticsSettings);
 
 // Security Settings
-router.get('/admin/security-settings', auth, adminController.getSecuritySettings);
-router.put('/admin/security-settings', auth, adminController.updateSecuritySettings);
+router.get('/admin/security-settings', auth, isAdmin, adminController.getSecuritySettings);
+router.put('/admin/security-settings', auth, isAdmin, adminController.updateSecuritySettings);
 
 // Notification Settings
-router.get('/admin/notification-settings', auth, adminController.getNotificationSettings);
-router.put('/admin/notification-settings', auth, adminController.updateNotificationSettings);
+router.get('/admin/notification-settings', auth, isAdmin, adminController.getNotificationSettings);
+router.put('/admin/notification-settings', auth, isAdmin, adminController.updateNotificationSettings);
 
 module.exports = router;

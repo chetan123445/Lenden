@@ -10,6 +10,8 @@ import 'user/session.dart';
 import 'settings/settings_page.dart';
 import 'settings/admin_settings_page.dart';
 import 'admin/manage_and_track_users/user_management_page.dart';
+import 'admin/manage_transactions_page.dart';
+import 'admin/manage_group_transactions_page.dart';
 
 void main() {
   runApp(
@@ -85,6 +87,8 @@ class MyApp extends StatelessWidget {
         '/settings': (context) => const SettingsPage(),
         '/admin/settings': (context) => const AdminSettingsPage(),
         '/admin/manage-users': (context) => const UserManagementPage(),
+        '/admin/manage-transactions': (context) => ManageTransactionsPage(),
+        '/admin/manage-group-transactions': (context) => ManageGroupTransactionsPage(),
       },
     );
   }
@@ -207,10 +211,12 @@ class HomePage extends StatelessWidget {
                       if (session.token != null && session.user != null) {
                         if (session.isAdmin) {
                           Navigator.pushReplacementNamed(context, '/admin/dashboard');
-                        } else {
+                        }
+                        else {
                           Navigator.pushReplacementNamed(context, '/user/dashboard');
                         }
-                      } else {
+                      }
+                      else {
                         Navigator.pushNamed(context, '/login');
                       }
                     },
@@ -253,6 +259,22 @@ class TopWaveClipper extends CustomClipper<Path> {
     path.quadraticBezierTo(size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
     path.quadraticBezierTo(size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
     path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+class BottomWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.moveTo(0, 0);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6, size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
     path.close();
     return path;
   }

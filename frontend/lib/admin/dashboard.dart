@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:lenden_frontend/user/session.dart';
 import 'notes_page.dart';
 import '../profile/profile_page.dart';
+import 'manage_transactions_page.dart';
+import 'manage_and_track_users/user_management_page.dart';
+import 'manage_group_transactions_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -122,17 +125,43 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           children: [
             // Main content area
             SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: const [
-                    SizedBox(height: 100),
-                    Text('Admin Dashboard', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black), textAlign: TextAlign.center),
-                    SizedBox(height: 16),
-                    Text('Welcome to your dashboard!', style: TextStyle(fontSize: 18, color: Colors.grey), textAlign: TextAlign.center),
-                  ],
-                ),
+              child: GridView.count(
+                crossAxisCount: 2,
+                padding: const EdgeInsets.fromLTRB(16.0, 80.0, 16.0, 16.0),
+                children: [
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.people,
+                    label: 'Manage Users',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementPage()));
+                    },
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.receipt,
+                    label: 'Manage Transactions',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => ManageTransactionsPage()));
+                    },
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.note,
+                    label: 'Notes',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminNotesPage()));
+                    },
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.group,
+                    label: 'Manage Groups',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => ManageGroupTransactionsPage()));
+                    },
+                  ),
+                ],
               ),
             ),
             // Top blue shape (background)
@@ -247,6 +276,23 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardCard(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap}) {
+    return Card(
+      elevation: 4.0,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 48.0),
+            const SizedBox(height: 8.0),
+            Text(label, textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -459,4 +505,4 @@ class LogoutWaveClipper extends CustomClipper<Path> {
   
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-} 
+}
