@@ -6,6 +6,7 @@ import '../profile/profile_page.dart';
 import 'manage_transactions_page.dart';
 import 'manage_and_track_users/user_management_page.dart';
 import 'manage_group_transactions_page.dart';
+import 'track_user_activity_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -159,6 +160,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     label: 'Manage Groups',
                     onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => ManageGroupTransactionsPage()));
+                    },
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.track_changes,
+                    label: 'Track User Activity',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => TrackUserActivityPage()));
                     },
                   ),
                 ],

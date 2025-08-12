@@ -19,6 +19,7 @@ const noteController = require('../controllers/noteController');
 const groupTransactionController = require('../controllers/groupTransactionController');
 const activityController = require('../controllers/activityController');
 const settingsController = require('../controllers/settingsController');
+const userActivityController = require('../controllers/userActivityController');
 
 // Middleware to check for admin role
 const isAdmin = (req, res, next) => {
@@ -239,5 +240,8 @@ router.put('/admin/security-settings', auth, isAdmin, adminController.updateSecu
 // Notification Settings
 router.get('/admin/notification-settings', auth, isAdmin, adminController.getNotificationSettings);
 router.put('/admin/notification-settings', auth, isAdmin, adminController.updateNotificationSettings);
+
+// User Activity
+router.get('/admin/user-activity/:searchTerm', auth, isAdmin, userActivityController.getUserActivity);
 
 module.exports = router;
