@@ -201,7 +201,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       }
     } catch (e) {
       print('Submit Query Error: $e');
-      _showStylishSnackBar('An error occurred: $e', Colors.red);
+      _showStylishSnackBar('Network error while submitting query.', Colors.red);
     }
   }
 
@@ -341,7 +341,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       } catch (e) {
                         print('Edit Query Error: $e');
                         _showStylishSnackBar(
-                            'An error occurred: $e', Colors.red);
+                            'Network error while editing query.', Colors.red);
                       }
                     },
                   ),
@@ -433,7 +433,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       }
     } catch (e) {
       print('Delete Query Error: $e');
-      _showStylishSnackBar('An error occurred: $e', Colors.red);
+      _showStylishSnackBar('Network error while deleting query.', Colors.red);
     }
   }
 

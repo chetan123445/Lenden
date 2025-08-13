@@ -199,7 +199,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
             data['error'] ?? 'Failed to add reply.', Colors.red);
       }
     } catch (e) {
-      _showStylishSnackBar('An error occurred: $e', Colors.red);
+      _showStylishSnackBar('Network error while adding reply.', Colors.red);
     }
   }
 
@@ -245,7 +245,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
             data['error'] ?? 'Failed to update reply.', Colors.red);
       }
     } catch (e) {
-      _showStylishSnackBar('An error occurred: $e', Colors.red);
+      _showStylishSnackBar('Network error while editing reply.', Colors.red);
     }
   }
 
@@ -283,7 +283,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
             data['error'] ?? 'Failed to delete reply.', Colors.red);
       }
     } catch (e) {
-      _showStylishSnackBar('An error occurred: $e', Colors.red);
+      _showStylishSnackBar('Network error while deleting reply.', Colors.red);
     }
   }
 
@@ -324,7 +324,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
             data['error'] ?? 'Failed to update status.', Colors.red);
       }
     } catch (e) {
-      _showStylishSnackBar('An error occurred: $e', Colors.red);
+      _showStylishSnackBar('Network error while updating status.', Colors.red);
     }
   }
 
