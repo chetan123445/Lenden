@@ -128,6 +128,63 @@ class RatingsPage extends StatefulWidget {
 }
 
 class _RatingsPageState extends State<RatingsPage> {
+  // Search user rating by username/email
+  Future<void> _searchUserRating() async {
+    final input = _searchController.text.trim();
+    if (input.isEmpty) {
+      setState(() {
+        _searchError = 'Please enter a username or email.';
+        _searchedAvgRating = null;
+        _searchedName = null;
+        _searchedUsername = null;
+        _searchedEmail = null;
+      });
+      return;
+    }
+    setState(() {
+      _searching = true;
+      _searchError = null;
+      _searchedAvgRating = null;
+      _searchedName = null;
+      _searchedUsername = null;
+      _searchedEmail = null;
+    });
+    try {
+      final baseUrl = ApiConfig.baseUrl;
+      final res = await http.get(
+          Uri.parse('$baseUrl/api/ratings/user-avg?usernameOrEmail=$input'));
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        setState(() {
+          _searchedAvgRating = (data['avgRating'] ?? 0).toDouble();
+          _searchedName = data['name'] ?? '';
+          _searchedUsername = data['username'] ?? '';
+          _searchedEmail = data['email'] ?? '';
+        });
+      } else {
+        final err = json.decode(res.body);
+        setState(() {
+          _searchError = err['error'] ?? 'User not found.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _searchError = 'Error searching user.';
+      });
+    }
+    setState(() {
+      _searching = false;
+    });
+  }
+
+  // For searching other user's avg rating
+  final _searchController = TextEditingController();
+  String? _searchError;
+  double? _searchedAvgRating;
+  String? _searchedName;
+  String? _searchedUsername;
+  String? _searchedEmail;
+  bool _searching = false;
   bool _showGiven = false;
   bool _showReceived = false;
   double? avgRating;
@@ -266,6 +323,95 @@ class _RatingsPageState extends State<RatingsPage> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          // --- Search Bar for Any User's Avg Rating ---
+                          Text('Search User Rating',
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0077B6))),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Enter username or email',
+                                    prefixIcon: const Icon(Icons.search),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                  ),
+                                  onSubmitted: (_) => _searchUserRating(),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                onPressed:
+                                    _searching ? null : _searchUserRating,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF00B4D8),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 14, horizontal: 16),
+                                ),
+                                child: _searching
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2))
+                                    : const Text('Search'),
+                              ),
+                            ],
+                          ),
+                          if (_searchError != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: _StylishPopup(
+                                message: _searchError!,
+                                color: Colors.red,
+                              ),
+                            ),
+                          if (_searchedAvgRating != null)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.only(top: 12, bottom: 8),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    _searchedName != null &&
+                                            _searchedName!.isNotEmpty
+                                        ? '${_searchedName!} (@${_searchedUsername ?? ''})'
+                                        : _searchedUsername ?? '',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Color(0xFF023E8A)),
+                                  ),
+                                  if (_searchedEmail != null)
+                                    Text(_searchedEmail!,
+                                        style: const TextStyle(
+                                            fontSize: 13, color: Colors.grey)),
+                                  const SizedBox(height: 6),
+                                  _StarDisplay(value: _searchedAvgRating ?? 0),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _searchedAvgRating!.toStringAsFixed(2),
+                                    style: const TextStyle(
+                                        fontSize: 22,
+                                        color: Color(0xFF023E8A),
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Divider(thickness: 1.2, color: Colors.blueGrey[100]),
+                          const SizedBox(height: 10),
                           // Your Average Rating Section
                           Text('Your Average Rating',
                               style: const TextStyle(

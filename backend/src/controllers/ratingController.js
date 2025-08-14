@@ -1,3 +1,29 @@
+// GET /api/ratings/user-avg?usernameOrEmail=... - Get avg rating for any user by username or email
+exports.getUserAvgRating = async (req, res) => {
+  try {
+    const { usernameOrEmail } = req.query;
+    if (!usernameOrEmail) {
+      return res.status(400).json({ error: 'Username or email is required.' });
+    }
+    const user = await User.findOne({
+      $or: [
+        { username: usernameOrEmail },
+        { email: usernameOrEmail }
+      ]
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    return res.json({
+      username: user.username,
+      name: user.name,
+      email: user.email,
+      avgRating: user.avgRating || 0
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 const Rating = require('../models/rating');
 const User = require('../models/user');
 

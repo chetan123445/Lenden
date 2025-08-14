@@ -36,6 +36,8 @@ module.exports = (io) => {
   // Ratings routes
   router.post('/ratings', auth, ratingController.rateUser);
   router.get('/ratings/me', auth, ratingController.getMyRatings);
+  // Public endpoint to get avg rating by username or email
+  router.get('/ratings/user-avg', ratingController.getUserAvgRating);
 
   // User routes
   router.post('/users/register', userController.register);
