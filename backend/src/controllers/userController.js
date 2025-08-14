@@ -21,16 +21,13 @@ function isPasswordValid(password) {
 // Register user with OTP
 exports.register = async (req, res) => {
   try {
-    let { name, username, email, password, gender, rating } = req.body;
+  let { name, username, email, password, gender } = req.body;
     email = email.trim().toLowerCase();
     if (!name || !username || !email || !password || !gender || !['Male', 'Female', 'Other'].includes(gender)) {
       return res.status(400).json({ error: 'All fields including gender are required and must be valid.' });
     }
     
-    // Validate rating (optional, default to 0)
-    if (rating !== undefined && (rating < 0 || rating > 5)) {
-      return res.status(400).json({ error: 'Rating must be between 0 and 5.' });
-    }
+  // Rating validation removed
     
     // Check if user/email/username exists in users or admins
     const userExists = await User.findOne({ $or: [{ username }, { email }] });
@@ -44,7 +41,7 @@ exports.register = async (req, res) => {
     }
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore[email] = { otp, data: { name, username, password, email, gender, rating: rating || 0 }, created: Date.now() };
+  otpStore[email] = { otp, data: { name, username, password, email, gender }, created: Date.now() };
     await sendRegistrationOTP(email, otp);
     res.status(200).json({ message: 'OTP sent to email' });
   } catch (err) {
@@ -87,7 +84,7 @@ exports.verifyOtp = async (req, res) => {
       return res.status(400).json({ error: 'Invalid OTP' });
     }
     // Register user
-    const { name, username, password, gender, rating } = entry.data;
+  const { name, username, password, gender } = entry.data;
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({
       name,
@@ -95,7 +92,6 @@ exports.verifyOtp = async (req, res) => {
       email,
       password: hashedPassword,
       gender,
-      rating,
       memberSince: new Date(), // Set member since date
     });
     await newUser.save();

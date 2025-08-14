@@ -15,7 +15,7 @@ class AccountSettingsPage extends StatefulWidget {
 class _AccountSettingsPageState extends State<AccountSettingsPage> {
   bool _isLoading = false;
   bool _isSaving = false;
-  
+
   // Account information
   String _name = '';
   String _username = '';
@@ -27,7 +27,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   String? _profileImageUrl;
   DateTime? _memberSince;
   double _rating = 0.0;
-  
+
   // Form controllers
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
@@ -71,16 +71,17 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
           _phone = userData['phone'] ?? '';
           _address = userData['address'] ?? '';
           _gender = (userData['gender'] ?? '').toString();
-          _birthday = userData['birthday'] != null 
-              ? DateTime.parse(userData['birthday']) 
+          _birthday = userData['birthday'] != null
+              ? DateTime.parse(userData['birthday'])
               : null;
           _profileImageUrl = userData['profileImage'];
-          _memberSince = userData['memberSince'] != null 
-              ? DateTime.parse(userData['memberSince']) 
+          _memberSince = userData['memberSince'] != null
+              ? DateTime.parse(userData['memberSince'])
               : null;
-          _rating = (userData['rating'] ?? 0.0).toDouble();
+          _rating =
+              (userData['avgRating'] ?? userData['rating'] ?? 0.0).toDouble();
           _editableRating = _rating;
-          
+
           // Set controller values
           _nameController.text = _name;
           _phoneController.text = _phone;
@@ -89,7 +90,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error loading account information: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error loading account information: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -125,19 +127,22 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
 
       if (response.statusCode == 200) {
         if (mounted) {
-          CustomWarningWidget.showAnimatedSuccess(context, 'Account information updated successfully!');
+          CustomWarningWidget.showAnimatedSuccess(
+              context, 'Account information updated successfully!');
           // Update session data
           await session.refreshUserProfile();
         }
       } else {
         final errorData = json.decode(response.body);
         if (mounted) {
-          CustomWarningWidget.showAnimatedError(context, errorData['message'] ?? 'Failed to update account information');
+          CustomWarningWidget.showAnimatedError(context,
+              errorData['message'] ?? 'Failed to update account information');
         }
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -155,7 +160,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
     );
-    
+
     if (picked != null && picked != _birthday) {
       setState(() {
         _birthday = picked;
@@ -230,7 +235,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                             ? CircleAvatar(
                                 radius: 36,
                                 backgroundColor: Colors.transparent,
-                                backgroundImage: NetworkImage(_profileImageUrl!),
+                                backgroundImage:
+                                    NetworkImage(_profileImageUrl!),
                               )
                             : const Icon(
                                 Icons.person_outline,
@@ -258,9 +264,9 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Account Information Section
                   _buildSettingsSection(
                     'Personal Information',
@@ -316,18 +322,11 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                         _birthday,
                         () => _selectDate(context),
                       ),
-                      _buildEditableRatingTile(
-                        'Your Rating',
-                        'Rate yourself (0-5 stars)',
-                        Icons.star_outline,
-                        _editableRating,
-                        (value) => setState(() => _editableRating = value),
-                      ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Account Status Section
                   _buildSettingsSection(
                     'Account Status',
@@ -346,7 +345,9 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                       ),
                       _buildStatusTile(
                         'Member Since',
-                        _memberSince != null ? _formatDate(_memberSince!) : 'Not available',
+                        _memberSince != null
+                            ? _formatDate(_memberSince!)
+                            : 'Not available',
                         Icons.calendar_today_outlined,
                         Colors.blue,
                       ),
@@ -357,9 +358,9 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Information Section
                   Container(
                     width: double.infinity,
@@ -675,8 +676,8 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
         children: [
           ...List.generate(5, (index) {
             return Icon(
-              index < rating.floor() 
-                  ? Icons.star 
+              index < rating.floor()
+                  ? Icons.star
                   : (index < rating ? Icons.star_half : Icons.star_border),
               color: Colors.amber,
               size: 20,
@@ -697,69 +698,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     );
   }
 
-  Widget _buildEditableRatingTile(
-    String title,
-    String subtitle,
-    IconData icon,
-    double rating,
-    ValueChanged<double> onChanged,
-  ) {
-    return ListTile(
-      leading: Icon(icon, color: const Color(0xFF00B4D8)),
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
-          color: Colors.black87,
-        ),
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              ...List.generate(5, (index) {
-                return GestureDetector(
-                  onTap: () => onChanged(index + 1.0),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: Icon(
-                      index < rating.floor() 
-                          ? Icons.star 
-                          : (index < rating ? Icons.star_half : Icons.star_border),
-                      color: Colors.amber,
-                      size: 24,
-                    ),
-                  ),
-                );
-              }),
-              const SizedBox(width: 8),
-              Text(
-                '${rating.toStringAsFixed(1)}/5',
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.amber,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-    );
-  }
-
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
-} 
+}

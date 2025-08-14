@@ -24,11 +24,11 @@ const userSchema = new mongoose.Schema({
     expiry: { type: Date }
   },
   memberSince: { type: Date, default: Date.now },
-  rating: { 
-    type: Number, 
-    min: 0, 
-    max: 5, 
-    default: 0 
+  avgRating: {
+    type: Number,
+    min: 0,
+    max: 5,
+    default: 0
   },
   profileImage: { type: Buffer }, // Store image as binary
   role: { type: String, enum: ['user', 'admin'], default: 'user' },

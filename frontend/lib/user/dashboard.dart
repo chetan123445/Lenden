@@ -16,9 +16,9 @@ import '../user/notes_page.dart';
 import '../Transaction/group_transaction_page.dart';
 import '../Transaction/view_group_transactions_page.dart';
 import '../profile/profile_page.dart';
+import 'ratings_page.dart';
 import 'activity_page.dart';
 import 'help_support_page.dart';
-
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -38,13 +38,13 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
   void initState() {
     super.initState();
     fetchTransactions();
-    
+
     // Listen to session changes to refresh profile image
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = Provider.of<SessionProvider>(context, listen: false);
       session.addListener(_onSessionChanged);
     });
-    
+
     // Listen to scroll events to show/hide scroll indicator
     _scrollController.addListener(_onScroll);
   }
@@ -67,7 +67,8 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
   void _onScroll() {
     // Show scroll indicator when user scrolls down past the first few items
     if (_scrollController.hasClients) {
-      final showIndicator = _scrollController.offset > 200; // Show after scrolling 200px
+      final showIndicator =
+          _scrollController.offset > 200; // Show after scrolling 200px
       if (showIndicator != _showScrollIndicator) {
         setState(() {
           _showScrollIndicator = showIndicator;
@@ -81,14 +82,18 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
     final baseUrl = ApiConfig.baseUrl;
-    final res = await http.get(Uri.parse('$baseUrl/api/transactions/me'), headers: {'Authorization': 'Bearer $token'});
+    final res = await http.get(Uri.parse('$baseUrl/api/transactions/me'),
+        headers: {'Authorization': 'Bearer $token'});
     setState(() {
-      transactions = res.statusCode == 200 ? List<Map<String, dynamic>>.from(json.decode(res.body)) : [];
+      transactions = res.statusCode == 200
+          ? List<Map<String, dynamic>>.from(json.decode(res.body))
+          : [];
       loading = false;
     });
   }
 
-  void showTransactionForm() => Navigator.push(context, MaterialPageRoute(builder: (_) => TransactionPage()));
+  void showTransactionForm() => Navigator.push(
+      context, MaterialPageRoute(builder: (_) => TransactionPage()));
 
   // Helper function to get user's profile image
   ImageProvider _getUserAvatar() {
@@ -96,7 +101,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     final user = session.user;
     final gender = user?['gender'] ?? 'Other';
     final imageUrl = user?['profileImage'];
-    
+
     print('🖼️ Dashboard - _getUserAvatar called:');
     print('   User: ${user != null ? 'Present' : 'Missing'}');
     print('   User data: $user');
@@ -106,10 +111,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     print('   Image URL is null: ${imageUrl == null}');
     print('   Image URL is empty: ${imageUrl == ""}');
     print('   Image URL is "null": ${imageUrl == "null"}');
-    
-    if (imageUrl != null && imageUrl is String && imageUrl.trim().isNotEmpty && imageUrl != 'null') {
+
+    if (imageUrl != null &&
+        imageUrl is String &&
+        imageUrl.trim().isNotEmpty &&
+        imageUrl != 'null') {
       // Add cache busting parameter for real-time updates
-      final cacheBustingUrl = '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+      final cacheBustingUrl =
+          '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
       print('   ✅ Using network image: $cacheBustingUrl');
       return NetworkImage(cacheBustingUrl);
     } else {
@@ -124,12 +133,27 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     }
   }
 
+  Future<double?> _fetchAvgRating() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final baseUrl = ApiConfig.baseUrl;
+    final res = await http.get(Uri.parse('$baseUrl/api/ratings/me'),
+        headers: {'Authorization': 'Bearer $token'});
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      return data['avgRating']?.toDouble();
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final userId = session.user?['_id'];
-    final lendingList = transactions.where((t) => t['lender']?['_id'] == userId).toList();
-    final borrowingList = transactions.where((t) => t['borrower']?['_id'] == userId).toList();
+    final lendingList =
+        transactions.where((t) => t['lender']?['_id'] == userId).toList();
+    final borrowingList =
+        transactions.where((t) => t['borrower']?['_id'] == userId).toList();
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) async {
@@ -145,7 +169,8 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
             children: [
               const DrawerHeader(
                 decoration: BoxDecoration(color: Color(0xFF00B4D8)),
-                child: Text('Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
+                child: Text('Menu',
+                    style: TextStyle(color: Colors.white, fontSize: 24)),
               ),
               const ListTile(
                 leading: Icon(Icons.dashboard),
@@ -164,7 +189,10 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 title: const Text('Transaction Details'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => UserTransactionsPage()));
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => UserTransactionsPage()));
                 },
               ),
               ListTile(
@@ -172,7 +200,8 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 title: const Text('Activity'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => ActivityPage()));
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => ActivityPage()));
                 },
               ),
               ListTile(
@@ -180,7 +209,17 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 title: Text('Notes'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => NotesPage()));
+                  Navigator.push(
+                      context, MaterialPageRoute(builder: (_) => NotesPage()));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.star),
+                title: const Text('Ratings'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const RatingsPage()));
                 },
               ),
               ListTile(
@@ -188,7 +227,8 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 title: const Text('Help & Support'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => HelpSupportPage()));
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => HelpSupportPage()));
                 },
               ),
               ListTile(
@@ -202,6 +242,32 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
         backgroundColor: const Color(0xFFF8F6FA),
         body: Stack(
           children: [
+            Positioned(
+              top: 20,
+              right: 20,
+              child: FutureBuilder<double?>(
+                future: _fetchAvgRating(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox();
+                  }
+                  final avgRating = snapshot.data;
+                  return avgRating != null
+                      ? Row(
+                          children: [
+                            const Icon(Icons.star,
+                                color: Colors.amber, size: 28),
+                            const SizedBox(width: 4),
+                            Text(avgRating.toStringAsFixed(2),
+                                style: const TextStyle(
+                                    fontSize: 20, fontWeight: FontWeight.bold)),
+                          ],
+                        )
+                      : const SizedBox();
+                },
+              ),
+            ),
+            // Main content area
             // Main content area
             SafeArea(
               child: SingleChildScrollView(
@@ -219,7 +285,8 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                     GestureDetector(
                       onTap: showTransactionForm,
                       child: Container(
-                        margin: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                         padding: EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -234,14 +301,17 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.swap_horiz, color: Colors.teal, size: 40),
+                            Icon(Icons.swap_horiz,
+                                color: Colors.teal, size: 40),
                             SizedBox(width: 20),
                             Expanded(
                               child: SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: Text(
                                   'Create Transactions',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 22),
                                 ),
                               ),
                             ),
@@ -250,9 +320,13 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       ),
                     ),
                     GestureDetector(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UserTransactionsPage())),
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => UserTransactionsPage())),
                       child: Container(
-                        margin: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                         padding: EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -267,14 +341,17 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.account_balance_wallet, color: Colors.blue, size: 40),
+                            Icon(Icons.account_balance_wallet,
+                                color: Colors.blue, size: 40),
                             SizedBox(width: 20),
                             Expanded(
                               child: SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: Text(
                                   'Your Transactions',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 22),
                                 ),
                               ),
                             ),
@@ -283,9 +360,11 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       ),
                     ),
                     GestureDetector(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AnalyticsPage())),
+                      onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => AnalyticsPage())),
                       child: Container(
-                        margin: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                         padding: EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -300,7 +379,8 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.analytics, color: Color(0xFF00B4D8), size: 40),
+                            Icon(Icons.analytics,
+                                color: Color(0xFF00B4D8), size: 40),
                             SizedBox(width: 20),
                             Expanded(
                               child: Column(
@@ -310,14 +390,18 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                                     scrollDirection: Axis.horizontal,
                                     child: Text(
                                       'Visual Analytics',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 22),
                                     ),
                                   ),
                                   SingleChildScrollView(
                                     scrollDirection: Axis.horizontal,
                                     child: Text(
                                       '(for individual transactions)',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600]),
                                     ),
                                   ),
                                 ],
@@ -327,17 +411,19 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                         ),
                       ),
                     ),
-                    
+
                     // Scroll indicator (appears when user scrolls down)
                     if (_showScrollIndicator) ...[
                       SizedBox(height: 20),
                       Center(
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
                             color: Color(0xFF00B4D8).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Color(0xFF00B4D8).withOpacity(0.3)),
+                            border: Border.all(
+                                color: Color(0xFF00B4D8).withOpacity(0.3)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -362,75 +448,89 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       ),
                       SizedBox(height: 20),
                     ],
-                    
+
                     // Additional options (always visible, but scroll indicator suggests more content)
                     SizedBox(height: 20),
-                      GestureDetector(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GroupTransactionPage())),
-                        child: Container(
-                          margin: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                          padding: EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 8,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.group, color: Colors.deepPurple, size: 40),
-                              SizedBox(width: 20),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Text(
-                                    'Create Group Transaction',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
-                                  ),
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => GroupTransactionPage())),
+                      child: Container(
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.group,
+                                color: Colors.deepPurple, size: 40),
+                            SizedBox(width: 20),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Text(
+                                  'Create Group Transaction',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 22),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ViewGroupTransactionsPage())),
-                        child: Container(
-                          margin: EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                          padding: EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black12,
-                                blurRadius: 8,
-                                offset: Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.visibility, color: Colors.orange, size: 40),
-                              SizedBox(width: 20),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Text(
-                                    'View Group Transactions',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
-                                  ),
+                    ),
+                    GestureDetector(
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => ViewGroupTransactionsPage())),
+                      child: Container(
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.visibility,
+                                color: Colors.orange, size: 40),
+                            SizedBox(width: 20),
+                            Expanded(
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Text(
+                                  'View Group Transactions',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 22),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -476,9 +576,11 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white),
                             onPressed: () async {
-                              final popped = await Navigator.of(context).maybePop();
+                              final popped =
+                                  await Navigator.of(context).maybePop();
                               if (!popped && context.mounted) {
                                 Navigator.pushReplacementNamed(context, '/');
                               }
@@ -487,7 +589,8 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                           Builder(
                             builder: (context) => IconButton(
                               icon: const Icon(Icons.menu, color: Colors.white),
-                              onPressed: () => Scaffold.of(context).openDrawer(),
+                              onPressed: () =>
+                                  Scaffold.of(context).openDrawer(),
                             ),
                           ),
                         ],
@@ -495,7 +598,8 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.notifications, color: Colors.white, size: 28),
+                            icon: const Icon(Icons.notifications,
+                                color: Colors.white, size: 28),
                             tooltip: 'Notifications',
                             onPressed: () {
                               // TODO: Implement notifications page navigation
@@ -503,15 +607,20 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                           ),
                           GestureDetector(
                             onTap: () async {
-                              print('Profile icon tapped - navigating to profile page');
+                              print(
+                                  'Profile icon tapped - navigating to profile page');
                               try {
                                 await Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const ProfilePage()),
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          const ProfilePage()),
                                 );
                                 print('Returned from profile page');
                                 // Force refresh after returning from profile page
-                                final session = Provider.of<SessionProvider>(context, listen: false);
+                                final session = Provider.of<SessionProvider>(
+                                    context,
+                                    listen: false);
                                 await session.forceRefreshProfile();
                                 setState(() {
                                   _imageRefreshKey++;
@@ -528,15 +637,18 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                               onBackgroundImageError: (exception, stackTrace) {
                                 // Handle image loading error
                               },
-                              child: _getUserAvatar() is AssetImage ? Icon(
-                                Icons.person,
-                                color: Colors.grey[400],
-                                size: 20,
-                              ) : null,
+                              child: _getUserAvatar() is AssetImage
+                                  ? Icon(
+                                      Icons.person,
+                                      color: Colors.grey[400],
+                                      size: 20,
+                                    )
+                                  : null,
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.logout, color: Colors.white, size: 28),
+                            icon: const Icon(Icons.logout,
+                                color: Colors.white, size: 28),
                             tooltip: 'Logout',
                             onPressed: () => _confirmLogout(context),
                           ),
@@ -612,7 +724,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       ),
                     ),
                     SizedBox(height: 16),
-                    
+
                     // Message
                     Text(
                       'Do you want to logout?',
@@ -623,7 +735,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 32),
-                    
+
                     // Stylish buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -716,12 +828,15 @@ class TopWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.lineTo(0, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
     path.lineTo(size.width, 0);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -731,13 +846,15 @@ class BottomWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6, size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
+        size.width * 0.5, size.height * 0.4);
     path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -749,14 +866,16 @@ class LogoutWaveClipper extends CustomClipper<Path> {
     path.moveTo(0, 0);
     path.lineTo(size.width, 0);
     path.lineTo(size.width, size.height);
-    
+
     // Create wavy effect
-    path.quadraticBezierTo(size.width * 0.75, size.height * 0.8, size.width * 0.5, size.height);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.8, 0, size.height);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.8, size.width * 0.5, size.height);
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height * 0.8, 0, size.height);
     path.close();
     return path;
   }
-  
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -764,7 +883,8 @@ class LogoutWaveClipper extends CustomClipper<Path> {
 class LendingBorrowingPage extends StatefulWidget {
   final String type; // 'lending' or 'borrowing'
   final VoidCallback onSuccess;
-  const LendingBorrowingPage({required this.type, required this.onSuccess, super.key});
+  const LendingBorrowingPage(
+      {required this.type, required this.onSuccess, super.key});
 
   @override
   State<LendingBorrowingPage> createState() => _LendingBorrowingPageState();
@@ -873,7 +993,11 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
   }
 
   Future<void> _sendOtps() async {
-    setState(() { _sendingOtps = true; _otpSelfError = null; _otpCounterpartyError = null; });
+    setState(() {
+      _sendingOtps = true;
+      _otpSelfError = null;
+      _otpCounterpartyError = null;
+    });
     final session = Provider.of<SessionProvider>(context, listen: false);
     _selfEmail = session.user?['email'] ?? '';
     _counterpartyEmail = _counterpartyController.text;
@@ -883,7 +1007,9 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
       body: json.encode({'email1': _selfEmail, 'email2': _counterpartyEmail}),
       headers: {'Content-Type': 'application/json'},
     );
-    setState(() { _sendingOtps = false; });
+    setState(() {
+      _sendingOtps = false;
+    });
     if (res.statusCode == 200) {
       _showOtpDialog('OTPs sent to both emails!');
       _startOtpTimers();
@@ -915,7 +1041,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
         } else {
           _otpCounterpartySeconds = 120;
           _otpCounterpartyTimer?.cancel();
-          _otpCounterpartyTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          _otpCounterpartyTimer =
+              Timer.periodic(const Duration(seconds: 1), (timer) {
             if (_otpCounterpartySeconds > 0) {
               setState(() => _otpCounterpartySeconds--);
             } else {
@@ -940,7 +1067,12 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
           children: const [
             Icon(Icons.email, color: Color(0xFF00B4D8), size: 60),
             SizedBox(height: 12),
-            Text('OTP Notification', style: TextStyle(color: Color(0xFF0077B5), fontWeight: FontWeight.bold, fontSize: 22), textAlign: TextAlign.center),
+            Text('OTP Notification',
+                style: TextStyle(
+                    color: Color(0xFF0077B5),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22),
+                textAlign: TextAlign.center),
           ],
         ),
         content: Text(
@@ -952,7 +1084,11 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK', style: TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold, fontSize: 16)),
+            child: const Text('OK',
+                style: TextStyle(
+                    color: Color(0xFF00B4D8),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
           ),
         ],
       ),
@@ -961,21 +1097,26 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_otpSelfController.text.isEmpty || _otpCounterpartyController.text.isEmpty) {
+    if (_otpSelfController.text.isEmpty ||
+        _otpCounterpartyController.text.isEmpty) {
       setState(() {
         if (_otpSelfController.text.isEmpty) _otpSelfError = 'Required';
-        if (_otpCounterpartyController.text.isEmpty) _otpCounterpartyError = 'Required';
+        if (_otpCounterpartyController.text.isEmpty)
+          _otpCounterpartyError = 'Required';
       });
       return;
     }
-    setState(() { _verifyingOtps = true; });
+    setState(() {
+      _verifyingOtps = true;
+    });
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
     final baseUrl = ApiConfig.baseUrl;
     final uri = Uri.parse('$baseUrl/api/transactions');
     var request = http.MultipartRequest('POST', uri);
     request.headers['Authorization'] = 'Bearer $token';
-    request.fields['counterpartyUsernameOrEmail'] = _counterpartyController.text;
+    request.fields['counterpartyUsernameOrEmail'] =
+        _counterpartyController.text;
     request.fields['amount'] = _amountController.text;
     request.fields['currency'] = _selectedCurrency;
     request.fields['date'] = _dateController.text;
@@ -987,7 +1128,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
     request.fields['otpSelf'] = _otpSelfController.text;
     request.fields['otpCounterparty'] = _otpCounterpartyController.text;
     for (int i = 0; i < _photos.length; i++) {
-      request.files.add(await http.MultipartFile.fromPath('photos', _photos[i].path));
+      request.files
+          .add(await http.MultipartFile.fromPath('photos', _photos[i].path));
     }
     final streamed = await request.send();
     if (streamed.statusCode == 201) {
@@ -997,14 +1139,17 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
       final resp = await streamed.stream.bytesToString();
       _showOtpDialog('Failed: ${resp.isNotEmpty ? resp : 'Unknown error'}');
     }
-    setState(() { _verifyingOtps = false; });
+    setState(() {
+      _verifyingOtps = false;
+    });
   }
 
   Future<void> _sendOtp(String emailOrUsername, bool isLender) async {
     print('Sending OTP to: $emailOrUsername (isLender: $isLender)');
     final normalizedEmail = emailOrUsername.trim().toLowerCase();
     // Check if user exists before sending OTP
-    if (!isLender && (!_counterpartyExists || _counterpartyResolvedEmail == null)) {
+    if (!isLender &&
+        (!_counterpartyExists || _counterpartyResolvedEmail == null)) {
       _showOtpDialog('User not found. Please enter a valid email or username.');
       return;
     }
@@ -1029,7 +1174,10 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
       headers: {'Content-Type': 'application/json'},
     );
     setState(() {
-      if (isLender) _sendingLenderOtp = false; else _sendingBorrowerOtp = false;
+      if (isLender)
+        _sendingLenderOtp = false;
+      else
+        _sendingBorrowerOtp = false;
     });
     if (res.statusCode == 200) {
       _showOtpDialog('OTP sent to $email');
@@ -1049,7 +1197,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
           _borrowerOtpSent = true;
           _borrowerOtpSeconds = 120;
           _borrowerOtpTimer?.cancel();
-          _borrowerOtpTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          _borrowerOtpTimer =
+              Timer.periodic(const Duration(seconds: 1), (timer) {
             if (_borrowerOtpSeconds > 0) {
               setState(() => _borrowerOtpSeconds--);
             } else {
@@ -1074,7 +1223,10 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
     );
     if (res.statusCode == 200) {
       setState(() {
-        if (isLender) _lenderVerified = true; else _borrowerVerified = true;
+        if (isLender)
+          _lenderVerified = true;
+        else
+          _borrowerVerified = true;
       });
       _showOtpDialog('${isLender ? 'Lender' : 'Borrower'} email verified!');
     } else {
@@ -1109,7 +1261,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
         setState(() {
           _counterpartyExists = true;
           _counterpartyError = null;
-          _counterpartyResolvedEmail = normalizedValue;
+          _counterpartyResolvedEmail =
+              resolvedEmail; // FIX: use resolvedEmail instead of normalizedEmail
           _sameUserError = (_selfEmail != null && _selfEmail == resolvedEmail);
         });
       } else {
@@ -1159,7 +1312,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(widget.type == 'lending' ? 'Lend Money' : 'Borrow Money', style: const TextStyle(color: Colors.black)),
+        title: Text(widget.type == 'lending' ? 'Lend Money' : 'Borrow Money',
+            style: const TextStyle(color: Colors.black)),
         centerTitle: true,
       ),
       backgroundColor: const Color(0xFFF8F6FA),
@@ -1176,7 +1330,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                     Expanded(
                       child: Container(
                         margin: const EdgeInsets.symmetric(vertical: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(16),
@@ -1207,7 +1362,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                                   labelText: 'Amount',
                                   border: InputBorder.none,
                                 ),
-                                validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                                validator: (v) =>
+                                    v == null || v.isEmpty ? 'Required' : null,
                               ),
                             ),
                           ],
@@ -1217,27 +1373,39 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                     const SizedBox(width: 12),
                     DropdownButton<String>(
                       value: _selectedCurrency,
-                      items: _currencies.map((c) => DropdownMenuItem<String>(
-                        value: c['symbol'],
-                        child: Text('${c['symbol']} (${c['name']})'),
-                      )).toList(),
+                      items: _currencies
+                          .map((c) => DropdownMenuItem<String>(
+                                value: c['symbol'],
+                                child: Text('${c['symbol']} (${c['name']})'),
+                              ))
+                          .toList(),
                       onChanged: (val) {
-                        if (val != null) setState(() => _selectedCurrency = val);
+                        if (val != null)
+                          setState(() => _selectedCurrency = val);
                       },
                     ),
                   ],
                 ),
-                _inputField(Icons.person, widget.type == 'lending' ? 'Borrower Username/Email' : 'Lender Username/Email', _counterpartyController),
+                _inputField(
+                    Icons.person,
+                    widget.type == 'lending'
+                        ? 'Borrower Username/Email'
+                        : 'Lender Username/Email',
+                    _counterpartyController),
                 if (_sameUserError)
-                  const Text('Counterparty must be a different user.', style: TextStyle(color: Colors.red)),
-                _inputField(Icons.cake, 'Date', _dateController, readOnly: true, onTap: () async {
+                  const Text('Counterparty must be a different user.',
+                      style: TextStyle(color: Colors.red)),
+                _inputField(Icons.cake, 'Date', _dateController, readOnly: true,
+                    onTap: () async {
                   final picked = await showDatePicker(
                     context: context,
                     initialDate: DateTime.now(),
                     firstDate: DateTime(2000),
                     lastDate: DateTime(2100),
                   );
-                  if (picked != null) _dateController.text = picked.toIso8601String().split('T').first;
+                  if (picked != null)
+                    _dateController.text =
+                        picked.toIso8601String().split('T').first;
                 }),
                 _inputField(
                   Icons.access_time,
@@ -1249,7 +1417,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                       context: context,
                       builder: (context) => AlertDialog(
                         title: const Text('Select Time'),
-                        content: const Text('Do you want to use the current time or pick a time?'),
+                        content: const Text(
+                            'Do you want to use the current time or pick a time?'),
                         actions: [
                           TextButton(
                             onPressed: () {
@@ -1291,32 +1460,43 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                     if (_photos.isNotEmpty) ...[
                       const SizedBox(width: 8),
                       ..._photos.map((f) => Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: SizedBox(
-                          width: 40, height: 40,
-                          child: Image.file(f, fit: BoxFit.cover),
-                        ),
-                      )),
+                            padding: const EdgeInsets.only(right: 4),
+                            child: SizedBox(
+                              width: 40,
+                              height: 40,
+                              child: Image.file(f, fit: BoxFit.cover),
+                            ),
+                          )),
                     ]
                   ],
                 ),
                 const SizedBox(height: 16),
                 // OTP Verification Order
                 // Lender email and OTP
-                _inputField(Icons.email, 'Your Email', TextEditingController(text: _selfEmail ?? ''), readOnly: true),
+                _inputField(Icons.email, 'Your Email',
+                    TextEditingController(text: _selfEmail ?? ''),
+                    readOnly: true),
                 if (!_lenderVerified) ...[
                   ElevatedButton(
-                    onPressed: _lenderOtpSeconds > 0 || _sendingLenderOtp ? null : () => _sendOtp(_selfEmail ?? '', true),
+                    onPressed: _lenderOtpSeconds > 0 || _sendingLenderOtp
+                        ? null
+                        : () => _sendOtp(_selfEmail ?? '', true),
                     child: _sendingLenderOtp
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                            SizedBox(width: 8),
-                            Text('Sending OTP...'),
-                          ],
-                        )
-                      : Text(_lenderOtpSeconds > 0 ? 'Resend in ${_lenderOtpSeconds ~/ 60}:${(_lenderOtpSeconds % 60).toString().padLeft(2, '0')}' : 'Send OTP'),
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2)),
+                              SizedBox(width: 8),
+                              Text('Sending OTP...'),
+                            ],
+                          )
+                        : Text(_lenderOtpSeconds > 0
+                            ? 'Resend in ${_lenderOtpSeconds ~/ 60}:${(_lenderOtpSeconds % 60).toString().padLeft(2, '0')}'
+                            : 'Send OTP'),
                   ),
                   if (_lenderOtpSent)
                     Column(
@@ -1329,7 +1509,10 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                         ),
                         const SizedBox(height: 8),
                         ElevatedButton(
-                          onPressed: _lenderOtp.length == 6 ? () => _verifyOtp(_selfEmail ?? '', _lenderOtp, true) : null,
+                          onPressed: _lenderOtp.length == 6
+                              ? () =>
+                                  _verifyOtp(_selfEmail ?? '', _lenderOtp, true)
+                              : null,
                           child: const Text('Verify OTP'),
                         ),
                       ],
@@ -1339,7 +1522,10 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                     children: const [
                       Icon(Icons.check_circle, color: Colors.green),
                       SizedBox(width: 8),
-                      Text('Lender email verified!', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                      Text('Lender email verified!',
+                          style: TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ],
@@ -1352,7 +1538,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                   keyboardType: TextInputType.emailAddress,
                   onChanged: (val) {
                     _counterpartyDebounce?.cancel();
-                    _counterpartyDebounce = Timer(const Duration(milliseconds: 500), () {
+                    _counterpartyDebounce =
+                        Timer(const Duration(milliseconds: 500), () {
                       _checkCounterpartyExists(val);
                     });
                   },
@@ -1360,20 +1547,33 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                   errorText: _counterpartyError,
                 ),
                 if (!_counterpartyExists)
-                  const Text('User not found. Please enter a valid email or username.', style: TextStyle(color: Colors.red)),
+                  const Text(
+                      'User not found. Please enter a valid email or username.',
+                      style: TextStyle(color: Colors.red)),
                 if (!_borrowerVerified) ...[
                   ElevatedButton(
-                    onPressed: _borrowerOtpSeconds > 0 || _sendingBorrowerOtp || !_counterpartyExists || _sameUserError ? null : () => _sendOtp(_counterpartyController.text, false),
+                    onPressed: _borrowerOtpSeconds > 0 ||
+                            _sendingBorrowerOtp ||
+                            !_counterpartyExists ||
+                            _sameUserError
+                        ? null
+                        : () => _sendOtp(_counterpartyController.text, false),
                     child: _sendingBorrowerOtp
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                            SizedBox(width: 8),
-                            Text('Sending OTP...'),
-                          ],
-                        )
-                      : Text(_borrowerOtpSeconds > 0 ? 'Resend in ${_borrowerOtpSeconds ~/ 60}:${(_borrowerOtpSeconds % 60).toString().padLeft(2, '0')}' : 'Send OTP'),
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2)),
+                              SizedBox(width: 8),
+                              Text('Sending OTP...'),
+                            ],
+                          )
+                        : Text(_borrowerOtpSeconds > 0
+                            ? 'Resend in ${_borrowerOtpSeconds ~/ 60}:${(_borrowerOtpSeconds % 60).toString().padLeft(2, '0')}'
+                            : 'Send OTP'),
                   ),
                   if (_borrowerOtpSent)
                     Column(
@@ -1386,7 +1586,10 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                         ),
                         const SizedBox(height: 8),
                         ElevatedButton(
-                          onPressed: _borrowerOtp.length == 6 ? () => _verifyOtp(_counterpartyController.text, _borrowerOtp, false) : null,
+                          onPressed: _borrowerOtp.length == 6
+                              ? () => _verifyOtp(_counterpartyController.text,
+                                  _borrowerOtp, false)
+                              : null,
                           child: const Text('Verify OTP'),
                         ),
                       ],
@@ -1396,19 +1599,35 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                     children: const [
                       Icon(Icons.check_circle, color: Colors.green),
                       SizedBox(width: 8),
-                      Text('Borrower email verified!', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                      Text('Borrower email verified!',
+                          style: TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ],
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _lenderVerified && _borrowerVerified && !_verifyingOtps && _counterpartyExists && !_sameUserError ? _submit : null,
+                  onPressed: _lenderVerified &&
+                          _borrowerVerified &&
+                          !_verifyingOtps &&
+                          _counterpartyExists &&
+                          !_sameUserError
+                      ? _submit
+                      : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF00B4D8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24)),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: _verifyingOtps ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Submit', style: TextStyle(fontSize: 18, color: Colors.white)),
+                  child: _verifyingOtps
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Submit',
+                          style: TextStyle(fontSize: 18, color: Colors.white)),
                 ),
               ],
             ),
@@ -1418,7 +1637,14 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
     );
   }
 
-  Widget _inputField(IconData icon, String label, TextEditingController controller, {TextInputType keyboardType = TextInputType.text, bool readOnly = false, void Function()? onTap, void Function(String)? onChanged, void Function(String)? onFieldSubmitted, String? errorText}) {
+  Widget _inputField(
+      IconData icon, String label, TextEditingController controller,
+      {TextInputType keyboardType = TextInputType.text,
+      bool readOnly = false,
+      void Function()? onTap,
+      void Function(String)? onChanged,
+      void Function(String)? onFieldSubmitted,
+      String? errorText}) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1447,7 +1673,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
                 border: InputBorder.none,
                 errorText: errorText,
               ),
-              validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+              validator: (val) =>
+                  val == null || val.isEmpty ? 'Required' : null,
               onTap: onTap,
               onChanged: onChanged,
               onFieldSubmitted: onFieldSubmitted,
@@ -1458,7 +1685,8 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
     );
   }
 
-  Widget _otpField(TextEditingController controller, String? error, int seconds, VoidCallback onResend) {
+  Widget _otpField(TextEditingController controller, String? error, int seconds,
+      VoidCallback onResend) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1473,11 +1701,14 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
             const SizedBox(width: 8),
             ElevatedButton(
               onPressed: seconds > 0 ? null : onResend,
-              child: Text(seconds > 0 ? 'Resend in ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}' : 'Resend OTP'),
+              child: Text(seconds > 0
+                  ? 'Resend in ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}'
+                  : 'Resend OTP'),
             ),
           ],
         ),
-        if (error != null) Text(error, style: const TextStyle(color: Colors.red)),
+        if (error != null)
+          Text(error, style: const TextStyle(color: Colors.red)),
       ],
     );
   }
@@ -1504,9 +1735,12 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
     final baseUrl = ApiConfig.baseUrl;
-    final res = await http.get(Uri.parse('$baseUrl/api/transactions/details'), headers: {'Authorization': 'Bearer $token'});
+    final res = await http.get(Uri.parse('$baseUrl/api/transactions/details'),
+        headers: {'Authorization': 'Bearer $token'});
     setState(() {
-      details = res.statusCode == 200 ? List<Map<String, dynamic>>.from(json.decode(res.body)) : [];
+      details = res.statusCode == 200
+          ? List<Map<String, dynamic>>.from(json.decode(res.body))
+          : [];
       loading = false;
     });
   }
@@ -1521,47 +1755,63 @@ class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
           icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Transaction Details', style: TextStyle(color: Colors.black)),
+        title: const Text('Transaction Details',
+            style: TextStyle(color: Colors.black)),
         centerTitle: true,
       ),
       backgroundColor: const Color(0xFFF8F6FA),
       body: loading
-        ? const Center(child: CircularProgressIndicator())
-        : ListView.separated(
-            padding: const EdgeInsets.all(20),
-            itemCount: details.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 16),
-            itemBuilder: (context, i) {
-              final t = details[i];
-              return Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(18.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(t['type'] == 'lending' ? Icons.arrow_upward : Icons.arrow_downward, color: t['type'] == 'lending' ? Colors.green : Colors.orange),
-                          const SizedBox(width: 8),
-                          Text(t['type'].toUpperCase(), style: TextStyle(fontWeight: FontWeight.bold, color: t['type'] == 'lending' ? Colors.green : Colors.orange)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text('Amount: ₹${t['amount']}', style: const TextStyle(fontSize: 16)),
-                      Text('Date: ${t['date']?.split('T')?.first ?? ''}'),
-                      Text('Time: ${t['time'] ?? ''}'),
-                      Text('Place: ${t['place'] ?? ''}'),
-                      Text('Lender: ${t['lender']?['username'] ?? ''}'),
-                      Text('Borrower: ${t['borrower']?['username'] ?? ''}'),
-                      Text('Transaction ID: ${t['transactionId'] ?? ''}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                    ],
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.separated(
+              padding: const EdgeInsets.all(20),
+              itemCount: details.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemBuilder: (context, i) {
+                final t = details[i];
+                return Card(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(18.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                                t['type'] == 'lending'
+                                    ? Icons.arrow_upward
+                                    : Icons.arrow_downward,
+                                color: t['type'] == 'lending'
+                                    ? Colors.green
+                                    : Colors.orange),
+                            const SizedBox(width: 8),
+                            Text(t['type'].toUpperCase(),
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: t['type'] == 'lending'
+                                        ? Colors.green
+                                        : Colors.orange)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Amount: ₹${t['amount']}',
+                            style: const TextStyle(fontSize: 16)),
+                        Text('Date: ${t['date']?.split('T')?.first ?? ''}'),
+                        Text('Time: ${t['time'] ?? ''}'),
+                        Text('Place: ${t['place'] ?? ''}'),
+                        Text('Lender: ${t['lender']?['username'] ?? ''}'),
+                        Text('Borrower: ${t['borrower']?['username'] ?? ''}'),
+                        Text('Transaction ID: ${t['transactionId'] ?? ''}',
+                            style: const TextStyle(
+                                fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
+                );
+              },
+            ),
     );
   }
-} 
+}

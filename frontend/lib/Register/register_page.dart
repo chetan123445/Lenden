@@ -29,7 +29,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
   int _otpSecondsLeft = 0;
   String _registerOtp = '';
   String? _selectedGender;
-  double _rating = 0.0;
+  // double _rating = 0.0; // Rating removed
 
   // Uniqueness check state
   bool _isUsernameUnique = true;
@@ -40,9 +40,13 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
   // Password validation
   bool get _hasUpper => RegExp(r'[A-Z]').hasMatch(_passwordController.text);
   bool get _hasLower => RegExp(r'[a-z]').hasMatch(_passwordController.text);
-  bool get _hasSpecial => RegExp(r'[^A-Za-z0-9]').hasMatch(_passwordController.text);
-  bool get _hasLength => _passwordController.text.length >= 8 && _passwordController.text.length <= 30;
-  bool get _isPasswordValid => _hasUpper && _hasLower && _hasSpecial && _hasLength;
+  bool get _hasSpecial =>
+      RegExp(r'[^A-Za-z0-9]').hasMatch(_passwordController.text);
+  bool get _hasLength =>
+      _passwordController.text.length >= 8 &&
+      _passwordController.text.length <= 30;
+  bool get _isPasswordValid =>
+      _hasUpper && _hasLower && _hasSpecial && _hasLength;
 
   @override
   void dispose() {
@@ -56,8 +60,11 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
   }
 
   Future<void> _checkUsernameUnique(String username) async {
-    setState(() { _checkingUsername = true; });
-    final res = await _post('/api/users/check-username', {'username': username});
+    setState(() {
+      _checkingUsername = true;
+    });
+    final res =
+        await _post('/api/users/check-username', {'username': username});
     setState(() {
       _isUsernameUnique = res['status'] == 200 && res['data']['unique'] == true;
       _checkingUsername = false;
@@ -65,7 +72,9 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
   }
 
   Future<void> _checkEmailUnique(String email) async {
-    setState(() { _checkingEmail = true; });
+    setState(() {
+      _checkingEmail = true;
+    });
     final res = await _post('/api/users/check-email', {'email': email});
     setState(() {
       _isEmailUnique = res['status'] == 200 && res['data']['unique'] == true;
@@ -74,21 +83,36 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
   }
 
   void _register() async {
-    setState(() { _isLoading = true; _errorMessage = null; });
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     if (!_isPasswordValid) {
-      setState(() { _errorMessage = 'Password does not meet all requirements.'; _isLoading = false; });
+      setState(() {
+        _errorMessage = 'Password does not meet all requirements.';
+        _isLoading = false;
+      });
       return;
     }
     if (_passwordController.text != _confirmPasswordController.text) {
-      setState(() { _errorMessage = 'Passwords do not match.'; _isLoading = false; });
+      setState(() {
+        _errorMessage = 'Passwords do not match.';
+        _isLoading = false;
+      });
       return;
     }
     if (!_isUsernameUnique) {
-      setState(() { _errorMessage = 'Username already exists.'; _isLoading = false; });
+      setState(() {
+        _errorMessage = 'Username already exists.';
+        _isLoading = false;
+      });
       return;
     }
     if (!_isEmailUnique) {
-      setState(() { _errorMessage = 'Email already exists.'; _isLoading = false; });
+      setState(() {
+        _errorMessage = 'Email already exists.';
+        _isLoading = false;
+      });
       return;
     }
     // Send OTP
@@ -98,14 +122,21 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
       'email': _emailController.text,
       'password': _passwordController.text,
       'gender': _selectedGender,
-      'rating': _rating,
+      // 'rating': _rating, // Rating removed
     });
     if (res['status'] == 200) {
-      setState(() { _otpSent = true; _isLoading = false; _otpSecondsLeft = 120; });
+      setState(() {
+        _otpSent = true;
+        _isLoading = false;
+        _otpSecondsLeft = 120;
+      });
       _showSnackBar('OTP sent to your email.');
       _startOtpTimer();
     } else {
-      setState(() { _errorMessage = res['data']['error'] ?? 'Failed to send OTP.'; _isLoading = false; });
+      setState(() {
+        _errorMessage = res['data']['error'] ?? 'Failed to send OTP.';
+        _isLoading = false;
+      });
     }
   }
 
@@ -114,7 +145,9 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
     Future.doWhile(() async {
       if (_otpSecondsLeft > 0 && mounted && _otpSent) {
         await Future.delayed(const Duration(seconds: 1));
-        setState(() { _otpSecondsLeft--; });
+        setState(() {
+          _otpSecondsLeft--;
+        });
         return true;
       }
       return false;
@@ -122,40 +155,57 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
   }
 
   void _verifyOtp() async {
-    setState(() { _isVerifyingOtp = true; _errorMessage = null; });
+    setState(() {
+      _isVerifyingOtp = true;
+      _errorMessage = null;
+    });
     final res = await _post('/api/users/verify-otp', {
       'email': _emailController.text,
       'otp': _otpController.text,
     });
     if (res['status'] == 201) {
-      setState(() { _isVerifyingOtp = false; });
+      setState(() {
+        _isVerifyingOtp = false;
+      });
       _showSnackBar('Registration successful!');
       Navigator.pushReplacementNamed(context, '/login');
     } else {
-      setState(() { _errorMessage = res['data']['error'] ?? 'OTP verification failed.'; _isVerifyingOtp = false; });
+      setState(() {
+        _errorMessage = res['data']['error'] ?? 'OTP verification failed.';
+        _isVerifyingOtp = false;
+      });
     }
   }
 
   void _verifyOtpWithOtp(String otp) async {
-    setState(() { _isVerifyingOtp = true; _errorMessage = null; });
+    setState(() {
+      _isVerifyingOtp = true;
+      _errorMessage = null;
+    });
     final res = await _post('/api/users/verify-otp', {
       'email': _emailController.text,
       'otp': otp,
     });
     if (res['status'] == 201) {
-      setState(() { _isVerifyingOtp = false; });
+      setState(() {
+        _isVerifyingOtp = false;
+      });
       _showSnackBar('Registration successful!');
       Navigator.pushReplacementNamed(context, '/login');
     } else {
-      setState(() { _errorMessage = res['data']['error'] ?? 'OTP verification failed.'; _isVerifyingOtp = false; });
+      setState(() {
+        _errorMessage = res['data']['error'] ?? 'OTP verification failed.';
+        _isVerifyingOtp = false;
+      });
     }
   }
 
-  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> _post(
+      String path, Map<String, dynamic> body) async {
     try {
       print('🌐 Making API call to: ${ApiConfig.baseUrl + path}');
       print('📤 Request body: ${jsonEncode(body)}');
-      
+
       final response = await http.post(
         Uri.parse(ApiConfig.baseUrl + path),
         headers: {
@@ -165,19 +215,25 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
         },
         body: jsonEncode(body),
       );
-      
+
       print('📥 Response status: ${response.statusCode}');
       print('📥 Response headers: ${response.headers}');
       print('📥 Response body: ${response.body}');
-      
+
       // Handle different response status codes
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final data = jsonDecode(response.body);
         return {'status': response.statusCode, 'data': data};
       } else if (response.statusCode == 404) {
-        return {'status': 404, 'data': {'error': 'API endpoint not found'}};
+        return {
+          'status': 404,
+          'data': {'error': 'API endpoint not found'}
+        };
       } else if (response.statusCode == 500) {
-        return {'status': 500, 'data': {'error': 'Server error'}};
+        return {
+          'status': 500,
+          'data': {'error': 'Server error'}
+        };
       } else {
         final data = jsonDecode(response.body);
         return {'status': response.statusCode, 'data': data};
@@ -185,11 +241,20 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
     } catch (e) {
       print('❌ API call error: $e');
       if (e.toString().contains('SocketException')) {
-        return {'status': 0, 'data': {'error': 'No internet connection'}};
+        return {
+          'status': 0,
+          'data': {'error': 'No internet connection'}
+        };
       } else if (e.toString().contains('HandshakeException')) {
-        return {'status': 0, 'data': {'error': 'SSL/TLS connection failed'}};
+        return {
+          'status': 0,
+          'data': {'error': 'SSL/TLS connection failed'}
+        };
       } else {
-        return {'status': 500, 'data': {'error': e.toString()}};
+        return {
+          'status': 500,
+          'data': {'error': e.toString()}
+        };
       }
     }
   }
@@ -206,7 +271,12 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
           children: const [
             Icon(Icons.email, color: Color(0xFF00B4D8), size: 60),
             SizedBox(height: 12),
-            Text('OTP Sent!', style: TextStyle(color: Color(0xFF0077B5), fontWeight: FontWeight.bold, fontSize: 22), textAlign: TextAlign.center),
+            Text('OTP Sent!',
+                style: TextStyle(
+                    color: Color(0xFF0077B5),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22),
+                textAlign: TextAlign.center),
           ],
         ),
         content: Text(
@@ -218,7 +288,11 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK', style: TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold, fontSize: 16)),
+            child: const Text('OK',
+                style: TextStyle(
+                    color: Color(0xFF00B4D8),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
           ),
         ],
       ),
@@ -236,7 +310,12 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
           children: const [
             Icon(Icons.check_circle, color: Color(0xFF00B4D8), size: 60),
             SizedBox(height: 12),
-            Text('Registration Successful', style: TextStyle(color: Color(0xFF0077B5), fontWeight: FontWeight.bold, fontSize: 22), textAlign: TextAlign.center),
+            Text('Registration Successful',
+                style: TextStyle(
+                    color: Color(0xFF0077B5),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 22),
+                textAlign: TextAlign.center),
           ],
         ),
         content: Text(
@@ -251,7 +330,11 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
               Navigator.of(context).pop();
               Navigator.pushReplacementNamed(context, '/login');
             },
-            child: const Text('Login', style: TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold, fontSize: 16)),
+            child: const Text('Login',
+                style: TextStyle(
+                    color: Color(0xFF00B4D8),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
           ),
         ],
       ),
@@ -272,7 +355,8 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
               children: [
                 const Icon(Icons.cancel, color: Colors.red, size: 18),
                 const SizedBox(width: 6),
-                Text(rule.keys.first, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                Text(rule.keys.first,
+                    style: const TextStyle(color: Colors.red, fontSize: 13)),
               ],
             ))
         .toList();
@@ -320,17 +404,22 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
           SafeArea(
             child: SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 28.0, vertical: 24.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 60),
                     const Text('Register',
-                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black),
+                        style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black),
                         textAlign: TextAlign.center),
                     const SizedBox(height: 8),
                     const Text('Hello Welcome :)',
-                        style: TextStyle(fontSize: 16, color: Colors.grey), textAlign: TextAlign.center),
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                        textAlign: TextAlign.center),
                     const SizedBox(height: 32),
                     Container(
                       decoration: BoxDecoration(
@@ -350,7 +439,8 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                           labelText: 'Name',
                           labelStyle: const TextStyle(color: Colors.grey),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 18),
                         ),
                       ),
                     ),
@@ -376,9 +466,14 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                           labelText: 'Username',
                           labelStyle: const TextStyle(color: Colors.grey),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 18),
                           suffixIcon: _checkingUsername
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
                               : _isUsernameUnique
                                   ? null
                                   : const Icon(Icons.error, color: Colors.red),
@@ -388,7 +483,8 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                     if (!_isUsernameUnique)
                       const Padding(
                         padding: EdgeInsets.only(left: 8, top: 4),
-                        child: Text('Username already exists.', style: TextStyle(color: Colors.red, fontSize: 13)),
+                        child: Text('Username already exists.',
+                            style: TextStyle(color: Colors.red, fontSize: 13)),
                       ),
                     const SizedBox(height: 18),
                     Container(
@@ -408,81 +504,24 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                         decoration: const InputDecoration(
                           labelText: 'Gender',
                           border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 18),
                         ),
                         items: const [
                           DropdownMenuItem(value: 'Male', child: Text('Male')),
-                          DropdownMenuItem(value: 'Female', child: Text('Female')),
-                          DropdownMenuItem(value: 'Other', child: Text('Other')),
+                          DropdownMenuItem(
+                              value: 'Female', child: Text('Female')),
+                          DropdownMenuItem(
+                              value: 'Other', child: Text('Other')),
                         ],
-                        onChanged: (val) => setState(() => _selectedGender = val),
-                        validator: (val) => val == null ? 'Please select gender' : null,
+                        onChanged: (val) =>
+                            setState(() => _selectedGender = val),
+                        validator: (val) =>
+                            val == null ? 'Please select gender' : null,
                       ),
                     ),
                     const SizedBox(height: 18),
-                    // Rating Field
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.only(left: 16, top: 16, bottom: 8),
-                            child: Text(
-                              'Rate yourself (optional)',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(5, (index) {
-                              return GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _rating = index + 1.0;
-                                  });
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                                  child: Icon(
-                                    index < _rating.floor() 
-                                        ? Icons.star 
-                                        : (index < _rating ? Icons.star_half : Icons.star_border),
-                                    color: Colors.amber,
-                                    size: 32,
-                                  ),
-                                ),
-                              );
-                            }),
-                          ),
-                          const SizedBox(height: 8),
-                          Center(
-                            child: Text(
-                              '${_rating.toStringAsFixed(1)}/5',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.amber,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
-                    ),
+                    // Rating field removed
                     const SizedBox(height: 18),
                     Container(
                       decoration: BoxDecoration(
@@ -505,9 +544,14 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                           labelText: 'Email',
                           labelStyle: const TextStyle(color: Colors.grey),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 18),
                           suffixIcon: _checkingEmail
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
                               : _isEmailUnique
                                   ? null
                                   : const Icon(Icons.error, color: Colors.red),
@@ -517,7 +561,8 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                     if (!_isEmailUnique)
                       const Padding(
                         padding: EdgeInsets.only(left: 8, top: 4),
-                        child: Text('Email already exists.', style: TextStyle(color: Colors.red, fontSize: 13)),
+                        child: Text('Email already exists.',
+                            style: TextStyle(color: Colors.red, fontSize: 13)),
                       ),
                     const SizedBox(height: 18),
                     Container(
@@ -540,10 +585,14 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                           labelText: 'Password',
                           labelStyle: const TextStyle(color: Colors.grey),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 18),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                            icon: Icon(_obscurePassword
+                                ? Icons.visibility_off
+                                : Icons.visibility),
+                            onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword),
                           ),
                         ),
                       ),
@@ -570,10 +619,15 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                           labelText: 'Confirm Password',
                           labelStyle: const TextStyle(color: Colors.grey),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 18),
                           suffixIcon: IconButton(
-                            icon: Icon(_obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
-                            onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                            icon: Icon(_obscureConfirmPassword
+                                ? Icons.visibility_off
+                                : Icons.visibility),
+                            onPressed: () => setState(() =>
+                                _obscureConfirmPassword =
+                                    !_obscureConfirmPassword),
                           ),
                         ),
                       ),
@@ -583,7 +637,8 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                       if (_errorMessage != null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                          child: Text(_errorMessage!,
+                              style: const TextStyle(color: Colors.red)),
                         ),
                       SizedBox(
                         width: double.infinity,
@@ -591,30 +646,42 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                           onPressed: _isLoading ? null : _register,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF00B4D8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24)),
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                           child: _isLoading
                               ? Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: const [
-                                    SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                                    SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white)),
                                     SizedBox(width: 12),
-                                    Text('Sending OTP...', style: TextStyle(fontSize: 18, color: Colors.white)),
+                                    Text('Sending OTP...',
+                                        style: TextStyle(
+                                            fontSize: 18, color: Colors.white)),
                                   ],
                                 )
-                              : const Text('Register', style: TextStyle(fontSize: 18, color: Colors.white)),
+                              : const Text('Register',
+                                  style: TextStyle(
+                                      fontSize: 18, color: Colors.white)),
                         ),
                       ),
                     ] else ...[
                       if (_errorMessage != null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8.0),
-                          child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                          child: Text(_errorMessage!,
+                              style: const TextStyle(color: Colors.red)),
                         ),
                       Container(
                         margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 10, horizontal: 16),
                         decoration: BoxDecoration(
                           color: const Color(0xFFE0F7FA),
                           borderRadius: BorderRadius.circular(12),
@@ -624,7 +691,10 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                           children: [
                             const Icon(Icons.email, color: Color(0xFF00B4D8)),
                             const SizedBox(width: 8),
-                            Text('OTP sent to your email', style: TextStyle(color: Color(0xFF0077B5), fontWeight: FontWeight.bold)),
+                            Text('OTP sent to your email',
+                                style: TextStyle(
+                                    color: Color(0xFF0077B5),
+                                    fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -635,37 +705,55 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                       ),
                       const SizedBox(height: 10),
                       if (_otpSecondsLeft > 0)
-                        Text('OTP expires in  ${_otpSecondsLeft ~/ 60}:${(_otpSecondsLeft % 60).toString().padLeft(2, '0')}', style: const TextStyle(color: Colors.grey)),
+                        Text(
+                            'OTP expires in  ${_otpSecondsLeft ~/ 60}:${(_otpSecondsLeft % 60).toString().padLeft(2, '0')}',
+                            style: const TextStyle(color: Colors.grey)),
                       if (_otpSecondsLeft == 0)
                         TextButton(
-                          onPressed: _isVerifyingOtp ? null : () {
-                            setState(() {
-                              _otpSent = false;
-                              _registerOtp = '';
-                              _errorMessage = null;
-                            });
-                          },
+                          onPressed: _isVerifyingOtp
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _otpSent = false;
+                                    _registerOtp = '';
+                                    _errorMessage = null;
+                                  });
+                                },
                           child: const Text('Resend OTP'),
                         ),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _isVerifyingOtp || _registerOtp.length != 6 || _otpSecondsLeft == 0 ? null : () => _verifyOtpWithOtp(_registerOtp),
+                          onPressed: _isVerifyingOtp ||
+                                  _registerOtp.length != 6 ||
+                                  _otpSecondsLeft == 0
+                              ? null
+                              : () => _verifyOtpWithOtp(_registerOtp),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF00B4D8),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24)),
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                           child: _isVerifyingOtp
                               ? Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: const [
-                                    SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                                    SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white)),
                                     SizedBox(width: 12),
-                                    Text('Verifying OTP...', style: TextStyle(fontSize: 18, color: Colors.white)),
+                                    Text('Verifying OTP...',
+                                        style: TextStyle(
+                                            fontSize: 18, color: Colors.white)),
                                   ],
                                 )
-                              : const Text('Verify OTP & Register', style: TextStyle(fontSize: 18, color: Colors.white)),
+                              : const Text('Verify OTP & Register',
+                                  style: TextStyle(
+                                      fontSize: 18, color: Colors.white)),
                         ),
                       ),
                     ],
@@ -673,10 +761,15 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('I Have an Account ? ', style: TextStyle(fontSize: 14)),
+                        const Text('I Have an Account ? ',
+                            style: TextStyle(fontSize: 14)),
                         GestureDetector(
                           onTap: () => Navigator.pushNamed(context, '/login'),
-                          child: const Text('Login', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
+                          child: const Text('Login',
+                              style: TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14)),
                         ),
                       ],
                     ),
@@ -695,7 +788,11 @@ class SocialIconButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  const SocialIconButton({required this.icon, required this.color, required this.onTap, super.key});
+  const SocialIconButton(
+      {required this.icon,
+      required this.color,
+      required this.onTap,
+      super.key});
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -727,12 +824,15 @@ class TopWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.lineTo(0, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
     path.lineTo(size.width, 0);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -742,13 +842,15 @@ class BottomWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6, size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
+        size.width * 0.5, size.height * 0.4);
     path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-} 
+}

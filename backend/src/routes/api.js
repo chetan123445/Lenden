@@ -23,6 +23,7 @@ module.exports = (io) => {
   const settingsController = require('../controllers/settingsController');
   const userActivityController = require('../controllers/userActivityController');
   const supportController = require('../controllers/supportController')(io);
+  const ratingController = require('../controllers/ratingController');
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -31,6 +32,10 @@ module.exports = (io) => {
     }
     next();
   };
+
+  // Ratings routes
+  router.post('/ratings', auth, ratingController.rateUser);
+  router.get('/ratings/me', auth, ratingController.getMyRatings);
 
   // User routes
   router.post('/users/register', userController.register);
