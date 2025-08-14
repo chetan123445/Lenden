@@ -1,3 +1,4 @@
+import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
@@ -17,7 +18,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   bool _isLoading = false;
   bool _obscureCurrentPassword = true;
   bool _obscureNewPassword = true;
@@ -43,7 +44,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.post(
-        Uri.parse('http://localhost:5000/api/users/change-password'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/change-password'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -56,18 +57,21 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
       if (response.statusCode == 200) {
         if (mounted) {
-          CustomWarningWidget.showAnimatedSuccess(context, 'Password changed successfully!');
+          CustomWarningWidget.showAnimatedSuccess(
+              context, 'Password changed successfully!');
           Navigator.pop(context);
         }
       } else {
         final errorData = json.decode(response.body);
         if (mounted) {
-          CustomWarningWidget.showAnimatedError(context, errorData['message'] ?? 'Failed to change password');
+          CustomWarningWidget.showAnimatedError(
+              context, errorData['message'] ?? 'Failed to change password');
         }
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -148,9 +152,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Current Password Field
               _buildPasswordField(
                 controller: _currentPasswordController,
@@ -169,9 +173,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   return null;
                 },
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // New Password Field
               _buildPasswordField(
                 controller: _newPasswordController,
@@ -193,9 +197,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   return null;
                 },
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Confirm Password Field
               _buildPasswordField(
                 controller: _confirmPasswordController,
@@ -217,9 +221,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   return null;
                 },
               ),
-              
+
               const SizedBox(height: 32),
-              
+
               // Change Password Button
               SizedBox(
                 width: double.infinity,
@@ -238,7 +242,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
                       : const Text(
@@ -251,9 +256,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                         ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Password Requirements
               Container(
                 width: double.infinity,
@@ -326,7 +331,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           ),
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           suffixIcon: IconButton(
             icon: Icon(
               obscureText ? Icons.visibility_off : Icons.visibility,
@@ -338,4 +344,4 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       ),
     );
   }
-} 
+}

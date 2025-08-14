@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../api_config.dart';
 import '../user/session.dart';
 import 'custom_warning_widget.dart';
 
@@ -56,7 +57,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/users/me'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/me'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -110,7 +111,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.put(
-        Uri.parse('http://localhost:5000/api/users/account-information'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/account-information'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',

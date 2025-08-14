@@ -1,3 +1,4 @@
+import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
@@ -8,13 +9,14 @@ class AdminSecuritySettingsPage extends StatefulWidget {
   const AdminSecuritySettingsPage({super.key});
 
   @override
-  State<AdminSecuritySettingsPage> createState() => _AdminSecuritySettingsPageState();
+  State<AdminSecuritySettingsPage> createState() =>
+      _AdminSecuritySettingsPageState();
 }
 
 class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
   bool _isLoading = false;
   bool _isSaving = false;
-  
+
   // Authentication settings
   bool _requireTwoFactorAuth = true;
   bool _enableSessionTimeout = true;
@@ -23,7 +25,7 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
   bool _enableFailedLoginAlerts = true;
   int _maxFailedAttempts = 5;
   String _lockoutDuration = '15';
-  
+
   // Access control
   bool _enableIpWhitelist = false;
   String _allowedIps = '';
@@ -32,7 +34,7 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
   bool _enableTimeBasedAccess = false;
   String _accessStartTime = '09:00';
   String _accessEndTime = '17:00';
-  
+
   // Security policies
   bool _requireStrongPasswords = true;
   bool _enablePasswordExpiry = true;
@@ -55,7 +57,7 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/admin/security-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/security-settings'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -66,21 +68,26 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
         setState(() {
           _requireTwoFactorAuth = settings['requireTwoFactorAuth'] ?? true;
           _enableSessionTimeout = settings['enableSessionTimeout'] ?? true;
-          _sessionTimeoutMinutes = settings['sessionTimeoutMinutes']?.toString() ?? '30';
-          _enableLoginNotifications = settings['enableLoginNotifications'] ?? true;
-          _enableFailedLoginAlerts = settings['enableFailedLoginAlerts'] ?? true;
+          _sessionTimeoutMinutes =
+              settings['sessionTimeoutMinutes']?.toString() ?? '30';
+          _enableLoginNotifications =
+              settings['enableLoginNotifications'] ?? true;
+          _enableFailedLoginAlerts =
+              settings['enableFailedLoginAlerts'] ?? true;
           _maxFailedAttempts = settings['maxFailedAttempts'] ?? 5;
           _lockoutDuration = settings['lockoutDuration']?.toString() ?? '15';
           _enableIpWhitelist = settings['enableIpWhitelist'] ?? false;
           _allowedIps = settings['allowedIps'] ?? '';
-          _enableGeolocationRestriction = settings['enableGeolocationRestriction'] ?? false;
+          _enableGeolocationRestriction =
+              settings['enableGeolocationRestriction'] ?? false;
           _allowedCountries = settings['allowedCountries'] ?? '';
           _enableTimeBasedAccess = settings['enableTimeBasedAccess'] ?? false;
           _accessStartTime = settings['accessStartTime'] ?? '09:00';
           _accessEndTime = settings['accessEndTime'] ?? '17:00';
           _requireStrongPasswords = settings['requireStrongPasswords'] ?? true;
           _enablePasswordExpiry = settings['enablePasswordExpiry'] ?? true;
-          _passwordExpiryDays = settings['passwordExpiryDays']?.toString() ?? '90';
+          _passwordExpiryDays =
+              settings['passwordExpiryDays']?.toString() ?? '90';
           _preventPasswordReuse = settings['preventPasswordReuse'] ?? true;
           _passwordHistoryCount = settings['passwordHistoryCount'] ?? 5;
           _enableAccountLockout = settings['enableAccountLockout'] ?? true;
@@ -112,7 +119,7 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.put(
-        Uri.parse('http://localhost:5000/api/admin/security-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/security-settings'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -187,9 +194,11 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
     if (picked != null) {
       setState(() {
         if (isStartTime) {
-          _accessStartTime = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+          _accessStartTime =
+              '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
         } else {
-          _accessEndTime = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+          _accessEndTime =
+              '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
         }
       });
     }
@@ -284,9 +293,9 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Authentication Section
                   _buildSettingsSection(
                     'Authentication',
@@ -296,14 +305,16 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                         'Force all admins to use 2FA',
                         Icons.verified_user_outlined,
                         _requireTwoFactorAuth,
-                        (value) => setState(() => _requireTwoFactorAuth = value),
+                        (value) =>
+                            setState(() => _requireTwoFactorAuth = value),
                       ),
                       _buildSwitchTile(
                         'Enable Session Timeout',
                         'Automatically log out inactive sessions',
                         Icons.timer_outlined,
                         _enableSessionTimeout,
-                        (value) => setState(() => _enableSessionTimeout = value),
+                        (value) =>
+                            setState(() => _enableSessionTimeout = value),
                       ),
                       if (_enableSessionTimeout)
                         _buildInputTile(
@@ -311,7 +322,8 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                           'Minutes before session expires',
                           Icons.access_time,
                           _sessionTimeoutMinutes,
-                          (value) => setState(() => _sessionTimeoutMinutes = value),
+                          (value) =>
+                              setState(() => _sessionTimeoutMinutes = value),
                           keyboardType: TextInputType.number,
                         ),
                       _buildSwitchTile(
@@ -319,21 +331,24 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                         'Notify on successful admin logins',
                         Icons.notifications_outlined,
                         _enableLoginNotifications,
-                        (value) => setState(() => _enableLoginNotifications = value),
+                        (value) =>
+                            setState(() => _enableLoginNotifications = value),
                       ),
                       _buildSwitchTile(
                         'Failed Login Alerts',
                         'Alert on failed login attempts',
                         Icons.warning_outlined,
                         _enableFailedLoginAlerts,
-                        (value) => setState(() => _enableFailedLoginAlerts = value),
+                        (value) =>
+                            setState(() => _enableFailedLoginAlerts = value),
                       ),
                       _buildInputTile(
                         'Max Failed Attempts',
                         'Maximum failed login attempts',
                         Icons.block_outlined,
                         _maxFailedAttempts.toString(),
-                        (value) => setState(() => _maxFailedAttempts = int.tryParse(value) ?? 5),
+                        (value) => setState(() =>
+                            _maxFailedAttempts = int.tryParse(value) ?? 5),
                         keyboardType: TextInputType.number,
                       ),
                       _buildInputTile(
@@ -346,9 +361,9 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Access Control Section
                   _buildSettingsSection(
                     'Access Control',
@@ -373,7 +388,8 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                         'Restrict access by country',
                         Icons.public_outlined,
                         _enableGeolocationRestriction,
-                        (value) => setState(() => _enableGeolocationRestriction = value),
+                        (value) => setState(
+                            () => _enableGeolocationRestriction = value),
                       ),
                       if (_enableGeolocationRestriction)
                         _buildInputTile(
@@ -388,7 +404,8 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                         'Restrict access to specific hours',
                         Icons.schedule_outlined,
                         _enableTimeBasedAccess,
-                        (value) => setState(() => _enableTimeBasedAccess = value),
+                        (value) =>
+                            setState(() => _enableTimeBasedAccess = value),
                       ),
                       if (_enableTimeBasedAccess) ...[
                         _buildTimeTile(
@@ -408,9 +425,9 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                       ],
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Password Policy Section
                   _buildSettingsSection(
                     'Password Policy',
@@ -420,14 +437,16 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                         'Enforce password complexity requirements',
                         Icons.password_outlined,
                         _requireStrongPasswords,
-                        (value) => setState(() => _requireStrongPasswords = value),
+                        (value) =>
+                            setState(() => _requireStrongPasswords = value),
                       ),
                       _buildSwitchTile(
                         'Enable Password Expiry',
                         'Force password changes periodically',
                         Icons.schedule_outlined,
                         _enablePasswordExpiry,
-                        (value) => setState(() => _enablePasswordExpiry = value),
+                        (value) =>
+                            setState(() => _enablePasswordExpiry = value),
                       ),
                       if (_enablePasswordExpiry)
                         _buildInputTile(
@@ -435,7 +454,8 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                           'Days before password expires',
                           Icons.calendar_today_outlined,
                           _passwordExpiryDays,
-                          (value) => setState(() => _passwordExpiryDays = value),
+                          (value) =>
+                              setState(() => _passwordExpiryDays = value),
                           keyboardType: TextInputType.number,
                         ),
                       _buildSwitchTile(
@@ -443,7 +463,8 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                         'Prevent reusing recent passwords',
                         Icons.history_outlined,
                         _preventPasswordReuse,
-                        (value) => setState(() => _preventPasswordReuse = value),
+                        (value) =>
+                            setState(() => _preventPasswordReuse = value),
                       ),
                       if (_preventPasswordReuse)
                         _buildInputTile(
@@ -451,7 +472,8 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                           'Number of recent passwords to remember',
                           Icons.list_outlined,
                           _passwordHistoryCount.toString(),
-                          (value) => setState(() => _passwordHistoryCount = int.tryParse(value) ?? 5),
+                          (value) => setState(() =>
+                              _passwordHistoryCount = int.tryParse(value) ?? 5),
                           keyboardType: TextInputType.number,
                         ),
                       _buildSwitchTile(
@@ -459,13 +481,14 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
                         'Lock accounts after failed attempts',
                         Icons.lock_outlined,
                         _enableAccountLockout,
-                        (value) => setState(() => _enableAccountLockout = value),
+                        (value) =>
+                            setState(() => _enableAccountLockout = value),
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Security Status
                   Container(
                     width: double.infinity,
@@ -672,4 +695,4 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }
-} 
+}

@@ -1,3 +1,4 @@
+import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
@@ -8,13 +9,14 @@ class AdminSystemSettingsPage extends StatefulWidget {
   const AdminSystemSettingsPage({super.key});
 
   @override
-  State<AdminSystemSettingsPage> createState() => _AdminSystemSettingsPageState();
+  State<AdminSystemSettingsPage> createState() =>
+      _AdminSystemSettingsPageState();
 }
 
 class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
   bool _isLoading = false;
   bool _isSaving = false;
-  
+
   // System settings
   bool _maintenanceMode = false;
   bool _userRegistrationEnabled = true;
@@ -23,13 +25,13 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
   bool _autoApproveUsers = false;
   bool _enableNotifications = true;
   bool _enableAnalytics = true;
-  
+
   // Transaction settings
   String _maxTransactionAmount = '10000';
   String _minTransactionAmount = '1';
   String _dailyTransactionLimit = '50000';
   String _monthlyTransactionLimit = '500000';
-  
+
   // System preferences
   String _defaultCurrency = 'USD';
   String _timezone = 'UTC';
@@ -51,7 +53,7 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/admin/system-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/system-settings'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -61,16 +63,23 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
         final settings = json.decode(response.body);
         setState(() {
           _maintenanceMode = settings['maintenanceMode'] ?? false;
-          _userRegistrationEnabled = settings['userRegistrationEnabled'] ?? true;
-          _emailVerificationRequired = settings['emailVerificationRequired'] ?? true;
-          _phoneVerificationRequired = settings['phoneVerificationRequired'] ?? false;
+          _userRegistrationEnabled =
+              settings['userRegistrationEnabled'] ?? true;
+          _emailVerificationRequired =
+              settings['emailVerificationRequired'] ?? true;
+          _phoneVerificationRequired =
+              settings['phoneVerificationRequired'] ?? false;
           _autoApproveUsers = settings['autoApproveUsers'] ?? false;
           _enableNotifications = settings['enableNotifications'] ?? true;
           _enableAnalytics = settings['enableAnalytics'] ?? true;
-          _maxTransactionAmount = settings['maxTransactionAmount']?.toString() ?? '10000';
-          _minTransactionAmount = settings['minTransactionAmount']?.toString() ?? '1';
-          _dailyTransactionLimit = settings['dailyTransactionLimit']?.toString() ?? '50000';
-          _monthlyTransactionLimit = settings['monthlyTransactionLimit']?.toString() ?? '500000';
+          _maxTransactionAmount =
+              settings['maxTransactionAmount']?.toString() ?? '10000';
+          _minTransactionAmount =
+              settings['minTransactionAmount']?.toString() ?? '1';
+          _dailyTransactionLimit =
+              settings['dailyTransactionLimit']?.toString() ?? '50000';
+          _monthlyTransactionLimit =
+              settings['monthlyTransactionLimit']?.toString() ?? '500000';
           _defaultCurrency = settings['defaultCurrency'] ?? 'USD';
           _timezone = settings['timezone'] ?? 'UTC';
           _dateFormat = settings['dateFormat'] ?? 'MM/DD/YYYY';
@@ -104,7 +113,7 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.put(
-        Uri.parse('http://localhost:5000/api/admin/system-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/system-settings'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -256,9 +265,9 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // System Status Section
                   _buildSettingsSection(
                     'System Status',
@@ -275,21 +284,24 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
                         'Allow new users to register',
                         Icons.person_add_outlined,
                         _userRegistrationEnabled,
-                        (value) => setState(() => _userRegistrationEnabled = value),
+                        (value) =>
+                            setState(() => _userRegistrationEnabled = value),
                       ),
                       _buildSwitchTile(
                         'Email Verification',
                         'Require email verification for new users',
                         Icons.email_outlined,
                         _emailVerificationRequired,
-                        (value) => setState(() => _emailVerificationRequired = value),
+                        (value) =>
+                            setState(() => _emailVerificationRequired = value),
                       ),
                       _buildSwitchTile(
                         'Phone Verification',
                         'Require phone verification for new users',
                         Icons.phone_outlined,
                         _phoneVerificationRequired,
-                        (value) => setState(() => _phoneVerificationRequired = value),
+                        (value) =>
+                            setState(() => _phoneVerificationRequired = value),
                       ),
                       _buildSwitchTile(
                         'Auto-approve Users',
@@ -300,9 +312,9 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Transaction Limits Section
                   _buildSettingsSection(
                     'Transaction Limits',
@@ -312,7 +324,8 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
                         'Maximum amount per transaction',
                         Icons.attach_money,
                         _maxTransactionAmount,
-                        (value) => setState(() => _maxTransactionAmount = value),
+                        (value) =>
+                            setState(() => _maxTransactionAmount = value),
                         keyboardType: TextInputType.number,
                       ),
                       _buildInputTile(
@@ -320,7 +333,8 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
                         'Minimum amount per transaction',
                         Icons.attach_money,
                         _minTransactionAmount,
-                        (value) => setState(() => _minTransactionAmount = value),
+                        (value) =>
+                            setState(() => _minTransactionAmount = value),
                         keyboardType: TextInputType.number,
                       ),
                       _buildInputTile(
@@ -328,7 +342,8 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
                         'Maximum daily transaction limit per user',
                         Icons.today_outlined,
                         _dailyTransactionLimit,
-                        (value) => setState(() => _dailyTransactionLimit = value),
+                        (value) =>
+                            setState(() => _dailyTransactionLimit = value),
                         keyboardType: TextInputType.number,
                       ),
                       _buildInputTile(
@@ -336,14 +351,15 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
                         'Maximum monthly transaction limit per user',
                         Icons.calendar_month_outlined,
                         _monthlyTransactionLimit,
-                        (value) => setState(() => _monthlyTransactionLimit = value),
+                        (value) =>
+                            setState(() => _monthlyTransactionLimit = value),
                         keyboardType: TextInputType.number,
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // System Preferences Section
                   _buildSettingsSection(
                     'System Preferences',
@@ -417,9 +433,9 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Features Section
                   _buildSettingsSection(
                     'Features',
@@ -440,9 +456,9 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Warning Section
                   if (_maintenanceMode)
                     Container(
@@ -451,7 +467,8 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
                       decoration: BoxDecoration(
                         color: Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        border:
+                            Border.all(color: Colors.orange.withOpacity(0.3)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -644,4 +661,4 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }
-} 
+}

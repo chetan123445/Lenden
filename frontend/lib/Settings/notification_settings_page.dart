@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../api_config.dart';
 import '../user/session.dart';
 import 'custom_warning_widget.dart';
 
@@ -9,13 +10,14 @@ class NotificationSettingsPage extends StatefulWidget {
   const NotificationSettingsPage({super.key});
 
   @override
-  State<NotificationSettingsPage> createState() => _NotificationSettingsPageState();
+  State<NotificationSettingsPage> createState() =>
+      _NotificationSettingsPageState();
 }
 
 class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   bool _isLoading = false;
   bool _isSaving = false;
-  
+
   // Notification settings
   bool _transactionNotifications = true;
   bool _paymentReminders = true;
@@ -24,7 +26,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   bool _emailNotifications = true;
   bool _pushNotifications = true;
   bool _smsNotifications = false;
-  
+
   // Notification frequency
   String _reminderFrequency = 'daily'; // daily, weekly, monthly
   String _quietHoursStart = '22:00';
@@ -45,7 +47,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/users/notification-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/notification-settings'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -54,7 +56,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       if (response.statusCode == 200) {
         final settings = json.decode(response.body);
         setState(() {
-          _transactionNotifications = settings['transactionNotifications'] ?? true;
+          _transactionNotifications =
+              settings['transactionNotifications'] ?? true;
           _paymentReminders = settings['paymentReminders'] ?? true;
           _chatNotifications = settings['chatNotifications'] ?? true;
           _groupNotifications = settings['groupNotifications'] ?? true;
@@ -69,7 +72,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error loading settings: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error loading settings: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -88,7 +92,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.put(
-        Uri.parse('http://localhost:5000/api/users/notification-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/notification-settings'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -110,17 +114,20 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
 
       if (response.statusCode == 200) {
         if (mounted) {
-          CustomWarningWidget.showAnimatedSuccess(context, 'Notification settings saved successfully!');
+          CustomWarningWidget.showAnimatedSuccess(
+              context, 'Notification settings saved successfully!');
         }
       } else {
         final errorData = json.decode(response.body);
         if (mounted) {
-          CustomWarningWidget.showAnimatedError(context, errorData['message'] ?? 'Failed to save settings');
+          CustomWarningWidget.showAnimatedError(
+              context, errorData['message'] ?? 'Failed to save settings');
         }
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -136,13 +143,15 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       context: context,
       initialTime: TimeOfDay.now(),
     );
-    
+
     if (picked != null) {
       setState(() {
         if (isStartTime) {
-          _quietHoursStart = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+          _quietHoursStart =
+              '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
         } else {
-          _quietHoursEnd = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+          _quietHoursEnd =
+              '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
         }
       });
     }
@@ -237,9 +246,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Notification Types Section
                   _buildSettingsSection(
                     'Notification Types',
@@ -249,7 +258,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                         'Get notified about new transactions and updates',
                         Icons.receipt_long,
                         _transactionNotifications,
-                        (value) => setState(() => _transactionNotifications = value),
+                        (value) =>
+                            setState(() => _transactionNotifications = value),
                       ),
                       _buildSwitchTile(
                         'Payment Reminders',
@@ -274,9 +284,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Notification Channels Section
                   _buildSettingsSection(
                     'Notification Channels',
@@ -304,9 +314,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Reminder Frequency Section
                   _buildSettingsSection(
                     'Reminder Settings',
@@ -325,9 +335,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Quiet Hours Section
                   _buildSettingsSection(
                     'Quiet Hours',
@@ -357,9 +367,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                       ],
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Information Section
                   Container(
                     width: double.infinity,
@@ -549,4 +559,4 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }
-} 
+}

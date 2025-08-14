@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import '../api_config.dart';
 import '../user/session.dart';
 import '../otp_input.dart';
 import 'custom_warning_widget.dart';
@@ -17,7 +18,7 @@ class AlternativeEmailPage extends StatefulWidget {
 class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  
+
   bool _isLoading = false;
   bool _isSendingOtp = false;
   bool _isVerifyingOtp = false;
@@ -49,7 +50,7 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/users/me'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/me'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -66,7 +67,8 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error loading current email: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error loading current email: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -89,7 +91,7 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.post(
-        Uri.parse('http://localhost:5000/api/users/alternative-email/send-otp'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/alternative-email/send-otp'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -101,7 +103,8 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
 
       if (response.statusCode == 200) {
         if (mounted) {
-          CustomWarningWidget.showAnimatedSuccess(context, 'OTP sent successfully! Check your email.');
+          CustomWarningWidget.showAnimatedSuccess(
+              context, 'OTP sent successfully! Check your email.');
           setState(() {
             _showOtpInput = true;
             _targetEmail = _emailController.text.trim();
@@ -113,12 +116,14 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
       } else {
         final errorData = json.decode(response.body);
         if (mounted) {
-          CustomWarningWidget.showAnimatedError(context, errorData['message'] ?? 'Failed to send OTP');
+          CustomWarningWidget.showAnimatedError(
+              context, errorData['message'] ?? 'Failed to send OTP');
         }
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -131,7 +136,8 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
 
   Future<void> _verifyOtp() async {
     if (_otpCode.length != 6) {
-      CustomWarningWidget.showAnimatedError(context, 'Please enter a valid 6-digit OTP');
+      CustomWarningWidget.showAnimatedError(
+          context, 'Please enter a valid 6-digit OTP');
       return;
     }
 
@@ -142,7 +148,8 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.post(
-        Uri.parse('http://localhost:5000/api/users/alternative-email/verify-otp'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/users/alternative-email/verify-otp'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -155,7 +162,8 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
 
       if (response.statusCode == 200) {
         if (mounted) {
-          CustomWarningWidget.showAnimatedSuccess(context, 'Alternative email verified and added successfully!');
+          CustomWarningWidget.showAnimatedSuccess(
+              context, 'Alternative email verified and added successfully!');
           _timer?.cancel();
           setState(() {
             _currentAltEmail = _targetEmail;
@@ -169,12 +177,14 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
       } else {
         final errorData = json.decode(response.body);
         if (mounted) {
-          CustomWarningWidget.showAnimatedError(context, errorData['message'] ?? 'Failed to verify OTP');
+          CustomWarningWidget.showAnimatedError(
+              context, errorData['message'] ?? 'Failed to verify OTP');
         }
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -268,7 +278,7 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.delete(
-        Uri.parse('http://localhost:5000/api/users/alternative-email'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/alternative-email'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -276,7 +286,8 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
 
       if (response.statusCode == 200) {
         if (mounted) {
-          CustomWarningWidget.showAnimatedSuccess(context, 'Alternative email removed successfully!');
+          CustomWarningWidget.showAnimatedSuccess(
+              context, 'Alternative email removed successfully!');
           setState(() {
             _currentAltEmail = null;
             _emailController.clear();
@@ -289,12 +300,14 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
       } else {
         final errorData = json.decode(response.body);
         if (mounted) {
-          CustomWarningWidget.showAnimatedError(context, errorData['message'] ?? 'Failed to remove alternative email');
+          CustomWarningWidget.showAnimatedError(context,
+              errorData['message'] ?? 'Failed to remove alternative email');
         }
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -377,18 +390,21 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                         ],
                       ),
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Current Alternative Email Display
-                    if (_currentAltEmail != null && _currentAltEmail!.isNotEmpty && !_showOtpInput)
+                    if (_currentAltEmail != null &&
+                        _currentAltEmail!.isNotEmpty &&
+                        !_showOtpInput)
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.green.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.green.withOpacity(0.3)),
+                          border:
+                              Border.all(color: Colors.green.withOpacity(0.3)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -412,10 +428,12 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                           ],
                         ),
                       ),
-                    
-                    if (_currentAltEmail != null && _currentAltEmail!.isNotEmpty && !_showOtpInput)
+
+                    if (_currentAltEmail != null &&
+                        _currentAltEmail!.isNotEmpty &&
+                        !_showOtpInput)
                       const SizedBox(height: 16),
-                    
+
                     // Email Input Field (only show when not verifying OTP)
                     if (!_showOtpInput)
                       Container(
@@ -438,7 +456,8 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                             if (value == null || value.isEmpty) {
                               return 'Please enter an email address';
                             }
-                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                .hasMatch(value)) {
                               return 'Please enter a valid email address';
                             }
                             return null;
@@ -452,16 +471,18 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                             ),
                             filled: true,
                             fillColor: Colors.white,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                            prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFF00B4D8)),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 16),
+                            prefixIcon: const Icon(Icons.email_outlined,
+                                color: Color(0xFF00B4D8)),
                           ),
                         ),
                       ),
-                    
+
                     // OTP Verification Section
                     if (_showOtpInput) ...[
                       const SizedBox(height: 24),
-                      
+
                       // Target Email Display
                       Container(
                         width: double.infinity,
@@ -469,7 +490,8 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                         decoration: BoxDecoration(
                           color: Colors.blue.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                          border:
+                              Border.all(color: Colors.blue.withOpacity(0.3)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -493,9 +515,9 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                           ],
                         ),
                       ),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // OTP Input
                       Container(
                         width: double.infinity,
@@ -532,7 +554,7 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 24),
-                            
+
                             // OTP Input Widget
                             OtpInput(
                               onChanged: (code) {
@@ -543,21 +565,26 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                               enabled: !_isVerifyingOtp,
                               autoFocus: true,
                             ),
-                            
+
                             const SizedBox(height: 24),
-                            
+
                             // Timer and Resend
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 // Timer
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: _timeRemaining > 30 ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                                    color: _timeRemaining > 30
+                                        ? Colors.green.withOpacity(0.1)
+                                        : Colors.orange.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: _timeRemaining > 30 ? Colors.green.withOpacity(0.3) : Colors.orange.withOpacity(0.3),
+                                      color: _timeRemaining > 30
+                                          ? Colors.green.withOpacity(0.3)
+                                          : Colors.orange.withOpacity(0.3),
                                     ),
                                   ),
                                   child: Row(
@@ -566,7 +593,9 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                                       Icon(
                                         Icons.timer,
                                         size: 16,
-                                        color: _timeRemaining > 30 ? Colors.green : Colors.orange,
+                                        color: _timeRemaining > 30
+                                            ? Colors.green
+                                            : Colors.orange,
                                       ),
                                       const SizedBox(width: 4),
                                       Text(
@@ -574,42 +603,52 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.bold,
-                                          color: _timeRemaining > 30 ? Colors.green : Colors.orange,
+                                          color: _timeRemaining > 30
+                                              ? Colors.green
+                                              : Colors.orange,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                
+
                                 // Resend Button
                                 TextButton(
-                                  onPressed: _timeRemaining == 0 && !_isSendingOtp ? _resendOtp : null,
+                                  onPressed:
+                                      _timeRemaining == 0 && !_isSendingOtp
+                                          ? _resendOtp
+                                          : null,
                                   child: Text(
                                     'Resend OTP',
                                     style: TextStyle(
-                                      color: _timeRemaining == 0 && !_isSendingOtp 
-                                          ? const Color(0xFF00B4D8) 
-                                          : Colors.grey,
+                                      color:
+                                          _timeRemaining == 0 && !_isSendingOtp
+                                              ? const Color(0xFF00B4D8)
+                                              : Colors.grey,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ),
                               ],
                             ),
-                            
+
                             const SizedBox(height: 24),
-                            
+
                             // Verify Button
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
-                                onPressed: _otpCode.length == 6 && !_isVerifyingOtp ? _verifyOtp : null,
+                                onPressed:
+                                    _otpCode.length == 6 && !_isVerifyingOtp
+                                        ? _verifyOtp
+                                        : null,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFF00B4D8),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
                                 ),
                                 child: _isVerifyingOtp
                                     ? const SizedBox(
@@ -617,7 +656,9 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                                         width: 20,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                  Colors.white),
                                         ),
                                       )
                                     : const Text(
@@ -630,27 +671,31 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                                       ),
                               ),
                             ),
-                            
+
                             const SizedBox(height: 16),
-                            
+
                             // Cancel Button
                             SizedBox(
                               width: double.infinity,
                               child: OutlinedButton(
-                                onPressed: _isVerifyingOtp ? null : () {
-                                  _timer?.cancel();
-                                  setState(() {
-                                    _showOtpInput = false;
-                                    _otpCode = '';
-                                    _timeRemaining = 120;
-                                  });
-                                },
+                                onPressed: _isVerifyingOtp
+                                    ? null
+                                    : () {
+                                        _timer?.cancel();
+                                        setState(() {
+                                          _showOtpInput = false;
+                                          _otpCode = '';
+                                          _timeRemaining = 120;
+                                        });
+                                      },
                                 style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Colors.grey, width: 1),
+                                  side: const BorderSide(
+                                      color: Colors.grey, width: 1),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
                                 ),
                                 child: const Text(
                                   'Cancel',
@@ -666,12 +711,13 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                         ),
                       ),
                     ],
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Action Buttons (only show when not verifying OTP)
                     if (!_showOtpInput) ...[
-                      if (_currentAltEmail != null && _currentAltEmail!.isNotEmpty)
+                      if (_currentAltEmail != null &&
+                          _currentAltEmail!.isNotEmpty)
                         Column(
                           children: [
                             SizedBox(
@@ -683,7 +729,8 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
                                 ),
                                 child: _isSendingOtp
                                     ? const SizedBox(
@@ -691,7 +738,9 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                                         width: 20,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                  Colors.white),
                                         ),
                                       )
                                     : const Text(
@@ -708,13 +757,16 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                             SizedBox(
                               width: double.infinity,
                               child: OutlinedButton(
-                                onPressed: _isLoading ? null : _removeAlternativeEmail,
+                                onPressed:
+                                    _isLoading ? null : _removeAlternativeEmail,
                                 style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: Colors.red, width: 2),
+                                  side: const BorderSide(
+                                      color: Colors.red, width: 2),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 16),
                                 ),
                                 child: const Text(
                                   'Remove Alternative Email',
@@ -746,7 +798,8 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                                     width: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white),
                                     ),
                                   )
                                 : const Text(
@@ -760,9 +813,9 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
                           ),
                         ),
                     ],
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Information Section
                     Container(
                       width: double.infinity,
@@ -800,4 +853,4 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
             ),
     );
   }
-} 
+}

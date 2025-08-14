@@ -1,3 +1,4 @@
+import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
@@ -8,13 +9,15 @@ class AdminAnalyticsSettingsPage extends StatefulWidget {
   const AdminAnalyticsSettingsPage({super.key});
 
   @override
-  State<AdminAnalyticsSettingsPage> createState() => _AdminAnalyticsSettingsPageState();
+  State<AdminAnalyticsSettingsPage> createState() =>
+      _AdminAnalyticsSettingsPageState();
 }
 
-class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage> {
+class _AdminAnalyticsSettingsPageState
+    extends State<AdminAnalyticsSettingsPage> {
   bool _isLoading = false;
   bool _isSaving = false;
-  
+
   // Analytics settings
   bool _enableAnalytics = true;
   bool _enableUserTracking = true;
@@ -22,14 +25,14 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
   bool _enablePerformanceMonitoring = true;
   bool _enableErrorTracking = true;
   bool _enableUsageAnalytics = true;
-  
+
   // Reporting settings
   String _reportFrequency = 'daily';
   String _reportFormat = 'pdf';
   bool _autoGenerateReports = true;
   bool _emailReports = false;
   String _reportEmail = '';
-  
+
   // Data retention
   String _dataRetentionPeriod = '1_year';
   bool _anonymizeData = false;
@@ -50,7 +53,7 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/admin/analytics-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/analytics-settings'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -61,8 +64,10 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
         setState(() {
           _enableAnalytics = settings['enableAnalytics'] ?? true;
           _enableUserTracking = settings['enableUserTracking'] ?? true;
-          _enableTransactionAnalytics = settings['enableTransactionAnalytics'] ?? true;
-          _enablePerformanceMonitoring = settings['enablePerformanceMonitoring'] ?? true;
+          _enableTransactionAnalytics =
+              settings['enableTransactionAnalytics'] ?? true;
+          _enablePerformanceMonitoring =
+              settings['enablePerformanceMonitoring'] ?? true;
           _enableErrorTracking = settings['enableErrorTracking'] ?? true;
           _enableUsageAnalytics = settings['enableUsageAnalytics'] ?? true;
           _reportFrequency = settings['reportFrequency'] ?? 'daily';
@@ -102,7 +107,7 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.put(
-        Uri.parse('http://localhost:5000/api/admin/analytics-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/analytics-settings'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -253,9 +258,9 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Analytics Tracking Section
                   _buildSettingsSection(
                     'Analytics Tracking',
@@ -279,14 +284,16 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
                         'Track transaction patterns and trends',
                         Icons.receipt_outlined,
                         _enableTransactionAnalytics,
-                        (value) => setState(() => _enableTransactionAnalytics = value),
+                        (value) =>
+                            setState(() => _enableTransactionAnalytics = value),
                       ),
                       _buildSwitchTile(
                         'Performance Monitoring',
                         'Monitor system performance metrics',
                         Icons.speed_outlined,
                         _enablePerformanceMonitoring,
-                        (value) => setState(() => _enablePerformanceMonitoring = value),
+                        (value) => setState(
+                            () => _enablePerformanceMonitoring = value),
                       ),
                       _buildSwitchTile(
                         'Error Tracking',
@@ -300,13 +307,14 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
                         'Track feature usage and adoption',
                         Icons.trending_up_outlined,
                         _enableUsageAnalytics,
-                        (value) => setState(() => _enableUsageAnalytics = value),
+                        (value) =>
+                            setState(() => _enableUsageAnalytics = value),
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Reporting Section
                   _buildSettingsSection(
                     'Reporting',
@@ -362,9 +370,9 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
                         ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Data Management Section
                   _buildSettingsSection(
                     'Data Management',
@@ -382,7 +390,8 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
                           '2_years': '2 Years',
                           'indefinite': 'Indefinite',
                         },
-                        (value) => setState(() => _dataRetentionPeriod = value!),
+                        (value) =>
+                            setState(() => _dataRetentionPeriod = value!),
                       ),
                       _buildSwitchTile(
                         'Anonymize Data',
@@ -407,9 +416,9 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Warning Section
                   if (!_enableAnalytics)
                     Container(
@@ -418,7 +427,8 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
                       decoration: BoxDecoration(
                         color: Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        border:
+                            Border.all(color: Colors.orange.withOpacity(0.3)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -610,4 +620,4 @@ class _AdminAnalyticsSettingsPageState extends State<AdminAnalyticsSettingsPage>
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }
-} 
+}

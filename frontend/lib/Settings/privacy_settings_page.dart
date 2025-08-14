@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../api_config.dart';
 import '../user/session.dart';
 import 'custom_warning_widget.dart';
 
@@ -15,7 +16,7 @@ class PrivacySettingsPage extends StatefulWidget {
 class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   bool _isLoading = false;
   bool _isSaving = false;
-  
+
   // Privacy settings
   bool _profileVisibility = true;
   bool _transactionHistory = true;
@@ -23,7 +24,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   bool _analyticsSharing = true;
   bool _marketingEmails = false;
   bool _dataCollection = true;
-  
+
   // Security settings
   bool _twoFactorAuth = false;
   bool _loginNotifications = true;
@@ -44,7 +45,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/users/privacy-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/privacy-settings'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -67,7 +68,8 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error loading settings: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error loading settings: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -86,7 +88,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.put(
-        Uri.parse('http://localhost:5000/api/users/privacy-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/privacy-settings'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -107,17 +109,20 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
 
       if (response.statusCode == 200) {
         if (mounted) {
-          CustomWarningWidget.showAnimatedSuccess(context, 'Privacy settings saved successfully!');
+          CustomWarningWidget.showAnimatedSuccess(
+              context, 'Privacy settings saved successfully!');
         }
       } else {
         final errorData = json.decode(response.body);
         if (mounted) {
-          CustomWarningWidget.showAnimatedError(context, errorData['message'] ?? 'Failed to save settings');
+          CustomWarningWidget.showAnimatedError(
+              context, errorData['message'] ?? 'Failed to save settings');
         }
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error: ${e.toString()}');
       }
     } finally {
       if (mounted) {
@@ -132,7 +137,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/users/download-data'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/download-data'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -140,17 +145,20 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
 
       if (response.statusCode == 200) {
         if (mounted) {
-          CustomWarningWidget.showAnimatedSuccess(context, 'Data download initiated. Check your email.');
+          CustomWarningWidget.showAnimatedSuccess(
+              context, 'Data download initiated. Check your email.');
         }
       } else {
         final errorData = json.decode(response.body);
         if (mounted) {
-          CustomWarningWidget.showAnimatedError(context, errorData['message'] ?? 'Failed to download data');
+          CustomWarningWidget.showAnimatedError(
+              context, errorData['message'] ?? 'Failed to download data');
         }
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error: ${e.toString()}');
       }
     }
   }
@@ -208,7 +216,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.delete(
-        Uri.parse('http://localhost:5000/api/users/delete-account'),
+        Uri.parse('${ApiConfig.baseUrl}/api/users/delete-account'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -218,17 +226,20 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
         if (mounted) {
           session.logout();
           Navigator.of(context).pushReplacementNamed('/');
-          CustomWarningWidget.showAnimatedSuccess(context, 'Account deleted successfully');
+          CustomWarningWidget.showAnimatedSuccess(
+              context, 'Account deleted successfully');
         }
       } else {
         final errorData = json.decode(response.body);
         if (mounted) {
-          CustomWarningWidget.showAnimatedError(context, errorData['message'] ?? 'Failed to delete account');
+          CustomWarningWidget.showAnimatedError(
+              context, errorData['message'] ?? 'Failed to delete account');
         }
       }
     } catch (e) {
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(context, 'Error: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error: ${e.toString()}');
       }
     }
   }
@@ -322,9 +333,9 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Privacy Settings Section
                   _buildSettingsSection(
                     'Privacy Settings',
@@ -373,9 +384,9 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Security Settings Section
                   _buildSettingsSection(
                     'Security Settings',
@@ -417,9 +428,9 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Data Management Section
                   _buildSettingsSection(
                     'Data Management',
@@ -439,9 +450,9 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Information Section
                   Container(
                     width: double.infinity,
@@ -622,4 +633,4 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }
-} 
+}

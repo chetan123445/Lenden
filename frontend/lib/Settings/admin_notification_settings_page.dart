@@ -1,3 +1,4 @@
+import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
@@ -8,13 +9,15 @@ class AdminNotificationSettingsPage extends StatefulWidget {
   const AdminNotificationSettingsPage({super.key});
 
   @override
-  State<AdminNotificationSettingsPage> createState() => _AdminNotificationSettingsPageState();
+  State<AdminNotificationSettingsPage> createState() =>
+      _AdminNotificationSettingsPageState();
 }
 
-class _AdminNotificationSettingsPageState extends State<AdminNotificationSettingsPage> {
+class _AdminNotificationSettingsPageState
+    extends State<AdminNotificationSettingsPage> {
   bool _isLoading = false;
   bool _isSaving = false;
-  
+
   // System alerts
   bool _systemAlerts = true;
   bool _maintenanceAlerts = true;
@@ -22,7 +25,7 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
   bool _performanceAlerts = true;
   bool _securityAlerts = true;
   bool _backupAlerts = true;
-  
+
   // User management alerts
   bool _newUserAlerts = true;
   bool _suspiciousActivityAlerts = true;
@@ -30,7 +33,7 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
   bool _failedLoginAlerts = true;
   bool _userDeletionAlerts = true;
   bool _bulkActionAlerts = true;
-  
+
   // Transaction alerts
   bool _largeTransactionAlerts = true;
   bool _failedTransactionAlerts = true;
@@ -38,13 +41,13 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
   bool _dailyTransactionSummary = true;
   bool _weeklyTransactionSummary = true;
   bool _monthlyTransactionSummary = false;
-  
+
   // Notification channels
   bool _emailNotifications = true;
   bool _pushNotifications = true;
   bool _smsNotifications = false;
   bool _inAppNotifications = true;
-  
+
   // Notification preferences
   String _notificationFrequency = 'immediate';
   bool _quietHoursEnabled = false;
@@ -66,7 +69,7 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/admin/notification-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/notification-settings'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -82,22 +85,29 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
           _securityAlerts = settings['securityAlerts'] ?? true;
           _backupAlerts = settings['backupAlerts'] ?? true;
           _newUserAlerts = settings['newUserAlerts'] ?? true;
-          _suspiciousActivityAlerts = settings['suspiciousActivityAlerts'] ?? true;
+          _suspiciousActivityAlerts =
+              settings['suspiciousActivityAlerts'] ?? true;
           _accountLockoutAlerts = settings['accountLockoutAlerts'] ?? true;
           _failedLoginAlerts = settings['failedLoginAlerts'] ?? true;
           _userDeletionAlerts = settings['userDeletionAlerts'] ?? true;
           _bulkActionAlerts = settings['bulkActionAlerts'] ?? true;
           _largeTransactionAlerts = settings['largeTransactionAlerts'] ?? true;
-          _failedTransactionAlerts = settings['failedTransactionAlerts'] ?? true;
-          _suspiciousTransactionAlerts = settings['suspiciousTransactionAlerts'] ?? true;
-          _dailyTransactionSummary = settings['dailyTransactionSummary'] ?? true;
-          _weeklyTransactionSummary = settings['weeklyTransactionSummary'] ?? true;
-          _monthlyTransactionSummary = settings['monthlyTransactionSummary'] ?? false;
+          _failedTransactionAlerts =
+              settings['failedTransactionAlerts'] ?? true;
+          _suspiciousTransactionAlerts =
+              settings['suspiciousTransactionAlerts'] ?? true;
+          _dailyTransactionSummary =
+              settings['dailyTransactionSummary'] ?? true;
+          _weeklyTransactionSummary =
+              settings['weeklyTransactionSummary'] ?? true;
+          _monthlyTransactionSummary =
+              settings['monthlyTransactionSummary'] ?? false;
           _emailNotifications = settings['emailNotifications'] ?? true;
           _pushNotifications = settings['pushNotifications'] ?? true;
           _smsNotifications = settings['smsNotifications'] ?? false;
           _inAppNotifications = settings['inAppNotifications'] ?? true;
-          _notificationFrequency = settings['notificationFrequency'] ?? 'immediate';
+          _notificationFrequency =
+              settings['notificationFrequency'] ?? 'immediate';
           _quietHoursEnabled = settings['quietHoursEnabled'] ?? false;
           _quietHoursStart = settings['quietHoursStart'] ?? '22:00';
           _quietHoursEnd = settings['quietHoursEnd'] ?? '08:00';
@@ -130,7 +140,7 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.put(
-        Uri.parse('http://localhost:5000/api/admin/notification-settings'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/notification-settings'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -212,9 +222,11 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
     if (picked != null) {
       setState(() {
         if (isStartTime) {
-          _quietHoursStart = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+          _quietHoursStart =
+              '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
         } else {
-          _quietHoursEnd = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+          _quietHoursEnd =
+              '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
         }
       });
     }
@@ -309,9 +321,9 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // System Alerts Section
                   _buildSettingsSection(
                     'System Alerts',
@@ -360,9 +372,9 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // User Management Alerts Section
                   _buildSettingsSection(
                     'User Management Alerts',
@@ -379,14 +391,16 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
                         'Suspicious user activity alerts',
                         Icons.warning_outlined,
                         _suspiciousActivityAlerts,
-                        (value) => setState(() => _suspiciousActivityAlerts = value),
+                        (value) =>
+                            setState(() => _suspiciousActivityAlerts = value),
                       ),
                       _buildSwitchTile(
                         'Account Lockout Alerts',
                         'User account lockout notifications',
                         Icons.lock_outlined,
                         _accountLockoutAlerts,
-                        (value) => setState(() => _accountLockoutAlerts = value),
+                        (value) =>
+                            setState(() => _accountLockoutAlerts = value),
                       ),
                       _buildSwitchTile(
                         'Failed Login Alerts',
@@ -411,9 +425,9 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Transaction Alerts Section
                   _buildSettingsSection(
                     'Transaction Alerts',
@@ -423,48 +437,54 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
                         'High-value transaction notifications',
                         Icons.attach_money_outlined,
                         _largeTransactionAlerts,
-                        (value) => setState(() => _largeTransactionAlerts = value),
+                        (value) =>
+                            setState(() => _largeTransactionAlerts = value),
                       ),
                       _buildSwitchTile(
                         'Failed Transaction Alerts',
                         'Failed transaction notifications',
                         Icons.cancel_outlined,
                         _failedTransactionAlerts,
-                        (value) => setState(() => _failedTransactionAlerts = value),
+                        (value) =>
+                            setState(() => _failedTransactionAlerts = value),
                       ),
                       _buildSwitchTile(
                         'Suspicious Transaction Alerts',
                         'Suspicious transaction pattern alerts',
                         Icons.report_problem_outlined,
                         _suspiciousTransactionAlerts,
-                        (value) => setState(() => _suspiciousTransactionAlerts = value),
+                        (value) => setState(
+                            () => _suspiciousTransactionAlerts = value),
                       ),
                       _buildSwitchTile(
                         'Daily Transaction Summary',
                         'Daily transaction summary reports',
                         Icons.summarize_outlined,
                         _dailyTransactionSummary,
-                        (value) => setState(() => _dailyTransactionSummary = value),
+                        (value) =>
+                            setState(() => _dailyTransactionSummary = value),
                       ),
                       _buildSwitchTile(
                         'Weekly Transaction Summary',
                         'Weekly transaction summary reports',
                         Icons.calendar_view_week_outlined,
                         _weeklyTransactionSummary,
-                        (value) => setState(() => _weeklyTransactionSummary = value),
+                        (value) =>
+                            setState(() => _weeklyTransactionSummary = value),
                       ),
                       _buildSwitchTile(
                         'Monthly Transaction Summary',
                         'Monthly transaction summary reports',
                         Icons.calendar_view_month_outlined,
                         _monthlyTransactionSummary,
-                        (value) => setState(() => _monthlyTransactionSummary = value),
+                        (value) =>
+                            setState(() => _monthlyTransactionSummary = value),
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Notification Channels Section
                   _buildSettingsSection(
                     'Notification Channels',
@@ -499,9 +519,9 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   // Notification Preferences Section
                   _buildSettingsSection(
                     'Notification Preferences',
@@ -517,7 +537,8 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
                           'daily': 'Daily',
                           'weekly': 'Weekly',
                         },
-                        (value) => setState(() => _notificationFrequency = value!),
+                        (value) =>
+                            setState(() => _notificationFrequency = value!),
                       ),
                       _buildDropdownTile(
                         'Timezone',
@@ -558,9 +579,9 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
                       ],
                     ],
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   // Notification Status
                   Container(
                     width: double.infinity,
@@ -609,16 +630,19 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
   }
 
   String _getNotificationStatusText() {
-    if (!_emailNotifications && !_pushNotifications && !_smsNotifications && !_inAppNotifications) {
+    if (!_emailNotifications &&
+        !_pushNotifications &&
+        !_smsNotifications &&
+        !_inAppNotifications) {
       return 'All notifications are currently disabled.';
     }
-    
+
     List<String> activeChannels = [];
     if (_emailNotifications) activeChannels.add('Email');
     if (_pushNotifications) activeChannels.add('Push');
     if (_smsNotifications) activeChannels.add('SMS');
     if (_inAppNotifications) activeChannels.add('In-App');
-    
+
     return 'Notifications are active via: ${activeChannels.join(', ')}';
   }
 
@@ -774,4 +798,4 @@ class _AdminNotificationSettingsPageState extends State<AdminNotificationSetting
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }
-} 
+}
