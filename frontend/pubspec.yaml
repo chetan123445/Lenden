@@ -26,9 +26,19 @@ dependencies:
   flutter_slidable: ^4.0.0
   flutter_colorpicker: ^1.1.0
 
+dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
+
 flutter:
   uses-material-design: true
   assets: 
     - assets/Male.png
     - assets/Female.png
     - assets/Other.png
+    - assets/icon.png
+
+# flutter_launcher_icons configuration
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon.png"
