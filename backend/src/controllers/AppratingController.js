@@ -47,17 +47,32 @@ exports.getAppRatings = async (req, res) => {
 // GET /api/rating/all - Get all ratings (admin)
 exports.getAllRatings = async (req, res) => {
   try {
-    // Populate user info for admin UI
-    const ratings = await AppRating.find().sort({ createdAt: -1 }).populate('user', 'name email profileImage');
-    // Map ratings to include userName, userEmail, userProfileImage
-    const ratingsWithUser = ratings.map(r => ({
-      _id: r._id,
-      userName: r.user?.name || r.user?.email || 'User',
-      userEmail: r.user?.email || '',
-      userProfileImage: r.user?.profileImage || '',
-      rating: r.rating,
-      createdAt: r.createdAt,
-    }));
+    // Populate all user info except password for admin UI
+    const ratings = await AppRating.find().sort({ createdAt: -1 }).populate('user', '-password');
+    const ratingsWithUser = ratings.map(r => {
+      const u = r.user || {};
+      return {
+        _id: r._id,
+        userName: u.name || u.email || 'User',
+        userEmail: u.email || '',
+        userProfileImage: u.profileImage || '',
+        username: u.username,
+        gender: u.gender,
+        birthday: u.birthday,
+        address: u.address,
+        phone: u.phone,
+        altEmail: u.altEmail,
+        memberSince: u.memberSince,
+        avgRating: u.avgRating,
+        role: u.role,
+        isActive: u.isActive,
+        isVerified: u.isVerified,
+        // notificationSettings: u.notificationSettings, // omit
+        // privacySettings: u.privacySettings, // omit
+        rating: r.rating,
+        createdAt: r.createdAt,
+      };
+    });
     res.json({ ratings: ratingsWithUser });
   } catch (err) {
     res.status(500).json({ error: err.message });

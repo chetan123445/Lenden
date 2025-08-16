@@ -28,17 +28,32 @@ exports.getUserFeedbacks = async (req, res) => {
 
 exports.getAllFeedbacks = async (req, res) => {
   try {
-    // Populate user info for admin UI
-    const feedbacks = await Feedback.find().sort({ createdAt: -1 }).populate('user', 'name email profileImage');
-    // Map feedbacks to include userName, userEmail, userProfileImage
-    const feedbacksWithUser = feedbacks.map(fb => ({
-      _id: fb._id,
-      userName: fb.user?.name || fb.user?.email || 'User',
-      userEmail: fb.user?.email || '',
-      userProfileImage: fb.user?.profileImage || '',
-      feedback: fb.feedback,
-      createdAt: fb.createdAt,
-    }));
+    // Populate all user info except password for admin UI
+    const feedbacks = await Feedback.find().sort({ createdAt: -1 }).populate('user', '-password');
+    const feedbacksWithUser = feedbacks.map(fb => {
+      const u = fb.user || {};
+      return {
+        _id: fb._id,
+        userName: u.name || u.email || 'User',
+        userEmail: u.email || '',
+        userProfileImage: u.profileImage || '',
+        username: u.username,
+        gender: u.gender,
+        birthday: u.birthday,
+        address: u.address,
+        phone: u.phone,
+        altEmail: u.altEmail,
+        memberSince: u.memberSince,
+        avgRating: u.avgRating,
+        role: u.role,
+        isActive: u.isActive,
+        isVerified: u.isVerified,
+        // notificationSettings: u.notificationSettings, // omit
+        // privacySettings: u.privacySettings, // omit
+        feedback: fb.feedback,
+        createdAt: fb.createdAt,
+      };
+    });
     res.json({ feedbacks: feedbacksWithUser });
   } catch (err) {
     res.status(500).json({ error: err.message });

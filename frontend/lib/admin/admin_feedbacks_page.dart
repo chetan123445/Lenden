@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import '../user/session.dart';
 import 'dart:convert';
 import '../api_config.dart';
+import 'admin_ratings_page_helpers.dart';
 
 class AdminFeedbacksPage extends StatefulWidget {
   const AdminFeedbacksPage({Key? key}) : super(key: key);
@@ -103,7 +104,6 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
                       showDialog(
                         context: context,
                         builder: (ctx) {
-                          // Collect all user fields except password and nulls
                           final Map<String, dynamic> user = {
                             'Name': feedback['userName'],
                             'Email': feedback['userEmail'],
@@ -111,14 +111,19 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
                             'Gender': feedback['gender'],
                             'Birthday': feedback['birthday'],
                             'Phone': feedback['phone'],
+                            'Address': feedback['address'],
+                            'Alt Email': feedback['altEmail'],
+                            'Member Since': feedback['memberSince'],
+                            'Average Rating': feedback['avgRating'],
+                            'Role': feedback['role'],
+                            'Is Active': feedback['isActive'],
+                            'Is Verified': feedback['isVerified'],
                           };
-                          // Remove null/empty fields
                           final fields = user.entries
                               .where((e) =>
                                   e.value != null &&
                                   e.value.toString().trim().isNotEmpty)
                               .toList();
-                          // Profile image logic
                           String? profileImageUrl;
                           final img = feedback['userProfileImage'];
                           if (img != null) {
@@ -132,7 +137,6 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
                               profileImageUrl = img['url'];
                             }
                           }
-                          // Gender-based default avatar
                           String gender = feedback['gender'] ?? 'Other';
                           ImageProvider avatarProvider;
                           if (profileImageUrl != null) {
@@ -149,72 +153,130 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
                           return Dialog(
                             backgroundColor: const Color(0xFFF8F6FA),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24)),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 18, vertical: 24),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  CircleAvatar(
-                                    radius: 38,
-                                    backgroundColor: const Color(0xFF00B4D8),
-                                    backgroundImage: avatarProvider,
+                                borderRadius: BorderRadius.circular(32)),
+                            child: Stack(
+                              children: [
+                                // Top wave
+                                Positioned(
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: ClipPath(
+                                    clipper: TopWaveClipper(),
+                                    child: Container(
+                                      height: 70,
+                                      color: const Color(0xFF00B4D8),
+                                    ),
                                   ),
-                                  const SizedBox(height: 18),
-                                  Text(
-                                    feedback['userName'] ?? 'User',
-                                    style: const TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.black),
+                                ),
+                                // Bottom wave
+                                Positioned(
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: ClipPath(
+                                    clipper: BottomWaveClipper(),
+                                    child: Container(
+                                      height: 50,
+                                      color: const Color(0xFF00B4D8),
+                                    ),
                                   ),
-                                  const SizedBox(height: 18),
-                                  ...fields.map((e) => Container(
-                                        margin: const EdgeInsets.symmetric(
-                                            vertical: 4),
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 10),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius:
-                                              BorderRadius.circular(14),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black
-                                                  .withOpacity(0.04),
-                                              blurRadius: 6,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 24, vertical: 24),
+                                  child: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const SizedBox(height: 10),
+                                        Center(
+                                          child: CircleAvatar(
+                                            radius: 44,
+                                            backgroundColor:
+                                                const Color(0xFF00B4D8),
+                                            backgroundImage: avatarProvider,
+                                          ),
                                         ),
-                                        child: Row(
-                                          children: [
-                                            Text(
-                                              '${e.key}: ',
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 15),
-                                            ),
-                                            Expanded(
-                                              child: Text(
-                                                e.value.toString(),
-                                                style: const TextStyle(
-                                                    fontSize: 15),
+                                        const SizedBox(height: 18),
+                                        Center(
+                                          child: Text(
+                                            feedback['userName'] ?? 'User',
+                                            style: const TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 18),
+                                        ...fields.map((e) => Container(
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 6),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 12),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: Colors.black
+                                                        .withOpacity(0.05),
+                                                    blurRadius: 8,
+                                                    offset: const Offset(0, 2),
+                                                  ),
+                                                ],
                                               ),
-                                            ),
-                                          ],
+                                              child: Row(
+                                                children: [
+                                                  Icon(getIconForField(e.key),
+                                                      color: const Color(
+                                                          0xFF00B4D8)),
+                                                  const SizedBox(width: 16),
+                                                  Expanded(
+                                                    child: Text.rich(
+                                                      TextSpan(
+                                                        children: [
+                                                          TextSpan(
+                                                            text: '${e.key}: ',
+                                                            style: const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 16),
+                                                          ),
+                                                          TextSpan(
+                                                            text: e.value
+                                                                .toString(),
+                                                            style: const TextStyle(
+                                                                fontSize: 16,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .normal),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )),
+                                        const SizedBox(height: 18),
+                                        TextButton(
+                                          child: const Text('Close',
+                                              style: TextStyle(
+                                                  color: Color(0xFF6C63FF))),
+                                          onPressed: () =>
+                                              Navigator.of(ctx).pop(),
                                         ),
-                                      )),
-                                  const SizedBox(height: 10),
-                                  TextButton(
-                                    child: const Text('Close',
-                                        style: TextStyle(
-                                            color: Color(0xFF6C63FF))),
-                                    onPressed: () => Navigator.of(ctx).pop(),
+                                      ],
+                                    ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           );
                         },
