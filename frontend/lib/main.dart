@@ -179,13 +179,13 @@ class HomePage extends StatelessWidget {
           ),
           // Bottom blue wave
           Positioned(
-            bottom: 0,
             left: 0,
             right: 0,
+            bottom: 0,
             child: ClipPath(
               clipper: BottomWaveClipper(),
               child: Container(
-                height: 100,
+                height: MediaQuery.of(context).size.height * 0.13,
                 color: const Color(0xFF00B4D8),
               ),
             ),
@@ -197,7 +197,6 @@ class HomePage extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 20.0, vertical: 24.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -388,23 +387,26 @@ class HomePage extends StatelessWidget {
                       child: Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black12,
-                              blurRadius: 12,
-                              offset: Offset(0, 6),
+                              blurRadius: 16,
+                              offset: Offset(0, 8),
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.all(16),
-                        child: Image.asset(
-                          'assets/icon.png',
-                          width: 80,
-                          height: 80,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.account_balance_wallet,
-                                  size: 64, color: Color(0xFF00B4D8)),
+                        padding: const EdgeInsets.all(24),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Image.asset(
+                            'assets/icon.png',
+                            width: 120,
+                            height: 120,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(Icons.account_balance_wallet,
+                                    size: 100, color: Color(0xFF00B4D8)),
+                          ),
                         ),
                       ),
                     ),
