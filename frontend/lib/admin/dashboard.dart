@@ -8,21 +8,23 @@ import 'manage_and_track_users/user_management_page.dart';
 import 'manage_group_transactions_page.dart';
 import 'track_user_activity_page.dart';
 import 'manage_support_queries_page.dart';
-
-
+import 'admin_ratings_page.dart';
+import 'admin_feedbacks_page.dart';
 
 class DashboardBottomWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     Path path = Path();
     path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6, size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
+        size.width * 0.5, size.height * 0.4);
     path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -34,14 +36,16 @@ class LogoutDialogWaveClipper extends CustomClipper<Path> {
     path.moveTo(0, 0);
     path.lineTo(size.width, 0);
     path.lineTo(size.width, size.height);
-    
+
     // Create wavy effect
-    path.quadraticBezierTo(size.width * 0.75, size.height * 0.8, size.width * 0.5, size.height);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.8, 0, size.height);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.8, size.width * 0.5, size.height);
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height * 0.8, 0, size.height);
     path.close();
     return path;
   }
-  
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -59,7 +63,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   @override
   void initState() {
     super.initState();
-    
+
     // Listen to session changes to refresh profile image
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = Provider.of<SessionProvider>(context, listen: false);
@@ -86,7 +90,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final user = session.user;
     final gender = user?['gender'] ?? 'Other';
     final imageUrl = user?['profileImage'];
-    
+
     print('🖼️ Admin Dashboard - _getAdminAvatar called:');
     print('   User: ${user != null ? 'Present' : 'Missing'}');
     print('   User data: $user');
@@ -96,10 +100,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     print('   Image URL is null: ${imageUrl == null}');
     print('   Image URL is empty: ${imageUrl == ""}');
     print('   Image URL is "null": ${imageUrl == "null"}');
-    
-    if (imageUrl != null && imageUrl is String && imageUrl.trim().isNotEmpty && imageUrl != 'null') {
+
+    if (imageUrl != null &&
+        imageUrl is String &&
+        imageUrl.trim().isNotEmpty &&
+        imageUrl != 'null') {
       // Add cache busting parameter for real-time updates
-      final cacheBustingUrl = '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+      final cacheBustingUrl =
+          '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
       print('   ✅ Using network image: $cacheBustingUrl');
       return NetworkImage(cacheBustingUrl);
     } else {
@@ -129,7 +137,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             children: [
               const DrawerHeader(
                 decoration: BoxDecoration(color: Color(0xFF00B4D8)),
-                child: Text('Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
+                child: Text('Menu',
+                    style: TextStyle(color: Colors.white, fontSize: 24)),
               ),
               const ListTile(
                 leading: Icon(Icons.dashboard),
@@ -148,15 +157,35 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 title: Text('Notes'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => AdminNotesPage()));
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => AdminNotesPage()));
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.help_center), // New icon
+                leading: const Icon(Icons.star),
+                title: const Text('User Ratings'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.pushNamed(context, '/admin/ratings');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.feedback),
+                title: const Text('User Feedbacks'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.pushNamed(context, '/admin/feedbacks');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.help_center),
                 title: const Text('Help & Support'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => ManageSupportQueriesPage()));
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ManageSupportQueriesPage()));
                 },
               ),
               ListTile(
@@ -181,7 +210,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     icon: Icons.people,
                     label: 'Manage Users',
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementPage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const UserManagementPage()));
                     },
                   ),
                   _buildDashboardCard(
@@ -189,7 +221,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     icon: Icons.receipt,
                     label: 'Manage Transactions',
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => ManageTransactionsPage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => ManageTransactionsPage()));
                     },
                   ),
                   _buildDashboardCard(
@@ -197,7 +232,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     icon: Icons.note,
                     label: 'Notes',
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminNotesPage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const AdminNotesPage()));
                     },
                   ),
                   _buildDashboardCard(
@@ -205,7 +243,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     icon: Icons.group,
                     label: 'Manage Groups',
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => ManageGroupTransactionsPage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => ManageGroupTransactionsPage()));
                     },
                   ),
                   _buildDashboardCard(
@@ -213,7 +254,26 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     icon: Icons.track_changes,
                     label: 'Track User Activity',
                     onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => TrackUserActivityPage()));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => TrackUserActivityPage()));
+                    },
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.star,
+                    label: 'User Ratings',
+                    onTap: () {
+                      Navigator.pushNamed(context, '/admin/ratings');
+                    },
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.feedback,
+                    label: 'User Feedbacks',
+                    onTap: () {
+                      Navigator.pushNamed(context, '/admin/feedbacks');
                     },
                   ),
                 ],
@@ -260,9 +320,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.arrow_back, color: Colors.white),
+                            icon: const Icon(Icons.arrow_back,
+                                color: Colors.white),
                             onPressed: () async {
-                              final popped = await Navigator.of(context).maybePop();
+                              final popped =
+                                  await Navigator.of(context).maybePop();
                               if (!popped && context.mounted) {
                                 Navigator.pushReplacementNamed(context, '/');
                               }
@@ -271,7 +333,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           Builder(
                             builder: (context) => IconButton(
                               icon: const Icon(Icons.menu, color: Colors.white),
-                              onPressed: () => Scaffold.of(context).openDrawer(),
+                              onPressed: () =>
+                                  Scaffold.of(context).openDrawer(),
                             ),
                           ),
                         ],
@@ -279,7 +342,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.notifications, color: Colors.white, size: 28),
+                            icon: const Icon(Icons.notifications,
+                                color: Colors.white, size: 28),
                             tooltip: 'Notifications',
                             onPressed: () {
                               // TODO: Implement notifications page navigation
@@ -287,15 +351,20 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           ),
                           GestureDetector(
                             onTap: () async {
-                              print('Admin profile icon tapped - navigating to profile page');
+                              print(
+                                  'Admin profile icon tapped - navigating to profile page');
                               try {
                                 await Navigator.push(
                                   context,
-                                  MaterialPageRoute(builder: (context) => const ProfilePage()),
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          const ProfilePage()),
                                 );
                                 print('Admin returned from profile page');
                                 // Force refresh after returning from profile page
-                                final session = Provider.of<SessionProvider>(context, listen: false);
+                                final session = Provider.of<SessionProvider>(
+                                    context,
+                                    listen: false);
                                 await session.forceRefreshProfile();
                                 setState(() {
                                   _imageRefreshKey++;
@@ -312,15 +381,18 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               onBackgroundImageError: (exception, stackTrace) {
                                 // Handle image loading error
                               },
-                              child: _getAdminAvatar() is AssetImage ? Icon(
-                                Icons.person,
-                                color: Colors.grey[400],
-                                size: 20,
-                              ) : null,
+                              child: _getAdminAvatar() is AssetImage
+                                  ? Icon(
+                                      Icons.person,
+                                      color: Colors.grey[400],
+                                      size: 20,
+                                    )
+                                  : null,
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.logout, color: Colors.white, size: 28),
+                            icon: const Icon(Icons.logout,
+                                color: Colors.white, size: 28),
                             tooltip: 'Logout',
                             onPressed: () => _confirmLogout(context),
                           ),
@@ -337,7 +409,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  Widget _buildDashboardCard(BuildContext context, {required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _buildDashboardCard(BuildContext context,
+      {required IconData icon,
+      required String label,
+      required VoidCallback onTap}) {
     return Card(
       elevation: 4.0,
       child: InkWell(
@@ -354,7 +429,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-    Future<void> _confirmLogout(BuildContext context) async {
+  Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -413,7 +488,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     ),
                     SizedBox(height: 16),
-                    
+
                     // Message
                     Text(
                       'Do you want to logout?',
@@ -424,7 +499,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 32),
-                    
+
                     // Stylish buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -517,12 +592,15 @@ class TopWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.lineTo(0, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
     path.lineTo(size.width, 0);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -532,13 +610,15 @@ class BottomWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6, size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
+        size.width * 0.5, size.height * 0.4);
     path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -550,14 +630,16 @@ class LogoutWaveClipper extends CustomClipper<Path> {
     path.moveTo(0, 0);
     path.lineTo(size.width, 0);
     path.lineTo(size.width, size.height);
-    
+
     // Create wavy effect
-    path.quadraticBezierTo(size.width * 0.75, size.height * 0.8, size.width * 0.5, size.height);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.8, 0, size.height);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.8, size.width * 0.5, size.height);
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height * 0.8, 0, size.height);
     path.close();
     return path;
   }
-  
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

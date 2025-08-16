@@ -24,6 +24,7 @@ module.exports = (io) => {
   const settingsController = require('../controllers/settingsController');
   const userActivityController = require('../controllers/userActivityController');
   const supportController = require('../controllers/supportController')(io);
+  const ratingController = require('../controllers/ratingController');
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -36,6 +37,10 @@ module.exports = (io) => {
   // App rating routes
   router.post('/rating', auth, AppratingController.submitRating);
   router.get('/rating/my', auth, AppratingController.getMyRating);
+    // User rating routes (for RatingsPage)
+    router.get('/ratings/me', auth, ratingController.getMyRatings);
+    router.post('/ratings', auth, ratingController.rateUser);
+    router.get('/ratings/user-avg', ratingController.getUserAvgRating);
 
   // User routes
   router.post('/users/register', userController.register);
@@ -269,6 +274,8 @@ module.exports = (io) => {
   router.post('/feedback', auth, feedbackController.submitFeedback);
   router.get('/feedback/my', auth, feedbackController.getUserFeedbacks);
   router.get('/feedback/app-ratings', AppratingController.getAppRatings);
+  router.get('/rating/all', auth, isAdmin, AppratingController.getAllRatings);
+  router.get('/feedbacks/all', auth, isAdmin, feedbackController.getAllFeedbacks);
 
   return router;
 };

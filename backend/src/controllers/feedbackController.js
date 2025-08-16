@@ -25,5 +25,24 @@ exports.getUserFeedbacks = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-         
+
+exports.getAllFeedbacks = async (req, res) => {
+  try {
+    // Populate user info for admin UI
+    const feedbacks = await Feedback.find().sort({ createdAt: -1 }).populate('user', 'name email profileImage');
+    // Map feedbacks to include userName, userEmail, userProfileImage
+    const feedbacksWithUser = feedbacks.map(fb => ({
+      _id: fb._id,
+      userName: fb.user?.name || fb.user?.email || 'User',
+      userEmail: fb.user?.email || '',
+      userProfileImage: fb.user?.profileImage || '',
+      feedback: fb.feedback,
+      createdAt: fb.createdAt,
+    }));
+    res.json({ feedbacks: feedbacksWithUser });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 
