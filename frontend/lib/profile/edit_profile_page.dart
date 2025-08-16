@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:lenden_frontend/user/session.dart';
+import '../user/session.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:lenden_frontend/api_config.dart';
+import '../api_config.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});

@@ -10,6 +10,7 @@ import 'profile/profile_page.dart';
 import 'user/session.dart';
 import 'settings/settings_page.dart';
 import 'settings/admin_settings_page.dart';
+import 'contact_page.dart';
 import 'admin/manage_and_track_users/user_management_page.dart';
 import 'admin/manage_transactions_page.dart';
 import 'admin/manage_group_transactions_page.dart';
@@ -153,7 +154,10 @@ class HomePage extends StatelessWidget {
             ListTile(
               leading: const Icon(Icons.contact_mail),
               title: const Text('Contact'),
-              onTap: () {},
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ContactPage()),
+              ),
             ),
           ],
         ),
@@ -374,6 +378,12 @@ class HomePage extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 20),
+                    // Feature cards (auto-scroll, round, with border)
+                    SizedBox(
+                      height: 160,
+                      child: _FeatureCardCarousel(),
+                    ),
+                    const SizedBox(height: 28),
                     Center(
                       child: Container(
                         decoration: BoxDecoration(
@@ -407,17 +417,6 @@ class HomePage extends StatelessWidget {
                               color: Colors.black)),
                     ),
                     const SizedBox(height: 8),
-                    const Center(
-                      child: Text(
-                          'Your trusted platform for lending and borrowing.',
-                          style: TextStyle(fontSize: 16, color: Colors.grey)),
-                    ),
-                    const SizedBox(height: 28),
-                    // Feature cards (auto-scroll, round, with border)
-                    SizedBox(
-                      height: 160,
-                      child: _FeatureCardCarousel(),
-                    ),
                     const SizedBox(height: 28),
                     // ...removed testimonial carousel...
                     ElevatedButton(
@@ -477,49 +476,9 @@ class HomePage extends StatelessWidget {
                               letterSpacing: 1.2)),
                     ),
                     const SizedBox(height: 28),
-                    // Social/contact buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Tooltip(
-                          message: 'chetandudi791@gmail.com',
-                          child: IconButton(
-                            icon: const Icon(Icons.email,
-                                color: Color(0xFF00B4D8)),
-                            onPressed: () {
-                              // Optionally, open mail app
-                            },
-                          ),
-                        ),
-                        Tooltip(
-                          message: 'Instagram: _Chetan_Dudi',
-                          child: IconButton(
-                            icon: const FaIcon(FontAwesomeIcons.instagram,
-                                color: Color(0xFF00B4D8)),
-                            onPressed: () {
-                              // Optionally, open Instagram profile
-                            },
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.facebook,
-                              color: Color(0xFF00B4D8)),
-                          onPressed: () {},
-                          tooltip: 'Facebook',
-                        ),
-                        IconButton(
-                          icon: const FaIcon(FontAwesomeIcons.whatsapp,
-                              color: Color(0xFF00B4D8)),
-                          onPressed: () {},
-                          tooltip: 'WhatsApp',
-                        ),
-                      ],
-                    ),
+                    // ...existing code...
                     const SizedBox(height: 18),
-                    const Center(
-                      child: Text('© 2024 Lenden App',
-                          style: TextStyle(color: Colors.grey, fontSize: 13)),
-                    ),
+                    // ...existing code...
                   ],
                 ),
               ),

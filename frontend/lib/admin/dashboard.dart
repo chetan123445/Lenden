@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:lenden_frontend/user/session.dart';
+import '../user/session.dart';
 import 'notes_page.dart';
 import '../profile/profile_page.dart';
 import 'manage_transactions_page.dart';
