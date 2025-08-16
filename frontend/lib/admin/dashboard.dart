@@ -163,7 +163,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               ),
               ListTile(
                 leading: const Icon(Icons.star),
-                title: const Text('User Ratings'),
+                title: const Text('App Ratings'),
                 onTap: () {
                   Navigator.of(context).pop();
                   Navigator.pushNamed(context, '/admin/ratings');
@@ -263,7 +263,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   _buildDashboardCard(
                     context,
                     icon: Icons.star,
-                    label: 'User Ratings',
+                    label: 'App Ratings',
                     onTap: () {
                       Navigator.pushNamed(context, '/admin/ratings');
                     },

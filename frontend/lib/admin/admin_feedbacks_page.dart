@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
@@ -7,6 +6,7 @@ import '../user/session.dart';
 import 'dart:convert';
 import '../api_config.dart';
 import 'admin_ratings_page_helpers.dart';
+import '../profile/profile_page.dart' hide TopWaveClipper, BottomWaveClipper;
 
 class AdminFeedbacksPage extends StatefulWidget {
   const AdminFeedbacksPage({Key? key}) : super(key: key);
@@ -63,7 +63,7 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.deepPurple.withOpacity(0.2), width: 2),
+        border: Border.all(color: Color(0xFF00B4D8), width: 2.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.07),
@@ -102,234 +102,12 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
                     icon: const Icon(Icons.person, size: 18),
                     label: const Text('View Profile'),
                     onPressed: () {
-                      showDialog(
-                        context: context,
-                        builder: (ctx) {
-                          String formattedMemberSince = '';
-                          if (feedback['memberSince'] != null &&
-                              feedback['memberSince'].toString().isNotEmpty) {
-                            try {
-                              final dt = DateTime.parse(
-                                  feedback['memberSince'].toString());
-                              formattedMemberSince =
-                                  DateFormat('MMM d, yyyy, hh:mm a').format(dt);
-                            } catch (e) {
-                              formattedMemberSince =
-                                  feedback['memberSince'].toString();
-                            }
-                          }
-                          // Format birthday to show only date
-                          String formattedBirthday = '';
-                          if (feedback['birthday'] != null &&
-                              feedback['birthday'].toString().isNotEmpty) {
-                            try {
-                              final dt = DateTime.parse(
-                                  feedback['birthday'].toString());
-                              formattedBirthday =
-                                  DateFormat('MMM d, yyyy').format(dt);
-                            } catch (e) {
-                              formattedBirthday =
-                                  feedback['birthday'].toString();
-                            }
-                          }
-                          final Map<String, dynamic> user = {
-                            'Name': feedback['userName'],
-                            'Email': feedback['userEmail'],
-                            'Username': feedback['username'],
-                            'Gender': feedback['gender'],
-                            'Birthday': formattedBirthday,
-                            'Phone': feedback['phone'],
-                            'Address': feedback['address'],
-                            'Alt Email': feedback['altEmail'],
-                            'Member Since': formattedMemberSince,
-                            'Average Rating': feedback['avgRating'],
-                            'Role': feedback['role'],
-                            'Is Active': feedback['isActive'],
-                            'Is Verified': feedback['isVerified'],
-                          };
-                          final fields = user.entries
-                              .where((e) =>
-                                  e.value != null &&
-                                  e.value.toString().trim().isNotEmpty)
-                              .toList();
-                          // Robust profileImage extraction
-                          String? profileImageUrl;
-                          dynamic img;
-                          if (feedback['user'] != null &&
-                              feedback['user'] is Map) {
-                            img = feedback['user']['profileImage'];
-                          } else {
-                            img = feedback['userProfileImage'];
-                          }
-                          if (img != null) {
-                            if (img is String &&
-                                img.trim().isNotEmpty &&
-                                img != 'null') {
-                              profileImageUrl = img;
-                            } else if (img is Map) {
-                              if (img['url'] is String &&
-                                  img['url'].trim().isNotEmpty &&
-                                  img['url'] != 'null') {
-                                profileImageUrl = img['url'];
-                              } else if (img['data'] is String &&
-                                  img['data'].trim().isNotEmpty &&
-                                  img['data'] != 'null') {
-                                profileImageUrl = img['data'];
-                              }
-                            }
-                          }
-                          // Add cache busting if needed
-                          if (profileImageUrl != null &&
-                              profileImageUrl.trim().isNotEmpty &&
-                              profileImageUrl != 'null') {
-                            profileImageUrl = profileImageUrl +
-                                '?v=${DateTime.now().millisecondsSinceEpoch}';
-                          }
-                          String gender = feedback['gender'] ?? 'Other';
-                          ImageProvider avatarProvider;
-                          if (profileImageUrl != null &&
-                              profileImageUrl.trim().isNotEmpty &&
-                              profileImageUrl != 'null') {
-                            avatarProvider = NetworkImage(profileImageUrl);
-                          } else {
-                            avatarProvider = AssetImage(
-                              gender == 'Male'
-                                  ? 'assets/Male.png'
-                                  : gender == 'Female'
-                                      ? 'assets/Female.png'
-                                      : 'assets/Other.png',
-                            );
-                          }
-                          return Dialog(
-                            backgroundColor: const Color(0xFFF8F6FA),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(32)),
-                            child: Stack(
-                              children: [
-                                // Top wave
-                                Positioned(
-                                  top: 0,
-                                  left: 0,
-                                  right: 0,
-                                  child: ClipPath(
-                                    clipper: TopWaveClipper(),
-                                    child: Container(
-                                      height: 70,
-                                      color: const Color(0xFF00B4D8),
-                                    ),
-                                  ),
-                                ),
-                                // Bottom wave
-                                Positioned(
-                                  bottom: 0,
-                                  left: 0,
-                                  right: 0,
-                                  child: ClipPath(
-                                    clipper: BottomWaveClipper(),
-                                    child: Container(
-                                      height: 50,
-                                      color: const Color(0xFF00B4D8),
-                                    ),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 24, vertical: 24),
-                                  child: SingleChildScrollView(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const SizedBox(height: 10),
-                                        Center(
-                                          child: CircleAvatar(
-                                            radius: 44,
-                                            backgroundColor:
-                                                const Color(0xFF00B4D8),
-                                            backgroundImage: avatarProvider,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 18),
-                                        Center(
-                                          child: Text(
-                                            feedback['userName'] ?? 'User',
-                                            style: const TextStyle(
-                                                fontSize: 24,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.black),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 18),
-                                        ...fields.map((e) => Container(
-                                              margin:
-                                                  const EdgeInsets.symmetric(
-                                                      vertical: 6),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                      horizontal: 16,
-                                                      vertical: 12),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white,
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                                boxShadow: [
-                                                  BoxShadow(
-                                                    color: Colors.black
-                                                        .withOpacity(0.05),
-                                                    blurRadius: 8,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ],
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Icon(getIconForField(e.key),
-                                                      color: const Color(
-                                                          0xFF00B4D8)),
-                                                  const SizedBox(width: 16),
-                                                  Expanded(
-                                                    child: Text.rich(
-                                                      TextSpan(
-                                                        children: [
-                                                          TextSpan(
-                                                            text: '${e.key}: ',
-                                                            style: const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                                fontSize: 16),
-                                                          ),
-                                                          TextSpan(
-                                                            text: e.value
-                                                                .toString(),
-                                                            style: const TextStyle(
-                                                                fontSize: 16,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .normal),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            )),
-                                        const SizedBox(height: 18),
-                                        TextButton(
-                                          child: const Text('Close',
-                                              style: TextStyle(
-                                                  color: Color(0xFF6C63FF))),
-                                          onPressed: () =>
-                                              Navigator.of(ctx).pop(),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              ProfilePage(email: feedback['userEmail']),
+                        ),
                       );
                     },
                   ),
@@ -354,20 +132,92 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.deepPurple,
+        backgroundColor: const Color(0xFF00B4D8),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title:
             const Text('User Feedbacks', style: TextStyle(color: Colors.white)),
         centerTitle: true,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              padding: const EdgeInsets.only(bottom: 80, top: 16),
-              itemCount: _feedbacks.length,
-              itemBuilder: (context, idx) =>
-                  _buildFeedbackCard(_feedbacks[idx]),
+      body: Stack(
+        children: [
+          // Top blue wave
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 70,
+                color: const Color(0xFF00B4D8),
+              ),
             ),
+          ),
+          // Bottom blue wave
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: ClipPath(
+              clipper: BottomWaveClipper(),
+              child: Container(
+                height: 50,
+                color: const Color(0xFF00B4D8),
+              ),
+            ),
+          ),
+          // Main content
+          SafeArea(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _feedbacks.isEmpty
+                    ? Column(
+                        children: [
+                          const SizedBox(height: 110),
+                          Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 18),
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 24),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.07),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Text(
+                                'No feedbacks yet.',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Color(0xFF00B4D8),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(bottom: 80, top: 48),
+                        itemCount: _feedbacks.length,
+                        itemBuilder: (context, idx) =>
+                            _buildFeedbackCard(_feedbacks[idx]),
+                      ),
+          ),
+        ],
+      ),
     );
   }
 }
