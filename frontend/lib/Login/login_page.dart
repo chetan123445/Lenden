@@ -62,7 +62,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
           password: _passwordController.text,
           context: context,
         );
-        
+
         if (result['success']) {
           userOrAdmin = result['userOrAdmin'];
           userType = result['userType'];
@@ -76,7 +76,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
           password: _passwordController.text,
           context: context,
         );
-        
+
         if (result['success']) {
           userOrAdmin = result['data'];
           userType = result['userType'];
@@ -92,7 +92,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
             context: context,
           );
           setState(() => _isLoading = false);
-          
+
           if (result['success']) {
             setState(() {
               _otpSent = true;
@@ -115,7 +115,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
             context: context,
           );
           setState(() => _isVerifyingOtp = false);
-          
+
           if (result['success']) {
             setState(() {
               _otpSent = false;
@@ -134,31 +134,33 @@ class _UserLoginPageState extends State<UserLoginPage> {
           }
         }
       }
-      
+
       // Save token and fetch user info
       if (token != null && userType != null) {
         print('🔐 Saving authentication data for login method: $_loginMethod');
         print('🎫 Token: ${token != null ? 'Present' : 'Missing'}');
         print('👤 User type: $userType');
         print('👤 User data: $userOrAdmin');
-        
+
         final session = Provider.of<SessionProvider>(context, listen: false);
         print('🔐 About to save token to session');
         print('🔐 Token to save: ${token != null ? 'Present' : 'Missing'}');
         print('🔐 Token length: ${token?.length ?? 0}');
         await session.saveToken(token);
         print('✅ Token saved to session');
-        
+
         // Verify token was saved
         print('🔍 Token verification after save:');
-        print('   Session token: ${session.token != null ? 'Present' : 'Missing'}');
+        print(
+            '   Session token: ${session.token != null ? 'Present' : 'Missing'}');
         print('   Session token length: ${session.token?.length ?? 0}');
-        
+
         // For Email + OTP, also fetch the complete profile to ensure all fields are present
         if (_loginMethod == 'Email + OTP' && userOrAdmin != null) {
-          print('📱 Using user data from OTP response and fetching complete profile');
+          print(
+              '📱 Using user data from OTP response and fetching complete profile');
           final userData = Map<String, dynamic>.from(userOrAdmin);
-          
+
           // Ensure required fields are present
           if (!userData.containsKey('name') || userData['name'] == null) {
             userData['name'] = userData['username'] ?? 'User';
@@ -166,16 +168,17 @@ class _UserLoginPageState extends State<UserLoginPage> {
           if (!userData.containsKey('email') || userData['email'] == null) {
             userData['email'] = _emailController.text;
           }
-          if (!userData.containsKey('username') || userData['username'] == null) {
+          if (!userData.containsKey('username') ||
+              userData['username'] == null) {
             userData['username'] = userData['name'] ?? 'user';
           }
-          
+
           if (userType == 'admin') {
             userData['role'] = 'admin';
           } else {
             userData['role'] = 'user';
           }
-          
+
           // Also fetch the complete profile to ensure we have all fields including profileImage
           print('🌐 Fetching complete profile for email+OTP login');
           final profileRes = await _fetchProfile(token, userType);
@@ -193,7 +196,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
             session.setUser(userData);
             print('✅ User data set in session');
           }
-          
+
           // Verify the session was set correctly
           print('🔍 Verifying session data after setting:');
           print('   Token: ${session.token != null ? 'Present' : 'Missing'}');
@@ -218,7 +221,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
           }
         }
       }
-      
+
       if (userOrAdmin != null && userType != null) {
         // Navigate to dashboard
         if (userType == 'admin') {
@@ -240,7 +243,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
     }
   }
 
-  Future<Map<String, dynamic>?> _fetchProfile(String token, String userType) async {
+  Future<Map<String, dynamic>?> _fetchProfile(
+      String token, String userType) async {
     final url = userType == 'admin'
         ? ApiConfig.baseUrl + '/api/admins/me'
         : ApiConfig.baseUrl + '/api/users/me';
@@ -266,14 +270,14 @@ class _UserLoginPageState extends State<UserLoginPage> {
     return null;
   }
 
-
-
   void _startOtpTimer() {
     _otpSecondsLeft = 120;
     Future.doWhile(() async {
       if (_otpSecondsLeft > 0 && mounted && _otpSent) {
         await Future.delayed(const Duration(seconds: 1));
-        setState(() { _otpSecondsLeft--; });
+        setState(() {
+          _otpSecondsLeft--;
+        });
         return true;
       }
       return false;
@@ -287,8 +291,6 @@ class _UserLoginPageState extends State<UserLoginPage> {
       UsernamePasswordLogin.showIncorrectPasswordDialog(context);
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -318,7 +320,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
             child: ClipPath(
               clipper: BottomWaveClipper(),
               child: Container(
-                height: 90,
+                height: MediaQuery.of(context).size.height *
+                    0.13, // Adjust percentage as needed
                 color: const Color(0xFF00B4D8),
               ),
             ),
@@ -326,21 +329,27 @@ class _UserLoginPageState extends State<UserLoginPage> {
           SafeArea(
             child: SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 28.0, vertical: 24.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 60),
                     const Text('Login',
-                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black),
+                        style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black),
                         textAlign: TextAlign.center),
                     const SizedBox(height: 8),
                     const Text('Hello Welcome Back',
-                        style: TextStyle(fontSize: 16, color: Colors.grey), textAlign: TextAlign.center),
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                        textAlign: TextAlign.center),
                     const SizedBox(height: 32),
                     // Dropdown for login method
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 4),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
@@ -390,7 +399,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
                             labelText: 'Email',
                             labelStyle: const TextStyle(color: Colors.grey),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 18),
                           ),
                         ),
                       ),
@@ -414,10 +424,14 @@ class _UserLoginPageState extends State<UserLoginPage> {
                             labelText: 'Password',
                             labelStyle: const TextStyle(color: Colors.grey),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 18),
                             suffixIcon: IconButton(
-                              icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              icon: Icon(_obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility),
+                              onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword),
                             ),
                           ),
                         ),
@@ -441,7 +455,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
                             labelText: 'Username',
                             labelStyle: const TextStyle(color: Colors.grey),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 18),
                           ),
                         ),
                       ),
@@ -465,10 +480,14 @@ class _UserLoginPageState extends State<UserLoginPage> {
                             labelText: 'Password',
                             labelStyle: const TextStyle(color: Colors.grey),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 18),
                             suffixIcon: IconButton(
-                              icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                              icon: Icon(_obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility),
+                              onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword),
                             ),
                           ),
                         ),
@@ -493,7 +512,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
                             labelText: 'Email',
                             labelStyle: const TextStyle(color: Colors.grey),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 18),
                           ),
                         ),
                       ),
@@ -505,18 +525,26 @@ class _UserLoginPageState extends State<UserLoginPage> {
                             onPressed: _isLoading ? null : _login,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF00B4D8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24)),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
                             child: _isLoading
-                                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                : const Text('Send OTP', style: TextStyle(fontSize: 18, color: Colors.white)),
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white))
+                                : const Text('Send OTP',
+                                    style: TextStyle(
+                                        fontSize: 18, color: Colors.white)),
                           ),
                         ),
                         if (_otpErrorMessage != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(_otpErrorMessage!, style: const TextStyle(color: Colors.red)),
+                            child: Text(_otpErrorMessage!,
+                                style: const TextStyle(color: Colors.red)),
                           ),
                       ] else ...[
                         OtpInput(
@@ -526,36 +554,52 @@ class _UserLoginPageState extends State<UserLoginPage> {
                         ),
                         const SizedBox(height: 10),
                         if (_otpSecondsLeft > 0)
-                          Text('OTP expires in  ${_otpSecondsLeft ~/ 60}:${(_otpSecondsLeft % 60).toString().padLeft(2, '0')}', style: const TextStyle(color: Colors.grey)),
+                          Text(
+                              'OTP expires in  ${_otpSecondsLeft ~/ 60}:${(_otpSecondsLeft % 60).toString().padLeft(2, '0')}',
+                              style: const TextStyle(color: Colors.grey)),
                         if (_otpSecondsLeft == 0)
                           TextButton(
-                            onPressed: _isVerifyingOtp ? null : () {
-                              setState(() {
-                                _otpSent = false;
-                                _loginOtp = '';
-                                _otpErrorMessage = null;
-                              });
-                            },
+                            onPressed: _isVerifyingOtp
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _otpSent = false;
+                                      _loginOtp = '';
+                                      _otpErrorMessage = null;
+                                    });
+                                  },
                             child: const Text('Resend OTP'),
                           ),
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: _isVerifyingOtp || _loginOtp.length != 6 || _otpSecondsLeft == 0 ? null : _login,
+                            onPressed: _isVerifyingOtp ||
+                                    _loginOtp.length != 6 ||
+                                    _otpSecondsLeft == 0
+                                ? null
+                                : _login,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF00B4D8),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24)),
                               padding: const EdgeInsets.symmetric(vertical: 16),
                             ),
                             child: _isVerifyingOtp
-                                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                                : const Text('Verify OTP', style: TextStyle(fontSize: 18, color: Colors.white)),
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white))
+                                : const Text('Verify OTP',
+                                    style: TextStyle(
+                                        fontSize: 18, color: Colors.white)),
                           ),
                         ),
                         if (_otpErrorMessage != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(_otpErrorMessage!, style: const TextStyle(color: Colors.red)),
+                            child: Text(_otpErrorMessage!,
+                                style: const TextStyle(color: Colors.red)),
                           ),
                       ],
                     ],
@@ -566,21 +610,30 @@ class _UserLoginPageState extends State<UserLoginPage> {
                         onPressed: _isLoading ? null : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF00B4D8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24)),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                         child: _isLoading
-                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Text('Login', style: TextStyle(fontSize: 18, color: Colors.white)),
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                            : const Text('Login',
+                                style: TextStyle(
+                                    fontSize: 18, color: Colors.white)),
                       ),
                     ),
                     const SizedBox(height: 18),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text("I Don't Have an Account ? ", style: TextStyle(fontSize: 14)),
+                        const Text("I Don't Have an Account ? ",
+                            style: TextStyle(fontSize: 14)),
                         GestureDetector(
-                          onTap: () => Navigator.pushNamed(context, '/register'),
+                          onTap: () =>
+                              Navigator.pushNamed(context, '/register'),
                           child: const Text(
                             'Register',
                             style: TextStyle(
@@ -635,7 +688,11 @@ class SocialIconButton extends StatelessWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
-  const SocialIconButton({required this.icon, required this.color, required this.onTap, super.key});
+  const SocialIconButton(
+      {required this.icon,
+      required this.color,
+      required this.onTap,
+      super.key});
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -667,12 +724,15 @@ class TopWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.lineTo(0, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
-    path.quadraticBezierTo(size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
     path.lineTo(size.width, 0);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -682,13 +742,15 @@ class BottomWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6, size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
+        size.width * 0.5, size.height * 0.4);
     path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-} 
+}
