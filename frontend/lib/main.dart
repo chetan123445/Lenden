@@ -419,7 +419,7 @@ class HomePage extends StatelessWidget {
                     const SizedBox(height: 8),
                     const SizedBox(height: 28),
                     // ...removed testimonial carousel...
-                    ElevatedButton(
+                    ElevatedButton.icon(
                       onPressed: () {
                         final session = Provider.of<SessionProvider>(context,
                             listen: false);
@@ -445,7 +445,9 @@ class HomePage extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             vertical: 16, horizontal: 32),
                       ),
-                      child: const Text('Get Started',
+                      icon:
+                          const Icon(Icons.arrow_forward, color: Colors.white),
+                      label: const Text('Get Started',
                           style: TextStyle(
                               fontSize: 18,
                               color: Colors.white,
@@ -453,27 +455,38 @@ class HomePage extends StatelessWidget {
                               letterSpacing: 1.2)),
                     ),
                     const SizedBox(height: 18),
-                    OutlinedButton(
-                      onPressed: () =>
-                          Navigator.pushNamed(context, '/register'),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                            color: Color(0xFF00B4D8), width: 2.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 32),
-                        backgroundColor: Colors.white,
-                        elevation: 4,
-                        shadowColor: const Color(0xFF00B4D8).withOpacity(0.2),
-                      ),
-                      child: const Text('Register',
-                          style: TextStyle(
-                              fontSize: 18,
-                              color: Color(0xFF00B4D8),
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2)),
+                    Consumer<SessionProvider>(
+                      builder: (context, session, _) {
+                        if (session.token == null || session.user == null) {
+                          return OutlinedButton.icon(
+                            onPressed: () =>
+                                Navigator.pushNamed(context, '/register'),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(
+                                  color: Color(0xFF00B4D8), width: 2.5),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 16, horizontal: 32),
+                              backgroundColor: Colors.white,
+                              elevation: 4,
+                              shadowColor:
+                                  const Color(0xFF00B4D8).withOpacity(0.2),
+                            ),
+                            icon: const Icon(Icons.arrow_forward,
+                                color: Color(0xFF00B4D8)),
+                            label: const Text('Register',
+                                style: TextStyle(
+                                    fontSize: 18,
+                                    color: Color(0xFF00B4D8),
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.2)),
+                          );
+                        } else {
+                          return const SizedBox.shrink();
+                        }
+                      },
                     ),
                     const SizedBox(height: 28),
                     // ...existing code...
