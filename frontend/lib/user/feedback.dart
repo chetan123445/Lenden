@@ -204,6 +204,14 @@ class _FeedbackPageState extends State<FeedbackPage> {
   }
 
   Widget _buildFeedbackList() {
+    if (_isLoading) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
     if (_userFeedbacks.isEmpty) {
       return Column(
         children: [
