@@ -1,8 +1,9 @@
 const express = require('express');
+const router = express.Router();
 
 module.exports = (io) => {
-  const router = express.Router();
-
+  const AppratingController = require('../controllers/AppratingController');
+  const feedbackController = require('../controllers/feedbackController');
   const userController = require('../controllers/userController');
   const adminController = require('../controllers/adminController');
   const forgotPasswordController = require('../controllers/forgotPasswordController');
@@ -23,7 +24,6 @@ module.exports = (io) => {
   const settingsController = require('../controllers/settingsController');
   const userActivityController = require('../controllers/userActivityController');
   const supportController = require('../controllers/supportController')(io);
-  const ratingController = require('../controllers/ratingController');
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -33,11 +33,9 @@ module.exports = (io) => {
     next();
   };
 
-  // Ratings routes
-  router.post('/ratings', auth, ratingController.rateUser);
-  router.get('/ratings/me', auth, ratingController.getMyRatings);
-  // Public endpoint to get avg rating by username or email
-  router.get('/ratings/user-avg', ratingController.getUserAvgRating);
+  // App rating routes
+  router.post('/rating', auth, AppratingController.submitRating);
+  router.get('/rating/my', auth, AppratingController.getMyRating);
 
   // User routes
   router.post('/users/register', userController.register);
@@ -266,6 +264,11 @@ module.exports = (io) => {
   router.put('/admin/support/queries/:queryId/replies/:replyId', auth, isAdmin, supportController.editReply);
   router.delete('/admin/support/queries/:queryId/replies/:replyId', auth, isAdmin, supportController.deleteReply);
   router.patch('/admin/support/queries/:queryId/status', auth, isAdmin, supportController.updateQueryStatus);
+
+  // Feedback routes
+  router.post('/feedback', auth, feedbackController.submitFeedback);
+  router.get('/feedback/my', auth, feedbackController.getUserFeedbacks);
+  router.get('/feedback/app-ratings', AppratingController.getAppRatings);
 
   return router;
 };

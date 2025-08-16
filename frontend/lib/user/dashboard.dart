@@ -19,6 +19,7 @@ import '../profile/profile_page.dart';
 import 'ratings_page.dart';
 import 'activity_page.dart';
 import 'help_support_page.dart';
+import 'feedback.dart'; // Import the feedback page
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -229,6 +230,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                   Navigator.of(context).pop();
                   Navigator.push(context,
                       MaterialPageRoute(builder: (_) => HelpSupportPage()));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.feedback),
+                title: const Text('Feedback'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.pushNamed(context, '/feedback');
                 },
               ),
               ListTile(

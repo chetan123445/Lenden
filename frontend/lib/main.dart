@@ -15,7 +15,7 @@ import 'admin/manage_and_track_users/user_management_page.dart';
 import 'admin/manage_transactions_page.dart';
 import 'admin/manage_group_transactions_page.dart';
 import 'splash_screen.dart';
-
+import 'user/feedback.dart'; // Import the feedback page
 void main() {
   runApp(
     MultiProvider(
@@ -61,6 +61,7 @@ class AppInitializer extends StatelessWidget {
         '/admin/manage-transactions': (context) => ManageTransactionsPage(),
         '/admin/manage-group-transactions': (context) =>
             ManageGroupTransactionsPage(),
+        '/feedback': (context) => const FeedbackPage(),
       },
     );
   }
