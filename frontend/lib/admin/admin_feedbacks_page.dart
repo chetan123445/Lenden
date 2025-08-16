@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
@@ -104,16 +105,43 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
                       showDialog(
                         context: context,
                         builder: (ctx) {
+                          String formattedMemberSince = '';
+                          if (feedback['memberSince'] != null &&
+                              feedback['memberSince'].toString().isNotEmpty) {
+                            try {
+                              final dt = DateTime.parse(
+                                  feedback['memberSince'].toString());
+                              formattedMemberSince =
+                                  DateFormat('MMM d, yyyy, hh:mm a').format(dt);
+                            } catch (e) {
+                              formattedMemberSince =
+                                  feedback['memberSince'].toString();
+                            }
+                          }
+                          // Format birthday to show only date
+                          String formattedBirthday = '';
+                          if (feedback['birthday'] != null &&
+                              feedback['birthday'].toString().isNotEmpty) {
+                            try {
+                              final dt = DateTime.parse(
+                                  feedback['birthday'].toString());
+                              formattedBirthday =
+                                  DateFormat('MMM d, yyyy').format(dt);
+                            } catch (e) {
+                              formattedBirthday =
+                                  feedback['birthday'].toString();
+                            }
+                          }
                           final Map<String, dynamic> user = {
                             'Name': feedback['userName'],
                             'Email': feedback['userEmail'],
                             'Username': feedback['username'],
                             'Gender': feedback['gender'],
-                            'Birthday': feedback['birthday'],
+                            'Birthday': formattedBirthday,
                             'Phone': feedback['phone'],
                             'Address': feedback['address'],
                             'Alt Email': feedback['altEmail'],
-                            'Member Since': feedback['memberSince'],
+                            'Member Since': formattedMemberSince,
                             'Average Rating': feedback['avgRating'],
                             'Role': feedback['role'],
                             'Is Active': feedback['isActive'],
@@ -124,22 +152,44 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
                                   e.value != null &&
                                   e.value.toString().trim().isNotEmpty)
                               .toList();
+                          // Robust profileImage extraction
                           String? profileImageUrl;
-                          final img = feedback['userProfileImage'];
+                          dynamic img;
+                          if (feedback['user'] != null &&
+                              feedback['user'] is Map) {
+                            img = feedback['user']['profileImage'];
+                          } else {
+                            img = feedback['userProfileImage'];
+                          }
                           if (img != null) {
                             if (img is String &&
                                 img.trim().isNotEmpty &&
                                 img != 'null') {
                               profileImageUrl = img;
-                            } else if (img is Map &&
-                                img['url'] is String &&
-                                img['url'].trim().isNotEmpty) {
-                              profileImageUrl = img['url'];
+                            } else if (img is Map) {
+                              if (img['url'] is String &&
+                                  img['url'].trim().isNotEmpty &&
+                                  img['url'] != 'null') {
+                                profileImageUrl = img['url'];
+                              } else if (img['data'] is String &&
+                                  img['data'].trim().isNotEmpty &&
+                                  img['data'] != 'null') {
+                                profileImageUrl = img['data'];
+                              }
                             }
+                          }
+                          // Add cache busting if needed
+                          if (profileImageUrl != null &&
+                              profileImageUrl.trim().isNotEmpty &&
+                              profileImageUrl != 'null') {
+                            profileImageUrl = profileImageUrl +
+                                '?v=${DateTime.now().millisecondsSinceEpoch}';
                           }
                           String gender = feedback['gender'] ?? 'Other';
                           ImageProvider avatarProvider;
-                          if (profileImageUrl != null) {
+                          if (profileImageUrl != null &&
+                              profileImageUrl.trim().isNotEmpty &&
+                              profileImageUrl != 'null') {
                             avatarProvider = NetworkImage(profileImageUrl);
                           } else {
                             avatarProvider = AssetImage(

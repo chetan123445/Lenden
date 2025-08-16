@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../user/session.dart';
@@ -110,16 +111,42 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
                       showDialog(
                         context: context,
                         builder: (ctx) {
+                          String formattedMemberSince = '';
+                          if (rating['memberSince'] != null &&
+                              rating['memberSince'].toString().isNotEmpty) {
+                            try {
+                              final dt = DateTime.parse(
+                                  rating['memberSince'].toString());
+                              formattedMemberSince =
+                                  DateFormat('MMM d, yyyy, hh:mm a').format(dt);
+                            } catch (e) {
+                              formattedMemberSince =
+                                  rating['memberSince'].toString();
+                            }
+                          }
+                          // Format birthday to show only date
+                          String formattedBirthday = '';
+                          if (rating['birthday'] != null &&
+                              rating['birthday'].toString().isNotEmpty) {
+                            try {
+                              final dt =
+                                  DateTime.parse(rating['birthday'].toString());
+                              formattedBirthday =
+                                  DateFormat('MMM d, yyyy').format(dt);
+                            } catch (e) {
+                              formattedBirthday = rating['birthday'].toString();
+                            }
+                          }
                           final Map<String, dynamic> user = {
                             'Name': rating['userName'],
                             'Email': rating['userEmail'],
                             'Username': rating['username'],
                             'Gender': rating['gender'],
-                            'Birthday': rating['birthday'],
+                            'Birthday': formattedBirthday,
                             'Phone': rating['phone'],
                             'Address': rating['address'],
                             'Alt Email': rating['altEmail'],
-                            'Member Since': rating['memberSince'],
+                            'Member Since': formattedMemberSince,
                             'Average Rating': rating['avgRating'],
                             'Role': rating['role'],
                             'Is Active': rating['isActive'],
@@ -130,22 +157,43 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
                                   e.value != null &&
                                   e.value.toString().trim().isNotEmpty)
                               .toList();
+                          // Robust profileImage extraction
                           String? profileImageUrl;
-                          final img = rating['userProfileImage'];
+                          dynamic img;
+                          if (rating['user'] != null && rating['user'] is Map) {
+                            img = rating['user']['profileImage'];
+                          } else {
+                            img = rating['userProfileImage'];
+                          }
                           if (img != null) {
                             if (img is String &&
                                 img.trim().isNotEmpty &&
                                 img != 'null') {
                               profileImageUrl = img;
-                            } else if (img is Map &&
-                                img['url'] is String &&
-                                img['url'].trim().isNotEmpty) {
-                              profileImageUrl = img['url'];
+                            } else if (img is Map) {
+                              if (img['url'] is String &&
+                                  img['url'].trim().isNotEmpty &&
+                                  img['url'] != 'null') {
+                                profileImageUrl = img['url'];
+                              } else if (img['data'] is String &&
+                                  img['data'].trim().isNotEmpty &&
+                                  img['data'] != 'null') {
+                                profileImageUrl = img['data'];
+                              }
                             }
+                          }
+                          // Add cache busting if needed
+                          if (profileImageUrl != null &&
+                              profileImageUrl.trim().isNotEmpty &&
+                              profileImageUrl != 'null') {
+                            profileImageUrl = profileImageUrl +
+                                '?v=${DateTime.now().millisecondsSinceEpoch}';
                           }
                           String gender = rating['gender'] ?? 'Other';
                           ImageProvider avatarProvider;
-                          if (profileImageUrl != null) {
+                          if (profileImageUrl != null &&
+                              profileImageUrl.trim().isNotEmpty &&
+                              profileImageUrl != 'null') {
                             avatarProvider = NetworkImage(profileImageUrl);
                           } else {
                             avatarProvider = AssetImage(
