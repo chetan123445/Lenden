@@ -15,7 +15,8 @@ class ActivityPage extends StatefulWidget {
 
 class _ActivityPageState extends State<ActivityPage> {
   List<Map<String, dynamic>> activities = [];
-  List<Map<String, dynamic>> allActivities = []; // Store all activities for search
+  List<Map<String, dynamic>> allActivities =
+      []; // Store all activities for search
   Map<String, dynamic> stats = {};
   bool loading = true;
   bool loadingStats = true;
@@ -28,7 +29,7 @@ class _ActivityPageState extends State<ActivityPage> {
   bool hasPrevPage = false;
   int totalItems = 0;
   int totalPages = 0;
-  
+
   // Activity insights data
   Map<String, int> activityTypeCounts = {};
   Map<String, double> activityTypeAmounts = {};
@@ -36,7 +37,7 @@ class _ActivityPageState extends State<ActivityPage> {
   String mostActiveTime = '';
   int totalAmount = 0;
   int averageAmount = 0;
-  
+
   final List<String> activityTypes = [
     'transaction_created',
     'transaction_cleared',
@@ -57,7 +58,11 @@ class _ActivityPageState extends State<ActivityPage> {
     'profile_updated',
     'password_changed',
     'login',
-    'logout'
+    'logout',
+    'app_rated',
+    'feedback_submitted',
+    'user_rated',
+    'user_rating_received'
   ];
 
   @override
@@ -81,32 +86,34 @@ class _ActivityPageState extends State<ActivityPage> {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
       final baseUrl = ApiConfig.baseUrl;
-      
+
       // Build query parameters
       final queryParams = <String, String>{
         'page': currentPage.toString(),
         'limit': '50', // Increased limit for better search experience
       };
-      
+
       if (selectedType != null) {
         queryParams['type'] = selectedType!;
       }
-      
+
       if (startDate != null) {
         queryParams['startDate'] = startDate!.toIso8601String();
       }
-      
+
       if (endDate != null) {
         queryParams['endDate'] = endDate!.toIso8601String();
       }
-      
+
       if (searchQuery.isNotEmpty) {
         queryParams['search'] = searchQuery;
       }
-      
-      final uri = Uri.parse('$baseUrl/api/activities').replace(queryParameters: queryParams);
-      final response = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
-      
+
+      final uri = Uri.parse('$baseUrl/api/activities')
+          .replace(queryParameters: queryParams);
+      final response =
+          await http.get(uri, headers: {'Authorization': 'Bearer $token'});
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
@@ -114,8 +121,10 @@ class _ActivityPageState extends State<ActivityPage> {
             activities = List<Map<String, dynamic>>.from(data['activities']);
             allActivities = List<Map<String, dynamic>>.from(data['activities']);
           } else {
-            activities.addAll(List<Map<String, dynamic>>.from(data['activities']));
-            allActivities.addAll(List<Map<String, dynamic>>.from(data['activities']));
+            activities
+                .addAll(List<Map<String, dynamic>>.from(data['activities']));
+            allActivities
+                .addAll(List<Map<String, dynamic>>.from(data['activities']));
           }
           final pagination = data['pagination'];
           currentPage = pagination['currentPage'];
@@ -125,7 +134,7 @@ class _ActivityPageState extends State<ActivityPage> {
           hasPrevPage = pagination['hasPrev'];
           loading = false;
         });
-        
+
         // Calculate insights after loading activities
         _calculateActivityInsights();
       } else {
@@ -140,12 +149,12 @@ class _ActivityPageState extends State<ActivityPage> {
 
   Future<void> fetchStats() async {
     setState(() => loadingStats = true);
-    
+
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
       final baseUrl = ApiConfig.baseUrl;
-      
+
       final queryParams = <String, String>{};
       if (startDate != null) {
         queryParams['startDate'] = startDate!.toIso8601String();
@@ -153,10 +162,12 @@ class _ActivityPageState extends State<ActivityPage> {
       if (endDate != null) {
         queryParams['endDate'] = endDate!.toIso8601String();
       }
-      
-      final uri = Uri.parse('$baseUrl/api/activities/stats').replace(queryParameters: queryParams);
-      final response = await http.get(uri, headers: {'Authorization': 'Bearer $token'});
-      
+
+      final uri = Uri.parse('$baseUrl/api/activities/stats')
+          .replace(queryParameters: queryParams);
+      final response =
+          await http.get(uri, headers: {'Authorization': 'Bearer $token'});
+
       if (response.statusCode == 200) {
         setState(() {
           stats = json.decode(response.body);
@@ -189,71 +200,76 @@ class _ActivityPageState extends State<ActivityPage> {
   // Calculate activity insights
   void _calculateActivityInsights() {
     if (allActivities.isEmpty) return;
-    
+
     // Reset insights
     activityTypeCounts.clear();
     activityTypeAmounts.clear();
     totalAmount = 0;
-    
+
     // Count activities by type and calculate amounts
     for (final activity in allActivities) {
       final type = activity['type'] as String;
       final amount = activity['amount'] as num?;
-      
+
       // Count by type
       activityTypeCounts[type] = (activityTypeCounts[type] ?? 0) + 1;
-      
+
       // Sum amounts
       if (amount != null) {
-        activityTypeAmounts[type] = (activityTypeAmounts[type] ?? 0) + amount.toDouble();
+        activityTypeAmounts[type] =
+            (activityTypeAmounts[type] ?? 0) + amount.toDouble();
         totalAmount += amount.toInt();
       }
     }
-    
+
     // Calculate average amount
-    final activitiesWithAmount = allActivities.where((a) => a['amount'] != null).length;
-    averageAmount = activitiesWithAmount > 0 ? totalAmount ~/ activitiesWithAmount : 0;
-    
+    final activitiesWithAmount =
+        allActivities.where((a) => a['amount'] != null).length;
+    averageAmount =
+        activitiesWithAmount > 0 ? totalAmount ~/ activitiesWithAmount : 0;
+
     // Find most active day and time
     _calculateMostActiveTime();
-    
+
     setState(() {});
   }
 
   void _calculateMostActiveTime() {
     final dayCounts = <String, int>{};
     final timeCounts = <String, int>{};
-    
+
     for (final activity in allActivities) {
       final createdAt = DateTime.parse(activity['createdAt'] as String);
-      
+
       // Count by day of week
       final dayName = DateFormat('EEEE').format(createdAt);
       dayCounts[dayName] = (dayCounts[dayName] ?? 0) + 1;
-      
+
       // Count by hour
       final hour = createdAt.hour;
       String timeSlot;
-      if (hour < 6) timeSlot = 'Night (12 AM - 6 AM)';
-      else if (hour < 12) timeSlot = 'Morning (6 AM - 12 PM)';
-      else if (hour < 18) timeSlot = 'Afternoon (12 PM - 6 PM)';
-      else timeSlot = 'Evening (6 PM - 12 AM)';
-      
+      if (hour < 6)
+        timeSlot = 'Night (12 AM - 6 AM)';
+      else if (hour < 12)
+        timeSlot = 'Morning (6 AM - 12 PM)';
+      else if (hour < 18)
+        timeSlot = 'Afternoon (12 PM - 6 PM)';
+      else
+        timeSlot = 'Evening (6 PM - 12 AM)';
+
       timeCounts[timeSlot] = (timeCounts[timeSlot] ?? 0) + 1;
     }
-    
+
     // Find most active day
     if (dayCounts.isNotEmpty) {
-      mostActiveDay = dayCounts.entries
-          .reduce((a, b) => a.value > b.value ? a : b)
-          .key;
+      mostActiveDay =
+          dayCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
     }
-    
+
     // Find most active time
     if (timeCounts.isNotEmpty) {
-      mostActiveTime = timeCounts.entries
-          .reduce((a, b) => a.value > b.value ? a : b)
-          .key;
+      mostActiveTime =
+          timeCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
     }
   }
 
@@ -277,27 +293,56 @@ class _ActivityPageState extends State<ActivityPage> {
 
   String _getActivityTypeDisplayName(String type) {
     switch (type) {
-      case 'transaction_created': return 'Transaction Created';
-      case 'transaction_cleared': return 'Transaction Cleared';
-      case 'partial_payment_made': return 'Partial Payment Made';
-      case 'partial_payment_received': return 'Partial Payment Received';
-      case 'group_created': return 'Group Created';
-      case 'group_joined': return 'Joined Group';
-      case 'group_left': return 'Left Group';
-      case 'member_added': return 'Member Added';
-      case 'member_removed': return 'Member Removed';
-      case 'expense_added': return 'Expense Added';
-      case 'expense_edited': return 'Expense Edited';
-      case 'expense_deleted': return 'Expense Deleted';
-      case 'expense_settled': return 'Expense Settled';
-      case 'note_created': return 'Note Created';
-      case 'note_edited': return 'Note Edited';
-      case 'note_deleted': return 'Note Deleted';
-      case 'profile_updated': return 'Profile Updated';
-      case 'password_changed': return 'Password Changed';
-      case 'login': return 'Login';
-      case 'logout': return 'Logout';
-      default: return type.replaceAll('_', ' ').toUpperCase();
+      case 'transaction_created':
+        return 'Transaction Created';
+      case 'transaction_cleared':
+        return 'Transaction Cleared';
+      case 'partial_payment_made':
+        return 'Partial Payment Made';
+      case 'partial_payment_received':
+        return 'Partial Payment Received';
+      case 'group_created':
+        return 'Group Created';
+      case 'group_joined':
+        return 'Joined Group';
+      case 'group_left':
+        return 'Left Group';
+      case 'member_added':
+        return 'Member Added';
+      case 'member_removed':
+        return 'Member Removed';
+      case 'expense_added':
+        return 'Expense Added';
+      case 'expense_edited':
+        return 'Expense Edited';
+      case 'expense_deleted':
+        return 'Expense Deleted';
+      case 'expense_settled':
+        return 'Expense Settled';
+      case 'note_created':
+        return 'Note Created';
+      case 'note_edited':
+        return 'Note Edited';
+      case 'note_deleted':
+        return 'Note Deleted';
+      case 'profile_updated':
+        return 'Profile Updated';
+      case 'password_changed':
+        return 'Password Changed';
+      case 'login':
+        return 'Login';
+      case 'logout':
+        return 'Logout';
+      case 'app_rated':
+        return 'App Rated';
+      case 'feedback_submitted':
+        return 'Feedback Submitted';
+      case 'user_rated':
+        return 'User Rated';
+      case 'user_rating_received':
+        return 'User Rating Received';
+      default:
+        return type.replaceAll('_', ' ').toUpperCase();
     }
   }
 
@@ -332,6 +377,14 @@ class _ActivityPageState extends State<ActivityPage> {
       case 'login':
       case 'logout':
         return Icons.login;
+      case 'app_rated':
+        return Icons.star;
+      case 'feedback_submitted':
+        return Icons.feedback;
+      case 'user_rated':
+        return Icons.person;
+      case 'user_rating_received':
+        return Icons.person_outline;
       default:
         return Icons.info;
     }
@@ -366,6 +419,14 @@ class _ActivityPageState extends State<ActivityPage> {
         return Colors.green;
       case 'logout':
         return Colors.grey;
+      case 'app_rated':
+        return Colors.amber;
+      case 'feedback_submitted':
+        return Colors.blueAccent;
+      case 'user_rated':
+        return Colors.green;
+      case 'user_rating_received':
+        return Colors.teal;
       default:
         return Colors.grey;
     }
@@ -376,12 +437,12 @@ class _ActivityPageState extends State<ActivityPage> {
       final date = DateTime.parse(dateString);
       final now = DateTime.now();
       final difference = now.difference(date);
-      
+
       // For login activities, always show full date and time
       if (activityType == 'login') {
         return DateFormat('MMM dd, yyyy • h:mm a').format(date);
       }
-      
+
       if (difference.inDays == 0) {
         if (difference.inHours == 0) {
           return '${difference.inMinutes} minutes ago';
@@ -430,15 +491,19 @@ class _ActivityPageState extends State<ActivityPage> {
           slivers: [
             // Search Bar
             SliverToBoxAdapter(child: _buildSearchBar()),
-            
+
             // Stats Section
             if (!loadingStats) SliverToBoxAdapter(child: _buildStatsSection()),
-            
+
             // Activity Insights Section
-            if (!loading && allActivities.isNotEmpty) SliverToBoxAdapter(child: _buildActivityInsights()),
-            
+            if (!loading && allActivities.isNotEmpty)
+              SliverToBoxAdapter(child: _buildActivityInsights()),
+
             // Filter chips
-            if (selectedType != null || startDate != null || endDate != null || searchQuery.isNotEmpty)
+            if (selectedType != null ||
+                startDate != null ||
+                endDate != null ||
+                searchQuery.isNotEmpty)
               SliverToBoxAdapter(child: _buildFilterChips()),
 
             // Activities List
@@ -568,7 +633,8 @@ class _ActivityPageState extends State<ActivityPage> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String title, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -645,7 +711,7 @@ class _ActivityPageState extends State<ActivityPage> {
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // Insights Grid
           Row(
             children: [
@@ -667,7 +733,7 @@ class _ActivityPageState extends State<ActivityPage> {
             ],
           ),
           const SizedBox(height: 12),
-          
+
           Row(
             children: [
               Expanded(
@@ -687,7 +753,7 @@ class _ActivityPageState extends State<ActivityPage> {
               ),
             ],
           ),
-          
+
           // Top Activity Types
           if (activityTypeCounts.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -989,7 +1055,7 @@ class _ActivityPageState extends State<ActivityPage> {
     final createdAt = activity['createdAt'] as String;
     final amount = activity['amount'];
     final currency = activity['currency'];
-    
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -1022,7 +1088,7 @@ class _ActivityPageState extends State<ActivityPage> {
               ),
             ),
             const SizedBox(width: 12),
-            
+
             // Activity Details
             Expanded(
               child: Column(
@@ -1041,7 +1107,8 @@ class _ActivityPageState extends State<ActivityPage> {
                       ),
                       if (amount != null && currency != null)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.green.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
@@ -1136,7 +1203,8 @@ class _ActivityPageState extends State<ActivityPage> {
             const SizedBox(height: 8),
             Text('Description: ${activity['description']}'),
             const SizedBox(height: 8),
-            Text('Date: ${_formatDate(activity['createdAt'], activityType: activity['type'])}'),
+            Text(
+                'Date: ${_formatDate(activity['createdAt'], activityType: activity['type'])}'),
             if (activity['amount'] != null) ...[
               const SizedBox(height: 8),
               Text('Amount: ${activity['currency']}${activity['amount']}'),
@@ -1259,7 +1327,7 @@ class _ActivityPageState extends State<ActivityPage> {
                   ],
                 ),
               ),
-              
+
               // Content
               Padding(
                 padding: const EdgeInsets.all(20),
@@ -1279,7 +1347,7 @@ class _ActivityPageState extends State<ActivityPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Activity Title
                     Text(
                       activity['title'] ?? 'Unknown Activity',
@@ -1291,12 +1359,14 @@ class _ActivityPageState extends State<ActivityPage> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    
+
                     // Activity Type
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: _getActivityColor(activity['type']).withOpacity(0.1),
+                        color: _getActivityColor(activity['type'])
+                            .withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -1309,7 +1379,7 @@ class _ActivityPageState extends State<ActivityPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Confirmation Text
                     Text(
                       'Are you sure you want to delete this activity? This action cannot be undone.',
@@ -1322,10 +1392,11 @@ class _ActivityPageState extends State<ActivityPage> {
                   ],
                 ),
               ),
-              
+
               // Action Buttons
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Row(
                   children: [
                     Expanded(
@@ -1334,7 +1405,8 @@ class _ActivityPageState extends State<ActivityPage> {
                         icon: const Icon(Icons.cancel, color: Colors.grey),
                         label: const Text(
                           'Cancel',
-                          style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              color: Colors.grey, fontWeight: FontWeight.w600),
                         ),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1350,33 +1422,40 @@ class _ActivityPageState extends State<ActivityPage> {
                       child: ElevatedButton.icon(
                         onPressed: () async {
                           Navigator.of(context).pop();
-                          
+
                           try {
-                            final session = Provider.of<SessionProvider>(context, listen: false);
+                            final session = Provider.of<SessionProvider>(
+                                context,
+                                listen: false);
                             final token = session.token;
                             final baseUrl = ApiConfig.baseUrl;
-                            
-                            final uri = Uri.parse('$baseUrl/api/activities/${activity['_id']}');
+
+                            final uri = Uri.parse(
+                                '$baseUrl/api/activities/${activity['_id']}');
                             final response = await http.delete(
                               uri,
                               headers: {'Authorization': 'Bearer $token'},
                             );
-                            
+
                             if (response.statusCode == 200) {
                               // Remove from local list
                               setState(() {
-                                activities.removeWhere((a) => a['_id'] == activity['_id']);
-                                allActivities.removeWhere((a) => a['_id'] == activity['_id']);
+                                activities.removeWhere(
+                                    (a) => a['_id'] == activity['_id']);
+                                allActivities.removeWhere(
+                                    (a) => a['_id'] == activity['_id']);
                               });
                               _calculateActivityInsights();
-                              
+
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Row(
                                     children: [
-                                      const Icon(Icons.check_circle, color: Colors.white),
+                                      const Icon(Icons.check_circle,
+                                          color: Colors.white),
                                       const SizedBox(width: 8),
-                                      const Text('Activity deleted successfully'),
+                                      const Text(
+                                          'Activity deleted successfully'),
                                     ],
                                   ),
                                   backgroundColor: Colors.red,
@@ -1392,9 +1471,11 @@ class _ActivityPageState extends State<ActivityPage> {
                                 SnackBar(
                                   content: Row(
                                     children: [
-                                      const Icon(Icons.error, color: Colors.white),
+                                      const Icon(Icons.error,
+                                          color: Colors.white),
                                       const SizedBox(width: 8),
-                                      Text(errorData['error'] ?? 'Failed to delete activity'),
+                                      Text(errorData['error'] ??
+                                          'Failed to delete activity'),
                                     ],
                                   ),
                                   backgroundColor: Colors.red,
@@ -1410,7 +1491,8 @@ class _ActivityPageState extends State<ActivityPage> {
                               SnackBar(
                                 content: Row(
                                   children: [
-                                    const Icon(Icons.error, color: Colors.white),
+                                    const Icon(Icons.error,
+                                        color: Colors.white),
                                     const SizedBox(width: 8),
                                     Text('Error: $e'),
                                   ],
@@ -1424,10 +1506,12 @@ class _ActivityPageState extends State<ActivityPage> {
                             );
                           }
                         },
-                        icon: const Icon(Icons.delete_forever, color: Colors.white),
+                        icon: const Icon(Icons.delete_forever,
+                            color: Colors.white),
                         label: const Text(
                           'Delete',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
@@ -1499,7 +1583,8 @@ class _ActivityPageState extends State<ActivityPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const SizedBox(width: 40), // Spacer to center the content
+                        const SizedBox(
+                            width: 40), // Spacer to center the content
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -1552,7 +1637,7 @@ class _ActivityPageState extends State<ActivityPage> {
                   ],
                 ),
               ),
-              
+
               // Filter Content
               Padding(
                 padding: const EdgeInsets.all(20),
@@ -1560,97 +1645,109 @@ class _ActivityPageState extends State<ActivityPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                    // Activity Type Filter with enhanced styling
-                    Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                      ),
-                      child: DropdownButtonFormField<String>(
-                        value: selectedType,
-                        decoration: InputDecoration(
-                          labelText: 'Activity Type',
-                          labelStyle: const TextStyle(
-                            color: Color(0xFF00B4D8),
-                            fontWeight: FontWeight.w600,
-                          ),
-                          prefixIcon: Container(
-                            margin: const EdgeInsets.all(8),
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF00B4D8).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.category,
-                              color: Color(0xFF00B4D8),
-                              size: 20,
-                            ),
-                          ),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      // Activity Type Filter with enhanced styling
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border:
+                              Border.all(color: Colors.grey.withOpacity(0.3)),
                         ),
-                        items: [
-                          DropdownMenuItem<String>(
-                            value: null,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: const Icon(Icons.all_inclusive, size: 16, color: Colors.grey),
-                                ),
-                                const SizedBox(width: 12),
-                                const Text('All Types', style: TextStyle(fontWeight: FontWeight.w500)),
-                              ],
+                        child: DropdownButtonFormField<String>(
+                          value: selectedType,
+                          decoration: InputDecoration(
+                            labelText: 'Activity Type',
+                            labelStyle: const TextStyle(
+                              color: Color(0xFF00B4D8),
+                              fontWeight: FontWeight.w600,
                             ),
+                            prefixIcon: Container(
+                              margin: const EdgeInsets.all(8),
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00B4D8).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(
+                                Icons.category,
+                                color: Color(0xFF00B4D8),
+                                size: 20,
+                              ),
+                            ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
                           ),
-                          ...activityTypes.map((type) => DropdownMenuItem<String>(
-                            value: type,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: _getActivityColor(type).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(6),
+                          items: [
+                            DropdownMenuItem<String>(
+                              value: null,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Icon(Icons.all_inclusive,
+                                        size: 16, color: Colors.grey),
                                   ),
-                                  child: Icon(_getActivityIcon(type), size: 16, color: _getActivityColor(type)),
-                                ),
-                                const SizedBox(width: 12),
-                                Flexible(
-                                  child: Text(
-                                    _getActivityTypeDisplayName(type),
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
+                                  const SizedBox(width: 12),
+                                  const Text('All Types',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w500)),
+                                ],
+                              ),
                             ),
-                          )),
-                        ],
-                        onChanged: (value) {
-                          setState(() {
-                            selectedType = value;
-                          });
-                        },
+                            ...activityTypes
+                                .map((type) => DropdownMenuItem<String>(
+                                      value: type,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: _getActivityColor(type)
+                                                  .withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Icon(_getActivityIcon(type),
+                                                size: 16,
+                                                color: _getActivityColor(type)),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Flexible(
+                                            child: Text(
+                                              _getActivityTypeDisplayName(type),
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.w500),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              selectedType = value;
+                            });
+                          },
+                        ),
                       ),
-                    ),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       // Date Range Section
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: Colors.grey.withOpacity(0.05),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                          border:
+                              Border.all(color: Colors.grey.withOpacity(0.2)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1681,7 +1778,7 @@ class _ActivityPageState extends State<ActivityPage> {
                               ],
                             ),
                             const SizedBox(height: 16),
-                            
+
                             // Date Range Buttons
                             Row(
                               children: [
@@ -1693,13 +1790,15 @@ class _ActivityPageState extends State<ActivityPage> {
                                     onPressed: () async {
                                       final date = await showDatePicker(
                                         context: context,
-                                        initialDate: startDate ?? DateTime.now(),
+                                        initialDate:
+                                            startDate ?? DateTime.now(),
                                         firstDate: DateTime(2020),
                                         lastDate: DateTime.now(),
                                         builder: (context, child) {
                                           return Theme(
                                             data: Theme.of(context).copyWith(
-                                              colorScheme: const ColorScheme.light(
+                                              colorScheme:
+                                                  const ColorScheme.light(
                                                 primary: Color(0xFF00B4D8),
                                                 onPrimary: Colors.white,
                                                 surface: Colors.white,
@@ -1710,16 +1809,18 @@ class _ActivityPageState extends State<ActivityPage> {
                                           );
                                         },
                                       );
-                                                                             if (date != null) {
-                                         setState(() => startDate = date);
-                                       }
+                                      if (date != null) {
+                                        setState(() => startDate = date);
+                                      }
                                     },
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  child: const Icon(Icons.arrow_forward, color: Colors.grey),
+                                  padding:
+                                      const EdgeInsets.symmetric(horizontal: 8),
+                                  child: const Icon(Icons.arrow_forward,
+                                      color: Colors.grey),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
@@ -1736,7 +1837,8 @@ class _ActivityPageState extends State<ActivityPage> {
                                         builder: (context, child) {
                                           return Theme(
                                             data: Theme.of(context).copyWith(
-                                              colorScheme: const ColorScheme.light(
+                                              colorScheme:
+                                                  const ColorScheme.light(
                                                 primary: Color(0xFF00B4D8),
                                                 onPrimary: Colors.white,
                                                 surface: Colors.white,
@@ -1747,9 +1849,9 @@ class _ActivityPageState extends State<ActivityPage> {
                                           );
                                         },
                                       );
-                                                                             if (date != null) {
-                                         setState(() => endDate = date);
-                                       }
+                                      if (date != null) {
+                                        setState(() => endDate = date);
+                                      }
                                     },
                                   ),
                                 ),
@@ -1762,10 +1864,11 @@ class _ActivityPageState extends State<ActivityPage> {
                   ),
                 ),
               ),
-              
+
               // Action Buttons
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Row(
                   children: [
                     Expanded(
@@ -1780,7 +1883,8 @@ class _ActivityPageState extends State<ActivityPage> {
                         icon: const Icon(Icons.clear_all, color: Colors.red),
                         label: const Text(
                           'Clear All',
-                          style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              color: Colors.red, fontWeight: FontWeight.w600),
                         ),
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1802,7 +1906,8 @@ class _ActivityPageState extends State<ActivityPage> {
                         icon: const Icon(Icons.check, color: Colors.white),
                         label: const Text(
                           'Apply Filters',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF00B4D8),
@@ -1833,10 +1938,14 @@ class _ActivityPageState extends State<ActivityPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: date != null ? const Color(0xFF00B4D8).withOpacity(0.1) : Colors.white,
+        color: date != null
+            ? const Color(0xFF00B4D8).withOpacity(0.1)
+            : Colors.white,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: date != null ? const Color(0xFF00B4D8) : Colors.grey.withOpacity(0.3),
+          color: date != null
+              ? const Color(0xFF00B4D8)
+              : Colors.grey.withOpacity(0.3),
         ),
       ),
       child: Material(
@@ -1856,11 +1965,16 @@ class _ActivityPageState extends State<ActivityPage> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    date != null ? DateFormat('MMM dd, yyyy').format(date!) : label,
+                    date != null
+                        ? DateFormat('MMM dd, yyyy').format(date!)
+                        : label,
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: date != null ? FontWeight.w600 : FontWeight.normal,
-                      color: date != null ? const Color(0xFF00B4D8) : Colors.grey[600],
+                      fontWeight:
+                          date != null ? FontWeight.w600 : FontWeight.normal,
+                      color: date != null
+                          ? const Color(0xFF00B4D8)
+                          : Colors.grey[600],
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1872,4 +1986,4 @@ class _ActivityPageState extends State<ActivityPage> {
       ),
     );
   }
-} 
+}

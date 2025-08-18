@@ -42,6 +42,14 @@ const activitySchema = new mongoose.Schema({
       'support_query_updated',
       'support_query_deleted',
       'support_query_replied'
+    ,
+    // App rating activities
+    'app_rated',
+    // Feedback activities
+    'feedback_submitted',
+    // User rating activities
+    'user_rated',
+    'user_rating_received'
     ],
     required: true
   },

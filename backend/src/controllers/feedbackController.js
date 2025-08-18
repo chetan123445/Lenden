@@ -11,6 +11,13 @@ exports.submitFeedback = async (req, res) => {
       feedback,
     });
     await newFeedback.save();
+    // Log activity for feedback submission
+    try {
+      const { createActivityLog } = require('./activityController');
+      await createActivityLog(req.user._id, 'feedback_submitted', 'Feedback Submitted', 'User submitted feedback.', { feedback });
+    } catch (err) {
+      // Ignore activity log errors
+    }
     res.json({ success: true, message: 'Feedback submitted successfully.' });
   } catch (err) {
     res.status(500).json({ error: err.message });

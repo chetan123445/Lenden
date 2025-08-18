@@ -12,6 +12,13 @@ exports.submitRating = async (req, res) => {
     }
     const newRating = new AppRating({ user: userId, rating });
     await newRating.save();
+    // Log activity for app rating
+    try {
+      const { createActivityLog } = require('./activityController');
+      await createActivityLog(userId, 'app_rated', 'App Rated', `User rated the app with ${rating} stars.`, { rating });
+    } catch (err) {
+      // Ignore activity log errors
+    }
     res.json({ message: 'Rating submitted successfully.' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
