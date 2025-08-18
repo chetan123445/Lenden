@@ -60,6 +60,26 @@ exports.rateUser = async (req, res) => {
     const avg = ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length;
     ratee.avgRating = avg;
     await ratee.save();
+
+    // Log activity for rater and ratee
+    const ActivityController = require('./activityController');
+    // For rater: user_rated
+    await ActivityController.createActivityLog(
+      raterId,
+      'user_rated',
+      `Rated user ${ratee.name || ratee.username}`,
+      `You rated ${ratee.name || ratee.username} with ${rating} stars`,
+      { rating, ratee: ratee._id }
+    );
+    // For ratee: user_rating_received
+    await ActivityController.createActivityLog(
+      ratee._id,
+      'user_rating_received',
+      `Received rating from ${req.user.name || req.user.username}`,
+      `You received a rating of ${rating} stars from ${req.user.name || req.user.username}`,
+      { rating, rater: raterId }
+    );
+
     res.status(201).json({ message: 'Rating submitted.' });
   } catch (err) {
     res.status(500).json({ error: err.message });

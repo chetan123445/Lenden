@@ -116,15 +116,18 @@ class _ActivityPageState extends State<ActivityPage> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        // Filter out 'user_rating_received' activities
+        final filteredActivities =
+            List<Map<String, dynamic>>.from(data['activities'])
+                .where((a) => a['type'] != 'user_rating_received')
+                .toList();
         setState(() {
           if (refresh) {
-            activities = List<Map<String, dynamic>>.from(data['activities']);
-            allActivities = List<Map<String, dynamic>>.from(data['activities']);
+            activities = filteredActivities;
+            allActivities = filteredActivities;
           } else {
-            activities
-                .addAll(List<Map<String, dynamic>>.from(data['activities']));
-            allActivities
-                .addAll(List<Map<String, dynamic>>.from(data['activities']));
+            activities.addAll(filteredActivities);
+            allActivities.addAll(filteredActivities);
           }
           final pagination = data['pagination'];
           currentPage = pagination['currentPage'];
@@ -1055,14 +1058,23 @@ class _ActivityPageState extends State<ActivityPage> {
     final createdAt = activity['createdAt'] as String;
     final amount = activity['amount'];
     final currency = activity['currency'];
+    final metadata = activity['metadata'];
+
+    // Custom highlight for rating activities
+    final isRating = type == 'user_rated' || type == 'user_rating_received';
+    final ratingValue = metadata != null && metadata['rating'] != null
+        ? metadata['rating']
+        : null;
 
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: _getActivityColor(type).withOpacity(0.3),
-          width: 1.5,
+          color: isRating
+              ? Colors.amber.withOpacity(0.7)
+              : _getActivityColor(type).withOpacity(0.3),
+          width: 2,
         ),
       ),
       child: Padding(
@@ -1074,17 +1086,21 @@ class _ActivityPageState extends State<ActivityPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _getActivityColor(type).withOpacity(0.1),
+                color: isRating
+                    ? Colors.amber.withOpacity(0.15)
+                    : _getActivityColor(type).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: _getActivityColor(type).withOpacity(0.2),
+                  color: isRating
+                      ? Colors.amber.withOpacity(0.3)
+                      : _getActivityColor(type).withOpacity(0.2),
                   width: 1,
                 ),
               ),
               child: Icon(
-                _getActivityIcon(type),
-                color: _getActivityColor(type),
-                size: 24,
+                isRating ? Icons.star : _getActivityIcon(type),
+                color: isRating ? Colors.amber : _getActivityColor(type),
+                size: 28,
               ),
             ),
             const SizedBox(width: 12),
@@ -1099,9 +1115,10 @@ class _ActivityPageState extends State<ActivityPage> {
                       Expanded(
                         child: Text(
                           title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
+                            color: isRating ? Colors.amber[900] : Colors.black,
                           ),
                         ),
                       ),
@@ -1125,13 +1142,30 @@ class _ActivityPageState extends State<ActivityPage> {
                             ),
                           ),
                         ),
+                      if (isRating && ratingValue != null)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$ratingValue ★',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.amber,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     description,
                     style: TextStyle(
-                      color: Colors.grey[600],
+                      color: isRating ? Colors.amber[800] : Colors.grey[600],
                       fontSize: 14,
                     ),
                   ),

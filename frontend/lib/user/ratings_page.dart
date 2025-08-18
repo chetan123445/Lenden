@@ -128,6 +128,8 @@ class RatingsPage extends StatefulWidget {
 }
 
 class _RatingsPageState extends State<RatingsPage> {
+  // Activity log for ratings
+  List<dynamic> ratingActivities = [];
   // Search user rating by username/email
   Future<void> _searchUserRating() async {
     final input = _searchController.text.trim();
@@ -203,6 +205,23 @@ class _RatingsPageState extends State<RatingsPage> {
   void initState() {
     super.initState();
     fetchRatings();
+    fetchRatingActivities();
+  }
+
+  Future<void> fetchRatingActivities() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final baseUrl = ApiConfig.baseUrl;
+    final res = await http.get(
+        Uri.parse(
+            '$baseUrl/api/activities?type=user_rated,user_rating_received&limit=10'),
+        headers: {'Authorization': 'Bearer $token'});
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      setState(() {
+        ratingActivities = data['activities'] ?? [];
+      });
+    }
   }
 
   Future<void> fetchRatings() async {
@@ -582,6 +601,46 @@ class _RatingsPageState extends State<RatingsPage> {
                           const SizedBox(height: 10),
                           if (_showReceived)
                             _RatingsReceivedList(userRatings: ratingsReceived),
+                          // --- Recent Rating Activities ---
+                          if (ratingActivities.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            Text('Recent Rating Activities',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF0077B6))),
+                            ...ratingActivities.map((activity) => Card(
+                                  color: Colors.white.withOpacity(0.95),
+                                  elevation: 2,
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 4),
+                                  child: ListTile(
+                                    leading: Icon(
+                                      activity['type'] == 'user_rated'
+                                          ? Icons.star
+                                          : Icons.star_border,
+                                      color: Colors.amber,
+                                      size: 32,
+                                    ),
+                                    title: Text(activity['title'] ?? '',
+                                        style: TextStyle(
+                                            color: Color(0xFF023E8A))),
+                                    subtitle: Text(
+                                        activity['description'] ?? '',
+                                        style: TextStyle(
+                                            color: Color(0xFF0077B6))),
+                                    trailing: activity['metadata'] != null &&
+                                            activity['metadata']['rating'] !=
+                                                null
+                                        ? Text(
+                                            '${activity['metadata']['rating']} ★',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.amber))
+                                        : null,
+                                  ),
+                                ))
+                          ],
                         ],
                       ),
                     ),
