@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../user/session.dart';
+import '../../api_config.dart';
 import 'user_details_page.dart';
 import 'user_edit_page.dart';
 
@@ -44,7 +45,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/admin/users'),
+        Uri.parse('ApiConfig.baseUrl/api/admin/users'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -121,7 +122,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.patch(
-        Uri.parse('http://localhost:5000/api/admin/users/$userId/status'),
+        Uri.parse('ApiConfig.baseUrl/api/admin/users/$userId/status'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -189,7 +190,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       try {
         final session = Provider.of<SessionProvider>(context, listen: false);
         final response = await http.delete(
-          Uri.parse('http://localhost:5000/api/admin/users/$userId'),
+          Uri.parse('ApiConfig.baseUrl/api/admin/users/$userId'),
           headers: {
             'Authorization': 'Bearer ${session.token}',
           },

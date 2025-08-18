@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../user/session.dart';
+import '../../api_config.dart';
 
 class UserEditPage extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -101,7 +102,7 @@ class _UserEditPageState extends State<UserEditPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.put(
-        Uri.parse('http://localhost:5000/api/admin/users/${widget.user['_id']}'),
+        Uri.parse('ApiConfig.baseUrl/api/admin/users/${widget.user['_id']}'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',

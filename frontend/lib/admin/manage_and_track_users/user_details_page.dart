@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../user/session.dart';
+import '../../api_config.dart';
 import 'user_edit_page.dart';
 
 class UserDetailsPage extends StatefulWidget {
@@ -42,7 +43,7 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('http://localhost:5000/api/admin/users/${widget.user['_id']}/details'),
+        Uri.parse('ApiConfig.baseUrl/api/admin/users/${widget.user['_id']}/details'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -80,7 +81,7 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.patch(
-        Uri.parse('http://localhost:5000/api/admin/users/${widget.user['_id']}/status'),
+        Uri.parse('ApiConfig.baseUrl/api/admin/users/${widget.user['_id']}/status'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
