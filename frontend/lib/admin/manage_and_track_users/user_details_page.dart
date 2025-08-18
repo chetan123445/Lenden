@@ -15,7 +15,8 @@ class UserDetailsPage extends StatefulWidget {
   State<UserDetailsPage> createState() => _UserDetailsPageState();
 }
 
-class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProviderStateMixin {
+class _UserDetailsPageState extends State<UserDetailsPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   bool _isLoading = false;
   Map<String, dynamic>? _userStats;
@@ -43,7 +44,8 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('ApiConfig.baseUrl/api/admin/users/${widget.user['_id']}/details'),
+        Uri.parse(
+            'ApiConfig.baseUrl/api/admin/users/${widget.user['_id']}/details'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -53,8 +55,10 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
         final data = json.decode(response.body);
         setState(() {
           _userStats = data['stats'];
-          _recentTransactions = List<Map<String, dynamic>>.from(data['recentTransactions'] ?? []);
-          _userActivity = List<Map<String, dynamic>>.from(data['userActivity'] ?? []);
+          _recentTransactions =
+              List<Map<String, dynamic>>.from(data['recentTransactions'] ?? []);
+          _userActivity =
+              List<Map<String, dynamic>>.from(data['userActivity'] ?? []);
         });
       }
     } catch (e) {
@@ -77,11 +81,12 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
 
   Future<void> _toggleUserStatus() async {
     final currentStatus = widget.user['isActive'] ?? false;
-    
+
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.patch(
-        Uri.parse('ApiConfig.baseUrl/api/admin/users/${widget.user['_id']}/status'),
+        Uri.parse(
+            'ApiConfig.baseUrl/api/admin/users/${widget.user['_id']}/status'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -98,7 +103,8 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('User ${!currentStatus ? 'activated' : 'deactivated'} successfully'),
+            content: Text(
+                'User ${!currentStatus ? 'activated' : 'deactivated'} successfully'),
             backgroundColor: Colors.green,
           ),
         );
@@ -215,17 +221,20 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
                           ),
                         ],
                       ),
-                      
+
                       const SizedBox(height: 20),
-                      
+
                       // Status Indicators
                       Row(
                         children: [
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 8, horizontal: 12),
                               decoration: BoxDecoration(
-                                color: isActive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                                color: isActive
+                                    ? Colors.green.withOpacity(0.1)
+                                    : Colors.red.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: isActive ? Colors.green : Colors.red,
@@ -246,7 +255,8 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
-                                      color: isActive ? Colors.green : Colors.red,
+                                      color:
+                                          isActive ? Colors.green : Colors.red,
                                     ),
                                   ),
                                 ],
@@ -256,12 +266,16 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
                           const SizedBox(width: 12),
                           Expanded(
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 8, horizontal: 12),
                               decoration: BoxDecoration(
-                                color: isVerified ? Colors.blue.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                                color: isVerified
+                                    ? Colors.blue.withOpacity(0.1)
+                                    : Colors.orange.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: isVerified ? Colors.blue : Colors.orange,
+                                  color:
+                                      isVerified ? Colors.blue : Colors.orange,
                                   width: 1,
                                 ),
                               ),
@@ -270,7 +284,9 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
                                 children: [
                                   Icon(
                                     isVerified ? Icons.verified : Icons.pending,
-                                    color: isVerified ? Colors.blue : Colors.orange,
+                                    color: isVerified
+                                        ? Colors.blue
+                                        : Colors.orange,
                                     size: 16,
                                   ),
                                   const SizedBox(width: 4),
@@ -279,7 +295,9 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
-                                      color: isVerified ? Colors.blue : Colors.orange,
+                                      color: isVerified
+                                          ? Colors.blue
+                                          : Colors.orange,
                                     ),
                                   ),
                                 ],
@@ -288,9 +306,9 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
                           ),
                         ],
                       ),
-                      
+
                       const SizedBox(height: 16),
-                      
+
                       // Action Buttons
                       Row(
                         children: [
@@ -298,7 +316,8 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
                             child: ElevatedButton(
                               onPressed: _toggleUserStatus,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: isActive ? Colors.red : Colors.green,
+                                backgroundColor:
+                                    isActive ? Colors.red : Colors.green,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -316,12 +335,14 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => UserEditPage(user: user),
+                                    builder: (context) =>
+                                        UserEditPage(user: user),
                                   ),
                                 ).then((_) => _loadUserDetails());
                               },
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFF00B4D8)),
+                                side:
+                                    const BorderSide(color: Color(0xFF00B4D8)),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -337,7 +358,7 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
                     ],
                   ),
                 ),
-                
+
                 // Tab Bar
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -366,7 +387,7 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
                     ],
                   ),
                 ),
-                
+
                 // Tab Content
                 Expanded(
                   child: TabBarView(
@@ -386,7 +407,7 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
 
   Widget _buildProfileTab() {
     final user = widget.user;
-    
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -397,12 +418,11 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
             _buildInfoTile('Email', user['email'] ?? 'Not provided'),
             _buildInfoTile('Phone', user['phone'] ?? 'Not provided'),
             _buildInfoTile('Gender', user['gender'] ?? 'Not specified'),
-            _buildInfoTile('Date of Birth', user['dateOfBirth'] ?? 'Not provided'),
+            _buildInfoTile(
+                'Date of Birth', user['dateOfBirth'] ?? 'Not provided'),
             _buildInfoTile('Address', user['address'] ?? 'Not provided'),
           ]),
-          
           const SizedBox(height: 16),
-          
           _buildInfoSection('Account Information', [
             _buildInfoTile('User ID', user['_id'] ?? 'Unknown'),
             _buildInfoTile('Account Type', user['role'] ?? 'User'),
@@ -410,14 +430,19 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
             _buildInfoTile('Last Login', _formatDate(user['lastLogin'])),
             _buildInfoTile('Alternative Email', user['altEmail'] ?? 'Not set'),
           ]),
-          
           const SizedBox(height: 16),
-          
           _buildInfoSection('Account Status', [
-            _buildInfoTile('Account Status', widget.user['isActive'] == true ? 'Active' : 'Inactive'),
-            _buildInfoTile('Email Verified', widget.user['isVerified'] == true ? 'Yes' : 'No'),
-            _buildInfoTile('Phone Verified', widget.user['phoneVerified'] == true ? 'Yes' : 'No'),
-            _buildInfoTile('Two-Factor Auth', widget.user['twoFactorEnabled'] == true ? 'Enabled' : 'Disabled'),
+            _buildInfoTile('Account Status',
+                widget.user['isActive'] == true ? 'Active' : 'Inactive'),
+            _buildInfoTile('Email Verified',
+                widget.user['isVerified'] == true ? 'Yes' : 'No'),
+            _buildInfoTile('Phone Verified',
+                widget.user['phoneVerified'] == true ? 'Yes' : 'No'),
+            _buildInfoTile(
+                'Two-Factor Auth',
+                widget.user['twoFactorEnabled'] == true
+                    ? 'Enabled'
+                    : 'Disabled'),
           ]),
         ],
       ),
@@ -438,39 +463,63 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
           // Summary Cards
           Row(
             children: [
-              Expanded(child: _buildStatCard('Total Transactions', _userStats!['totalTransactions']?.toString() ?? '0', Icons.receipt)),
+              Expanded(
+                  child: _buildStatCard(
+                      'Total Transactions',
+                      _userStats!['totalTransactions']?.toString() ?? '0',
+                      Icons.receipt)),
               const SizedBox(width: 12),
-              Expanded(child: _buildStatCard('Total Amount', '\$${_userStats!['totalAmount']?.toString() ?? '0'}', Icons.attach_money)),
+              Expanded(
+                  child: _buildStatCard(
+                      'Total Amount',
+                      '\$${_userStats!['totalAmount']?.toString() ?? '0'}',
+                      Icons.attach_money)),
             ],
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           Row(
             children: [
-              Expanded(child: _buildStatCard('Groups', _userStats!['totalGroups']?.toString() ?? '0', Icons.group)),
+              Expanded(
+                  child: _buildStatCard(
+                      'Groups',
+                      _userStats!['totalGroups']?.toString() ?? '0',
+                      Icons.group)),
               const SizedBox(width: 12),
-              Expanded(child: _buildStatCard('Friends', _userStats!['totalFriends']?.toString() ?? '0', Icons.people)),
+              Expanded(
+                  child: _buildStatCard(
+                      'Friends',
+                      _userStats!['totalFriends']?.toString() ?? '0',
+                      Icons.people)),
             ],
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Detailed Stats
           _buildInfoSection('Transaction Statistics', [
-            _buildInfoTile('Successful Transactions', _userStats!['successfulTransactions']?.toString() ?? '0'),
-            _buildInfoTile('Failed Transactions', _userStats!['failedTransactions']?.toString() ?? '0'),
-            _buildInfoTile('Average Transaction', '\$${_userStats!['averageTransaction']?.toString() ?? '0'}'),
-            _buildInfoTile('Largest Transaction', '\$${_userStats!['largestTransaction']?.toString() ?? '0'}'),
+            _buildInfoTile('Successful Transactions',
+                _userStats!['successfulTransactions']?.toString() ?? '0'),
+            _buildInfoTile('Failed Transactions',
+                _userStats!['failedTransactions']?.toString() ?? '0'),
+            _buildInfoTile('Average Transaction',
+                '\$${_userStats!['averageTransaction']?.toString() ?? '0'}'),
+            _buildInfoTile('Largest Transaction',
+                '\$${_userStats!['largestTransaction']?.toString() ?? '0'}'),
           ]),
-          
+
           const SizedBox(height: 16),
-          
+
           _buildInfoSection('Activity Statistics', [
-            _buildInfoTile('Days Active', _userStats!['daysActive']?.toString() ?? '0'),
-            _buildInfoTile('Last Activity', _formatDate(_userStats!['lastActivity'])),
-            _buildInfoTile('Login Count', _userStats!['loginCount']?.toString() ?? '0'),
-            _buildInfoTile('Profile Views', _userStats!['profileViews']?.toString() ?? '0'),
+            _buildInfoTile(
+                'Days Active', _userStats!['daysActive']?.toString() ?? '0'),
+            _buildInfoTile(
+                'Last Activity', _formatDate(_userStats!['lastActivity'])),
+            _buildInfoTile(
+                'Login Count', _userStats!['loginCount']?.toString() ?? '0'),
+            _buildInfoTile('Profile Views',
+                _userStats!['profileViews']?.toString() ?? '0'),
           ]),
         ],
       ),
@@ -638,7 +687,7 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
     final amount = transaction['amount']?.toString() ?? '0';
     final type = transaction['type'] ?? 'unknown';
     final status = transaction['status'] ?? 'pending';
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -706,7 +755,9 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: status == 'completed' ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                  color: status == 'completed'
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.orange.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -728,7 +779,7 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
   Widget _buildActivityCard(Map<String, dynamic> activity) {
     final action = activity['action'] ?? 'unknown';
     final timestamp = activity['timestamp'];
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -823,7 +874,7 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
 
   String _formatDate(dynamic date) {
     if (date == null) return 'Not available';
-    
+
     try {
       final dateTime = DateTime.parse(date.toString());
       return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute}';
@@ -834,7 +885,7 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
 
   Widget _buildProfileImage(Map<String, dynamic> user) {
     final profileImage = user['profileImage'];
-    
+
     if (profileImage == null) {
       return Text(
         (user['name'] as String?)?.substring(0, 1).toUpperCase() ?? 'U',
@@ -899,4 +950,4 @@ class _UserDetailsPageState extends State<UserDetailsPage> with SingleTickerProv
       );
     }
   }
-} 
+}

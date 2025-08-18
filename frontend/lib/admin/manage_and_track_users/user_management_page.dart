@@ -91,9 +91,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _filteredUsers = _users.where((user) {
         // Search filter
         final matchesSearch = _searchQuery.isEmpty ||
-            user['name'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            user['email'].toString().toLowerCase().contains(_searchQuery.toLowerCase()) ||
-            user['username'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
+            user['name']
+                .toString()
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase()) ||
+            user['email']
+                .toString()
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase()) ||
+            user['username']
+                .toString()
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase());
 
         // Status filter
         final matchesStatus = _statusFilter == 'All' ||
@@ -108,10 +117,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _filteredUsers.sort((a, b) {
         var aValue = a[_sortBy] ?? '';
         var bValue = b[_sortBy] ?? '';
-        
+
         if (aValue is String) aValue = aValue.toLowerCase();
         if (bValue is String) bValue = bValue.toLowerCase();
-        
+
         int comparison = aValue.compareTo(bValue);
         return _sortAscending ? comparison : -comparison;
       });
@@ -144,7 +153,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('User ${!currentStatus ? 'activated' : 'deactivated'} successfully'),
+            content: Text(
+                'User ${!currentStatus ? 'activated' : 'deactivated'} successfully'),
             backgroundColor: Colors.green,
           ),
         );
@@ -171,7 +181,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete User'),
-        content: Text('Are you sure you want to delete user "$userName"? This action cannot be undone.'),
+        content: Text(
+            'Are you sure you want to delete user "$userName"? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -290,9 +301,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     _applyFilters();
                   },
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Filters Row
                 Row(
                   children: [
@@ -325,9 +336,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         ),
                       ),
                     ),
-                    
+
                     const SizedBox(width: 12),
-                    
+
                     // Sort Button
                     PopupMenuButton<String>(
                       onSelected: (value) {
@@ -356,7 +367,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         ),
                       ],
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
@@ -367,9 +379,15 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           children: [
                             const Icon(Icons.sort, size: 20),
                             const SizedBox(width: 4),
-                            Text(_sortBy == 'name' ? 'Name' : _sortBy == 'email' ? 'Email' : 'Date'),
+                            Text(_sortBy == 'name'
+                                ? 'Name'
+                                : _sortBy == 'email'
+                                    ? 'Email'
+                                    : 'Date'),
                             Icon(
-                              _sortAscending ? Icons.arrow_upward : Icons.arrow_downward,
+                              _sortAscending
+                                  ? Icons.arrow_upward
+                                  : Icons.arrow_downward,
                               size: 16,
                             ),
                           ],
@@ -381,23 +399,36 @@ class _UserManagementPageState extends State<UserManagementPage> {
               ],
             ),
           ),
-          
+
           // Statistics
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
-                _buildStatCard('Total Users', _users.length.toString(), Icons.people),
+                _buildStatCard(
+                    'Total Users', _users.length.toString(), Icons.people),
                 const SizedBox(width: 12),
-                _buildStatCard('Active Users', _users.where((u) => u['isActive'] == true).length.toString(), Icons.check_circle),
+                _buildStatCard(
+                    'Active Users',
+                    _users
+                        .where((u) => u['isActive'] == true)
+                        .length
+                        .toString(),
+                    Icons.check_circle),
                 const SizedBox(width: 12),
-                _buildStatCard('Pending', _users.where((u) => u['isVerified'] == false).length.toString(), Icons.pending),
+                _buildStatCard(
+                    'Pending',
+                    _users
+                        .where((u) => u['isVerified'] == false)
+                        .length
+                        .toString(),
+                    Icons.pending),
               ],
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Users List
           Expanded(
             child: _isLoading
@@ -407,11 +438,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.people_outline, size: 64, color: Colors.grey),
+                            Icon(Icons.people_outline,
+                                size: 64, color: Colors.grey),
                             SizedBox(height: 16),
                             Text(
                               'No users found',
-                              style: TextStyle(fontSize: 18, color: Colors.grey),
+                              style:
+                                  TextStyle(fontSize: 18, color: Colors.grey),
                             ),
                           ],
                         ),
@@ -474,7 +507,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   Widget _buildUserCard(Map<String, dynamic> user) {
     final isActive = user['isActive'] ?? false;
     final isVerified = user['isVerified'] ?? false;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -511,7 +544,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: isActive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                color: isActive
+                    ? Colors.green.withOpacity(0.1)
+                    : Colors.red.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -543,7 +578,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 const SizedBox(width: 8),
                 if (!isVerified)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.orange.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -646,7 +682,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   Widget _buildProfileImage(Map<String, dynamic> user) {
     final profileImage = user['profileImage'];
-    
+
     if (profileImage == null) {
       return Text(
         (user['name'] as String?)?.substring(0, 1).toUpperCase() ?? 'U',
@@ -711,4 +747,4 @@ class _UserManagementPageState extends State<UserManagementPage> {
       );
     }
   }
-} 
+}

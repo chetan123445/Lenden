@@ -53,20 +53,20 @@ class _UserEditPageState extends State<UserEditPage> {
 
   void _initializeForm() {
     final user = widget.user;
-    
+
     _nameController.text = user['name'] ?? '';
     _emailController.text = user['email'] ?? '';
     _phoneController.text = user['phone'] ?? '';
     _addressController.text = user['address'] ?? '';
     _altEmailController.text = user['altEmail'] ?? '';
-    
+
     _selectedGender = user['gender'] ?? 'Other';
     _selectedRole = user['role'] ?? 'user';
     _isActive = user['isActive'] ?? false;
     _isVerified = user['isVerified'] ?? false;
     _phoneVerified = user['phoneVerified'] ?? false;
     _twoFactorEnabled = user['twoFactorEnabled'] ?? false;
-    
+
     if (user['dateOfBirth'] != null) {
       try {
         _selectedDateOfBirth = DateTime.parse(user['dateOfBirth']);
@@ -253,9 +253,9 @@ class _UserEditPageState extends State<UserEditPage> {
                         ],
                       ),
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Personal Information Section
                     _buildSection(
                       'Personal Information',
@@ -281,7 +281,8 @@ class _UserEditPageState extends State<UserEditPage> {
                             if (value == null || value.trim().isEmpty) {
                               return 'Please enter email address';
                             }
-                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
+                                .hasMatch(value)) {
                               return 'Please enter a valid email address';
                             }
                             return null;
@@ -314,9 +315,12 @@ class _UserEditPageState extends State<UserEditPage> {
                           icon: Icons.person_outline,
                           value: _selectedGender,
                           items: const [
-                            DropdownMenuItem(value: 'Male', child: Text('Male')),
-                            DropdownMenuItem(value: 'Female', child: Text('Female')),
-                            DropdownMenuItem(value: 'Other', child: Text('Other')),
+                            DropdownMenuItem(
+                                value: 'Male', child: Text('Male')),
+                            DropdownMenuItem(
+                                value: 'Female', child: Text('Female')),
+                            DropdownMenuItem(
+                                value: 'Other', child: Text('Other')),
                           ],
                           onChanged: (value) {
                             setState(() {
@@ -328,9 +332,9 @@ class _UserEditPageState extends State<UserEditPage> {
                         _buildDateField(),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Account Settings Section
                     _buildSection(
                       'Account Settings',
@@ -340,9 +344,12 @@ class _UserEditPageState extends State<UserEditPage> {
                           icon: Icons.admin_panel_settings,
                           value: _selectedRole,
                           items: const [
-                            DropdownMenuItem(value: 'user', child: Text('User')),
-                            DropdownMenuItem(value: 'admin', child: Text('Administrator')),
-                            DropdownMenuItem(value: 'moderator', child: Text('Moderator')),
+                            DropdownMenuItem(
+                                value: 'user', child: Text('User')),
+                            DropdownMenuItem(
+                                value: 'admin', child: Text('Administrator')),
+                            DropdownMenuItem(
+                                value: 'moderator', child: Text('Moderator')),
                           ],
                           onChanged: (value) {
                             setState(() {
@@ -381,9 +388,9 @@ class _UserEditPageState extends State<UserEditPage> {
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Save Button
                     SizedBox(
                       width: double.infinity,
@@ -402,7 +409,8 @@ class _UserEditPageState extends State<UserEditPage> {
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
                                 ),
                               )
                             : const Text(
@@ -543,7 +551,8 @@ class _UserEditPageState extends State<UserEditPage> {
                     ? '${_selectedDateOfBirth!.day}/${_selectedDateOfBirth!.month}/${_selectedDateOfBirth!.year}'
                     : 'Select date',
                 style: TextStyle(
-                  color: _selectedDateOfBirth != null ? Colors.black : Colors.grey,
+                  color:
+                      _selectedDateOfBirth != null ? Colors.black : Colors.grey,
                 ),
               ),
               const Icon(Icons.arrow_drop_down),
@@ -586,4 +595,4 @@ class _UserEditPageState extends State<UserEditPage> {
       contentPadding: EdgeInsets.zero,
     );
   }
-} 
+}
