@@ -1,3 +1,4 @@
+//This file is to view user transactions
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
@@ -26,7 +27,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   bool loading = true;
   String? error;
   String filter = 'All'; // 'All', 'Lending', 'Borrowing'
-  String clearanceFilter = 'All'; // 'All', 'Totally Cleared', 'Totally Uncleared', 'Partially Cleared'
+  String clearanceFilter =
+      'All'; // 'All', 'Totally Cleared', 'Totally Uncleared', 'Partially Cleared'
   String partialClearedType = 'my'; // 'my', 'other'
   DateTime? _startDate;
   DateTime? _endDate;
@@ -45,7 +47,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
 
   final TextEditingController _counterpartyController = TextEditingController();
   final TextEditingController _placeController = TextEditingController();
-  final TextEditingController _transactionIdController = TextEditingController();
+  final TextEditingController _transactionIdController =
+      TextEditingController();
   final TextEditingController _amountController = TextEditingController();
   bool showAllTransactions = false;
 
@@ -70,14 +73,21 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   }
 
   Future<void> fetchTransactions() async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     final email = user?['email'];
     if (email == null) {
-      setState(() { error = 'User email not found.'; loading = false; });
+      setState(() {
+        error = 'User email not found.';
+        loading = false;
+      });
       return;
     }
-    final res = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/transactions/user?email=$email'));
+    final res = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/transactions/user?email=$email'));
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
       setState(() {
@@ -86,7 +96,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         loading = false;
       });
     } else {
-      setState(() { error = 'Failed to load transactions.'; loading = false; });
+      setState(() {
+        error = 'Failed to load transactions.';
+        loading = false;
+      });
     }
   }
 
@@ -126,10 +139,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             backgroundColor: Colors.green,
             duration: Duration(seconds: 3),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
-        
+
         // Refresh the transactions list
         await fetchTransactions();
       } else {
@@ -147,7 +161,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             backgroundColor: Colors.red,
             duration: Duration(seconds: 4),
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           ),
         );
       }
@@ -164,7 +179,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           backgroundColor: Colors.red,
           duration: Duration(seconds: 4),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
     }
@@ -175,7 +191,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -203,7 +220,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                         child: CircleAvatar(
                           radius: 28,
                           backgroundColor: Colors.white,
-                          child: Icon(Icons.delete_forever, color: Colors.red[600], size: 40),
+                          child: Icon(Icons.delete_forever,
+                              color: Colors.red[600], size: 40),
                         ),
                       ),
                     ),
@@ -240,8 +258,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[300],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
                       onPressed: () => Navigator.pop(context),
                       child: Text(
@@ -252,8 +272,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red[600],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
                       onPressed: () {
                         Navigator.pop(context);
@@ -277,19 +299,25 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   Widget _buildTransactionCard(Map t, bool isLending) {
     // Add state for expandable functionality
     bool isExpanded = false;
-    
+
     List<Map<String, dynamic>> attachments = [];
     if (t['files'] != null && t['files'] is List && t['files'].isNotEmpty) {
       attachments = List<Map<String, dynamic>>.from(t['files']);
-    } else if (t['photos'] != null && t['photos'] is List && t['photos'].isNotEmpty) {
+    } else if (t['photos'] != null &&
+        t['photos'] is List &&
+        t['photos'].isNotEmpty) {
       // For backward compatibility, treat photos as images
-      attachments = t['photos'].map<Map<String, dynamic>>((p) => {'type': 'image/jpeg', 'data': p, 'name': 'Photo'}).toList();
+      attachments = t['photos']
+          .map<Map<String, dynamic>>(
+              (p) => {'type': 'image/jpeg', 'data': p, 'name': 'Photo'})
+          .toList();
     }
     List<Widget> fileWidgets = [];
     // Handle new 'files' array
     if (t['files'] != null && t['files'] is List && t['files'].isNotEmpty) {
       for (var file in t['files']) {
-        if (file['type'] != null && file['type'].toString().startsWith('image/')) {
+        if (file['type'] != null &&
+            file['type'].toString().startsWith('image/')) {
           // Image
           final bytes = base64Decode(file['data']);
           fileWidgets.add(GestureDetector(
@@ -309,7 +337,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             },
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.memory(bytes, width: 60, height: 60, fit: BoxFit.cover),
+              child:
+                  Image.memory(bytes, width: 60, height: 60, fit: BoxFit.cover),
             ),
           ));
         } else if (file['type'] == 'application/pdf') {
@@ -318,7 +347,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             onTap: () async {
               final bytes = base64Decode(file['data']);
               final tempDir = await getTemporaryDirectory();
-              final tempFile = File('${tempDir.path}/${file['name'] ?? 'document.pdf'}');
+              final tempFile =
+                  File('${tempDir.path}/${file['name'] ?? 'document.pdf'}');
               await tempFile.writeAsBytes(bytes, flush: true);
               await OpenFile.open(tempFile.path);
             },
@@ -361,7 +391,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                 },
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(bytes, width: 60, height: 60, fit: BoxFit.cover),
+                  child: Image.memory(bytes,
+                      width: 60, height: 60, fit: BoxFit.cover),
                 ),
               );
             },
@@ -374,17 +405,31 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     final email = user?['email'];
     final userEmail = t['userEmail'];
     // Determine the counterparty email based on current user's role
-    final counterpartyEmail = (email == userEmail) ? t['counterpartyEmail'] : userEmail;
-    bool youCleared = (isLending ? t['userCleared'] : t['counterpartyCleared']) == true;
-    bool otherCleared = (isLending ? t['counterpartyCleared'] : t['userCleared']) == true;
+    final counterpartyEmail =
+        (email == userEmail) ? t['counterpartyEmail'] : userEmail;
+    bool youCleared =
+        (isLending ? t['userCleared'] : t['counterpartyCleared']) == true;
+    bool otherCleared =
+        (isLending ? t['counterpartyCleared'] : t['userCleared']) == true;
     bool fullyCleared = youCleared && otherCleared;
     // Interest/return info
     List<Widget> interestWidgets = [];
-    if (t['interestType'] != null && t['interestType'] != '' && t['interestRate'] != null && t['expectedReturnDate'] != null) {
-      String typeLabel = t['interestType'] == 'simple' ? 'Simple Interest' : 'Compound Interest';
-      double principal = t['amount'] is num ? t['amount'].toDouble() : double.tryParse(t['amount'].toString()) ?? 0.0;
-      double rate = t['interestRate'] is num ? t['interestRate'].toDouble() : double.tryParse(t['interestRate'].toString()) ?? 0.0;
-      DateTime start = t['date'] != null ? DateTime.tryParse(t['date']) ?? DateTime.now() : DateTime.now();
+    if (t['interestType'] != null &&
+        t['interestType'] != '' &&
+        t['interestRate'] != null &&
+        t['expectedReturnDate'] != null) {
+      String typeLabel = t['interestType'] == 'simple'
+          ? 'Simple Interest'
+          : 'Compound Interest';
+      double principal = t['amount'] is num
+          ? t['amount'].toDouble()
+          : double.tryParse(t['amount'].toString()) ?? 0.0;
+      double rate = t['interestRate'] is num
+          ? t['interestRate'].toDouble()
+          : double.tryParse(t['interestRate'].toString()) ?? 0.0;
+      DateTime start = t['date'] != null
+          ? DateTime.tryParse(t['date']) ?? DateTime.now()
+          : DateTime.now();
       DateTime end = DateTime.tryParse(t['expectedReturnDate']) ?? start;
       double years = end.difference(start).inDays / 365.0;
       double expectedAmount = principal;
@@ -392,12 +437,19 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       if (t['interestType'] == 'simple') {
         expectedAmount = principal + (principal * rate * years / 100);
       } else if (t['interestType'] == 'compound') {
-        int n = t['compoundingFrequency'] is int ? t['compoundingFrequency'] : int.tryParse(t['compoundingFrequency'].toString() ?? '') ?? 1;
-        if (n == 1) freqLabel = 'Annually';
-        else if (n == 2) freqLabel = 'Semi-annually';
-        else if (n == 4) freqLabel = 'Quarterly';
-        else if (n == 12) freqLabel = 'Monthly';
-        else freqLabel = '${n}x/year';
+        int n = t['compoundingFrequency'] is int
+            ? t['compoundingFrequency']
+            : int.tryParse(t['compoundingFrequency'].toString() ?? '') ?? 1;
+        if (n == 1)
+          freqLabel = 'Annually';
+        else if (n == 2)
+          freqLabel = 'Semi-annually';
+        else if (n == 4)
+          freqLabel = 'Quarterly';
+        else if (n == 12)
+          freqLabel = 'Monthly';
+        else
+          freqLabel = '${n}x/year';
         expectedAmount = principal * pow(1 + rate / 100 / n, n * years);
       }
       interestWidgets.add(SizedBox(height: 8));
@@ -405,7 +457,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         children: [
           Icon(Icons.percent, color: Colors.blue, size: 20),
           SizedBox(width: 6),
-          Text('$typeLabel @ ${rate.toStringAsFixed(2)}%' + (freqLabel.isNotEmpty ? ' ($freqLabel)' : ''), style: TextStyle(fontWeight: FontWeight.w500)),
+          Text(
+              '$typeLabel @ ${rate.toStringAsFixed(2)}%' +
+                  (freqLabel.isNotEmpty ? ' ($freqLabel)' : ''),
+              style: TextStyle(fontWeight: FontWeight.w500)),
         ],
       ));
       interestWidgets.add(SizedBox(height: 4));
@@ -413,7 +468,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         children: [
           Icon(Icons.calendar_today, color: Colors.teal, size: 18),
           SizedBox(width: 6),
-          Text('Expected Return Date: ${DateFormat('yyyy-MM-dd').format(end)}', style: TextStyle(fontSize: 14)),
+          Text('Expected Return Date: ${DateFormat('yyyy-MM-dd').format(end)}',
+              style: TextStyle(fontSize: 14)),
         ],
       ));
       interestWidgets.add(SizedBox(height: 4));
@@ -421,13 +477,18 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         children: [
           Icon(Icons.attach_money, color: Colors.green, size: 20),
           SizedBox(width: 6),
-          Text('Expected Amount: ${expectedAmount.toStringAsFixed(2)} ${t['currency']} (expected amount till expected return date)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[800])),
+          Text(
+              'Expected Amount: ${expectedAmount.toStringAsFixed(2)} ${t['currency']} (expected amount till expected return date)',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, color: Colors.green[800])),
         ],
       ));
     }
-    String dateStr = t['date'] != null ? t['date'].toString().substring(0, 10) : '';
+    String dateStr =
+        t['date'] != null ? t['date'].toString().substring(0, 10) : '';
     String timeStr = t['time'] != null ? t['time'].toString() : '';
-    String counterparty = isLending ? t['counterpartyEmail'] : t['counterpartyEmail'];
+    String counterparty =
+        isLending ? t['counterpartyEmail'] : t['counterpartyEmail'];
     Color borderColor = fullyCleared
         ? Colors.green
         : (t['isPartiallyPaid'] == true)
@@ -435,7 +496,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             : (youCleared || otherCleared)
                 ? Colors.orange
                 : Colors.teal;
-    
+
     // Add a subtle indicator for deletable transactions
     Widget? deleteIndicator;
     if (fullyCleared) {
@@ -466,13 +527,33 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     }
     List<Widget> statusWidgets = [];
     if (fullyCleared) {
-      statusWidgets.add(Row(children: [Icon(Icons.verified, color: Colors.green), SizedBox(width: 6), Text('Fully Cleared', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))]));
+      statusWidgets.add(Row(children: [
+        Icon(Icons.verified, color: Colors.green),
+        SizedBox(width: 6),
+        Text('Fully Cleared',
+            style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
+      ]));
     } else if (youCleared && !otherCleared) {
-      statusWidgets.add(Row(children: [Icon(Icons.check, color: Colors.orange), SizedBox(width: 6), Text('You cleared. Waiting for other party.', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold))]));
+      statusWidgets.add(Row(children: [
+        Icon(Icons.check, color: Colors.orange),
+        SizedBox(width: 6),
+        Text('You cleared. Waiting for other party.',
+            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold))
+      ]));
     } else if (!youCleared && otherCleared) {
-      statusWidgets.add(Row(children: [Icon(Icons.check, color: Colors.orange), SizedBox(width: 6), Text('Other party cleared. Waiting for you.', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold))]));
+      statusWidgets.add(Row(children: [
+        Icon(Icons.check, color: Colors.orange),
+        SizedBox(width: 6),
+        Text('Other party cleared. Waiting for you.',
+            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold))
+      ]));
     } else {
-      statusWidgets.add(Row(children: [Icon(Icons.hourglass_empty, color: Colors.grey), SizedBox(width: 6), Text('Uncleared', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold))]));
+      statusWidgets.add(Row(children: [
+        Icon(Icons.hourglass_empty, color: Colors.grey),
+        SizedBox(width: 6),
+        Text('Uncleared',
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold))
+      ]));
     }
     if (!youCleared) {
       statusWidgets.add(SizedBox(height: 8));
@@ -482,12 +563,12 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
       ));
     }
-    
+
     // Add partial payment button only to the borrower (person who owes money)
     if (!fullyCleared) {
       final user = Provider.of<SessionProvider>(context, listen: false).user;
       final userEmail = user?['email'];
-      
+
       // Check if current user is the borrower
       bool isBorrower = false;
       if (isLending) {
@@ -497,28 +578,30 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         // If this is a borrowing transaction, the borrower is the user
         isBorrower = (userEmail == t['userEmail']);
       }
-      
+
       // Only show partial payment button to the borrower
       if (isBorrower) {
         statusWidgets.add(SizedBox(height: 8));
         statusWidgets.add(ElevatedButton(
-          onPressed: () => _showPartialPaymentDialog(Map<String, dynamic>.from(t)),
-          child: Text('Make Partial Payment', style: TextStyle(color: Colors.black)),
+          onPressed: () =>
+              _showPartialPaymentDialog(Map<String, dynamic>.from(t)),
+          child: Text('Make Partial Payment',
+              style: TextStyle(color: Colors.black)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
         ));
       }
-      
+
       // Show "See Partial Payment" button to both parties
       statusWidgets.add(SizedBox(height: 8));
       statusWidgets.add(ElevatedButton(
-        onPressed: () => _showPartialPaymentHistoryDialog(Map<String, dynamic>.from(t)),
-        child: Text('See Partial Payment', style: TextStyle(color: Colors.black)),
+        onPressed: () =>
+            _showPartialPaymentHistoryDialog(Map<String, dynamic>.from(t)),
+        child:
+            Text('See Partial Payment', style: TextStyle(color: Colors.black)),
         style: ElevatedButton.styleFrom(backgroundColor: Colors.lightGreen),
       ));
     }
-    
 
-    
     // Add helpful message for uncleared transactions
     if (!fullyCleared) {
       statusWidgets.add(SizedBox(height: 8));
@@ -562,7 +645,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           showDialog(
             context: context,
             builder: (_) => Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -589,7 +673,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                             child: CircleAvatar(
                               radius: 28,
                               backgroundColor: Colors.white,
-                              child: Icon(Icons.info_outline, color: Color(0xFF00B4D8), size: 40),
+                              child: Icon(Icons.info_outline,
+                                  color: Color(0xFF00B4D8), size: 40),
                             ),
                           ),
                         ),
@@ -597,15 +682,21 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     ],
                   ),
                   SizedBox(height: 12),
-                  Text('Transaction Description', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Color(0xFF00B4D8))),
+                  Text('Transaction Description',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 20,
+                          color: Color(0xFF00B4D8))),
                   SizedBox(height: 8),
                   Divider(thickness: 1, color: Colors.teal[100]),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
                     child: Card(
                       color: Colors.teal.withOpacity(0.04),
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Text(
@@ -621,11 +712,14 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(0xFF00B4D8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
                       icon: Icon(Icons.close, color: Colors.white),
-                      label: Text('Close', style: TextStyle(color: Colors.white)),
+                      label:
+                          Text('Close', style: TextStyle(color: Colors.white)),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ),
@@ -667,11 +761,17 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     // Header with expand/collapse arrow
                     Row(
                       children: [
-                        Icon(isLending ? Icons.arrow_upward : Icons.arrow_downward, color: isLending ? Colors.green : Colors.orange, size: 28),
+                        Icon(
+                            isLending
+                                ? Icons.arrow_upward
+                                : Icons.arrow_downward,
+                            color: isLending ? Colors.green : Colors.orange,
+                            size: 28),
                         if (t['isPartiallyPaid'] == true) ...[
                           SizedBox(width: 4),
                           Container(
-                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.purple,
                               borderRadius: BorderRadius.circular(8),
@@ -693,10 +793,14 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                             final profile = user;
                             final gender = profile?['gender'] ?? 'Other';
                             dynamic imageUrl = profile?['profileImage'];
-                            if (imageUrl is Map && imageUrl['url'] != null) imageUrl = imageUrl['url'];
-                            if (imageUrl != null && imageUrl is! String) imageUrl = null;
+                            if (imageUrl is Map && imageUrl['url'] != null)
+                              imageUrl = imageUrl['url'];
+                            if (imageUrl != null && imageUrl is! String)
+                              imageUrl = null;
                             ImageProvider avatarProvider;
-                            if (imageUrl != null && imageUrl.toString().isNotEmpty && imageUrl != 'null') {
+                            if (imageUrl != null &&
+                                imageUrl.toString().isNotEmpty &&
+                                imageUrl != 'null') {
                               avatarProvider = NetworkImage(imageUrl);
                             } else {
                               avatarProvider = AssetImage(
@@ -707,7 +811,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                         : 'assets/Other.png',
                               );
                             }
-                            final phoneStr = (profile?['phone'] ?? '').toString();
+                            final phoneStr =
+                                (profile?['phone'] ?? '').toString();
                             showDialog(
                               context: context,
                               builder: (_) => _StylishProfileDialog(
@@ -723,14 +828,20 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                           child: CircleAvatar(
                             radius: 18,
                             backgroundColor: Colors.teal.shade100,
-                            child: Icon(Icons.person, color: Colors.teal, size: 22),
+                            child: Icon(Icons.person,
+                                color: Colors.teal, size: 22),
                           ),
                         ),
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            isLending ? 'Lending (You gave money)' : 'Borrowing (You took money)',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: isLending ? Colors.green : Colors.orange, fontSize: 16),
+                            isLending
+                                ? 'Lending (You gave money)'
+                                : 'Borrowing (You took money)',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isLending ? Colors.green : Colors.orange,
+                                fontSize: 16),
                           ),
                         ),
                         // Expand/collapse arrow
@@ -767,27 +878,37 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                           onTap: () async {
                             showDialog(
                               context: context,
-                              builder: (_) => FutureBuilder<Map<String, dynamic>?>(
-                                future: _fetchCounterpartyProfile(counterpartyEmail),
+                              builder: (_) =>
+                                  FutureBuilder<Map<String, dynamic>?>(
+                                future: _fetchCounterpartyProfile(
+                                    counterpartyEmail),
                                 builder: (context, snapshot) {
-                                  if (snapshot.connectionState == ConnectionState.waiting) {
-                                    return Center(child: CircularProgressIndicator());
+                                  if (snapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return Center(
+                                        child: CircularProgressIndicator());
                                   }
                                   final profile = snapshot.data;
                                   if (profile == null) {
                                     return _StylishProfileDialog(
                                       title: 'Counterparty Info',
                                       name: 'No profile found.',
-                                      avatarProvider: AssetImage('assets/Other.png'),
+                                      avatarProvider:
+                                          AssetImage('assets/Other.png'),
                                       email: counterpartyEmail,
                                     );
                                   }
                                   final gender = profile['gender'] ?? 'Other';
                                   dynamic imageUrl = profile['profileImage'];
-                                  if (imageUrl is Map && imageUrl['url'] != null) imageUrl = imageUrl['url'];
-                                  if (imageUrl != null && imageUrl is! String) imageUrl = null;
+                                  if (imageUrl is Map &&
+                                      imageUrl['url'] != null)
+                                    imageUrl = imageUrl['url'];
+                                  if (imageUrl != null && imageUrl is! String)
+                                    imageUrl = null;
                                   ImageProvider avatarProvider;
-                                  if (imageUrl != null && imageUrl.toString().isNotEmpty && imageUrl != 'null') {
+                                  if (imageUrl != null &&
+                                      imageUrl.toString().isNotEmpty &&
+                                      imageUrl != 'null') {
                                     avatarProvider = NetworkImage(imageUrl);
                                   } else {
                                     avatarProvider = AssetImage(
@@ -798,7 +919,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                               : 'assets/Other.png',
                                     );
                                   }
-                                  final phoneStr = (profile['phone'] ?? '').toString();
+                                  final phoneStr =
+                                      (profile['phone'] ?? '').toString();
                                   return _StylishProfileDialog(
                                     title: 'Counterparty',
                                     name: profile['name'] ?? 'Counterparty',
@@ -814,12 +936,15 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                           child: CircleAvatar(
                             radius: 14,
                             backgroundColor: Colors.teal.shade100,
-                            child: Icon(Icons.person_outline, color: Colors.teal, size: 16),
+                            child: Icon(Icons.person_outline,
+                                color: Colors.teal, size: 16),
                           ),
                         ),
                         SizedBox(width: 8),
                         Expanded(
-                          child: Text('Counterparty: $counterpartyEmail', style: TextStyle(fontSize: 15, color: Colors.black87)),
+                          child: Text('Counterparty: $counterpartyEmail',
+                              style: TextStyle(
+                                  fontSize: 15, color: Colors.black87)),
                         ),
                       ],
                     ),
@@ -831,7 +956,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                         SizedBox(width: 6),
                         Text(
                           'Amount: ${t['amount']} ${t['currency']}',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green[700]),
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green[700]),
                         ),
                       ],
                     ),
@@ -839,7 +967,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     // Date (always visible)
                     Row(
                       children: [
-                        Icon(Icons.calendar_today, color: Colors.blue, size: 18),
+                        Icon(Icons.calendar_today,
+                            color: Colors.blue, size: 18),
                         SizedBox(width: 6),
                         Text('Date: $dateStr', style: TextStyle(fontSize: 14)),
                       ],
@@ -847,16 +976,17 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     // Status indicator (always visible)
                     SizedBox(height: 8),
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: fullyCleared 
+                        color: fullyCleared
                             ? Colors.green.withOpacity(0.1)
                             : (youCleared || otherCleared)
                                 ? Colors.orange.withOpacity(0.1)
                                 : Colors.grey.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: fullyCleared 
+                          color: fullyCleared
                               ? Colors.green.withOpacity(0.3)
                               : (youCleared || otherCleared)
                                   ? Colors.orange.withOpacity(0.3)
@@ -868,12 +998,12 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            fullyCleared 
+                            fullyCleared
                                 ? Icons.verified
                                 : (youCleared || otherCleared)
                                     ? Icons.check
                                     : Icons.hourglass_empty,
-                            color: fullyCleared 
+                            color: fullyCleared
                                 ? Colors.green
                                 : (youCleared || otherCleared)
                                     ? Colors.orange
@@ -882,7 +1012,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                           ),
                           SizedBox(width: 6),
                           Text(
-                            fullyCleared 
+                            fullyCleared
                                 ? 'Fully Cleared'
                                 : (youCleared && !otherCleared)
                                     ? 'You cleared'
@@ -890,7 +1020,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                         ? 'Other cleared'
                                         : 'Uncleared',
                             style: TextStyle(
-                              color: fullyCleared 
+                              color: fullyCleared
                                   ? Colors.green
                                   : (youCleared || otherCleared)
                                       ? Colors.orange
@@ -905,231 +1035,283 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                   ],
                 ),
               ),
-              
+
               // Expandable content
               AnimatedContainer(
                 duration: Duration(milliseconds: 300),
                 height: isExpanded ? null : 0,
-                child: isExpanded ? Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Divider
-                      Divider(color: Colors.grey.withOpacity(0.3), thickness: 1),
-                      SizedBox(height: 12),
-                      
-                      // Time
-                      Row(
-                        children: [
-                          Icon(Icons.access_time, color: Colors.deepPurple, size: 18),
-                          SizedBox(width: 6),
-                          Text('Time: $timeStr', style: TextStyle(fontSize: 14)),
-                        ],
-                      ),
-                      SizedBox(height: 6),
-                      
-                      // Place
-                      Row(
-                        children: [
-                          Icon(Icons.place, color: Colors.purple, size: 18),
-                          SizedBox(width: 6),
-                          Text('Place: ${t['place'] ?? ''}', style: TextStyle(fontSize: 14)),
-                        ],
-                      ),
-                      SizedBox(height: 6),
-                      
-                      // Transaction ID
-                      Row(
-                        children: [
-                          Icon(Icons.confirmation_number, color: Colors.grey, size: 18),
-                          SizedBox(width: 6),
-                          Expanded(
-                            child: Text('Transaction ID: ${t['transactionId']}', style: TextStyle(fontSize: 12, color: Colors.grey[700])),
-                          ),
-                        ],
-                      ),
-                      
-                      // Attachments
-                      if (attachments.isNotEmpty) ...[
-                        SizedBox(height: 10),
-                        ElevatedButton.icon(
-                          icon: Icon(Icons.attach_file),
-                          label: Text('View Attachments'),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (_) => _AttachmentCarouselDialog(attachments: attachments),
-                            );
-                          },
-                        ),
-                      ] else ...[
-                        SizedBox(height: 10),
-                        Text('No attachments', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
-                      ],
-                      
-                      // File widgets
-                      if (fileWidgets.isNotEmpty) ...[
-                        SizedBox(height: 10),
-                        ...fileWidgets,
-                      ],
-                      
-                      // Interest widgets
-                      if (interestWidgets.isNotEmpty) ...[
-                        SizedBox(height: 10),
-                        ...interestWidgets,
-                      ],
-                      
-                      // Amount details section
-                      SizedBox(height: 10),
-                      Container(
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                        ),
+                child: isExpanded
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Divider
+                            Divider(
+                                color: Colors.grey.withOpacity(0.3),
+                                thickness: 1),
+                            SizedBox(height: 12),
+
+                            // Time
                             Row(
                               children: [
-                                Icon(Icons.account_balance_wallet, color: Colors.blue, size: 20),
+                                Icon(Icons.access_time,
+                                    color: Colors.deepPurple, size: 18),
+                                SizedBox(width: 6),
+                                Text('Time: $timeStr',
+                                    style: TextStyle(fontSize: 14)),
+                              ],
+                            ),
+                            SizedBox(height: 6),
+
+                            // Place
+                            Row(
+                              children: [
+                                Icon(Icons.place,
+                                    color: Colors.purple, size: 18),
+                                SizedBox(width: 6),
+                                Text('Place: ${t['place'] ?? ''}',
+                                    style: TextStyle(fontSize: 14)),
+                              ],
+                            ),
+                            SizedBox(height: 6),
+
+                            // Transaction ID
+                            Row(
+                              children: [
+                                Icon(Icons.confirmation_number,
+                                    color: Colors.grey, size: 18),
+                                SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                      'Transaction ID: ${t['transactionId']}',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[700])),
+                                ),
+                              ],
+                            ),
+
+                            // Attachments
+                            if (attachments.isNotEmpty) ...[
+                              SizedBox(height: 10),
+                              ElevatedButton.icon(
+                                icon: Icon(Icons.attach_file),
+                                label: Text('View Attachments'),
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.teal),
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => _AttachmentCarouselDialog(
+                                        attachments: attachments),
+                                  );
+                                },
+                              ),
+                            ] else ...[
+                              SizedBox(height: 10),
+                              Text('No attachments',
+                                  style: TextStyle(
+                                      color: Colors.grey,
+                                      fontStyle: FontStyle.italic)),
+                            ],
+
+                            // File widgets
+                            if (fileWidgets.isNotEmpty) ...[
+                              SizedBox(height: 10),
+                              ...fileWidgets,
+                            ],
+
+                            // Interest widgets
+                            if (interestWidgets.isNotEmpty) ...[
+                              SizedBox(height: 10),
+                              ...interestWidgets,
+                            ],
+
+                            // Amount details section
+                            SizedBox(height: 10),
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Colors.blue.withOpacity(0.3)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.account_balance_wallet,
+                                          color: Colors.blue, size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Amount Details',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: Colors.blue[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.attach_money,
+                                          color: Colors.green, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Original Amount: ${t['amount']} ${t['currency']}',
+                                        style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500),
+                                      ),
+                                    ],
+                                  ),
+                                  // Amount Paid Till Now
+                                  SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.payments,
+                                          color: Colors.green, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Amount Paid Till Now: ${_calculateAmountPaidTillNow(t)} ${t['currency']}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  // Remaining Amount (Original + Interest - Partial Payments)
+                                  SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.account_balance_wallet,
+                                          color: Colors.orange, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Remaining Amount: ${_calculateRemainingAmount(t)} ${t['currency']}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            // Delete indicator
+                            if (deleteIndicator != null) ...[
+                              SizedBox(height: 10),
+                              deleteIndicator,
+                            ],
+
+                            // See description button
+                            SizedBox(height: 10),
+                            seeDescriptionButton,
+
+                            // Status widgets
+                            SizedBox(height: 10),
+                            ...statusWidgets,
+
+                            // Action buttons
+                            SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    icon: Icon(Icons.chat_bubble,
+                                        color: Colors.white),
+                                    label: Text('Chat',
+                                        style: TextStyle(color: Colors.white)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors
+                                          .green, // Make the chat button green
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8)),
+                                    ),
+                                    onPressed: () {
+                                      final transactionId =
+                                          t != null && t['_id'] != null
+                                              ? t['_id']
+                                              : '';
+                                      final session =
+                                          Provider.of<SessionProvider>(context,
+                                              listen: false);
+                                      final userObj = session.user;
+                                      final userEmail = userObj != null
+                                          ? userObj['email']
+                                          : null;
+                                      String? counterpartyEmail;
+                                      if (t['userEmail'] == userEmail) {
+                                        counterpartyEmail =
+                                            t['counterpartyEmail'];
+                                      } else {
+                                        counterpartyEmail = t['userEmail'];
+                                      }
+                                      print('transactionId: $transactionId');
+                                      print('userEmail: $userEmail');
+                                      print(
+                                          'counterpartyEmail: $counterpartyEmail');
+                                      if (transactionId != '' &&
+                                          counterpartyEmail != null) {
+                                        Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => ChatPage(
+                                                transactionId: transactionId,
+                                                counterpartyEmail:
+                                                    counterpartyEmail!, // Use null assertion operator
+                                              ),
+                                            ));
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                              content: Text(
+                                                  'Unable to open chat: missing transaction or user info')),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ),
                                 SizedBox(width: 8),
-                                Text(
-                                  'Amount Details',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: Colors.blue[700],
+                                // Delete button - only show if both parties have cleared
+                                if (fullyCleared)
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      icon: Icon(Icons.delete_forever,
+                                          color: Colors.white),
+                                      label: Text('Delete',
+                                          style:
+                                              TextStyle(color: Colors.white)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8)),
+                                      ),
+                                      onPressed: () {
+                                        _showDeleteConfirmationDialog(
+                                            t['transactionId']);
+                                      },
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Icon(Icons.attach_money, color: Colors.green, size: 16),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Original Amount: ${t['amount']} ${t['currency']}',
-                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                                ),
-                              ],
-                            ),
-                            // Amount Paid Till Now
-                            SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(Icons.payments, color: Colors.green, size: 16),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Amount Paid Till Now: ${_calculateAmountPaidTillNow(t)} ${t['currency']}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green[700],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            // Remaining Amount (Original + Interest - Partial Payments)
-                            SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(Icons.account_balance_wallet, color: Colors.orange, size: 16),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Remaining Amount: ${_calculateRemainingAmount(t)} ${t['currency']}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.orange[700],
-                                  ),
-                                ),
                               ],
                             ),
                           ],
                         ),
-                      ),
-                      
-                      // Delete indicator
-                      if (deleteIndicator != null) ...[
-                        SizedBox(height: 10),
-                        deleteIndicator,
-                      ],
-                      
-                      // See description button
-                      SizedBox(height: 10),
-                      seeDescriptionButton,
-                      
-                      // Status widgets
-                      SizedBox(height: 10),
-                      ...statusWidgets,
-                      
-                      // Action buttons
-                      SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              icon: Icon(Icons.chat_bubble, color: Colors.white),
-                              label: Text('Chat', style: TextStyle(color: Colors.white)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green, // Make the chat button green
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              onPressed: () {
-                                final transactionId = t != null && t['_id'] != null ? t['_id'] : '';
-                                final session = Provider.of<SessionProvider>(context, listen: false);
-                                final userObj = session.user;
-                                final userEmail = userObj != null ? userObj['email'] : null;
-                                String? counterpartyEmail;
-                                if (t['userEmail'] == userEmail) {
-                                  counterpartyEmail = t['counterpartyEmail'];
-                                } else {
-                                  counterpartyEmail = t['userEmail'];
-                                }
-                                print('transactionId: $transactionId');
-                                print('userEmail: $userEmail');
-                                print('counterpartyEmail: $counterpartyEmail');
-                                if (transactionId != '' && counterpartyEmail != null) {
-                                  Navigator.push(context, MaterialPageRoute(
-                                    builder: (_) => ChatPage(
-                                      transactionId: transactionId,
-                                      counterpartyEmail: counterpartyEmail!, // Use null assertion operator
-                                    ),
-                                  ));
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Unable to open chat: missing transaction or user info')),
-                                  );
-                                }
-                              },
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          // Delete button - only show if both parties have cleared
-                          if (fullyCleared)
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                icon: Icon(Icons.delete_forever, color: Colors.white),
-                                label: Text('Delete', style: TextStyle(color: Colors.white)),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.red,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                onPressed: () {
-                                  _showDeleteConfirmationDialog(t['transactionId']);
-                                },
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ) : null,
+                      )
+                    : null,
               ),
             ],
           ),
@@ -1189,7 +1371,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                       child: ChoiceChip(
                         label: Text('All'),
                         selected: clearanceFilter == 'All',
-                        onSelected: (_) => setState(() => clearanceFilter = 'All'),
+                        onSelected: (_) =>
+                            setState(() => clearanceFilter = 'All'),
                         selectedColor: Color(0xFF00B4D8).withOpacity(0.2),
                       ),
                     ),
@@ -1199,7 +1382,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                       child: ChoiceChip(
                         label: Text('Totally Cleared'),
                         selected: clearanceFilter == 'Totally Cleared',
-                        onSelected: (_) => setState(() => clearanceFilter = 'Totally Cleared'),
+                        onSelected: (_) =>
+                            setState(() => clearanceFilter = 'Totally Cleared'),
                         selectedColor: Colors.green.withOpacity(0.2),
                         labelStyle: TextStyle(color: Colors.green[800]),
                       ),
@@ -1210,7 +1394,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                       child: ChoiceChip(
                         label: Text('Totally Uncleared'),
                         selected: clearanceFilter == 'Totally Uncleared',
-                        onSelected: (_) => setState(() => clearanceFilter = 'Totally Uncleared'),
+                        onSelected: (_) => setState(
+                            () => clearanceFilter = 'Totally Uncleared'),
                         selectedColor: Colors.orange.withOpacity(0.2),
                         labelStyle: TextStyle(color: Colors.orange[800]),
                       ),
@@ -1221,7 +1406,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                       child: ChoiceChip(
                         label: Text('Partially Cleared'),
                         selected: clearanceFilter == 'Partially Cleared',
-                        onSelected: (_) => setState(() => clearanceFilter = 'Partially Cleared'),
+                        onSelected: (_) => setState(
+                            () => clearanceFilter = 'Partially Cleared'),
                         selectedColor: Colors.blue.withOpacity(0.2),
                         labelStyle: TextStyle(color: Colors.blue[800]),
                       ),
@@ -1236,8 +1422,12 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       ToggleButtons(
-                        isSelected: [partialClearedType == 'my', partialClearedType == 'other'],
-                        onPressed: (idx) => setState(() => partialClearedType = idx == 0 ? 'my' : 'other'),
+                        isSelected: [
+                          partialClearedType == 'my',
+                          partialClearedType == 'other'
+                        ],
+                        onPressed: (idx) => setState(() =>
+                            partialClearedType = idx == 0 ? 'my' : 'other'),
                         borderRadius: BorderRadius.circular(8),
                         selectedColor: Colors.white,
                         fillColor: Colors.teal,
@@ -1245,11 +1435,19 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Row(children: [Icon(Icons.person, size: 18), SizedBox(width: 6), Text('My Side')]),
+                            child: Row(children: [
+                              Icon(Icons.person, size: 18),
+                              SizedBox(width: 6),
+                              Text('My Side')
+                            ]),
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Row(children: [Icon(Icons.people, size: 18), SizedBox(width: 6), Text('Other Party Side')]),
+                            child: Row(children: [
+                              Icon(Icons.people, size: 18),
+                              SizedBox(width: 6),
+                              Text('Other Party Side')
+                            ]),
                           ),
                         ],
                       ),
@@ -1275,7 +1473,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
               ChoiceChip(
                 label: Text('Simple Interest'),
                 selected: interestTypeFilter == 'simple',
-                onSelected: (_) => setState(() => interestTypeFilter = 'simple'),
+                onSelected: (_) =>
+                    setState(() => interestTypeFilter = 'simple'),
                 selectedColor: Colors.green.withOpacity(0.2),
                 labelStyle: TextStyle(color: Colors.green[800]),
               ),
@@ -1283,7 +1482,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
               ChoiceChip(
                 label: Text('Compound Interest'),
                 selected: interestTypeFilter == 'compound',
-                onSelected: (_) => setState(() => interestTypeFilter = 'compound'),
+                onSelected: (_) =>
+                    setState(() => interestTypeFilter = 'compound'),
                 selectedColor: Colors.blue.withOpacity(0.2),
                 labelStyle: TextStyle(color: Colors.blue[800]),
               ),
@@ -1316,7 +1516,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
-                  child: Text(_startDate == null ? 'Any' : DateFormat('yyyy-MM-dd').format(_startDate!)),
+                  child: Text(_startDate == null
+                      ? 'Any'
+                      : DateFormat('yyyy-MM-dd').format(_startDate!)),
                 ),
               ),
             ),
@@ -1338,7 +1540,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
-                  child: Text(_endDate == null ? 'Any' : DateFormat('yyyy-MM-dd').format(_endDate!)),
+                  child: Text(_endDate == null
+                      ? 'Any'
+                      : DateFormat('yyyy-MM-dd').format(_endDate!)),
                 ),
               ),
             ),
@@ -1355,7 +1559,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                   isDense: true,
                 ),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
-                onChanged: (val) => setState(() => _minAmount = double.tryParse(val)),
+                onChanged: (val) =>
+                    setState(() => _minAmount = double.tryParse(val)),
               ),
             ),
             SizedBox(width: 8),
@@ -1367,7 +1572,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                   isDense: true,
                 ),
                 keyboardType: TextInputType.numberWithOptions(decimal: true),
-                onChanged: (val) => setState(() => _maxAmount = double.tryParse(val)),
+                onChanged: (val) =>
+                    setState(() => _maxAmount = double.tryParse(val)),
               ),
             ),
           ],
@@ -1378,12 +1584,20 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
 
   bool _transactionMatchesFilters(Map t) {
     final date = t['date'] != null ? DateTime.tryParse(t['date']) : null;
-    final amount = t['amount'] is num ? t['amount'].toDouble() : double.tryParse(t['amount'].toString() ?? '');
-    if (_startDate != null && (date == null || date.isBefore(_startDate!))) return false;
-    if (_endDate != null && (date == null || date.isAfter(_endDate!))) return false;
-    if (_minAmount != null && (amount == null || amount < _minAmount!)) return false;
-    if (_maxAmount != null && (amount == null || amount > _maxAmount!)) return false;
-    if (interestTypeFilter != 'All' && (t['interestType'] ?? '').toString().toLowerCase() != interestTypeFilter) return false;
+    final amount = t['amount'] is num
+        ? t['amount'].toDouble()
+        : double.tryParse(t['amount'].toString() ?? '');
+    if (_startDate != null && (date == null || date.isBefore(_startDate!)))
+      return false;
+    if (_endDate != null && (date == null || date.isAfter(_endDate!)))
+      return false;
+    if (_minAmount != null && (amount == null || amount < _minAmount!))
+      return false;
+    if (_maxAmount != null && (amount == null || amount > _maxAmount!))
+      return false;
+    if (interestTypeFilter != 'All' &&
+        (t['interestType'] ?? '').toString().toLowerCase() !=
+            interestTypeFilter) return false;
     // Global fuzzy search
     if (globalSearch.isNotEmpty) {
       final q = globalSearch.toLowerCase();
@@ -1395,19 +1609,18 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         if (a.contains(b) || b.contains(a)) return true;
         return StringSimilarity.compareTwoStrings(a, b) > 0.6;
       }
+
       final user = Provider.of<SessionProvider>(context, listen: false).user;
       final userEmail = user?['email'];
       final isLending = userEmail == t['userEmail'];
       final isBorrowing = userEmail == t['counterpartyEmail'];
-      if (
-        fuzzyMatch(t['counterpartyEmail']?.toString(), q) ||
-        fuzzyMatch(t['place']?.toString(), q) ||
-        fuzzyMatch(t['interestType']?.toString(), q) ||
-        fuzzyMatch(t['transactionId']?.toString(), q) ||
-        (amount != null && amount.toString().contains(q)) ||
-        (isLending && 'lending'.contains(q)) ||
-        (isBorrowing && 'borrowing'.contains(q))
-      ) {
+      if (fuzzyMatch(t['counterpartyEmail']?.toString(), q) ||
+          fuzzyMatch(t['place']?.toString(), q) ||
+          fuzzyMatch(t['interestType']?.toString(), q) ||
+          fuzzyMatch(t['transactionId']?.toString(), q) ||
+          (amount != null && amount.toString().contains(q)) ||
+          (isLending && 'lending'.contains(q)) ||
+          (isBorrowing && 'borrowing'.contains(q))) {
         // pass
       } else {
         return false;
@@ -1428,14 +1641,17 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     if (res.statusCode == 200) {
       fetchTransactions();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to clear transaction')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed to clear transaction')));
     }
   }
 
   List<Widget> _buildFilteredTransactionCards({int? limit}) {
     List<Widget> widgets = [];
-    bool isTotallyCleared(t) => (t['userCleared'] == true && t['counterpartyCleared'] == true);
-    bool isTotallyUncleared(t) => (t['userCleared'] != true && t['counterpartyCleared'] != true);
+    bool isTotallyCleared(t) =>
+        (t['userCleared'] == true && t['counterpartyCleared'] == true);
+    bool isTotallyUncleared(t) =>
+        (t['userCleared'] != true && t['counterpartyCleared'] != true);
     bool isPartiallyClearedMySide(t) {
       final user = Provider.of<SessionProvider>(context, listen: false).user;
       final email = user?['email'];
@@ -1447,6 +1663,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       }
       return false;
     }
+
     bool isPartiallyClearedOtherSide(t) {
       final user = Provider.of<SessionProvider>(context, listen: false).user;
       final email = user?['email'];
@@ -1458,6 +1675,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       }
       return false;
     }
+
     // Apply clearance filter before other filters
     List lendingFiltered = lending;
     List borrowingFiltered = borrowing;
@@ -1473,7 +1691,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         borrowingFiltered = borrowing.where(isPartiallyClearedMySide).toList();
       } else {
         lendingFiltered = lending.where(isPartiallyClearedOtherSide).toList();
-        borrowingFiltered = borrowing.where(isPartiallyClearedOtherSide).toList();
+        borrowingFiltered =
+            borrowing.where(isPartiallyClearedOtherSide).toList();
       }
     }
     // --- Apply search filters ---
@@ -1485,6 +1704,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         if (a.contains(b) || b.contains(a)) return true;
         return StringSimilarity.compareTwoStrings(a, b) > 0.6;
       }
+
       if (globalSearch.isNotEmpty) {
         final q = globalSearch.toLowerCase();
         bool match(String? s) => s != null && s.toLowerCase().contains(q);
@@ -1492,15 +1712,14 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         final userEmail = user?['email'];
         final isLending = userEmail == t['userEmail'];
         final isBorrowing = userEmail == t['counterpartyEmail'];
-        if (
-          fuzzyMatch((t['counterpartyEmail']?.toString() ?? ''), q) ||
-          fuzzyMatch((t['place']?.toString() ?? ''), q) ||
-          fuzzyMatch((t['interestType']?.toString() ?? ''), q) ||
-          fuzzyMatch((t['transactionId']?.toString() ?? ''), q) ||
-          (t['amount'] is num && (t['amount'] as num).toDouble().toString().contains(q)) ||
-          (isLending && 'lending'.contains(q)) ||
-          (isBorrowing && 'borrowing'.contains(q))
-        ) {
+        if (fuzzyMatch((t['counterpartyEmail']?.toString() ?? ''), q) ||
+            fuzzyMatch((t['place']?.toString() ?? ''), q) ||
+            fuzzyMatch((t['interestType']?.toString() ?? ''), q) ||
+            fuzzyMatch((t['transactionId']?.toString() ?? ''), q) ||
+            (t['amount'] is num &&
+                (t['amount'] as num).toDouble().toString().contains(q)) ||
+            (isLending && 'lending'.contains(q)) ||
+            (isBorrowing && 'borrowing'.contains(q))) {
           // pass
         } else {
           return false;
@@ -1508,6 +1727,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       }
       return true;
     }
+
     // --- Sorting ---
     int sortCompare(a, b) {
       if (_sortBy == 'Date') {
@@ -1518,43 +1738,78 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         if (db == null) return _sortAsc ? 1 : -1;
         return _sortAsc ? da.compareTo(db) : db.compareTo(da);
       } else if (_sortBy == 'Amount') {
-        final aa = a['amount'] is num ? a['amount'].toDouble() : double.tryParse(a['amount'].toString()) ?? 0.0;
-        final ab = b['amount'] is num ? b['amount'].toDouble() : double.tryParse(b['amount'].toString()) ?? 0.0;
+        final aa = a['amount'] is num
+            ? a['amount'].toDouble()
+            : double.tryParse(a['amount'].toString()) ?? 0.0;
+        final ab = b['amount'] is num
+            ? b['amount'].toDouble()
+            : double.tryParse(b['amount'].toString()) ?? 0.0;
         return _sortAsc ? aa.compareTo(ab) : ab.compareTo(aa);
       } else if (_sortBy == 'Status') {
-        final sa = (a['userCleared'] == true && a['counterpartyCleared'] == true) ? 2 : (a['userCleared'] == true || a['counterpartyCleared'] == true) ? 1 : 0;
-        final sb = (b['userCleared'] == true && b['counterpartyCleared'] == true) ? 2 : (b['userCleared'] == true || b['counterpartyCleared'] == true) ? 1 : 0;
+        final sa =
+            (a['userCleared'] == true && a['counterpartyCleared'] == true)
+                ? 2
+                : (a['userCleared'] == true || a['counterpartyCleared'] == true)
+                    ? 1
+                    : 0;
+        final sb =
+            (b['userCleared'] == true && b['counterpartyCleared'] == true)
+                ? 2
+                : (b['userCleared'] == true || b['counterpartyCleared'] == true)
+                    ? 1
+                    : 0;
         return _sortAsc ? sa.compareTo(sb) : sb.compareTo(sa);
       }
       return 0;
     }
+
     if (filter == 'All' || filter == 'Lending') {
-      var filteredLending = lendingFiltered.where((t) => _transactionMatchesFilters(t) && matchesSearch(t)).toList();
+      var filteredLending = lendingFiltered
+          .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
+          .toList();
       filteredLending.sort(sortCompare);
-      if (!showAllTransactions && limit != null && filteredLending.length > limit) {
+      if (!showAllTransactions &&
+          limit != null &&
+          filteredLending.length > limit) {
         filteredLending = filteredLending.take(limit).toList();
       }
       if (filteredLending.isNotEmpty) {
-        widgets.add(Text('Lending Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green)));
+        widgets.add(Text('Lending Amount',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: Colors.green)));
         widgets.add(SizedBox(height: 8));
-        widgets.addAll(filteredLending.map((t) => _buildTransactionCard(t, true)));
+        widgets
+            .addAll(filteredLending.map((t) => _buildTransactionCard(t, true)));
         widgets.add(SizedBox(height: 20));
       }
     }
     if (filter == 'All' || filter == 'Borrowing') {
-      var filteredBorrowing = borrowingFiltered.where((t) => _transactionMatchesFilters(t) && matchesSearch(t)).toList();
+      var filteredBorrowing = borrowingFiltered
+          .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
+          .toList();
       filteredBorrowing.sort(sortCompare);
-      if (!showAllTransactions && limit != null && filteredBorrowing.length > limit) {
+      if (!showAllTransactions &&
+          limit != null &&
+          filteredBorrowing.length > limit) {
         filteredBorrowing = filteredBorrowing.take(limit).toList();
       }
       if (filteredBorrowing.isNotEmpty) {
-        widgets.add(Text('Borrowing Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.orange)));
+        widgets.add(Text('Borrowing Amount',
+            style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: Colors.orange)));
         widgets.add(SizedBox(height: 8));
-        widgets.addAll(filteredBorrowing.map((t) => _buildTransactionCard(t, false)));
+        widgets.addAll(
+            filteredBorrowing.map((t) => _buildTransactionCard(t, false)));
       }
     }
     if (widgets.isEmpty) {
-      widgets.add(Center(child: Text('No transactions found.', style: TextStyle(color: Colors.grey))));
+      widgets.add(Center(
+          child: Text('No transactions found.',
+              style: TextStyle(color: Colors.grey))));
     }
     return widgets;
   }
@@ -1578,22 +1833,28 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                       child: TextField(
                         controller: _globalSearchController,
                         decoration: InputDecoration(
-                          hintText: 'Search transactions... (email, place, type, id, amount, lending/borrowing)',
-                          prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
+                          hintText:
+                              'Search transactions... (email, place, type, id, amount, lending/borrowing)',
+                          prefixIcon:
+                              Icon(Icons.search, color: Color(0xFF00B4D8)),
                           filled: true,
                           fillColor: Colors.white,
-                          contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                          contentPadding:
+                              EdgeInsets.symmetric(vertical: 0, horizontal: 16),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                            borderSide:
+                                BorderSide(color: Color(0xFF00B4D8), width: 2),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                            borderSide:
+                                BorderSide(color: Color(0xFF00B4D8), width: 2),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                            borderSide:
+                                BorderSide(color: Color(0xFF00B4D8), width: 2),
                           ),
                         ),
                         onChanged: (v) => setState(() => globalSearch = v),
@@ -1614,13 +1875,19 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               child: Center(
                                 child: ElevatedButton(
-                                  onPressed: () => setState(() => showAllTransactions = true),
+                                  onPressed: () => setState(
+                                      () => showAllTransactions = true),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Color(0xFF00B4D8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(16)),
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 32, vertical: 12),
                                   ),
-                                  child: Text('View All Transactions', style: TextStyle(color: Colors.white, fontSize: 16)),
+                                  child: Text('View All Transactions',
+                                      style: TextStyle(
+                                          color: Colors.white, fontSize: 16)),
                                 ),
                               ),
                             ),
@@ -1629,13 +1896,20 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               child: Center(
                                 child: ElevatedButton(
-                                  onPressed: () => setState(() => showAllTransactions = false),
+                                  onPressed: () => setState(
+                                      () => showAllTransactions = false),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.grey[300],
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(16)),
+                                    padding: EdgeInsets.symmetric(
+                                        horizontal: 32, vertical: 12),
                                   ),
-                                  child: Text('Close', style: TextStyle(color: Color(0xFF00B4D8), fontSize: 16)),
+                                  child: Text('Close',
+                                      style: TextStyle(
+                                          color: Color(0xFF00B4D8),
+                                          fontSize: 16)),
                                 ),
                               ),
                             ),
@@ -1650,7 +1924,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   Future<Map<String, dynamic>?> _fetchCounterpartyProfile(String email) async {
     if (email.isEmpty) return null;
     try {
-      final res = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'));
+      final res = await http.get(Uri.parse(
+          '${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'));
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
@@ -1661,88 +1936,99 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   String _calculateCurrentAmountWithInterest(Map transaction) {
     double originalAmount = transaction['amount']?.toDouble() ?? 0.0;
     double currentAmountWithInterest = originalAmount;
-    
-    if (transaction['interestType'] != null && transaction['interestRate'] != null) {
+
+    if (transaction['interestType'] != null &&
+        transaction['interestRate'] != null) {
       final transactionDate = DateTime.tryParse(transaction['date'] ?? '');
       if (transactionDate != null) {
         final now = DateTime.now();
         final daysDiff = now.difference(transactionDate).inDays;
-        
+
         if (daysDiff > 0) {
           final interestRate = transaction['interestRate']?.toDouble() ?? 0.0;
           final interestType = transaction['interestType'];
-          
+
           if (interestType == 'simple') {
-            currentAmountWithInterest = originalAmount + (originalAmount * interestRate * daysDiff / 365);
+            currentAmountWithInterest = originalAmount +
+                (originalAmount * interestRate * daysDiff / 365);
           } else if (interestType == 'compound') {
-            final compoundingFrequency = transaction['compoundingFrequency']?.toInt() ?? 1;
+            final compoundingFrequency =
+                transaction['compoundingFrequency']?.toInt() ?? 1;
             final periods = daysDiff / compoundingFrequency;
-            currentAmountWithInterest = originalAmount * pow(1 + interestRate / 100, periods);
+            currentAmountWithInterest =
+                originalAmount * pow(1 + interestRate / 100, periods);
           }
         }
       }
     }
-    
+
     return currentAmountWithInterest.toStringAsFixed(2);
   }
 
   String _calculateAmountPaidTillNow(Map transaction) {
     double amountPaid = 0.0;
-    
+
     // Check if transaction is fully cleared by both parties
-    bool isFullyCleared = (transaction['userCleared'] == true && transaction['counterpartyCleared'] == true);
-    
+    bool isFullyCleared = (transaction['userCleared'] == true &&
+        transaction['counterpartyCleared'] == true);
+
     if (isFullyCleared) {
       // If fully cleared, consider the full amount as paid
       amountPaid = transaction['amount']?.toDouble() ?? 0.0;
-    } else if (transaction['isPartiallyPaid'] == true && transaction['partialPayments'] != null) {
+    } else if (transaction['isPartiallyPaid'] == true &&
+        transaction['partialPayments'] != null) {
       // If partially paid, sum up all partial payments
       List partialPayments = transaction['partialPayments'] as List;
-      amountPaid = partialPayments.fold<double>(0, (sum, payment) => sum + (payment['amount'] as num).toDouble());
+      amountPaid = partialPayments.fold<double>(
+          0, (sum, payment) => sum + (payment['amount'] as num).toDouble());
     }
-    
+
     return amountPaid.toStringAsFixed(2);
   }
 
   String _calculateRemainingAmount(Map transaction) {
     double originalAmount = transaction['amount']?.toDouble() ?? 0.0;
     double amountPaid = double.parse(_calculateAmountPaidTillNow(transaction));
-    
+
     // Calculate remaining principal (original amount - partial payments)
     double remainingPrincipal = originalAmount - amountPaid;
-    
+
     // If fully cleared, no remaining amount
     if (amountPaid >= originalAmount) {
       return "0.00";
     }
-    
+
     // Calculate interest on the remaining principal
     double totalRemainingAmount = remainingPrincipal;
-    
-    if (transaction['interestType'] != null && transaction['interestRate'] != null) {
+
+    if (transaction['interestType'] != null &&
+        transaction['interestRate'] != null) {
       final transactionDate = DateTime.tryParse(transaction['date'] ?? '');
       if (transactionDate != null) {
         final now = DateTime.now();
         final daysDiff = now.difference(transactionDate).inDays;
-        
+
         if (daysDiff > 0) {
           final interestRate = transaction['interestRate']?.toDouble() ?? 0.0;
           final interestType = transaction['interestType'];
-          
+
           if (interestType == 'simple') {
             // Calculate interest on remaining principal
-            totalRemainingAmount = remainingPrincipal + (remainingPrincipal * interestRate * daysDiff / 365);
+            totalRemainingAmount = remainingPrincipal +
+                (remainingPrincipal * interestRate * daysDiff / 365);
           } else if (interestType == 'compound') {
             // For compound interest, we need to calculate based on the remaining principal
             // and the time since the last payment or transaction date
-            final compoundingFrequency = transaction['compoundingFrequency']?.toInt() ?? 1;
+            final compoundingFrequency =
+                transaction['compoundingFrequency']?.toInt() ?? 1;
             final periods = daysDiff / compoundingFrequency;
-            totalRemainingAmount = remainingPrincipal * pow(1 + interestRate / 100, periods);
+            totalRemainingAmount =
+                remainingPrincipal * pow(1 + interestRate / 100, periods);
           }
         }
       }
     }
-    
+
     return totalRemainingAmount.toStringAsFixed(2);
   }
 
@@ -1790,7 +2076,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _lenderOtpController = TextEditingController();
   final TextEditingController _borrowerOtpController = TextEditingController();
-  
+
   String? lenderEmail;
   String? borrowerEmail;
   String? paidBy;
@@ -1805,7 +2091,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
   bool isVerifyingBorrowerOtp = false;
   String? message;
   bool isMessageError = false;
-  
+
   // OTP expiration functionality
   int lenderOtpSecondsLeft = 0;
   int borrowerOtpSecondsLeft = 0;
@@ -1816,7 +2102,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
   void initState() {
     super.initState();
     _initializeEmails();
-    
+
     // Start timer to check OTP expiration
     Timer.periodic(Duration(seconds: 1), (timer) {
       if (mounted) {
@@ -1830,7 +2116,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
   void _initializeEmails() {
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     final userEmail = user?['email'];
-    
+
     if (widget.transaction['role'] == 'lender') {
       lenderEmail = widget.transaction['userEmail'];
       borrowerEmail = widget.transaction['counterpartyEmail'];
@@ -1838,7 +2124,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
       lenderEmail = widget.transaction['counterpartyEmail'];
       borrowerEmail = widget.transaction['userEmail'];
     }
-    
+
     if (userEmail == lenderEmail) {
       paidBy = 'lender';
     } else if (userEmail == borrowerEmail) {
@@ -1860,7 +2146,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
       message = msg;
       isMessageError = isError;
     });
-    
+
     // Auto-hide message after 3 seconds
     Future.delayed(Duration(seconds: 3), () {
       if (mounted) {
@@ -1874,51 +2160,58 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
   String _calculateRemainingAmount(Map transaction) {
     double originalAmount = transaction['amount']?.toDouble() ?? 0.0;
     double amountPaid = 0.0;
-    
+
     // Calculate amount paid so far
-    bool isFullyCleared = (transaction['userCleared'] == true && transaction['counterpartyCleared'] == true);
+    bool isFullyCleared = (transaction['userCleared'] == true &&
+        transaction['counterpartyCleared'] == true);
     if (isFullyCleared) {
       amountPaid = originalAmount;
-    } else if (transaction['isPartiallyPaid'] == true && transaction['partialPayments'] != null) {
+    } else if (transaction['isPartiallyPaid'] == true &&
+        transaction['partialPayments'] != null) {
       List partialPayments = transaction['partialPayments'] as List;
-      amountPaid = partialPayments.fold<double>(0, (sum, payment) => sum + (payment['amount'] as num).toDouble());
+      amountPaid = partialPayments.fold<double>(
+          0, (sum, payment) => sum + (payment['amount'] as num).toDouble());
     }
-    
+
     // Calculate remaining principal (original amount - partial payments)
     double remainingPrincipal = originalAmount - amountPaid;
-    
+
     // If fully cleared, no remaining amount
     if (amountPaid >= originalAmount) {
       return "0.00";
     }
-    
+
     // Calculate interest on the remaining principal
     double totalRemainingAmount = remainingPrincipal;
-    
-    if (transaction['interestType'] != null && transaction['interestRate'] != null) {
+
+    if (transaction['interestType'] != null &&
+        transaction['interestRate'] != null) {
       final transactionDate = DateTime.tryParse(transaction['date'] ?? '');
       if (transactionDate != null) {
         final now = DateTime.now();
         final daysDiff = now.difference(transactionDate).inDays;
-        
+
         if (daysDiff > 0) {
           final interestRate = transaction['interestRate']?.toDouble() ?? 0.0;
           final interestType = transaction['interestType'];
-          
+
           if (interestType == 'simple') {
             // Calculate interest on remaining principal
-            totalRemainingAmount = remainingPrincipal + (remainingPrincipal * interestRate * daysDiff / 365);
+            totalRemainingAmount = remainingPrincipal +
+                (remainingPrincipal * interestRate * daysDiff / 365);
           } else if (interestType == 'compound') {
             // For compound interest, we need to calculate based on the remaining principal
             // and the time since the last payment or transaction date
-            final compoundingFrequency = transaction['compoundingFrequency']?.toInt() ?? 1;
+            final compoundingFrequency =
+                transaction['compoundingFrequency']?.toInt() ?? 1;
             final periods = daysDiff / compoundingFrequency;
-            totalRemainingAmount = remainingPrincipal * pow(1 + interestRate / 100, periods);
+            totalRemainingAmount =
+                remainingPrincipal * pow(1 + interestRate / 100, periods);
           }
         }
       }
     }
-    
+
     return totalRemainingAmount.toStringAsFixed(2);
   }
 
@@ -1935,7 +2228,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
         _showMessage('Lender OTP has expired. Please resend.', isError: true);
       }
     }
-    
+
     // Check borrower OTP expiration
     if (borrowerOtpSecondsLeft > 0 && borrowerOtpSent && !borrowerOtpVerified) {
       setState(() {
@@ -1950,8 +2243,6 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
     }
   }
 
-
-
   Future<void> _sendOtp(String email, bool isLender) async {
     setState(() {
       if (isLender) {
@@ -1963,7 +2254,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
 
     try {
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/transactions/send-partial-payment-otp'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/transactions/send-partial-payment-otp'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
       );
@@ -2027,7 +2319,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
 
     try {
       final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/transactions/verify-partial-payment-otp'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/transactions/verify-partial-payment-otp'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email, 'otp': otp}),
       );
@@ -2079,9 +2372,12 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
     }
 
     // Check if amount exceeds remaining amount
-    final remainingAmount = double.tryParse(_calculateRemainingAmount(widget.transaction)) ?? 0.0;
+    final remainingAmount =
+        double.tryParse(_calculateRemainingAmount(widget.transaction)) ?? 0.0;
     if (amount > remainingAmount) {
-      _showMessage('Payment amount cannot exceed remaining amount of ${remainingAmount.toStringAsFixed(2)} ${widget.transaction['currency']}', isError: true);
+      _showMessage(
+          'Payment amount cannot exceed remaining amount of ${remainingAmount.toStringAsFixed(2)} ${widget.transaction['currency']}',
+          isError: true);
       return;
     }
 
@@ -2113,7 +2409,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
         });
       } else {
         final data = jsonDecode(response.body);
-        _showMessage(data['error'] ?? 'Failed to process partial payment', isError: true);
+        _showMessage(data['error'] ?? 'Failed to process partial payment',
+            isError: true);
       }
     } catch (e) {
       _showMessage('Network error: ${e.toString()}', isError: true);
@@ -2128,34 +2425,41 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
   Widget build(BuildContext context) {
     double originalAmount = widget.transaction['amount']?.toDouble() ?? 0.0;
     double currentAmountWithInterest = originalAmount;
-    
-    if (widget.transaction['interestType'] != null && widget.transaction['interestRate'] != null) {
-      final transactionDate = DateTime.tryParse(widget.transaction['date'] ?? '');
+
+    if (widget.transaction['interestType'] != null &&
+        widget.transaction['interestRate'] != null) {
+      final transactionDate =
+          DateTime.tryParse(widget.transaction['date'] ?? '');
       if (transactionDate != null) {
         final now = DateTime.now();
         final daysDiff = now.difference(transactionDate).inDays;
-        
+
         if (daysDiff > 0) {
-          final interestRate = widget.transaction['interestRate']?.toDouble() ?? 0.0;
+          final interestRate =
+              widget.transaction['interestRate']?.toDouble() ?? 0.0;
           final interestType = widget.transaction['interestType'];
-          
+
           if (interestType == 'simple') {
-            currentAmountWithInterest = originalAmount + (originalAmount * interestRate * daysDiff / 365);
+            currentAmountWithInterest = originalAmount +
+                (originalAmount * interestRate * daysDiff / 365);
           } else if (interestType == 'compound') {
-            final compoundingFrequency = widget.transaction['compoundingFrequency']?.toInt() ?? 1;
+            final compoundingFrequency =
+                widget.transaction['compoundingFrequency']?.toInt() ?? 1;
             final periods = daysDiff / compoundingFrequency;
-            currentAmountWithInterest = originalAmount * pow(1 + interestRate / 100, periods);
+            currentAmountWithInterest =
+                originalAmount * pow(1 + interestRate / 100, periods);
           }
         }
       }
     }
-    
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       backgroundColor: const Color(0xFFF8F6FA),
       child: Container(
         width: 400,
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+        constraints:
+            BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
         padding: EdgeInsets.all(24),
         child: SingleChildScrollView(
           child: Column(
@@ -2183,7 +2487,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                   labelText: 'Payment Amount',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.attach_money),
-                  helperText: (lenderOtpVerified && borrowerOtpVerified) 
+                  helperText: (lenderOtpVerified && borrowerOtpVerified)
                       ? 'Amount locked after OTP verification'
                       : 'Maximum: ${_calculateRemainingAmount(widget.transaction)} ${widget.transaction['currency']}',
                   helperMaxLines: 2,
@@ -2198,7 +2502,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                   labelText: 'Description (Optional)',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.description),
-                  helperText: (lenderOtpVerified && borrowerOtpVerified) 
+                  helperText: (lenderOtpVerified && borrowerOtpVerified)
                       ? 'Description locked after OTP verification'
                       : null,
                 ),
@@ -2227,11 +2531,13 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.lock_clock, color: Color(0xFF00B4D8), size: 20),
+                        Icon(Icons.lock_clock,
+                            color: Color(0xFF00B4D8), size: 20),
                         SizedBox(width: 8),
                         Text(
                           'Lender OTP Verification',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                       ],
                     ),
@@ -2251,11 +2557,15 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                       ),
                       SizedBox(height: 12),
                     ],
-                                        Row(
+                    Row(
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: (lenderEmail != null && !isSendingLenderOtp && !lenderOtpVerified) ? () => _sendOtp(lenderEmail!, true) : null,
+                            onPressed: (lenderEmail != null &&
+                                    !isSendingLenderOtp &&
+                                    !lenderOtpVerified)
+                                ? () => _sendOtp(lenderEmail!, true)
+                                : null,
                             child: isSendingLenderOtp
                                 ? Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -2263,7 +2573,9 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                       SizedBox(
                                         width: 16,
                                         height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white),
                                       ),
                                       SizedBox(width: 8),
                                       Text('Sending OTP...'),
@@ -2273,7 +2585,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                     ? Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(Icons.check_circle, color: Colors.white, size: 16),
+                                          Icon(Icons.check_circle,
+                                              color: Colors.white, size: 16),
                                           SizedBox(width: 8),
                                           Text('Verified'),
                                         ],
@@ -2282,7 +2595,9 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                         ? Text('Resend OTP')
                                         : Text('Send OTP'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: lenderOtpVerified ? Colors.green : Colors.orange,
+                              backgroundColor: lenderOtpVerified
+                                  ? Colors.green
+                                  : Colors.orange,
                             ),
                           ),
                         ),
@@ -2295,33 +2610,41 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                         children: [
                           Icon(
                             lenderOtpExpired ? Icons.warning : Icons.timer,
-                            color: lenderOtpExpired ? Colors.red : Colors.orange,
+                            color:
+                                lenderOtpExpired ? Colors.red : Colors.orange,
                             size: 14,
                           ),
                           SizedBox(width: 4),
                           Text(
-                            lenderOtpExpired 
+                            lenderOtpExpired
                                 ? 'OTP expired. Please resend.'
                                 : 'OTP expires in ${lenderOtpSecondsLeft ~/ 60}:${(lenderOtpSecondsLeft % 60).toString().padLeft(2, '0')}',
                             style: TextStyle(
                               fontSize: 12,
-                              color: lenderOtpExpired ? Colors.red : Colors.orange,
+                              color:
+                                  lenderOtpExpired ? Colors.red : Colors.orange,
                             ),
                           ),
                         ],
                       ),
                     ],
                     // Show message near the button if it's related to lender OTP
-                    if (message != null && (message!.contains('lender') || message!.contains('Lender'))) ...[
+                    if (message != null &&
+                        (message!.contains('lender') ||
+                            message!.contains('Lender'))) ...[
                       SizedBox(height: 8),
                       Container(
                         width: double.infinity,
                         padding: EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: isMessageError ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                          color: isMessageError
+                              ? Colors.red.withOpacity(0.1)
+                              : Colors.green.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: isMessageError ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                            color: isMessageError
+                                ? Colors.red.withOpacity(0.3)
+                                : Colors.green.withOpacity(0.3),
                           ),
                         ),
                         child: Row(
@@ -2336,7 +2659,9 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                               child: Text(
                                 message!,
                                 style: TextStyle(
-                                  color: isMessageError ? Colors.red[700] : Colors.green[700],
+                                  color: isMessageError
+                                      ? Colors.red[700]
+                                      : Colors.green[700],
                                   fontWeight: FontWeight.w500,
                                   fontSize: 12,
                                 ),
@@ -2349,7 +2674,10 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                     if (lenderOtpSent && !lenderOtpVerified) ...[
                       SizedBox(height: 8),
                       ElevatedButton(
-                        onPressed: (!isVerifyingLenderOtp) ? () => _verifyOtp(lenderEmail!, _lenderOtpController.text, true) : null,
+                        onPressed: (!isVerifyingLenderOtp)
+                            ? () => _verifyOtp(
+                                lenderEmail!, _lenderOtpController.text, true)
+                            : null,
                         child: isVerifyingLenderOtp
                             ? Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -2357,14 +2685,16 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                   SizedBox(
                                     width: 16,
                                     height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
                                   ),
                                   SizedBox(width: 8),
                                   Text('Verifying OTP...'),
                                 ],
                               )
                             : Text('Verify OTP'),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green),
                       ),
                     ],
                   ],
@@ -2392,11 +2722,13 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.lock_clock, color: Color(0xFF00B4D8), size: 20),
+                        Icon(Icons.lock_clock,
+                            color: Color(0xFF00B4D8), size: 20),
                         SizedBox(width: 8),
                         Text(
                           'Borrower OTP Verification',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                       ],
                     ),
@@ -2416,11 +2748,15 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                       ),
                       SizedBox(height: 12),
                     ],
-                                        Row(
+                    Row(
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: (borrowerEmail != null && !isSendingBorrowerOtp && !borrowerOtpVerified) ? () => _sendOtp(borrowerEmail!, false) : null,
+                            onPressed: (borrowerEmail != null &&
+                                    !isSendingBorrowerOtp &&
+                                    !borrowerOtpVerified)
+                                ? () => _sendOtp(borrowerEmail!, false)
+                                : null,
                             child: isSendingBorrowerOtp
                                 ? Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -2428,7 +2764,9 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                       SizedBox(
                                         width: 16,
                                         height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white),
                                       ),
                                       SizedBox(width: 8),
                                       Text('Sending OTP...'),
@@ -2438,7 +2776,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                     ? Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(Icons.check_circle, color: Colors.white, size: 16),
+                                          Icon(Icons.check_circle,
+                                              color: Colors.white, size: 16),
                                           SizedBox(width: 8),
                                           Text('Verified'),
                                         ],
@@ -2447,7 +2786,9 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                         ? Text('Resend OTP')
                                         : Text('Send OTP'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: borrowerOtpVerified ? Colors.green : Colors.orange,
+                              backgroundColor: borrowerOtpVerified
+                                  ? Colors.green
+                                  : Colors.orange,
                             ),
                           ),
                         ),
@@ -2460,33 +2801,42 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                         children: [
                           Icon(
                             borrowerOtpExpired ? Icons.warning : Icons.timer,
-                            color: borrowerOtpExpired ? Colors.red : Colors.orange,
+                            color:
+                                borrowerOtpExpired ? Colors.red : Colors.orange,
                             size: 14,
                           ),
                           SizedBox(width: 4),
                           Text(
-                            borrowerOtpExpired 
+                            borrowerOtpExpired
                                 ? 'OTP expired. Please resend.'
                                 : 'OTP expires in ${borrowerOtpSecondsLeft ~/ 60}:${(borrowerOtpSecondsLeft % 60).toString().padLeft(2, '0')}',
                             style: TextStyle(
                               fontSize: 12,
-                              color: borrowerOtpExpired ? Colors.red : Colors.orange,
+                              color: borrowerOtpExpired
+                                  ? Colors.red
+                                  : Colors.orange,
                             ),
                           ),
                         ],
                       ),
                     ],
                     // Show message near the button if it's related to borrower OTP
-                    if (message != null && (message!.contains('borrower') || message!.contains('Borrower'))) ...[
+                    if (message != null &&
+                        (message!.contains('borrower') ||
+                            message!.contains('Borrower'))) ...[
                       SizedBox(height: 8),
                       Container(
                         width: double.infinity,
                         padding: EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: isMessageError ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                          color: isMessageError
+                              ? Colors.red.withOpacity(0.1)
+                              : Colors.green.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: isMessageError ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                            color: isMessageError
+                                ? Colors.red.withOpacity(0.3)
+                                : Colors.green.withOpacity(0.3),
                           ),
                         ),
                         child: Row(
@@ -2501,7 +2851,9 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                               child: Text(
                                 message!,
                                 style: TextStyle(
-                                  color: isMessageError ? Colors.red[700] : Colors.green[700],
+                                  color: isMessageError
+                                      ? Colors.red[700]
+                                      : Colors.green[700],
                                   fontWeight: FontWeight.w500,
                                   fontSize: 12,
                                 ),
@@ -2514,7 +2866,10 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                     if (borrowerOtpSent && !borrowerOtpVerified) ...[
                       SizedBox(height: 8),
                       ElevatedButton(
-                        onPressed: (!isVerifyingBorrowerOtp) ? () => _verifyOtp(borrowerEmail!, _borrowerOtpController.text, false) : null,
+                        onPressed: (!isVerifyingBorrowerOtp)
+                            ? () => _verifyOtp(borrowerEmail!,
+                                _borrowerOtpController.text, false)
+                            : null,
                         child: isVerifyingBorrowerOtp
                             ? Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -2522,14 +2877,16 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                   SizedBox(
                                     width: 16,
                                     height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
                                   ),
                                   SizedBox(width: 8),
                                   Text('Verifying OTP...'),
                                 ],
                               )
                             : Text('Verify OTP'),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green),
                       ),
                     ],
                   ],
@@ -2537,15 +2894,23 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
               ),
               SizedBox(height: 20),
               // Show general messages near the bottom buttons
-              if (message != null && !message!.contains('lender') && !message!.contains('Lender') && !message!.contains('borrower') && !message!.contains('Borrower')) ...[
+              if (message != null &&
+                  !message!.contains('lender') &&
+                  !message!.contains('Lender') &&
+                  !message!.contains('borrower') &&
+                  !message!.contains('Borrower')) ...[
                 Container(
                   width: double.infinity,
                   padding: EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isMessageError ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+                    color: isMessageError
+                        ? Colors.red.withOpacity(0.1)
+                        : Colors.green.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: isMessageError ? Colors.red.withOpacity(0.3) : Colors.green.withOpacity(0.3),
+                      color: isMessageError
+                          ? Colors.red.withOpacity(0.3)
+                          : Colors.green.withOpacity(0.3),
                     ),
                   ),
                   child: Row(
@@ -2560,7 +2925,9 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                         child: Text(
                           message!,
                           style: TextStyle(
-                            color: isMessageError ? Colors.red[700] : Colors.green[700],
+                            color: isMessageError
+                                ? Colors.red[700]
+                                : Colors.green[700],
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -2574,22 +2941,28 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton(
-                    onPressed: isProcessing ? null : () => Navigator.pop(context),
+                    onPressed:
+                        isProcessing ? null : () => Navigator.pop(context),
                     child: Text('Cancel'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                    style:
+                        ElevatedButton.styleFrom(backgroundColor: Colors.green),
                   ),
                   ElevatedButton(
-                    onPressed: (lenderOtpVerified && borrowerOtpVerified && !isProcessing)
+                    onPressed: (lenderOtpVerified &&
+                            borrowerOtpVerified &&
+                            !isProcessing)
                         ? _processPartialPayment
                         : null,
                     child: isProcessing
                         ? SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
                           )
                         : Text('Process Payment'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                    style:
+                        ElevatedButton.styleFrom(backgroundColor: Colors.green),
                   ),
                 ],
               ),
@@ -2631,7 +3004,8 @@ class PartialPaymentHistoryDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
         width: 400,
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+        constraints:
+            BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
         padding: EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2652,7 +3026,7 @@ class PartialPaymentHistoryDialog extends StatelessWidget {
               ],
             ),
             SizedBox(height: 20),
-            
+
             // Partial payments list
             if (!isPartiallyPaid || partialPayments.isEmpty) ...[
               Expanded(
@@ -2703,14 +3077,15 @@ class PartialPaymentHistoryDialog extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final payment = partialPayments[index];
                           final isLast = index == partialPayments.length - 1;
-                          
+
                           return Container(
                             margin: EdgeInsets.only(bottom: isLast ? 0 : 12),
                             padding: EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: Colors.grey.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                              border: Border.all(
+                                  color: Colors.grey.withOpacity(0.3)),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2742,48 +3117,57 @@ class PartialPaymentHistoryDialog extends StatelessWidget {
                                   ],
                                 ),
                                 SizedBox(height: 8),
-                                                                 Row(
-                                   children: [
-                                     Icon(Icons.person, color: Colors.blue, size: 16),
-                                     SizedBox(width: 6),
-                                     Text(
-                                       'Paid by: ${_getPaidByEmail(payment, transaction)}',
-                                       style: TextStyle(fontSize: 14),
-                                     ),
-                                   ],
-                                 ),
-                                 SizedBox(height: 4),
-                                 Row(
-                                   children: [
-                                     Icon(Icons.calendar_today, color: Colors.orange, size: 16),
-                                     SizedBox(width: 6),
-                                     Text(
-                                       'Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(payment['paidAt']))}',
-                                       style: TextStyle(fontSize: 14),
-                                     ),
-                                   ],
-                                 ),
-                                 SizedBox(height: 4),
-                                 Row(
-                                   children: [
-                                     Icon(Icons.access_time, color: Colors.purple, size: 16),
-                                     SizedBox(width: 6),
-                                     Text(
-                                       'Time: ${DateFormat('HH:mm').format(DateTime.parse(payment['paidAt']))}',
-                                       style: TextStyle(fontSize: 14),
-                                     ),
-                                   ],
-                                 ),
-                                if (payment['description'] != null && payment['description'].toString().isNotEmpty) ...[
+                                Row(
+                                  children: [
+                                    Icon(Icons.person,
+                                        color: Colors.blue, size: 16),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Paid by: ${_getPaidByEmail(payment, transaction)}',
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.calendar_today,
+                                        color: Colors.orange, size: 16),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(payment['paidAt']))}',
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(Icons.access_time,
+                                        color: Colors.purple, size: 16),
+                                    SizedBox(width: 6),
+                                    Text(
+                                      'Time: ${DateFormat('HH:mm').format(DateTime.parse(payment['paidAt']))}',
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                  ],
+                                ),
+                                if (payment['description'] != null &&
+                                    payment['description']
+                                        .toString()
+                                        .isNotEmpty) ...[
                                   SizedBox(height: 4),
                                   Row(
                                     children: [
-                                      Icon(Icons.description, color: Colors.purple, size: 16),
+                                      Icon(Icons.description,
+                                          color: Colors.purple, size: 16),
                                       SizedBox(width: 6),
                                       Expanded(
                                         child: Text(
                                           'Note: ${payment['description']}',
-                                          style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic),
+                                          style: TextStyle(
+                                              fontSize: 14,
+                                              fontStyle: FontStyle.italic),
                                         ),
                                       ),
                                     ],
@@ -2807,7 +3191,8 @@ class PartialPaymentHistoryDialog extends StatelessWidget {
               child: Text('Close'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
                 padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
               ),
             ),
@@ -2824,17 +3209,22 @@ class _TopWaveClipper extends CustomClipper<Path> {
     final path = Path();
     path.lineTo(0, size.height * 0.8);
     path.quadraticBezierTo(
-      size.width * 0.25, size.height,
-      size.width * 0.5, size.height * 0.8,
+      size.width * 0.25,
+      size.height,
+      size.width * 0.5,
+      size.height * 0.8,
     );
     path.quadraticBezierTo(
-      size.width * 0.75, size.height * 0.6,
-      size.width, size.height * 0.8,
+      size.width * 0.75,
+      size.height * 0.6,
+      size.width,
+      size.height * 0.8,
     );
     path.lineTo(size.width, 0);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -2843,7 +3233,8 @@ class _AttachmentCarouselDialog extends StatefulWidget {
   final List<Map<String, dynamic>> attachments;
   const _AttachmentCarouselDialog({required this.attachments});
   @override
-  State<_AttachmentCarouselDialog> createState() => _AttachmentCarouselDialogState();
+  State<_AttachmentCarouselDialog> createState() =>
+      _AttachmentCarouselDialogState();
 }
 
 class _AttachmentCarouselDialogState extends State<_AttachmentCarouselDialog> {
@@ -2854,11 +3245,13 @@ class _AttachmentCarouselDialogState extends State<_AttachmentCarouselDialog> {
     super.initState();
     _pageController = PageController(initialPage: 0);
   }
+
   @override
   void dispose() {
     _pageController?.dispose();
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
     final attachments = widget.attachments;
@@ -2878,7 +3271,8 @@ class _AttachmentCarouselDialogState extends State<_AttachmentCarouselDialog> {
                 onPageChanged: (i) => setState(() => _currentIndex = i),
                 itemBuilder: (context, i) {
                   final file = attachments[i];
-                  if (file['type'] != null && file['type'].toString().startsWith('image/')) {
+                  if (file['type'] != null &&
+                      file['type'].toString().startsWith('image/')) {
                     final bytes = base64Decode(file['data']);
                     return InteractiveViewer(
                       child: Image.memory(bytes, fit: BoxFit.contain),
@@ -2888,18 +3282,22 @@ class _AttachmentCarouselDialogState extends State<_AttachmentCarouselDialog> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.picture_as_pdf, size: 80, color: Colors.red),
+                          Icon(Icons.picture_as_pdf,
+                              size: 80, color: Colors.red),
                           SizedBox(height: 16),
-                          Text(file['name'] ?? 'PDF', style: TextStyle(color: Colors.white)),
+                          Text(file['name'] ?? 'PDF',
+                              style: TextStyle(color: Colors.white)),
                           SizedBox(height: 16),
                           ElevatedButton.icon(
                             icon: Icon(Icons.open_in_new),
                             label: Text('Open PDF'),
-                            style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.teal),
                             onPressed: () async {
                               final bytes = base64Decode(file['data']);
                               final tempDir = await getTemporaryDirectory();
-                              final tempFile = File('${tempDir.path}/${file['name'] ?? 'document.pdf'}');
+                              final tempFile = File(
+                                  '${tempDir.path}/${file['name'] ?? 'document.pdf'}');
                               await tempFile.writeAsBytes(bytes, flush: true);
                               await OpenFile.open(tempFile.path);
                             },
@@ -2908,7 +3306,9 @@ class _AttachmentCarouselDialogState extends State<_AttachmentCarouselDialog> {
                       ),
                     );
                   } else {
-                    return Center(child: Text('Unsupported file', style: TextStyle(color: Colors.white)));
+                    return Center(
+                        child: Text('Unsupported file',
+                            style: TextStyle(color: Colors.white)));
                   }
                 },
               ),
@@ -2916,15 +3316,18 @@ class _AttachmentCarouselDialogState extends State<_AttachmentCarouselDialog> {
             SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(attachments.length, (i) => Container(
-                margin: EdgeInsets.symmetric(horizontal: 4),
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: i == _currentIndex ? Colors.teal : Colors.white24,
-                ),
-              )),
+              children: List.generate(
+                  attachments.length,
+                  (i) => Container(
+                        margin: EdgeInsets.symmetric(horizontal: 4),
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color:
+                              i == _currentIndex ? Colors.teal : Colors.white24,
+                        ),
+                      )),
             ),
             SizedBox(height: 16),
             Row(
@@ -2933,15 +3336,20 @@ class _AttachmentCarouselDialogState extends State<_AttachmentCarouselDialog> {
                 IconButton(
                   icon: Icon(Icons.arrow_back_ios, color: Colors.white),
                   onPressed: () {
-                    int newIndex = (_currentIndex - 1 + attachments.length) % attachments.length;
-                    _pageController?.animateToPage(newIndex, duration: Duration(milliseconds: 300), curve: Curves.ease);
+                    int newIndex = (_currentIndex - 1 + attachments.length) %
+                        attachments.length;
+                    _pageController?.animateToPage(newIndex,
+                        duration: Duration(milliseconds: 300),
+                        curve: Curves.ease);
                   },
                 ),
                 IconButton(
                   icon: Icon(Icons.arrow_forward_ios, color: Colors.white),
                   onPressed: () {
                     int newIndex = (_currentIndex + 1) % attachments.length;
-                    _pageController?.animateToPage(newIndex, duration: Duration(milliseconds: 300), curve: Curves.ease);
+                    _pageController?.animateToPage(newIndex,
+                        duration: Duration(milliseconds: 300),
+                        curve: Curves.ease);
                   },
                 ),
               ],
@@ -2966,7 +3374,13 @@ class _StylishProfileDialog extends StatelessWidget {
   final String? email;
   final String? phone;
   final String? gender;
-  const _StylishProfileDialog({required this.title, required this.name, required this.avatarProvider, this.email, this.phone, this.gender});
+  const _StylishProfileDialog(
+      {required this.title,
+      required this.name,
+      required this.avatarProvider,
+      this.email,
+      this.phone,
+      this.gender});
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -2985,9 +3399,14 @@ class _StylishProfileDialog extends StatelessWidget {
               children: [
                 CircleAvatar(radius: 36, backgroundImage: avatarProvider),
                 SizedBox(height: 12),
-                Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.white)),
+                Text(name,
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                        color: Colors.white)),
                 SizedBox(height: 4),
-                Text(title, style: TextStyle(fontSize: 14, color: Colors.white70)),
+                Text(title,
+                    style: TextStyle(fontSize: 14, color: Colors.white70)),
               ],
             ),
           ),
@@ -2997,15 +3416,27 @@ class _StylishProfileDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (email != null) ...[
-                  Row(children: [Icon(Icons.email, size: 18, color: Colors.teal), SizedBox(width: 8), Text(email!, style: TextStyle(fontSize: 16))]),
+                  Row(children: [
+                    Icon(Icons.email, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(email!, style: TextStyle(fontSize: 16))
+                  ]),
                   SizedBox(height: 10),
                 ],
                 if (phone != null && phone!.isNotEmpty) ...[
-                  Row(children: [Icon(Icons.phone, size: 18, color: Colors.teal), SizedBox(width: 8), Text(phone!, style: TextStyle(fontSize: 16))]),
+                  Row(children: [
+                    Icon(Icons.phone, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(phone!, style: TextStyle(fontSize: 16))
+                  ]),
                   SizedBox(height: 10),
                 ],
                 if (gender != null) ...[
-                  Row(children: [Icon(Icons.transgender, size: 18, color: Colors.teal), SizedBox(width: 8), Text(gender!, style: TextStyle(fontSize: 16))]),
+                  Row(children: [
+                    Icon(Icons.transgender, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(gender!, style: TextStyle(fontSize: 16))
+                  ]),
                   SizedBox(height: 10),
                 ],
               ],
@@ -3016,7 +3447,10 @@ class _StylishProfileDialog extends StatelessWidget {
             child: ElevatedButton(
               onPressed: () => Navigator.pop(context),
               child: Text('Close'),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF00B4D8), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF00B4D8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12))),
             ),
           ),
         ],

@@ -173,9 +173,18 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 child: Text('Menu',
                     style: TextStyle(color: Colors.white, fontSize: 24)),
               ),
-              const ListTile(
-                leading: Icon(Icons.dashboard),
-                title: Text('Dashboard'),
+              ListTile(
+                leading: const Icon(Icons.dashboard),
+                title: const Text('Dashboard'),
+                onTap: () {
+                  Navigator.of(context).pop(); // Close drawer
+                  // Optionally, navigate to dashboard if not already there
+                  // If you want to force navigation, uncomment below:
+                  // Navigator.pushReplacement(
+                  //   context,
+                  //   MaterialPageRoute(builder: (_) => const UserDashboardPage()),
+                  // );
+                },
               ),
               ListTile(
                 leading: const Icon(Icons.settings),
