@@ -119,6 +119,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final userName = user?['name'] ?? 'User Name';
     final username = user?['username'] ?? '';
     final email = user?['email'] ?? 'user@email.com';
+    final altEmail = user?['altEmail'] ?? '';
     final gender = user?['gender'] ?? 'Other';
     final imageUrl = user?['profileImage'];
     final birthday = user?['birthday'] ?? '';
@@ -127,6 +128,16 @@ class _ProfilePageState extends State<ProfilePage> {
       birthdayDisplay = birthdayDisplay.split('T').first;
     }
     final phone = user?['phone'] ?? '';
+    final address = user?['address'] ?? '';
+    final memberSince = user?['createdAt'] ?? '';
+    String memberSinceDisplay = memberSince;
+    if (memberSinceDisplay.contains('T')) {
+      memberSinceDisplay = memberSinceDisplay.split('T').first;
+    }
+    final avgRatingNum = (user?['avgRating'] is num)
+        ? (user?['avgRating'] as num?)?.toDouble() ?? 0.0
+        : double.tryParse(user?['avgRating']?.toString() ?? '') ?? 0.0;
+    final avgRating = avgRatingNum > 0 ? avgRatingNum.toStringAsFixed(2) : '';
 
     // Choose the correct avatar provider based on imageUrl
     ImageProvider avatarProvider;
@@ -210,14 +221,46 @@ class _ProfilePageState extends State<ProfilePage> {
                     _profileField(Icons.person, 'Name', userName),
                   if (username.isNotEmpty)
                     _profileField(Icons.account_circle, 'Username', username),
-                  if (birthday.isNotEmpty)
-                    _profileField(Icons.cake, 'Birthday', birthdayDisplay),
-                  if (phone.isNotEmpty)
-                    _profileField(Icons.phone, 'Phone', phone),
                   if (email.isNotEmpty)
                     _profileField(Icons.email, 'Email', email),
+                  if (altEmail.isNotEmpty)
+                    _profileField(
+                        Icons.alternate_email, 'Alternate Email', altEmail),
                   if (gender.isNotEmpty)
                     _profileField(Icons.transgender, 'Gender', gender),
+                  if (birthday.isNotEmpty)
+                    _profileField(Icons.cake, 'Birthday', birthdayDisplay),
+                  if (address.isNotEmpty)
+                    _profileField(Icons.home, 'Address', address),
+                  if (phone.isNotEmpty)
+                    _profileField(Icons.phone, 'Phone', phone),
+                  if (memberSince.isNotEmpty)
+                    _profileField(Icons.calendar_today, 'Member Since',
+                        memberSinceDisplay),
+                  if (avgRating.isNotEmpty)
+                    Row(
+                      children: [
+                        Expanded(
+                            child: _profileField(
+                                Icons.star, 'Avg. Rating', avgRating)),
+                        Row(
+                          children: List.generate(5, (i) {
+                            if (i < avgRatingNum.floor()) {
+                              return Icon(Icons.star,
+                                  color: Color(0xFFFFC107), size: 22);
+                            } else if (i == avgRatingNum.floor() &&
+                                (avgRatingNum - avgRatingNum.floor()) >= 0.25) {
+                              // Show half star if decimal part >= 0.25
+                              return Icon(Icons.star_half,
+                                  color: Color(0xFFFFC107), size: 22);
+                            } else {
+                              return Icon(Icons.star_border,
+                                  color: Color(0xFFFFC107), size: 22);
+                            }
+                          }),
+                        ),
+                      ],
+                    ),
                   const SizedBox(height: 32),
                   if (isViewingOwnProfile) ...[
                     ElevatedButton(

@@ -347,13 +347,70 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       _editField(Icons.account_circle, 'Username',
                           TextEditingController(text: user?['username'] ?? ''),
                           readOnly: true),
-                      _editField(Icons.cake, 'Birthday', _birthdayController),
-                      _editField(Icons.phone, 'Phone', _phoneController),
-                      _editField(Icons.home, 'Address', _addressController),
                       _editField(Icons.email, 'Email', _emailController,
                           keyboardType: TextInputType.emailAddress,
                           readOnly: true),
+                      _editField(Icons.alternate_email, 'Alternate Email',
+                          TextEditingController(text: user?['altEmail'] ?? ''),
+                          readOnly: true),
                       _editGenderField(),
+                      _editField(Icons.cake, 'Birthday', _birthdayController),
+                      _editField(Icons.home, 'Address', _addressController),
+                      _editField(Icons.phone, 'Phone', _phoneController),
+                      _editField(
+                          Icons.calendar_today,
+                          'Member Since',
+                          TextEditingController(
+                              text: (user?['createdAt'] ?? '')
+                                  .toString()
+                                  .split('T')
+                                  .first),
+                          readOnly: true),
+                      Builder(
+                        builder: (context) {
+                          final avgRatingNum = (user?['avgRating'] is num)
+                              ? (user?['avgRating'] as num?)?.toDouble() ?? 0.0
+                              : double.tryParse(
+                                      user?['avgRating']?.toString() ?? '') ??
+                                  0.0;
+                          final avgRating = avgRatingNum > 0
+                              ? avgRatingNum.toStringAsFixed(2)
+                              : '';
+                          return avgRating.isNotEmpty
+                              ? Row(
+                                  children: [
+                                    Expanded(
+                                        child: _editField(
+                                            Icons.star,
+                                            'Avg. Rating',
+                                            TextEditingController(
+                                                text: avgRating),
+                                            readOnly: true)),
+                                    Row(
+                                      children: List.generate(5, (i) {
+                                        if (i < avgRatingNum.floor()) {
+                                          return Icon(Icons.star,
+                                              color: Color(0xFFFFC107),
+                                              size: 22);
+                                        } else if (i == avgRatingNum.floor() &&
+                                            (avgRatingNum -
+                                                    avgRatingNum.floor()) >=
+                                                0.25) {
+                                          return Icon(Icons.star_half,
+                                              color: Color(0xFFFFC107),
+                                              size: 22);
+                                        } else {
+                                          return Icon(Icons.star_border,
+                                              color: Color(0xFFFFC107),
+                                              size: 22);
+                                        }
+                                      }),
+                                    ),
+                                  ],
+                                )
+                              : Container();
+                        },
+                      ),
                       const SizedBox(height: 32),
                       ElevatedButton(
                         onPressed: _isUpdating ? null : _saveProfile,
