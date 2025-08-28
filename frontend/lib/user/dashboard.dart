@@ -34,11 +34,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
   int _imageRefreshKey = 0; // Key to force avatar rebuild
   final ScrollController _scrollController = ScrollController();
   bool _showScrollIndicator = false; // Control visibility of scroll indicator
+  bool _hasRatedApp = false;
+  bool _ratingDialogShown = false;
 
   @override
   void initState() {
     super.initState();
     fetchTransactions();
+    _checkAndShowRatingDialog();
 
     // Listen to session changes to refresh profile image
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -145,6 +148,228 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
       return data['avgRating']?.toDouble();
     }
     return null;
+  }
+
+  Future<void> _checkAndShowRatingDialog() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final baseUrl = ApiConfig.baseUrl;
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/api/rating/my'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        setState(() {
+          _hasRatedApp = data['rating'] != null;
+        });
+        // Only show dialog if not rated, and only sometimes (e.g. 1 in 3 chance)
+        if (!_hasRatedApp &&
+            !_ratingDialogShown &&
+            (DateTime.now().millisecondsSinceEpoch % 3 == 0)) {
+          _ratingDialogShown = true;
+          Future.delayed(Duration(milliseconds: 500), () {
+            if (mounted) _showAppRatingDialog();
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+
+  void _showAppRatingDialog() {
+    int _selectedStars = 0;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            padding: EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.star, color: Color(0xFF00B4D8), size: 48),
+                    SizedBox(height: 12),
+                    Text(
+                      'Rate Our App!',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF00B4D8),
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Your feedback helps us improve.\nHow would you rate your experience?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                    ),
+                    SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (i) {
+                        return IconButton(
+                          icon: Icon(
+                            Icons.star,
+                            color: i < _selectedStars
+                                ? Colors.amber
+                                : Colors.grey[300],
+                            size: 36,
+                          ),
+                          onPressed: () {
+                            setState(() => _selectedStars = i + 1);
+                          },
+                        );
+                      }),
+                    ),
+                    SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: Text('Close',
+                              style: TextStyle(
+                                  color: Colors.grey[700],
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                        ElevatedButton(
+                          onPressed: _selectedStars > 0
+                              ? () async {
+                                  final session = Provider.of<SessionProvider>(
+                                      context,
+                                      listen: false);
+                                  final token = session.token;
+                                  final baseUrl = ApiConfig.baseUrl;
+                                  final res = await http.post(
+                                    Uri.parse('$baseUrl/api/rating'),
+                                    headers: {
+                                      'Authorization': 'Bearer $token',
+                                      'Content-Type': 'application/json',
+                                    },
+                                    body:
+                                        json.encode({'rating': _selectedStars}),
+                                  );
+                                  if (res.statusCode == 200) {
+                                    setState(() {
+                                      _hasRatedApp = true;
+                                    });
+                                    Navigator.of(ctx).pop();
+                                    _showThankYouDialog();
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                          content:
+                                              Text('Failed to submit rating.')),
+                                    );
+                                  }
+                                }
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _selectedStars > 0
+                                ? Color(0xFF00B4D8)
+                                : Colors.grey[300],
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                          ),
+                          child: Text('Submit',
+                              style: TextStyle(
+                                  color: _selectedStars > 0
+                                      ? Colors.white
+                                      : Colors.grey[600],
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showThankYouDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Color(0xFFE0F7FA),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0xFF00B4D8).withOpacity(0.15),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.celebration, color: Color(0xFF00B4D8), size: 60),
+              SizedBox(height: 16),
+              Text(
+                'Thank You for Rating!',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF00B4D8),
+                  letterSpacing: 1.2,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Your feedback means a lot to us.\nWe appreciate your support!',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[800],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF00B4D8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  padding: EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                ),
+                child: Text(
+                  'Continue',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -685,155 +910,163 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
 
   Future<void> _confirmLogout(BuildContext context) async {
     final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 20,
-                offset: Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Blue wavy header bar
-              Container(
-                height: 80,
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Dialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: ClipPath(
-                  clipper: LogoutWaveClipper(),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFF00B4D8), Color(0xFF0096CC)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                  borderRadius: BorderRadius.circular(20),
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 20,
+                      offset: Offset(0, 10),
                     ),
-                  ),
+                  ],
                 ),
-              ),
-              // White content area
-              Container(
-                padding: EdgeInsets.all(24),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Title
-                    Text(
-                      'Are you sure?',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
+                    // Blue wavy header bar
+                    Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 16),
-
-                    // Message
-                    Text(
-                      'Do you want to logout?',
-                      style: TextStyle(
-                        color: Colors.grey[700],
-                        fontSize: 16,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: 32),
-
-                    // Stylish buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        // NO button
-                        Expanded(
-                          child: Container(
-                            margin: EdgeInsets.only(right: 8),
-                            child: ElevatedButton(
-                              onPressed: () => Navigator.of(context).pop(false),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.grey[100],
-                                foregroundColor: Colors.grey[700],
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: BorderSide(color: Colors.grey[300]!),
-                                ),
-                                padding: EdgeInsets.symmetric(vertical: 16),
-                                elevation: 0,
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.close, size: 20),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'NO',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                      child: ClipPath(
+                        clipper: LogoutWaveClipper(),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Color(0xFF00B4D8), Color(0xFF0096CC)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
                             ),
                           ),
                         ),
-                        // YES button
-                        Expanded(
-                          child: Container(
-                            margin: EdgeInsets.only(left: 8),
-                            child: ElevatedButton(
-                              onPressed: () => Navigator.of(context).pop(true),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Color(0xFF00B4D8),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                padding: EdgeInsets.symmetric(vertical: 16),
-                                elevation: 2,
-                                shadowColor: Color(0xFF00B4D8).withOpacity(0.3),
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.logout, size: 20),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'YES',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                      ),
+                    ),
+                    // White content area
+                    Container(
+                      padding: EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          // Title
+                          Text(
+                            'Are you sure?',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
                             ),
                           ),
-                        ),
-                      ],
+                          SizedBox(height: 16),
+
+                          // Message
+                          Text(
+                            'Do you want to logout?',
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontSize: 16,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: 32),
+
+                          // Stylish buttons
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              // NO button
+                              Expanded(
+                                child: Container(
+                                  margin: EdgeInsets.only(right: 8),
+                                  child: ElevatedButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey[100],
+                                      foregroundColor: Colors.grey[700],
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: BorderSide(
+                                            color: Colors.grey[300]!),
+                                      ),
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 16),
+                                      elevation: 0,
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.close, size: 20),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'NO',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // YES button
+                              Expanded(
+                                child: Container(
+                                  margin: EdgeInsets.only(left: 8),
+                                  child: ElevatedButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Color(0xFF00B4D8),
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 16),
+                                      elevation: 2,
+                                      shadowColor:
+                                          Color(0xFF00B4D8).withOpacity(0.3),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.logout, size: 20),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'YES',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
+            ));
     if (confirmed == true) {
       await Provider.of<SessionProvider>(context, listen: false).logout();
       Navigator.pushReplacementNamed(context, '/login');
@@ -1323,336 +1556,338 @@ class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     _selfEmail = session.user?['email'] ?? '';
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(widget.type == 'lending' ? 'Lend Money' : 'Borrow Money',
+              style: const TextStyle(color: Colors.black)),
+          centerTitle: true,
         ),
-        title: Text(widget.type == 'lending' ? 'Lend Money' : 'Borrow Money',
-            style: const TextStyle(color: Colors.black)),
-        centerTitle: true,
-      ),
-      backgroundColor: const Color(0xFFF8F6FA),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 6),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              _selectedCurrency,
-                              style: const TextStyle(
-                                color: Color(0xFF00B4D8),
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
+        backgroundColor: const Color(0xFFF8F6FA),
+        body: SingleChildScrollView(
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: TextFormField(
-                                controller: _amountController,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Amount',
-                                  border: InputBorder.none,
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                _selectedCurrency,
+                                style: const TextStyle(
+                                  color: Color(0xFF00B4D8),
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                                validator: (v) =>
-                                    v == null || v.isEmpty ? 'Required' : null,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _amountController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Amount',
+                                    border: InputBorder.none,
+                                  ),
+                                  validator: (v) => v == null || v.isEmpty
+                                      ? 'Required'
+                                      : null,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    DropdownButton<String>(
-                      value: _selectedCurrency,
-                      items: _currencies
-                          .map((c) => DropdownMenuItem<String>(
-                                value: c['symbol'],
-                                child: Text('${c['symbol']} (${c['name']})'),
-                              ))
-                          .toList(),
-                      onChanged: (val) {
-                        if (val != null)
-                          setState(() => _selectedCurrency = val);
-                      },
-                    ),
-                  ],
-                ),
-                _inputField(
-                    Icons.person,
-                    widget.type == 'lending'
-                        ? 'Borrower Username/Email'
-                        : 'Lender Username/Email',
-                    _counterpartyController),
-                if (_sameUserError)
-                  const Text('Counterparty must be a different user.',
-                      style: TextStyle(color: Colors.red)),
-                _inputField(Icons.cake, 'Date', _dateController, readOnly: true,
-                    onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                  );
-                  if (picked != null)
-                    _dateController.text =
-                        picked.toIso8601String().split('T').first;
-                }),
-                _inputField(
-                  Icons.access_time,
-                  'Time (e.g. 14:30)',
-                  _timeController,
-                  readOnly: true,
-                  onTap: () async {
-                    final result = await showDialog<String>(
+                      const SizedBox(width: 12),
+                      DropdownButton<String>(
+                        value: _selectedCurrency,
+                        items: _currencies
+                            .map((c) => DropdownMenuItem<String>(
+                                  value: c['symbol'],
+                                  child: Text('${c['symbol']} (${c['name']})'),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null)
+                            setState(() => _selectedCurrency = val);
+                        },
+                      ),
+                    ],
+                  ),
+                  _inputField(
+                      Icons.person,
+                      widget.type == 'lending'
+                          ? 'Borrower Username/Email'
+                          : 'Lender Username/Email',
+                      _counterpartyController),
+                  if (_sameUserError)
+                    const Text('Counterparty must be a different user.',
+                        style: TextStyle(color: Colors.red)),
+                  _inputField(Icons.cake, 'Date', _dateController,
+                      readOnly: true, onTap: () async {
+                    final picked = await showDatePicker(
                       context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Select Time'),
-                        content: const Text(
-                            'Do you want to use the current time or pick a time?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () {
-                              final now = TimeOfDay.now();
-                              _timeController.text = now.format(context);
-                              Navigator.of(context).pop('current');
-                            },
-                            child: const Text('Use Current Time'),
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (picked != null)
+                      _dateController.text =
+                          picked.toIso8601String().split('T').first;
+                  }),
+                  _inputField(
+                    Icons.access_time,
+                    'Time (e.g. 14:30)',
+                    _timeController,
+                    readOnly: true,
+                    onTap: () async {
+                      final result = await showDialog<String>(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Select Time'),
+                          content: const Text(
+                              'Do you want to use the current time or pick a time?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () {
+                                final now = TimeOfDay.now();
+                                _timeController.text = now.format(context);
+                                Navigator.of(context).pop('current');
+                              },
+                              child: const Text('Use Current Time'),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                Navigator.of(context).pop('pick');
+                              },
+                              child: const Text('Pick Time'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (result == 'pick') {
+                        final picked = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (picked != null) {
+                          _timeController.text = picked.format(context);
+                        }
+                      }
+                    },
+                  ),
+                  _inputField(Icons.place, 'Place', _placeController),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _pickPhotos,
+                        icon: const Icon(Icons.photo),
+                        label: const Text('Add Proof Photos'),
+                      ),
+                      if (_photos.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        ..._photos.map((f) => Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: SizedBox(
+                                width: 40,
+                                height: 40,
+                                child: Image.file(f, fit: BoxFit.cover),
+                              ),
+                            )),
+                      ]
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // OTP Verification Order
+                  // Lender email and OTP
+                  _inputField(Icons.email, 'Your Email',
+                      TextEditingController(text: _selfEmail ?? ''),
+                      readOnly: true),
+                  if (!_lenderVerified) ...[
+                    ElevatedButton(
+                      onPressed: _lenderOtpSeconds > 0 || _sendingLenderOtp
+                          ? null
+                          : () => _sendOtp(_selfEmail ?? '', true),
+                      child: _sendingLenderOtp
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2)),
+                                SizedBox(width: 8),
+                                Text('Sending OTP...'),
+                              ],
+                            )
+                          : Text(_lenderOtpSeconds > 0
+                              ? 'Resend in ${_lenderOtpSeconds ~/ 60}:${(_lenderOtpSeconds % 60).toString().padLeft(2, '0')}'
+                              : 'Send OTP'),
+                    ),
+                    if (_lenderOtpSent)
+                      Column(
+                        children: [
+                          const SizedBox(height: 8),
+                          OtpInput(
+                            onChanged: (val) => _lenderOtp = val,
+                            enabled: true,
+                            autoFocus: true,
                           ),
-                          TextButton(
-                            onPressed: () async {
-                              Navigator.of(context).pop('pick');
-                            },
-                            child: const Text('Pick Time'),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: _lenderOtp.length == 6
+                                ? () => _verifyOtp(
+                                    _selfEmail ?? '', _lenderOtp, true)
+                                : null,
+                            child: const Text('Verify OTP'),
                           ),
                         ],
                       ),
-                    );
-                    if (result == 'pick') {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.now(),
-                      );
-                      if (picked != null) {
-                        _timeController.text = picked.format(context);
-                      }
-                    }
-                  },
-                ),
-                _inputField(Icons.place, 'Place', _placeController),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _pickPhotos,
-                      icon: const Icon(Icons.photo),
-                      label: const Text('Add Proof Photos'),
+                  ] else ...[
+                    Row(
+                      children: const [
+                        Icon(Icons.check_circle, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text('Lender email verified!',
+                            style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold)),
+                      ],
                     ),
-                    if (_photos.isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      ..._photos.map((f) => Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: SizedBox(
-                              width: 40,
-                              height: 40,
-                              child: Image.file(f, fit: BoxFit.cover),
-                            ),
-                          )),
-                    ]
                   ],
-                ),
-                const SizedBox(height: 16),
-                // OTP Verification Order
-                // Lender email and OTP
-                _inputField(Icons.email, 'Your Email',
-                    TextEditingController(text: _selfEmail ?? ''),
-                    readOnly: true),
-                if (!_lenderVerified) ...[
-                  ElevatedButton(
-                    onPressed: _lenderOtpSeconds > 0 || _sendingLenderOtp
-                        ? null
-                        : () => _sendOtp(_selfEmail ?? '', true),
-                    child: _sendingLenderOtp
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2)),
-                              SizedBox(width: 8),
-                              Text('Sending OTP...'),
-                            ],
-                          )
-                        : Text(_lenderOtpSeconds > 0
-                            ? 'Resend in ${_lenderOtpSeconds ~/ 60}:${(_lenderOtpSeconds % 60).toString().padLeft(2, '0')}'
-                            : 'Send OTP'),
+                  const SizedBox(height: 24),
+                  // Borrower email and OTP
+                  _inputField(
+                    Icons.email,
+                    'Counterparty Email',
+                    _counterpartyController,
+                    keyboardType: TextInputType.emailAddress,
+                    onChanged: (val) {
+                      _counterpartyDebounce?.cancel();
+                      _counterpartyDebounce =
+                          Timer(const Duration(milliseconds: 500), () {
+                        _checkCounterpartyExists(val);
+                      });
+                    },
+                    onFieldSubmitted: (val) => _checkCounterpartyExists(val),
+                    errorText: _counterpartyError,
                   ),
-                  if (_lenderOtpSent)
-                    Column(
-                      children: [
-                        const SizedBox(height: 8),
-                        OtpInput(
-                          onChanged: (val) => _lenderOtp = val,
-                          enabled: true,
-                          autoFocus: true,
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: _lenderOtp.length == 6
-                              ? () =>
-                                  _verifyOtp(_selfEmail ?? '', _lenderOtp, true)
-                              : null,
-                          child: const Text('Verify OTP'),
-                        ),
+                  if (!_counterpartyExists)
+                    const Text(
+                        'User not found. Please enter a valid email or username.',
+                        style: TextStyle(color: Colors.red)),
+                  if (!_borrowerVerified) ...[
+                    ElevatedButton(
+                      onPressed: _borrowerOtpSeconds > 0 ||
+                              _sendingBorrowerOtp ||
+                              !_counterpartyExists ||
+                              _sameUserError
+                          ? null
+                          : () => _sendOtp(_counterpartyController.text, false),
+                      child: _sendingBorrowerOtp
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: const [
+                                SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2)),
+                                SizedBox(width: 8),
+                                Text('Sending OTP...'),
+                              ],
+                            )
+                          : Text(_borrowerOtpSeconds > 0
+                              ? 'Resend in ${_borrowerOtpSeconds ~/ 60}:${(_borrowerOtpSeconds % 60).toString().padLeft(2, '0')}'
+                              : 'Send OTP'),
+                    ),
+                    if (_borrowerOtpSent)
+                      Column(
+                        children: [
+                          const SizedBox(height: 8),
+                          OtpInput(
+                            onChanged: (val) => _borrowerOtp = val,
+                            enabled: true,
+                            autoFocus: true,
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton(
+                            onPressed: _borrowerOtp.length == 6
+                                ? () => _verifyOtp(_counterpartyController.text,
+                                    _borrowerOtp, false)
+                                : null,
+                            child: const Text('Verify OTP'),
+                          ),
+                        ],
+                      ),
+                  ] else ...[
+                    Row(
+                      children: const [
+                        Icon(Icons.check_circle, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text('Borrower email verified!',
+                            style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold)),
                       ],
                     ),
-                ] else ...[
-                  Row(
-                    children: const [
-                      Icon(Icons.check_circle, color: Colors.green),
-                      SizedBox(width: 8),
-                      Text('Lender email verified!',
-                          style: TextStyle(
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 24),
-                // Borrower email and OTP
-                _inputField(
-                  Icons.email,
-                  'Counterparty Email',
-                  _counterpartyController,
-                  keyboardType: TextInputType.emailAddress,
-                  onChanged: (val) {
-                    _counterpartyDebounce?.cancel();
-                    _counterpartyDebounce =
-                        Timer(const Duration(milliseconds: 500), () {
-                      _checkCounterpartyExists(val);
-                    });
-                  },
-                  onFieldSubmitted: (val) => _checkCounterpartyExists(val),
-                  errorText: _counterpartyError,
-                ),
-                if (!_counterpartyExists)
-                  const Text(
-                      'User not found. Please enter a valid email or username.',
-                      style: TextStyle(color: Colors.red)),
-                if (!_borrowerVerified) ...[
+                  ],
+                  const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: _borrowerOtpSeconds > 0 ||
-                            _sendingBorrowerOtp ||
-                            !_counterpartyExists ||
-                            _sameUserError
-                        ? null
-                        : () => _sendOtp(_counterpartyController.text, false),
-                    child: _sendingBorrowerOtp
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2)),
-                              SizedBox(width: 8),
-                              Text('Sending OTP...'),
-                            ],
-                          )
-                        : Text(_borrowerOtpSeconds > 0
-                            ? 'Resend in ${_borrowerOtpSeconds ~/ 60}:${(_borrowerOtpSeconds % 60).toString().padLeft(2, '0')}'
-                            : 'Send OTP'),
-                  ),
-                  if (_borrowerOtpSent)
-                    Column(
-                      children: [
-                        const SizedBox(height: 8),
-                        OtpInput(
-                          onChanged: (val) => _borrowerOtp = val,
-                          enabled: true,
-                          autoFocus: true,
-                        ),
-                        const SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: _borrowerOtp.length == 6
-                              ? () => _verifyOtp(_counterpartyController.text,
-                                  _borrowerOtp, false)
-                              : null,
-                          child: const Text('Verify OTP'),
-                        ),
-                      ],
+                    onPressed: _lenderVerified &&
+                            _borrowerVerified &&
+                            !_verifyingOtps &&
+                            _counterpartyExists &&
+                            !_sameUserError
+                        ? _submit
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00B4D8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24)),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
-                ] else ...[
-                  Row(
-                    children: const [
-                      Icon(Icons.check_circle, color: Colors.green),
-                      SizedBox(width: 8),
-                      Text('Borrower email verified!',
-                          style: TextStyle(
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold)),
-                    ],
+                    child: _verifyingOtps
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Submit',
+                            style:
+                                TextStyle(fontSize: 18, color: Colors.white)),
                   ),
                 ],
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: _lenderVerified &&
-                          _borrowerVerified &&
-                          !_verifyingOtps &&
-                          _counterpartyExists &&
-                          !_sameUserError
-                      ? _submit
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF00B4D8),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24)),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: _verifyingOtps
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Submit',
-                          style: TextStyle(fontSize: 18, color: Colors.white)),
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        ));
   }
 
   Widget _inputField(

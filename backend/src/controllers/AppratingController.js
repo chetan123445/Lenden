@@ -29,8 +29,8 @@ exports.submitRating = async (req, res) => {
 exports.getMyRating = async (req, res) => {
   try {
     const userId = req.user._id;
-    const rating = await AppRating.findOne({ user: userId });
-    res.json({ rating });
+    const ratingObj = await AppRating.findOne({ user: userId });
+    res.json({ rating: ratingObj ? ratingObj.rating : null });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }

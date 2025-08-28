@@ -184,10 +184,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
           // If user has already rated, set _hasAppRated and show their previous rating
           if (ratingData['rating'] != null) {
             _hasAppRated = true;
-            // Use 'rating' or 'apprating' depending on backend response
-            _selectedAppRating = ratingData['rating']['rating'] ??
-                ratingData['rating']['apprating'] ??
-                0;
+            _selectedAppRating = ratingData['rating'];
           } else {
             _hasAppRated = false;
             _selectedAppRating = 0;
@@ -355,9 +352,8 @@ class _FeedbackPageState extends State<FeedbackPage> {
         setState(() {
           if (ratingData['rating'] != null) {
             _hasAppRated = true;
-            _selectedAppRating = ratingData['rating']['rating'] ??
-                ratingData['rating']['apprating'] ??
-                0;
+            // ratingData['rating'] is a number (from backend)
+            _selectedAppRating = ratingData['rating'];
           } else {
             _hasAppRated = false;
             _selectedAppRating = 0;
