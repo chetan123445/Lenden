@@ -1,3 +1,6 @@
+const Rating = require('../models/rating');
+const User = require('../models/user');
+
 // GET /api/ratings/user-avg?usernameOrEmail=... - Get avg rating for any user by username or email
 exports.getUserAvgRating = async (req, res) => {
   try {
@@ -14,6 +17,14 @@ exports.getUserAvgRating = async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User not found.' });
     }
+    // Recalculate avgRating from ratings collection
+    const ratings = await Rating.find({ ratee: user._id });
+    let avg = 0;
+    if (ratings.length > 0) {
+      avg = ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length;
+    }
+    user.avgRating = avg;
+    await user.save();
     return res.json({
       username: user.username,
       name: user.name,
@@ -24,8 +35,6 @@ exports.getUserAvgRating = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-const Rating = require('../models/rating');
-const User = require('../models/user');
 
 // POST /api/ratings - Rate a user
 exports.rateUser = async (req, res) => {
@@ -91,6 +100,14 @@ exports.getMyRatings = async (req, res) => {
   try {
     const userId = req.user._id;
     const user = await User.findById(userId);
+    // Recalculate avgRating from ratings collection
+    const ratingsReceived = await Rating.find({ ratee: userId });
+    let avg = 0;
+    if (ratingsReceived.length > 0) {
+      avg = ratingsReceived.reduce((sum, r) => sum + r.rating, 0) / ratingsReceived.length;
+    }
+    user.avgRating = avg;
+    await user.save();
     // Ratings received
     const received = await Rating.find({ ratee: userId }).populate('rater', 'username name');
     // Ratings given
