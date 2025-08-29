@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const admin = require('firebase-admin');
-const serviceAccount = require('./lenden-firebase-adminsdk.json');
+const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_SDK_CONFIG);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
