@@ -2,7 +2,7 @@
 .env
 
 # Firebase admin SDK file
-src/lenden-firebase-adminsdk.json
+
 
 # Dependencies
 node_modules
