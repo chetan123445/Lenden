@@ -9,6 +9,8 @@ import '../user/session.dart';
 import 'email_password_login.dart';
 import 'username_password_login.dart';
 import 'email_otp_login.dart';
+import '../services/notification_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class UserLoginPage extends StatefulWidget {
   const UserLoginPage({super.key});
@@ -189,12 +191,26 @@ class _UserLoginPageState extends State<UserLoginPage> {
             print('👤 Setting complete user data: $completeUserData');
             session.setUser(completeUserData);
             print('✅ Complete user data set in session');
+
+            // Register device token
+            final fcmToken = await FirebaseMessaging.instance.getToken();
+            if (fcmToken != null) {
+              final userId = session.user!['_id'];
+              await NotificationService().registerDeviceToken(userId, fcmToken);
+            }
           } else {
             // Fallback to OTP response data if profile fetch fails
             print('⚠️ Profile fetch failed, using OTP response data');
             print('👤 Setting user data from OTP response: $userData');
             session.setUser(userData);
             print('✅ User data set in session');
+
+            // Register device token
+            final fcmToken = await FirebaseMessaging.instance.getToken();
+            if (fcmToken != null) {
+              final userId = session.user!['_id'];
+              await NotificationService().registerDeviceToken(userId, fcmToken);
+            }
           }
 
           // Verify the session was set correctly
@@ -216,6 +232,13 @@ class _UserLoginPageState extends State<UserLoginPage> {
             print('👤 Setting user data from profile: $profileRes');
             session.setUser(profileRes);
             print('✅ User data set in session');
+
+            // Register device token
+            final fcmToken = await FirebaseMessaging.instance.getToken();
+            if (fcmToken != null) {
+              final userId = session.user!['_id'];
+              await NotificationService().registerDeviceToken(userId, fcmToken);
+            }
           } else {
             print('❌ Failed to fetch user profile');
           }

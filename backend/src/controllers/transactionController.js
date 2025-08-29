@@ -3,6 +3,7 @@ const User = require('../models/user');
 const lendingborrowingotp = require('../utils/lendingborrowingotp');
 const { sendTransactionReceipt, sendTransactionClearedNotification } = require('../utils/lendingborrowingotp');
 const { logTransactionActivity } = require('./activityController');
+const { sendToUser } = require('./NotificationController');
 const multer = require('multer');
 const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg'];
 const PDFDocument = require('pdfkit');
@@ -124,8 +125,15 @@ exports.createTransaction = async (req, res) => {
     try {
       sendTransactionReceipt(userEmail, transaction, counterpartyEmail);
       sendTransactionReceipt(counterpartyEmail, transaction, userEmail);
+
+      // Send push notification to counterparty
+      const counterpartyUser = await User.findOne({ email: counterpartyEmail });
+      if (counterpartyUser) {
+        const user = await User.findOne({ email: userEmail });
+        await sendToUser(counterpartyUser._id, 'New Transaction', `You have a new transaction from ${user.name}.`);
+      }
     } catch (e) {
-      console.error('Failed to send transaction receipt:', e);
+      console.error('Failed to send transaction receipt or push notification:', e);
     }
   } catch (err) {
     res.status(500).json({ error: 'Failed to create transaction', details: err.message });
@@ -232,6 +240,10 @@ exports.clearTransaction = async (req, res) => {
       // Notify the other party
       try {
         sendTransactionClearedNotification(otherPartyEmail, transaction, email);
+        const otherPartyUser = await User.findOne({ email: otherPartyEmail });
+        if (otherPartyUser) {
+          await sendToUser(otherPartyUser._id, 'Transaction Cleared', `A transaction has been cleared by ${email}.`);
+        }
       } catch (e) {
         console.error('Failed to send cleared notification:', e);
       }
@@ -486,8 +498,15 @@ exports.processPartialPayment = async (req, res) => {
         description: description || '',
         remainingAmount: transaction.remainingAmount
       }, creatorInfo);
+
+      // Send push notification to the other party
+      const otherPartyEmail = paidBy === 'lender' ? borrowerEmail : lenderEmail;
+      const otherPartyUser = await User.findOne({ email: otherPartyEmail });
+      if (otherPartyUser) {
+          await sendToUser(otherPartyUser._id, 'Partial Payment Received', `You have received a partial payment of ${amount}.`);
+      }
     } catch (e) {
-      console.error('Failed to log transaction activity:', e);
+      console.error('Failed to log transaction activity or send notification:', e);
     }
 
     res.json({

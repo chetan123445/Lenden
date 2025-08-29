@@ -6,6 +6,8 @@ const User = require('../models/user');
 const NotificationController = require('./NotificationController');
 
 // Helper function to create activity log
+// Helper function to create activity log
+// Helper function to create activity log
 const createActivityLog = async (userId, type, title, description, metadata = {}, relatedDocs = {}) => {
   try {
     const activity = await Activity.create({
@@ -16,6 +18,10 @@ const createActivityLog = async (userId, type, title, description, metadata = {}
       metadata,
       ...relatedDocs
     });
+    // Notify user, but not for login/logout
+    if (type !== 'login' && type !== 'logout') {
+      await notifyActivity(userId, type, activity);
+    }
     return activity;
   } catch (error) {
     console.error('Error creating activity log:', error);
@@ -402,6 +408,7 @@ exports.logProfileActivity = async (userId, type, metadata = {}) => {
 };
 
 // Notify user based on activity type
+// Notify user based on activity type
 async function notifyActivity(userId, type, activity) {
   const typeMap = {
     'transaction_created': 'New Transaction Created',
@@ -427,10 +434,10 @@ async function notifyActivity(userId, type, activity) {
   };
   
   const title = typeMap[type] || 'Activity Notification';
-  const description = `You have a new activity: ${title}`;
+  const description = activity.description;
   
   // Send notification to the user
-  await NotificationController.sendNotification(userId, title, description, activity);
+  await NotificationController.sendToUser(userId, title, description);
 }
 
 // Activity creation and notification
