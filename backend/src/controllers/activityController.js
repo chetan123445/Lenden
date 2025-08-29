@@ -3,6 +3,7 @@ const Transaction = require('../models/transaction');
 const GroupTransaction = require('../models/groupTransaction');
 const Note = require('../models/note');
 const User = require('../models/user');
+const NotificationController = require('./NotificationController');
 
 // Helper function to create activity log
 const createActivityLog = async (userId, type, title, description, metadata = {}, relatedDocs = {}) => {
@@ -400,6 +401,56 @@ exports.logProfileActivity = async (userId, type, metadata = {}) => {
   return await createActivityLog(userId, type, activityData.title, activityData.description, metadata);
 };
 
+// Notify user based on activity type
+async function notifyActivity(userId, type, activity) {
+  const typeMap = {
+    'transaction_created': 'New Transaction Created',
+    'transaction_cleared': 'Transaction Cleared',
+    'partial_payment_made': 'Partial Payment Made',
+    'partial_payment_received': 'Partial Payment Received',
+    'group_created': 'New Group Created',
+    'group_joined': 'New Member Joined Group',
+    'group_left': 'Member Left Group',
+    'member_added': 'New Member Added',
+    'member_removed': 'Member Removed',
+    'expense_added': 'New Expense Added',
+    'expense_edited': 'Expense Edited',
+    'expense_deleted': 'Expense Deleted',
+    'expense_settled': 'Expense Settled',
+    'note_created': 'New Note Created',
+    'note_edited': 'Note Edited',
+    'note_deleted': 'Note Deleted',
+    'profile_updated': 'Profile Updated',
+    'password_changed': 'Password Changed',
+    'login': 'New Login',
+    'logout': 'Logout'
+  };
+  
+  const title = typeMap[type] || 'Activity Notification';
+  const description = `You have a new activity: ${title}`;
+  
+  // Send notification to the user
+  await NotificationController.sendNotification(userId, title, description, activity);
+}
+
+// Activity creation and notification
+exports.createActivity = async (req, res) => {
+  const { userId, type, title, description, metadata, relatedDocs } = req.body;
+  
+  // Validate input
+  if (!userId || !type || !title || !description) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  
+  // Create activity log
+  const activity = await createActivityLog(userId, type, title, description, metadata, relatedDocs);
+  
+  // Notify user
+  await notifyActivity(userId, type, activity);
+  
+  res.status(201).json({ message: 'Activity created and notification sent', activity });
+};
+
 // Delete a specific activity
 exports.deleteActivity = async (req, res) => {
   try {
@@ -447,4 +498,4 @@ exports.cleanupOldActivities = async (req, res) => {
 };
 
 // Export helper functions for use in other controllers
-module.exports.createActivityLog = createActivityLog; 
+module.exports.createActivityLog = createActivityLog;

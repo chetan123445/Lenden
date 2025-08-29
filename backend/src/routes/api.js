@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const NotificationController = require('../controllers/NotificationController');
 
 module.exports = (io) => {
   const AppratingController = require('../controllers/AppratingController');
@@ -276,6 +277,10 @@ module.exports = (io) => {
   router.get('/feedback/app-ratings', AppratingController.getAppRatings);
   router.get('/rating/all', auth, isAdmin, AppratingController.getAllRatings);
   router.get('/feedbacks/all', auth, isAdmin, feedbackController.getAllFeedbacks);
+
+  // Notification routes
+  router.post('/notification/register-token', NotificationController.registerToken);
+  router.post('/notification/send', NotificationController.sendNotification);
 
   return router;
 };

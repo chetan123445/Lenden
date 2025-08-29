@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'Login/login_page.dart';
@@ -19,7 +21,37 @@ import 'user/feedback.dart'; // Import the feedback page
 import 'admin/admin_ratings_page.dart';
 import 'admin/admin_feedbacks_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+
+  await FirebaseMessaging.instance.requestPermission();
+  String? token = await FirebaseMessaging.instance.getToken();
+  print('FCM Device Token: $token');
+
+  // Listen for foreground messages
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    print(
+        'Received a foreground message: ${message.notification?.title}, ${message.notification?.body}');
+    // TODO: Show a local notification if desired
+  });
+
+  // Listen for messages when app is opened from a notification
+  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+    print(
+        'App opened from notification: ${message.notification?.title}, ${message.notification?.body}');
+    // TODO: Navigate to a specific page if needed
+  });
+
+  // Handle background/terminated state (optional)
+  RemoteMessage? initialMessage =
+      await FirebaseMessaging.instance.getInitialMessage();
+  if (initialMessage != null) {
+    print(
+        'App launched from terminated state via notification: ${initialMessage.notification?.title}, ${initialMessage.notification?.body}');
+    // TODO: Navigate to a specific page if needed
+  }
+
   runApp(
     MultiProvider(
       providers: [
