@@ -20,36 +20,27 @@ import 'splash_screen.dart';
 import 'user/feedback.dart'; // Import the feedback page
 import 'admin/admin_ratings_page.dart';
 import 'admin/admin_feedbacks_page.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  await FirebaseMessaging.instance.requestPermission();
-  String? token = await FirebaseMessaging.instance.getToken();
-  print('FCM Device Token: $token');
+  // Initialize notification service
+  await NotificationService.initialize();
 
-  // Listen for foreground messages
+  // Keep your existing Firebase listeners
   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    print(
-        'Received a foreground message: ${message.notification?.title}, ${message.notification?.body}');
-    // TODO: Show a local notification if desired
+    print('Received a foreground message: ${message.notification?.title}, ${message.notification?.body}');
   });
 
-  // Listen for messages when app is opened from a notification
   FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    print(
-        'App opened from notification: ${message.notification?.title}, ${message.notification?.body}');
-    // TODO: Navigate to a specific page if needed
+    print('App opened from notification: ${message.notification?.title}, ${message.notification?.body}');
   });
 
-  // Handle background/terminated state (optional)
-  RemoteMessage? initialMessage =
-      await FirebaseMessaging.instance.getInitialMessage();
+  RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
   if (initialMessage != null) {
-    print(
-        'App launched from terminated state via notification: ${initialMessage.notification?.title}, ${initialMessage.notification?.body}');
-    // TODO: Navigate to a specific page if needed
+    print('App launched from terminated state via notification: ${initialMessage.notification?.title}, ${initialMessage.notification?.body}');
   }
 
   runApp(
@@ -121,7 +112,7 @@ class MyApp extends StatelessWidget {
         }
         final session = Provider.of<SessionProvider>(context);
         // Always show HomePage (main.dart) as the root after splash
-        return HomePage();
+        return const _NotificationInitializer();
       },
     );
   }
@@ -731,4 +722,51 @@ class BottomWaveClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+class _NotificationInitializer extends StatefulWidget {
+  const _NotificationInitializer({super.key});
+
+  @override
+  State<_NotificationInitializer> createState() => _NotificationInitializerState();
+}
+
+class _NotificationInitializerState extends State<_NotificationInitializer> {
+  late SessionProvider _sessionProvider;
+  bool _notificationsInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionProvider = Provider.of<SessionProvider>(context, listen: false);
+    _sessionProvider.addListener(_onSessionChanged);
+    _initializeNotificationsIfUserExists();
+  }
+
+  @override
+  void dispose() {
+    _sessionProvider.removeListener(_onSessionChanged);
+    super.dispose();
+  }
+
+  void _onSessionChanged() {
+    _initializeNotificationsIfUserExists();
+  }
+
+Future<void> _initializeNotificationsIfUserExists() async {
+  if (_sessionProvider.user != null &&
+      _sessionProvider.token != null &&
+      !_notificationsInitialized) {
+    await NotificationService.registerTokenAfterLogin(
+      _sessionProvider.user!['_id'],
+      _sessionProvider.token!,
+    );
+    _notificationsInitialized = true;
+  }
+}
+
+  @override
+  Widget build(BuildContext context) {
+    return HomePage();
+  }
 }

@@ -1,12 +1,7 @@
 const admin = require('firebase-admin');
 const DeviceToken = require('../models/DeviceToken');
 
-// Initialize Firebase Admin SDK (use your service account JSON)
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-  });
-}
+
 
 exports.registerToken = async (req, res) => {
   const { userId, token } = req.body;
@@ -37,14 +32,50 @@ exports.sendNotification = async (req, res) => {
   }
 };
 
-// Utility to send notification by userId (for use in other controllers)
 exports.sendToUser = async (userId, title, body) => {
-  const device = await DeviceToken.findOne({ userId });
-  if (!device) return;
-  await admin.messaging().send({
-    notification: { title, body },
-    token: device.token,
-  });
+  try {
+    console.log(`🔔 Attempting to send notification to user: ${userId}`);
+    console.log(`📧 Title: ${title}, Body: ${body}`);
+    
+    const device = await DeviceToken.findOne({ userId: userId.toString() });
+    if (!device) {
+      console.log(`❌ No device token found for user: ${userId}`);
+      return { success: false, error: 'No device token found' };
+    }
+
+    console.log(`📱 Found device token: ${device.token.substring(0, 20)}...`);
+    
+    const message = {
+      notification: { 
+        title, 
+        body 
+      },
+      token: device.token,
+      android: {
+        priority: 'high',
+        notification: {
+          sound: 'default',
+          clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+        }
+      },
+    };
+
+    const response = await admin.messaging().send(message);
+    console.log('✅ Notification sent successfully:', response);
+    return { success: true, response };
+    
+  } catch (err) {
+    console.error('❌ Error sending notification:', err);
+    
+    // Handle invalid token
+    if (err.code === 'messaging/registration-token-not-registered' || 
+        err.code === 'messaging/invalid-registration-token') {
+      console.log('🗑️ Invalid token, removing from database');
+      await DeviceToken.deleteOne({ userId: userId.toString() });
+    }
+    
+    return { success: false, error: err.message };
+  }
 };
 
 exports.sendToAdmins = async (title, body) => {
