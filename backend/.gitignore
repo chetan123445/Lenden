@@ -1,8 +1,0 @@
-# Environment variables
-.env
-
-# Firebase admin SDK file
-
-
-# Dependencies
-node_modules

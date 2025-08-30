@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'Login/login_page.dart';
@@ -20,29 +18,8 @@ import 'splash_screen.dart';
 import 'user/feedback.dart'; // Import the feedback page
 import 'admin/admin_ratings_page.dart';
 import 'admin/admin_feedbacks_page.dart';
-import 'services/notification_service.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-
-  // Initialize notification service
-  await NotificationService.initialize();
-
-  // Keep your existing Firebase listeners
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-    print('Received a foreground message: ${message.notification?.title}, ${message.notification?.body}');
-  });
-
-  FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-    print('App opened from notification: ${message.notification?.title}, ${message.notification?.body}');
-  });
-
-  RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
-  if (initialMessage != null) {
-    print('App launched from terminated state via notification: ${initialMessage.notification?.title}, ${initialMessage.notification?.body}');
-  }
-
+void main() {
   runApp(
     MultiProvider(
       providers: [
@@ -112,7 +89,7 @@ class MyApp extends StatelessWidget {
         }
         final session = Provider.of<SessionProvider>(context);
         // Always show HomePage (main.dart) as the root after splash
-        return const _NotificationInitializer();
+        return HomePage();
       },
     );
   }
@@ -722,51 +699,4 @@ class BottomWaveClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-class _NotificationInitializer extends StatefulWidget {
-  const _NotificationInitializer({super.key});
-
-  @override
-  State<_NotificationInitializer> createState() => _NotificationInitializerState();
-}
-
-class _NotificationInitializerState extends State<_NotificationInitializer> {
-  late SessionProvider _sessionProvider;
-  bool _notificationsInitialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _sessionProvider = Provider.of<SessionProvider>(context, listen: false);
-    _sessionProvider.addListener(_onSessionChanged);
-    _initializeNotificationsIfUserExists();
-  }
-
-  @override
-  void dispose() {
-    _sessionProvider.removeListener(_onSessionChanged);
-    super.dispose();
-  }
-
-  void _onSessionChanged() {
-    _initializeNotificationsIfUserExists();
-  }
-
-Future<void> _initializeNotificationsIfUserExists() async {
-  if (_sessionProvider.user != null &&
-      _sessionProvider.token != null &&
-      !_notificationsInitialized) {
-    await NotificationService.registerTokenAfterLogin(
-      _sessionProvider.user!['_id'],
-      _sessionProvider.token!,
-    );
-    _notificationsInitialized = true;
-  }
-}
-
-  @override
-  Widget build(BuildContext context) {
-    return HomePage();
-  }
 }

@@ -1,12 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const admin = require('firebase-admin');
-const serviceAccount = require('./lenden-firebase-adminsdk.json');
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
-
 const app = express();
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -201,4 +194,3 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-

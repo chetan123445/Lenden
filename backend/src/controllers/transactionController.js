@@ -3,7 +3,6 @@ const User = require('../models/user');
 const lendingborrowingotp = require('../utils/lendingborrowingotp');
 const { sendTransactionReceipt, sendTransactionClearedNotification } = require('../utils/lendingborrowingotp');
 const { logTransactionActivity } = require('./activityController');
-const { sendToUser } = require('./NotificationController');
 const multer = require('multer');
 const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg'];
 const PDFDocument = require('pdfkit');
@@ -125,10 +124,8 @@ exports.createTransaction = async (req, res) => {
     try {
       sendTransactionReceipt(userEmail, transaction, counterpartyEmail);
       sendTransactionReceipt(counterpartyEmail, transaction, userEmail);
-
-      
     } catch (e) {
-      console.error('Failed to send transaction receipt or push notification:', e);
+      console.error('Failed to send transaction receipt:', e);
     }
   } catch (err) {
     res.status(500).json({ error: 'Failed to create transaction', details: err.message });
@@ -235,7 +232,6 @@ exports.clearTransaction = async (req, res) => {
       // Notify the other party
       try {
         sendTransactionClearedNotification(otherPartyEmail, transaction, email);
-        
       } catch (e) {
         console.error('Failed to send cleared notification:', e);
       }
@@ -490,10 +486,8 @@ exports.processPartialPayment = async (req, res) => {
         description: description || '',
         remainingAmount: transaction.remainingAmount
       }, creatorInfo);
-
-      
     } catch (e) {
-      console.error('Failed to log transaction activity or send notification:', e);
+      console.error('Failed to log transaction activity:', e);
     }
 
     res.json({

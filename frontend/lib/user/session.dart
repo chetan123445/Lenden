@@ -3,7 +3,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 
 class SessionProvider extends ChangeNotifier {
   final _storage = const FlutterSecureStorage();
@@ -15,27 +14,6 @@ class SessionProvider extends ChangeNotifier {
   Map<String, dynamic>? get user => _user;
   String? get role => _role;
   bool get isAdmin => _role == 'admin';
-
-  Future<void> registerDeviceToken() async {
-    String? deviceToken = await FirebaseMessaging.instance.getToken();
-    if (deviceToken != null && _user != null) {
-      try {
-        await http.post(
-          Uri.parse('${ApiConfig.baseUrl}/api/notifications/register'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $_token',
-          },
-          body: jsonEncode({
-            'userId': _user!['_id'],
-            'token': deviceToken,
-          }),
-        );
-      } catch (e) {
-        print('Error registering device token: $e');
-      }
-    }
-  }
 
   Future<void> loadToken() async {
     _token = await _storage.read(key: 'token');
@@ -149,8 +127,6 @@ class SessionProvider extends ChangeNotifier {
     // Save user data to secure storage
     _saveUserData(user);
     
-    registerDeviceToken();
-
     notifyListeners();
     print('🔧 SessionProvider: notifyListeners() called');
     
