@@ -537,33 +537,36 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                                     Expanded(
                                       child: Text(notification['message']),
                                     ),
-                                    PopupMenuButton<String>(
-                                      onSelected: (String result) {
-                                        if (result == 'edit') {
-                                          _editNotification(notification);
-                                        } else if (result == 'delete') {
-                                          _deleteNotification(
-                                              notification['_id']);
-                                        }
-                                      },
-                                      itemBuilder: (BuildContext context) {
-                                        final session = Provider.of<SessionProvider>(context, listen: false);
-                                        final currentAdminId = session.user!['_id']; // Accessing _id from the user map
+                                    Consumer<SessionProvider>(
+                                      builder: (context, session, child) {
+                                        final currentAdminId = session.user!['_id'];
                                         final notificationSenderId = notification['sender'];
 
-                                        List<PopupMenuEntry<String>> items = [];
-
                                         if (currentAdminId == notificationSenderId) {
-                                          items.add(const PopupMenuItem<String>(
-                                            value: 'edit',
-                                            child: Text('Edit'),
-                                          ));
-                                          items.add(const PopupMenuItem<String>(
-                                            value: 'delete',
-                                            child: Text('Delete'),
-                                          ));
+                                          return PopupMenuButton<String>(
+                                            onSelected: (String result) {
+                                              if (result == 'edit') {
+                                                _editNotification(notification);
+                                              } else if (result == 'delete') {
+                                                _deleteNotification(
+                                                    notification['_id']);
+                                              }
+                                            },
+                                            itemBuilder: (BuildContext context) =>
+                                                <PopupMenuEntry<String>>[
+                                              const PopupMenuItem<String>(
+                                                value: 'edit',
+                                                child: Text('Edit'),
+                                              ),
+                                              const PopupMenuItem<String>(
+                                                value: 'delete',
+                                                child: Text('Delete'),
+                                              ),
+                                            ],
+                                          );
+                                        } else {
+                                          return const SizedBox.shrink(); // Hide the three dots
                                         }
-                                        return items;
                                       },
                                     ),
                                   ],

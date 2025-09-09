@@ -29,6 +29,7 @@ const notificationSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+    expires: '7d', // Notifications will be automatically deleted after 7 days
   },
 });
 
