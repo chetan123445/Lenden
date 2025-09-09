@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../api_config.dart';
-import '../session.dart';
+import '../../user/session.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 

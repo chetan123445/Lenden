@@ -13,7 +13,7 @@ class AdminNotificationsPage extends StatefulWidget {
 }
 
 class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
-  List<dynamic> _sentNotifications = [];
+  List<dynamic> _notifications = [];
   bool _isLoading = true;
   final _messageController = TextEditingController();
   String _recipientType = 'all-users';
@@ -22,20 +22,20 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
   @override
   void initState() {
     super.initState();
-    _fetchSentNotifications();
+    _fetchNotifications();
   }
 
-  Future<void> _fetchSentNotifications() async {
+  Future<void> _fetchNotifications() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
     final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}/api/notifications/sent'),
+      Uri.parse('${ApiConfig.baseUrl}/api/notifications'),
       headers: {'Authorization': 'Bearer $token'},
     );
 
     if (response.statusCode == 200) {
       setState(() {
-        _sentNotifications = json.decode(response.body);
+        _notifications = json.decode(response.body);
         _isLoading = false;
       });
     } else {
@@ -57,7 +57,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
 
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
-    final recipients = _recipientsController.text.split(',').map((e) => e.trim()).toList();
+    final recipients =
+        _recipientsController.text.split(',').map((e) => e.trim()).toList();
 
     try {
       final response = await http.post(
@@ -76,7 +77,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
       if (response.statusCode == 201) {
         _messageController.clear();
         _recipientsController.clear();
-        _fetchSentNotifications();
+        _fetchNotifications();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(
@@ -117,7 +118,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                   Icon(Icons.error, color: Colors.white),
                   SizedBox(width: 8.0),
                   Text(
-                    'Some recipients were not found. Please check the names.',
+                    'Some/one of the recipient(s) were not found. Please check the emails/usernames.',
                     style: TextStyle(color: Colors.white),
                   ),
                 ],
@@ -197,7 +198,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
       );
 
       if (response.statusCode == 200) {
-        _fetchSentNotifications(); // Refresh the list
+        _fetchNotifications(); // Refresh the list
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(
@@ -220,7 +221,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete notification: ${response.body}')),
+          SnackBar(
+              content: Text('Failed to delete notification: ${response.body}')),
         );
       }
     } catch (e) {
@@ -244,20 +246,29 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
 
     // Prepare recipients for display (email or username)
     String initialRecipientsText = '';
-    if ((editRecipientType == 'specific-users' || editRecipientType == 'specific-admins') &&
-        notification['recipients'] != null && notification['recipients'] is List && notification['recipients'].isNotEmpty) {
-      initialRecipientsText = (notification['recipients'] as List<dynamic>).map<String>((r) {
-        if (r['email'] != null && r['email'] is String && r['email'].isNotEmpty) {
-          return r['email'] as String;
-        } else if (r['username'] != null && r['username'] is String && r['username'].isNotEmpty) {
-          return r['username'] as String;
-        }
-        return ''; // Fallback if neither email nor username is available
-      }).where((text) => text.isNotEmpty).join(', ');
+    if ((editRecipientType == 'specific-users' ||
+            editRecipientType == 'specific-admins') &&
+        notification['recipients'] != null &&
+        notification['recipients'] is List &&
+        notification['recipients'].isNotEmpty) {
+      initialRecipientsText = (notification['recipients'] as List<dynamic>)
+          .map<String>((r) {
+            if (r['email'] != null &&
+                r['email'] is String &&
+                r['email'].isNotEmpty) {
+              return r['email'] as String;
+            } else if (r['username'] != null &&
+                r['username'] is String &&
+                r['username'].isNotEmpty) {
+              return r['username'] as String;
+            }
+            return ''; // Fallback if neither email nor username is available
+          })
+          .where((text) => text.isNotEmpty)
+          .join(', ');
     }
     final TextEditingController editRecipientsController =
         TextEditingController(text: initialRecipientsText);
-
 
     await showDialog(
       context: context,
@@ -317,8 +328,15 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                   }).toList(),
                   onChanged: (String? newValue) {
                     if (newValue != null) {
-                      setState(() { // Use setState to update the dialog's state
+                      // Store the old recipient type before updating
+                      String oldRecipientType = editRecipientType;
+
+                      setState(() {
                         editRecipientType = newValue;
+                        // If recipient type changes, clear the recipients text field
+                        if (oldRecipientType != newValue) {
+                          editRecipientsController.clear();
+                        }
                       });
                     }
                   },
@@ -336,7 +354,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10.0),
-                          borderSide: const BorderSide(color: Color(0xFF00B4D8)),
+                          borderSide:
+                              const BorderSide(color: Color(0xFF00B4D8)),
                         ),
                       ),
                     ),
@@ -364,7 +383,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
               ),
               child: const Text('Save'),
               onPressed: () async {
-                final session = Provider.of<SessionProvider>(context, listen: false);
+                final session =
+                    Provider.of<SessionProvider>(context, listen: false);
                 final token = session.token;
                 final recipients = editRecipientsController.text
                     .split(',')
@@ -373,7 +393,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
 
                 try {
                   final response = await http.put(
-                    Uri.parse('${ApiConfig.baseUrl}/api/notifications/${notification['_id']}'),
+                    Uri.parse(
+                        '${ApiConfig.baseUrl}/api/notifications/${notification['_id']}'),
                     headers: {
                       'Authorization': 'Bearer $token',
                       'Content-Type': 'application/json',
@@ -386,7 +407,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                   );
 
                   if (response.statusCode == 200) {
-                    _fetchSentNotifications(); // Refresh the list
+                    _fetchNotifications(); // Refresh the list
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: const Row(
@@ -410,7 +431,9 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                     Navigator.of(context).pop(); // Close the dialog
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Failed to update notification: ${response.body}')),
+                      SnackBar(
+                          content: Text(
+                              'Failed to update notification: ${response.body}')),
                     );
                   }
                 } catch (e) {
@@ -481,7 +504,9 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                         ),
                       ),
                       // Placeholder for alignment if needed, or remove if not
-                      const SizedBox(width: 48), // Adjust width to match IconButton's visual space
+                      const SizedBox(
+                          width:
+                              48), // Adjust width to match IconButton's visual space
                     ],
                   ),
                 ),
@@ -490,16 +515,17 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                       ? const Center(child: CircularProgressIndicator())
                       : ListView.builder(
                           padding: const EdgeInsets.all(8.0),
-                          itemCount: _sentNotifications.length,
+                          itemCount: _notifications.length,
                           itemBuilder: (context, index) {
-                            final notification = _sentNotifications[index];
+                            final notification = _notifications[index];
                             return Card(
                               margin: const EdgeInsets.symmetric(
                                   vertical: 8.0, horizontal: 16.0),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16.0),
                                 side: BorderSide(
-                                  color: const Color(0xFF00B4D8).withOpacity(0.5),
+                                  color:
+                                      const Color(0xFF00B4D8).withOpacity(0.5),
                                   width: 1,
                                 ),
                               ),
@@ -516,20 +542,29 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                                         if (result == 'edit') {
                                           _editNotification(notification);
                                         } else if (result == 'delete') {
-                                          _deleteNotification(notification['_id']);
+                                          _deleteNotification(
+                                              notification['_id']);
                                         }
                                       },
-                                      itemBuilder: (BuildContext context) =>
-                                          <PopupMenuEntry<String>>[
-                                        const PopupMenuItem<String>(
-                                          value: 'edit',
-                                          child: Text('Edit'),
-                                        ),
-                                        const PopupMenuItem<String>(
-                                          value: 'delete',
-                                          child: Text('Delete'),
-                                        ),
-                                      ],
+                                      itemBuilder: (BuildContext context) {
+                                        final session = Provider.of<SessionProvider>(context, listen: false);
+                                        final currentAdminId = session.user!['_id']; // Accessing _id from the user map
+                                        final notificationSenderId = notification['sender'];
+
+                                        List<PopupMenuEntry<String>> items = [];
+
+                                        if (currentAdminId == notificationSenderId) {
+                                          items.add(const PopupMenuItem<String>(
+                                            value: 'edit',
+                                            child: Text('Edit'),
+                                          ));
+                                          items.add(const PopupMenuItem<String>(
+                                            value: 'delete',
+                                            child: Text('Delete'),
+                                          ));
+                                        }
+                                        return items;
+                                      },
                                     ),
                                   ],
                                 ),
@@ -587,7 +622,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
                                 ),
                               )
                             : const Text('Send Notification'),
