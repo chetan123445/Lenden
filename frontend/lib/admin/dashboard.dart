@@ -10,6 +10,7 @@ import 'track_user_activity_page.dart';
 import 'manage_support_queries_page.dart';
 import 'admin_ratings_page.dart';
 import 'admin_feedbacks_page.dart';
+import 'notifications_page.dart';
 
 class DashboardBottomWaveClipper extends CustomClipper<Path> {
   @override
@@ -355,7 +356,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 color: Colors.white, size: 28),
                             tooltip: 'Notifications',
                             onPressed: () {
-                              // TODO: Implement notifications page navigation
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const AdminNotificationsPage(),
+                                ),
+                              );
                             },
                           ),
                           GestureDetector(

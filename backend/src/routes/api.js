@@ -25,6 +25,7 @@ module.exports = (io) => {
   const userActivityController = require('../controllers/userActivityController');
   const supportController = require('../controllers/supportController')(io);
   const ratingController = require('../controllers/ratingController');
+  const notificationController = require('../controllers/notificationController');
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -276,6 +277,13 @@ module.exports = (io) => {
   router.get('/feedback/app-ratings', AppratingController.getAppRatings);
   router.get('/rating/all', auth, isAdmin, AppratingController.getAllRatings);
   router.get('/feedbacks/all', auth, isAdmin, feedbackController.getAllFeedbacks);
+
+  // Notification routes
+  router.post('/notifications', auth, isAdmin, notificationController.createNotification);
+  router.get('/notifications', auth, notificationController.getNotifications);
+  router.get('/notifications/sent', auth, isAdmin, notificationController.getSentNotifications);
+  router.delete('/notifications/:id', auth, notificationController.deleteNotification);
+  router.put('/notifications/:id', auth, notificationController.updateNotification);
 
   return router;
 };

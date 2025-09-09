@@ -20,6 +20,7 @@ import 'ratings_page.dart';
 import 'activity_page.dart';
 import 'help_support_page.dart';
 import 'feedback.dart'; // Import the feedback page
+import 'notifications_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -845,7 +846,12 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                                 color: Colors.white, size: 28),
                             tooltip: 'Notifications',
                             onPressed: () {
-                              // TODO: Implement notifications page navigation
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const UserNotificationsPage(),
+                                ),
+                              );
                             },
                           ),
                           GestureDetector(

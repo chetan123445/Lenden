@@ -1,0 +1,175 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../user/session.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import '../api_config.dart';
+
+class UserNotificationsPage extends StatefulWidget {
+  const UserNotificationsPage({Key? key}) : super(key: key);
+
+  @override
+  _UserNotificationsPageState createState() => _UserNotificationsPageState();
+}
+
+class _UserNotificationsPageState extends State<UserNotificationsPage> {
+  List<dynamic> _notifications = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchNotifications();
+  }
+
+  Future<void> _fetchNotifications() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/api/notifications'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      setState(() {
+        _notifications = json.decode(response.body);
+        _isLoading = false;
+      });
+    } else {
+      // Handle error
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F6FA),
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 120,
+                color: const Color(0xFF00B4D8),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: BottomWaveClipper(),
+              child: Container(
+                height: 90,
+                color: const Color(0xFF00B4D8),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'Notifications',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      // Placeholder for alignment if needed, or remove if not
+                      const SizedBox(width: 48), // Adjust width to match IconButton's visual space
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(8.0),
+                          itemCount: _notifications.length,
+                          itemBuilder: (context, index) {
+                            final notification = _notifications[index];
+                            return Card(
+                              margin: const EdgeInsets.symmetric(
+                                  vertical: 8.0, horizontal: 16.0),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16.0),
+                                side: BorderSide(
+                                  color: const Color(0xFF00B4D8).withOpacity(0.5),
+                                  width: 1,
+                                ),
+                              ),
+                              elevation: 2,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Text(notification['message']),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.lineTo(0, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+class BottomWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.moveTo(0, 0);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
+        size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
