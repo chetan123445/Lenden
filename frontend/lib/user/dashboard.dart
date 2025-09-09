@@ -831,7 +831,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                           ),
                           Builder(
                             builder: (context) => IconButton(
-                              icon: const Icon(Icons.menu, color: Colors.white),
+                              icon: const GoogleMenuIcon(),
                               onPressed: () =>
                                   Scaffold.of(context).openDrawer(),
                             ),
@@ -1071,6 +1071,43 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
       await Provider.of<SessionProvider>(context, listen: false).logout();
       Navigator.pushReplacementNamed(context, '/login');
     }
+  }
+}
+
+class GoogleMenuIcon extends StatelessWidget {
+  const GoogleMenuIcon({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(height: 3),
+        ColoredBar(color: Color(0xFF4285F4)), // Blue
+        SizedBox(height: 4),
+        ColoredBar(color: Color(0xFFDB4437)), // Red
+        SizedBox(height: 4),
+        ColoredBar(color: Color(0xFFF4B400)), // Yellow
+      ],
+    );
+  }
+}
+
+class ColoredBar extends StatelessWidget {
+  final Color color;
+  const ColoredBar({Key? key, required this.color}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 4,
+      width: 24,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
   }
 }
 
