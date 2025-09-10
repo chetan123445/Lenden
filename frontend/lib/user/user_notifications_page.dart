@@ -15,20 +15,26 @@ class UserNotificationsPage extends StatefulWidget {
 class _UserNotificationsPageState extends State<UserNotificationsPage> {
   List<dynamic> _notifications = [];
   bool _isLoading = true;
-  bool _viewAll = false;
+  // This flag tracks if we have successfully fetched ALL notifications
+  bool _isShowingAll = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchNotifications();
+    // Fetch the initial, limited list of notifications
+    _fetchNotifications(viewAll: false);
   }
 
-  Future<void> _fetchNotifications({bool viewAll = false}) async {
+  Future<void> _fetchNotifications({required bool viewAll}) async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
+
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
+    
+    // Construct the URL based on whether we want all notifications or the limited list
     final url = viewAll
         ? '${ApiConfig.baseUrl}/api/notifications?viewAll=true'
         : '${ApiConfig.baseUrl}/api/notifications';
@@ -39,31 +45,34 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
         headers: {'Authorization': 'Bearer $token'},
       );
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
         setState(() {
           _notifications = json.decode(response.body);
           _isLoading = false;
+          // If we requested all notifications, update the flag
           if (viewAll) {
-            _viewAll = true;
+            _isShowingAll = true;
           }
         });
       } else {
-        // Handle error
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text('Failed to load notifications: ${response.body}')),
         );
-        setState(() {
-          _isLoading = false;
-        });
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred: $e')),
-      );
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred: $e')),
+      );
     }
   }
 
@@ -75,8 +84,9 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
         backgroundColor: const Color(0xFF00B4D8),
         foregroundColor: Colors.white,
       ),
+      // The onRefresh should fetch the initial limited list again
       body: RefreshIndicator(
-        onRefresh: () => _fetchNotifications(),
+        onRefresh: () => _fetchNotifications(viewAll: false),
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : _notifications.isEmpty
@@ -139,10 +149,15 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                           },
                         ),
                       ),
-                      if (_notifications.length == 3 && !_viewAll)
-                        ElevatedButton(
-                          onPressed: () => _fetchNotifications(viewAll: true),
-                          child: const Text('View All'),
+                      // The "View All" button should appear if we aren't already showing all,
+                      // and the initial fetch returned exactly 3 items (the max for the limited view).
+                      if (!_isShowingAll && _notifications.length == 3)
+                        Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: ElevatedButton(
+                            onPressed: () => _fetchNotifications(viewAll: true),
+                            child: const Text('View All'),
+                          ),
                         ),
                     ],
                   ),

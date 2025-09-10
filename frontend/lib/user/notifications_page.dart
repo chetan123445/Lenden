@@ -15,6 +15,7 @@ class UserNotificationsPage extends StatefulWidget {
 class _UserNotificationsPageState extends State<UserNotificationsPage> {
   List<dynamic> _notifications = [];
   bool _isLoading = true;
+  bool _isShowingAll = false;
 
   @override
   void initState() {
@@ -22,11 +23,14 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
     _fetchNotifications();
   }
 
-  Future<void> _fetchNotifications() async {
+  Future<void> _fetchNotifications({bool viewAll = false}) async {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
+    final url = viewAll
+        ? '${ApiConfig.baseUrl}/api/notifications?viewAll=true'
+        : '${ApiConfig.baseUrl}/api/notifications';
     final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}/api/notifications'),
+      Uri.parse(url),
       headers: {'Authorization': 'Bearer $token'},
     );
 
@@ -34,6 +38,9 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
       setState(() {
         _notifications = json.decode(response.body);
         _isLoading = false;
+        if (viewAll) {
+          _isShowingAll = true;
+        }
       });
     } else {
       // Handle error
@@ -105,29 +112,61 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(8.0),
-                          itemCount: _notifications.length,
-                          itemBuilder: (context, index) {
-                            final notification = _notifications[index];
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                  vertical: 8.0, horizontal: 16.0),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16.0),
-                                side: BorderSide(
-                                  color: const Color(0xFF00B4D8).withOpacity(0.5),
-                                  width: 1,
+                      : _notifications.isEmpty
+                          ? const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.notifications_off_outlined,
+                                    size: 80,
+                                    color: Colors.grey,
+                                  ),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'No notifications yet.',
+                                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : Column(
+                              children: [
+                                Expanded(
+                                  child: ListView.builder(
+                                    padding: const EdgeInsets.all(8.0),
+                                    itemCount: _notifications.length,
+                                    itemBuilder: (context, index) {
+                                      final notification = _notifications[index];
+                                      return Card(
+                                        margin: const EdgeInsets.symmetric(
+                                            vertical: 8.0, horizontal: 16.0),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(16.0),
+                                          side: BorderSide(
+                                            color: const Color(0xFF00B4D8).withOpacity(0.5),
+                                            width: 1,
+                                          ),
+                                        ),
+                                        elevation: 2,
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(16.0),
+                                          child: Text(notification['message']),
+                                        ),
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ),
-                              elevation: 2,
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Text(notification['message']),
-                              ),
-                            );
-                          },
-                        ),
+                                if (_notifications.length == 3 && !_isShowingAll)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 16.0),
+                                    child: ElevatedButton(
+                                      onPressed: () => _fetchNotifications(viewAll: true),
+                                      child: const Text('View All'),
+                                    ),
+                                  ),
+                              ],
+                            ),
                 ),
               ],
             ),

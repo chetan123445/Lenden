@@ -77,16 +77,15 @@ exports.getNotifications = async (req, res) => {
     try {
         const { viewAll } = req.query;
         const userId = req.user._id;
-        const userRole = req.user.role; // Assuming role is available in req.user
+        const userRole = req.user.role;
 
         let query;
 
         if (userRole === 'user') {
+            // Final attempt: Using $in for a more explicit array match.
             query = Notification.find({
-                $or: [
-                    { recipientType: 'all-users', recipientModel: 'User' },
-                    { recipientType: 'specific-users', recipientModel: 'User', recipients: userId },
-                ],
+                recipientModel: 'User',
+                recipients: { $in: [userId] }, 
             })
             .populate({
                 path: 'recipients',
@@ -98,7 +97,7 @@ exports.getNotifications = async (req, res) => {
                 $or: [
                     { recipientType: 'all-admins', recipientModel: 'Admin' },
                     { recipientType: 'specific-admins', recipientModel: 'Admin', recipients: userId },
-                    { sender: userId } // Add this condition to show notifications sent by the admin
+                    { sender: userId } 
                 ],
             })
             .populate({
