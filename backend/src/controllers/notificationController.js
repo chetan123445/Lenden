@@ -75,13 +75,14 @@ exports.createNotification = async (req, res) => {
 
 exports.getNotifications = async (req, res) => {
     try {
+        const { viewAll } = req.query;
         const userId = req.user._id;
         const userRole = req.user.role; // Assuming role is available in req.user
 
-        let notifications = [];
+        let query;
 
         if (userRole === 'user') {
-            notifications = await Notification.find({
+            query = Notification.find({
                 $or: [
                     { recipientType: 'all-users', recipientModel: 'User' },
                     { recipientType: 'specific-users', recipientModel: 'User', recipients: userId },
@@ -93,7 +94,7 @@ exports.getNotifications = async (req, res) => {
             })
             .sort({ createdAt: -1 });
         } else if (userRole === 'admin') {
-            notifications = await Notification.find({
+            query = Notification.find({
                 $or: [
                     { recipientType: 'all-admins', recipientModel: 'Admin' },
                     { recipientType: 'specific-admins', recipientModel: 'Admin', recipients: userId },
@@ -107,6 +108,11 @@ exports.getNotifications = async (req, res) => {
             .sort({ createdAt: -1 });
         }
 
+        if (viewAll !== 'true') {
+            query = query.limit(3);
+        }
+
+        const notifications = await query;
         res.json(notifications);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -116,13 +122,20 @@ exports.getNotifications = async (req, res) => {
 
 exports.getSentNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ sender: req.user._id })
+    const { viewAll } = req.query;
+
+    let query = Notification.find({ sender: req.user._id })
       .populate({
         path: 'recipients',
         select: 'username email',
       })
-      .sort({ createdAt: -1 })
-      .limit(3);
+      .sort({ createdAt: -1 });
+
+    if (viewAll !== 'true') {
+      query = query.limit(3);
+    }
+
+    const notifications = await query;
     res.json(notifications);
   } catch (error) {
     res.status(500).json({ message: error.message });

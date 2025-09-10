@@ -12,9 +12,15 @@ class AdminNotificationsPage extends StatefulWidget {
   _AdminNotificationsPageState createState() => _AdminNotificationsPageState();
 }
 
-class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
-  List<dynamic> _notifications = [];
-  bool _isLoading = true;
+class _AdminNotificationsPageState extends State<AdminNotificationsPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  List<dynamic> _receivedNotifications = [];
+  List<dynamic> _sentNotifications = [];
+  bool _isLoadingReceived = true;
+  bool _isLoadingSent = true;
+  bool _viewAllReceived = false;
+  bool _viewAllSent = false;
   final _messageController = TextEditingController();
   String _recipientType = 'all-users';
   final _recipientsController = TextEditingController();
@@ -22,26 +28,65 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
   @override
   void initState() {
     super.initState();
-    _fetchNotifications();
+    _tabController = TabController(length: 2, vsync: this);
+    _fetchReceivedNotifications();
+    _fetchSentNotifications();
   }
 
-  Future<void> _fetchNotifications() async {
+  Future<void> _fetchReceivedNotifications({bool viewAll = false}) async {
+    setState(() {
+      _isLoadingReceived = true;
+    });
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
+    final url = viewAll
+        ? '${ApiConfig.baseUrl}/api/notifications?viewAll=true'
+        : '${ApiConfig.baseUrl}/api/notifications';
     final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}/api/notifications'),
+      Uri.parse(url),
       headers: {'Authorization': 'Bearer $token'},
     );
 
     if (response.statusCode == 200) {
       setState(() {
-        _notifications = json.decode(response.body);
-        _isLoading = false;
+        _receivedNotifications = json.decode(response.body);
+        _isLoadingReceived = false;
+        if (viewAll) {
+          _viewAllReceived = true;
+        }
       });
     } else {
-      // Handle error
       setState(() {
-        _isLoading = false;
+        _isLoadingReceived = false;
+      });
+    }
+  }
+
+  Future<void> _fetchSentNotifications({bool viewAll = false}) async {
+    setState(() {
+      _isLoadingSent = true;
+    });
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final url = viewAll
+        ? '${ApiConfig.baseUrl}/api/notifications/sent?viewAll=true'
+        : '${ApiConfig.baseUrl}/api/notifications/sent';
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      setState(() {
+        _sentNotifications = json.decode(response.body);
+        _isLoadingSent = false;
+        if (viewAll) {
+          _viewAllSent = true;
+        }
+      });
+    } else {
+      setState(() {
+        _isLoadingSent = false;
       });
     }
   }
@@ -77,7 +122,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
       if (response.statusCode == 201) {
         _messageController.clear();
         _recipientsController.clear();
-        _fetchNotifications();
+        _fetchReceivedNotifications();
+        _fetchSentNotifications();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(
@@ -198,7 +244,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
       );
 
       if (response.statusCode == 200) {
-        _fetchNotifications(); // Refresh the list
+        _fetchReceivedNotifications();
+        _fetchSentNotifications();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Row(
@@ -407,7 +454,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                   );
 
                   if (response.statusCode == 200) {
-                    _fetchNotifications(); // Refresh the list
+                    _fetchReceivedNotifications();
+                    _fetchSentNotifications();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: const Row(
@@ -503,78 +551,31 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
                           textAlign: TextAlign.center,
                         ),
                       ),
-                      // Placeholder for alignment if needed, or remove if not
-                      const SizedBox(
-                          width:
-                              48), // Adjust width to match IconButton's visual space
+                      const SizedBox(width: 48),
                     ],
                   ),
                 ),
+                TabBar(
+                  controller: _tabController,
+                  tabs: const [
+                    Tab(text: 'Received'),
+                    Tab(text: 'Sent'),
+                  ],
+                ),
                 Expanded(
-                  child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(8.0),
-                          itemCount: _notifications.length,
-                          itemBuilder: (context, index) {
-                            final notification = _notifications[index];
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                  vertical: 8.0, horizontal: 16.0),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16.0),
-                                side: BorderSide(
-                                  color:
-                                      const Color(0xFF00B4D8).withOpacity(0.5),
-                                  width: 1,
-                                ),
-                              ),
-                              elevation: 2,
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(notification['message']),
-                                    ),
-                                    Consumer<SessionProvider>(
-                                      builder: (context, session, child) {
-                                        final currentAdminId = session.user!['_id'];
-                                        final notificationSenderId = notification['sender'];
-
-                                        if (currentAdminId == notificationSenderId) {
-                                          return PopupMenuButton<String>(
-                                            onSelected: (String result) {
-                                              if (result == 'edit') {
-                                                _editNotification(notification);
-                                              } else if (result == 'delete') {
-                                                _deleteNotification(
-                                                    notification['_id']);
-                                              }
-                                            },
-                                            itemBuilder: (BuildContext context) =>
-                                                <PopupMenuEntry<String>>[
-                                              const PopupMenuItem<String>(
-                                                value: 'edit',
-                                                child: Text('Edit'),
-                                              ),
-                                              const PopupMenuItem<String>(
-                                                value: 'delete',
-                                                child: Text('Delete'),
-                                              ),
-                                            ],
-                                          );
-                                        } else {
-                                          return const SizedBox.shrink(); // Hide the three dots
-                                        }
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      RefreshIndicator(
+                        onRefresh: () => _fetchReceivedNotifications(),
+                        child: _buildReceivedNotificationsList(),
+                      ),
+                      RefreshIndicator(
+                        onRefresh: () => _fetchSentNotifications(),
+                        child: _buildSentNotificationsList(),
+                      ),
+                    ],
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -639,6 +640,192 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildReceivedNotificationsList() {
+    if (_isLoadingReceived) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_receivedNotifications.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.notifications_off_outlined,
+              size: 80,
+              color: Colors.grey,
+            ),
+            SizedBox(height: 16),
+            Text(
+              'No received notifications yet.',
+              style: TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(8.0),
+            itemCount: _receivedNotifications.length,
+            itemBuilder: (context, index) {
+              final notification = _receivedNotifications[index];
+              return Card(
+                margin: const EdgeInsets.symmetric(
+                    vertical: 8.0, horizontal: 16.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16.0),
+                  side: BorderSide(
+                    color: const Color(0xFF00B4D8).withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(notification['message']),
+                      ),
+                      Consumer<SessionProvider>(
+                        builder: (context, session, child) {
+                          final currentAdminId = session.user!['_id'];
+                          final notificationSenderId =
+                              notification['sender'];
+
+                          if (currentAdminId == notificationSenderId) {
+                            return PopupMenuButton<String>(
+                              onSelected: (String result) {
+                                if (result == 'edit') {
+                                  _editNotification(notification);
+                                } else if (result == 'delete') {
+                                  _deleteNotification(
+                                      notification['_id']);
+                                }
+                              },
+                              itemBuilder: (BuildContext context) =>
+                                  <PopupMenuEntry<String>>[
+                                const PopupMenuItem<String>(
+                                  value: 'edit',
+                                  child: Text('Edit'),
+                                ),
+                                const PopupMenuItem<String>(
+                                  value: 'delete',
+                                  child: Text('Delete'),
+                                ),
+                              ],
+                            );
+                          } else {
+                            return const SizedBox.shrink();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (_receivedNotifications.length == 3 && !_viewAllReceived)
+          ElevatedButton(
+            onPressed: () =>
+                _fetchReceivedNotifications(viewAll: true),
+            child: const Text('View All'),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSentNotificationsList() {
+    if (_isLoadingSent) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_sentNotifications.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.outbox_rounded,
+              size: 80,
+              color: Colors.grey,
+            ),
+            SizedBox(height: 16),
+            Text(
+              'No sent notifications yet.',
+              style: TextStyle(fontSize: 18, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(8.0),
+            itemCount: _sentNotifications.length,
+            itemBuilder: (context, index) {
+              final notification = _sentNotifications[index];
+              return Card(
+                margin: const EdgeInsets.symmetric(
+                    vertical: 8.0, horizontal: 16.0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16.0),
+                  side: BorderSide(
+                    color: const Color(0xFF00B4D8).withOpacity(0.5),
+                    width: 1,
+                  ),
+                ),
+                elevation: 2,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(notification['message']),
+                      ),
+                      PopupMenuButton<String>(
+                        onSelected: (String result) {
+                          if (result == 'edit') {
+                            _editNotification(notification);
+                          } else if (result == 'delete') {
+                            _deleteNotification(
+                                notification['_id']);
+                          }
+                        },
+                        itemBuilder: (BuildContext context) =>
+                            <PopupMenuEntry<String>>[
+                          const PopupMenuItem<String>(
+                            value: 'edit',
+                            child: Text('Edit'),
+                          ),
+                          const PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (_sentNotifications.length == 3 && !_viewAllSent)
+          ElevatedButton(
+            onPressed: () =>
+                _fetchSentNotifications(viewAll: true),
+            child: const Text('View All'),
+          ),
+      ],
     );
   }
 }
