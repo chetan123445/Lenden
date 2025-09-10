@@ -45,7 +45,7 @@ class _UserDetailsPageState extends State<UserDetailsPage>
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
         Uri.parse(
-            'ApiConfig.baseUrl/api/admin/users/${widget.user['_id']}/details'),
+            '${ApiConfig.baseUrl}/api/admin/users/${widget.user['_id']}/details'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -86,7 +86,7 @@ class _UserDetailsPageState extends State<UserDetailsPage>
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.patch(
         Uri.parse(
-            'ApiConfig.baseUrl/api/admin/users/${widget.user['_id']}/status'),
+            '${ApiConfig.baseUrl}/api/admin/users/${widget.user['_id']}/status'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',

@@ -102,7 +102,7 @@ class _UserEditPageState extends State<UserEditPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.put(
-        Uri.parse('ApiConfig.baseUrl/api/admin/users/${widget.user['_id']}'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/users/${widget.user['_id']}'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -530,7 +530,7 @@ class _UserEditPageState extends State<UserEditPage> {
     return InputDecorator(
       decoration: InputDecoration(
         labelText: 'Date of Birth',
-        prefixIcon: const Icon(Icons.calendar_today, color: Color(0xFF00B4D8)),
+        prefixIcon: const Icon(Icons.calendar_today, color: const Color(0xFF00B4D8)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),

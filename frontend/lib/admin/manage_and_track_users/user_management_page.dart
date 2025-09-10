@@ -45,7 +45,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.get(
-        Uri.parse('ApiConfig.baseUrl/api/admin/users'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/users'),
         headers: {
           'Authorization': 'Bearer ${session.token}',
         },
@@ -131,7 +131,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.patch(
-        Uri.parse('ApiConfig.baseUrl/api/admin/users/$userId/status'),
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/users/$userId/status'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${session.token}',
@@ -201,7 +201,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       try {
         final session = Provider.of<SessionProvider>(context, listen: false);
         final response = await http.delete(
-          Uri.parse('ApiConfig.baseUrl/api/admin/users/$userId'),
+          Uri.parse('${ApiConfig.baseUrl}/api/admin/users/$userId'),
           headers: {
             'Authorization': 'Bearer ${session.token}',
           },
