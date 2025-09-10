@@ -18,6 +18,8 @@ import 'splash_screen.dart';
 import 'user/feedback.dart'; // Import the feedback page
 import 'admin/admin_ratings_page.dart';
 import 'admin/admin_feedbacks_page.dart';
+import 'user/notifications_page.dart';
+import 'admin/notifications_page.dart';
 
 void main() {
   runApp(
@@ -225,7 +227,23 @@ class HomePage extends StatelessWidget {
                                 onPressed: () {
                                   if (session.token != null &&
                                       session.user != null) {
-                                    // TODO: Navigate to notifications page if exists
+                                    if (session.isAdmin) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const AdminNotificationsPage(),
+                                        ),
+                                      );
+                                    } else {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              const UserNotificationsPage(),
+                                        ),
+                                      );
+                                    }
                                   } else {
                                     showDialog(
                                       context: context,
