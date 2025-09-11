@@ -178,7 +178,33 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                       child: ElevatedButton(
                                         onPressed: () =>
                                             _fetchNotifications(viewAll: true),
-                                        child: const Text('View All'),
+                                        style: ElevatedButton.styleFrom(
+                                          padding: EdgeInsets.zero,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          elevation: 5,
+                                        ),
+                                        child: Ink(
+                                          decoration: BoxDecoration(
+                                            gradient: const LinearGradient(
+                                              colors: [Color(0xFF00B4D8), Color(0xFF0077B6)],
+                                            ),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Container(
+                                            width: 150,
+                                            height: 40,
+                                            alignment: Alignment.center,
+                                            child: const Text(
+                                              'View All',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                       ),
                                     ),
                                 ],

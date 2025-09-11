@@ -733,10 +733,39 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
           ),
         ),
         if (_receivedNotifications.length == 3 && !_viewAllReceived)
-          ElevatedButton(
-            onPressed: () =>
-                _fetchReceivedNotifications(viewAll: true),
-            child: const Text('View All'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: ElevatedButton(
+              onPressed: () =>
+                  _fetchReceivedNotifications(viewAll: true),
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                elevation: 5,
+              ),
+              child: Ink(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF0077B6)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Container(
+                  width: 150,
+                  height: 40,
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'View All',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
       ],
     );
@@ -820,10 +849,39 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
           ),
         ),
         if (_sentNotifications.length == 3 && !_viewAllSent)
-          ElevatedButton(
-            onPressed: () =>
-                _fetchSentNotifications(viewAll: true),
-            child: const Text('View All'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: ElevatedButton(
+              onPressed: () =>
+                  _fetchSentNotifications(viewAll: true),
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                elevation: 5,
+              ),
+              child: Ink(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF0077B6)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Container(
+                  width: 150,
+                  height: 40,
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'View All',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
       ],
     );
