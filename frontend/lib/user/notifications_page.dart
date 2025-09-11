@@ -130,42 +130,59 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                 ],
                               ),
                             )
-                          : Column(
-                              children: [
-                                Expanded(
-                                  child: ListView.builder(
-                                    padding: const EdgeInsets.all(8.0),
-                                    itemCount: _notifications.length,
-                                    itemBuilder: (context, index) {
-                                      final notification = _notifications[index];
-                                      return Card(
-                                        margin: const EdgeInsets.symmetric(
-                                            vertical: 8.0, horizontal: 16.0),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16.0),
-                                          side: BorderSide(
-                                            color: const Color(0xFF00B4D8).withOpacity(0.5),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        elevation: 2,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(16.0),
-                                          child: Text(notification['message']),
-                                        ),
-                                      );
-                                    },
+                          : Container(
+                              margin: const EdgeInsets.only(top: 30),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  top: BorderSide(
+                                    color: Colors.grey.shade300,
+                                    width: 1.0,
                                   ),
                                 ),
-                                if (_notifications.length == 3 && !_isShowingAll)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 16.0),
-                                    child: ElevatedButton(
-                                      onPressed: () => _fetchNotifications(viewAll: true),
-                                      child: const Text('View All'),
+                              ),
+                              child: Column(
+                                children: [
+                                  Expanded(
+                                    child: ListView.builder(
+                                      padding: const EdgeInsets.all(8.0),
+                                      itemCount: _notifications.length,
+                                      itemBuilder: (context, index) {
+                                        final notification =
+                                            _notifications[index];
+                                        return Card(
+                                          margin: const EdgeInsets.symmetric(
+                                              vertical: 8.0, horizontal: 16.0),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(16.0),
+                                            side: BorderSide(
+                                              color: const Color(0xFF00B4D8)
+                                                  .withOpacity(0.5),
+                                              width: 1,
+                                            ),
+                                          ),
+                                          elevation: 2,
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(16.0),
+                                            child: Text(notification['message']),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
-                              ],
+                                  if (_notifications.length == 3 &&
+                                      !_isShowingAll)
+                                    Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 16.0),
+                                      child: ElevatedButton(
+                                        onPressed: () =>
+                                            _fetchNotifications(viewAll: true),
+                                        child: const Text('View All'),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                 ),
               ],
