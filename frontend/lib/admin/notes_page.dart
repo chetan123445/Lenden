@@ -201,7 +201,7 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        icon: const Icon(Icons.arrow_back, color: Colors.black),
                         onPressed: () {
                           Navigator.pushReplacementNamed(context, '/admin/dashboard');
                         },

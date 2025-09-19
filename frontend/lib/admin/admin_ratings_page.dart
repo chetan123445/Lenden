@@ -138,7 +138,7 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF00B4D8),
         title:
-            const Text('User Ratings', style: TextStyle(color: Colors.white)),
+            const Text('User Ratings', style: TextStyle(color: Colors.black)),
         centerTitle: true,
       ),
       body: Stack(

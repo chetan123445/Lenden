@@ -369,7 +369,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
       appBar: AppBar(
         title: Text('Manage Support Queries'),
         backgroundColor: Color(0xFF00B4D8),
-        foregroundColor: Colors.white,
+        foregroundColor: Colors.black,
         elevation: 2,
       ),
       body: Container(

@@ -956,7 +956,7 @@ class _ManageGroupTransactionsPageState
       appBar: AppBar(
         title: Text('Manage Group Transactions'),
         backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
+        foregroundColor: Colors.black,
       ),
       body: RefreshIndicator(
         onRefresh: _fetchGroups,

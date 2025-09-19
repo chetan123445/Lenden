@@ -217,8 +217,8 @@ class _TrackUserActivityPageState extends State<TrackUserActivityPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF00B4D8),
-        foregroundColor: Colors.white,
+        backgroundColor: const Color.fromRGBO(0, 180, 216, 1),
+        foregroundColor: Colors.black,
         title: const Text('Track User Activity'),
       ),
       backgroundColor: const Color(0xFFF8F6FA),
