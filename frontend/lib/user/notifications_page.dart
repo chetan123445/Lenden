@@ -88,7 +88,7 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        icon: const Icon(Icons.arrow_back, color: Colors.black),
                         onPressed: () {
                           Navigator.pop(context);
                         },
@@ -99,7 +99,7 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                            color: Colors.black,
                           ),
                           textAlign: TextAlign.center,
                         ),

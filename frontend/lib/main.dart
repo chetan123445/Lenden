@@ -212,7 +212,7 @@ class HomePage extends StatelessWidget {
                         // Menu icon (left)
                         Builder(
                           builder: (context) => IconButton(
-                            icon: const GoogleMenuIcon(),
+                            icon: const Icon(Icons.menu, color: Colors.black),
                             onPressed: () => Scaffold.of(context).openDrawer(),
                           ),
                         ),
@@ -222,8 +222,8 @@ class HomePage extends StatelessWidget {
                             // Notification bell
                             Consumer<SessionProvider>(
                               builder: (context, session, _) => IconButton(
-                                icon: Icon(Icons.notifications_none,
-                                    color: Colors.white),
+                                icon: const Icon(Icons.notifications_none,
+                                    color: Colors.black),
                                 onPressed: () {
                                   if (session.token != null &&
                                       session.user != null) {

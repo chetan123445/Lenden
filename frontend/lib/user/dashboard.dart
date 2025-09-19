@@ -821,7 +821,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.arrow_back,
-                                color: Colors.white),
+                                color: Colors.black),
                             onPressed: () async {
                               final popped =
                                   await Navigator.of(context).maybePop();
@@ -832,7 +832,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                           ),
                           Builder(
                             builder: (context) => IconButton(
-                              icon: const GoogleMenuIcon(),
+                              icon: const Icon(Icons.menu, color: Colors.black),
                               onPressed: () =>
                                   Scaffold.of(context).openDrawer(),
                             ),
@@ -843,7 +843,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.notifications,
-                                color: Colors.white, size: 28),
+                                color: Colors.black, size: 28),
                             tooltip: 'Notifications',
                             onPressed: () {
                               Navigator.push(
@@ -897,7 +897,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                           ),
                           IconButton(
                             icon: const Icon(Icons.logout,
-                                color: Colors.white, size: 28),
+                                color: Colors.black, size: 28),
                             tooltip: 'Logout',
                             onPressed: () => _confirmLogout(context),
                           ),
