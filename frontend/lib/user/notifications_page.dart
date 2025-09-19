@@ -16,11 +16,19 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
   List<dynamic> _notifications = [];
   bool _isLoading = true;
   bool _isShowingAll = false;
+  int _unreadCount = 0;
 
   @override
   void initState() {
     super.initState();
     _fetchNotifications();
+    _markNotificationsAsRead();
+  }
+
+  void _calculateUnreadCount() {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final userId = session.user!['_id'];
+    _unreadCount = _notifications.where((notification) => !notification['readBy'].contains(userId)).length;
   }
 
   Future<void> _fetchNotifications({bool viewAll = false}) async {
@@ -41,6 +49,7 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
         if (viewAll) {
           _isShowingAll = true;
         }
+        _calculateUnreadCount();
       });
     } else {
       // Handle error
@@ -50,8 +59,21 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
     }
   }
 
+  Future<void> _markNotificationsAsRead() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final url = '${ApiConfig.baseUrl}/api/notifications/mark-as-read';
+    await http.post(
+      Uri.parse(url),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final session = Provider.of<SessionProvider>(context);
+    final userId = session.user!['_id'];
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FA),
       body: Stack(
@@ -93,7 +115,7 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                           Navigator.pop(context);
                         },
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Notifications',
                           style: TextStyle(
@@ -149,7 +171,9 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                       itemBuilder: (context, index) {
                                         final notification =
                                             _notifications[index];
+                                        final bool isRead = notification['readBy'].contains(userId);
                                         return Card(
+                                          color: isRead ? Colors.white : Colors.blue.shade50,
                                           margin: const EdgeInsets.symmetric(
                                               vertical: 8.0, horizontal: 16.0),
                                           shape: RoundedRectangleBorder(

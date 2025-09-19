@@ -1820,7 +1820,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       appBar: AppBar(
         backgroundColor: Color(0xFF00B4D8),
         elevation: 0,
-        title: Text('Your Transactions', style: TextStyle(color: Colors.white)),
+        title: Text('Your Transactions', style: TextStyle(color: Colors.black)),
       ),
       body: loading
           ? Center(child: CircularProgressIndicator())

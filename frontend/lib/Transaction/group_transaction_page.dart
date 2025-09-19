@@ -3733,7 +3733,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               child: Text(
                 group == null ? 'Group Transactions' : 'Group: ${group?['title'] ?? ''}',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Colors.black,
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
@@ -4127,7 +4127,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             left: 0,
             child: SafeArea(
               child: IconButton(
-                icon: Icon(Icons.arrow_back, color: Colors.white),
+                icon: Icon(Icons.arrow_back, color: Colors.black),
                 onPressed: () => Navigator.pushReplacementNamed(context, '/user/dashboard'),
               ),
             ),

@@ -24,6 +24,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
   final _messageController = TextEditingController();
   String _recipientType = 'all-users';
   final _recipientsController = TextEditingController();
+  int _unreadCount = 0;
 
   @override
   void initState() {
@@ -31,6 +32,25 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
     _tabController = TabController(length: 2, vsync: this);
     _fetchReceivedNotifications();
     _fetchSentNotifications();
+    _markNotificationsAsRead();
+  }
+
+  void _calculateUnreadCount() {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final userId = session.user!['_id'];
+    _unreadCount = _receivedNotifications
+        .where((notification) => !notification['readBy'].contains(userId))
+        .length;
+  }
+
+  Future<void> _markNotificationsAsRead() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final url = '${ApiConfig.baseUrl}/api/notifications/mark-as-read';
+    await http.post(
+      Uri.parse(url),
+      headers: {'Authorization': 'Bearer $token'},
+    );
   }
 
   Future<void> _fetchReceivedNotifications({bool viewAll = false}) async {
@@ -54,6 +74,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
         if (viewAll) {
           _viewAllReceived = true;
         }
+        _calculateUnreadCount();
       });
     } else {
       setState(() {
@@ -499,6 +520,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
 
   @override
   Widget build(BuildContext context) {
+    final session = Provider.of<SessionProvider>(context);
+    final userId = session.user!['_id'];
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FA),
       body: Stack(
@@ -540,7 +563,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                           Navigator.pop(context);
                         },
                       ),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Admin Notifications',
                           style: TextStyle(
@@ -674,9 +697,14 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
             itemCount: _receivedNotifications.length,
             itemBuilder: (context, index) {
               final notification = _receivedNotifications[index];
+              final session =
+                  Provider.of<SessionProvider>(context, listen: false);
+              final userId = session.user!['_id'];
+              final bool isRead = notification['readBy'].contains(userId);
               return Card(
-                margin: const EdgeInsets.symmetric(
-                    vertical: 8.0, horizontal: 16.0),
+                color: isRead ? Colors.white : Colors.blue.shade50,
+                margin:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16.0),
                   side: BorderSide(
@@ -695,8 +723,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                       Consumer<SessionProvider>(
                         builder: (context, session, child) {
                           final currentAdminId = session.user!['_id'];
-                          final notificationSenderId =
-                              notification['sender'];
+                          final notificationSenderId = notification['sender'];
 
                           if (currentAdminId == notificationSenderId) {
                             return PopupMenuButton<String>(
@@ -704,8 +731,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                                 if (result == 'edit') {
                                   _editNotification(notification);
                                 } else if (result == 'delete') {
-                                  _deleteNotification(
-                                      notification['_id']);
+                                  _deleteNotification(notification['_id']);
                                 }
                               },
                               itemBuilder: (BuildContext context) =>
@@ -736,8 +762,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
             child: ElevatedButton(
-              onPressed: () =>
-                  _fetchReceivedNotifications(viewAll: true),
+              onPressed: () => _fetchReceivedNotifications(viewAll: true),
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(
@@ -803,8 +828,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
             itemBuilder: (context, index) {
               final notification = _sentNotifications[index];
               return Card(
-                margin: const EdgeInsets.symmetric(
-                    vertical: 8.0, horizontal: 16.0),
+                margin:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16.0),
                   side: BorderSide(
@@ -825,8 +850,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                           if (result == 'edit') {
                             _editNotification(notification);
                           } else if (result == 'delete') {
-                            _deleteNotification(
-                                notification['_id']);
+                            _deleteNotification(notification['_id']);
                           }
                         },
                         itemBuilder: (BuildContext context) =>
@@ -852,8 +876,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
           Padding(
             padding: const EdgeInsets.only(bottom: 8.0),
             child: ElevatedButton(
-              onPressed: () =>
-                  _fetchSentNotifications(viewAll: true),
+              onPressed: () => _fetchSentNotifications(viewAll: true),
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(

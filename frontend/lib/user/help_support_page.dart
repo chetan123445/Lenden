@@ -470,7 +470,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       appBar: AppBar(
         title: Text('Help & Support'),
         backgroundColor: Color(0xFF00B4D8),
-        foregroundColor: Colors.white,
+        foregroundColor: Colors.black,
       ),
       body: SingleChildScrollView(
         child: Padding(

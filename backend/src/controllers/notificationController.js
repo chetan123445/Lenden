@@ -91,6 +91,7 @@ exports.getNotifications = async (req, res) => {
                 path: 'recipients',
                 select: 'username email',
             })
+            .populate('readBy', 'username email')
             .sort({ createdAt: -1 });
         } else if (userRole === 'admin') {
             query = Notification.find({
@@ -104,6 +105,7 @@ exports.getNotifications = async (req, res) => {
                 path: 'recipients',
                 select: 'username email',
             })
+            .populate('readBy', 'username email')
             .sort({ createdAt: -1 });
         }
 
@@ -261,6 +263,32 @@ exports.updateNotification = async (req, res) => {
     await notification.save();
 
     res.status(200).json({ message: 'Notification updated successfully', notification });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getUnreadNotificationCount = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const count = await Notification.countDocuments({
+      recipients: userId,
+      readBy: { $ne: userId }
+    });
+    res.json({ count });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.markNotificationsAsRead = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    await Notification.updateMany(
+      { recipients: userId, readBy: { $ne: userId } },
+      { $addToSet: { readBy: userId } }
+    );
+    res.status(200).json({ message: 'Notifications marked as read' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

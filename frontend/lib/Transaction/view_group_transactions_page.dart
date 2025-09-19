@@ -800,7 +800,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
       appBar: AppBar(
         title: Text('View Group Transactions'),
         backgroundColor: Color(0xFF00B4D8),
-        foregroundColor: Colors.white,
+        foregroundColor: Colors.black,
         elevation: 0,
       ),
       body: loading

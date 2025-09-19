@@ -377,12 +377,12 @@ class _FeedbackPageState extends State<FeedbackPage> {
         backgroundColor: const Color(0xFF00B4D8),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
           onPressed: () {
             Navigator.of(context).pop();
           },
         ),
-        title: const Text('Feedback', style: TextStyle(color: Colors.white)),
+        title: const Text('Feedback', style: TextStyle(color: Colors.black)),
         centerTitle: true,
       ),
       body: Stack(

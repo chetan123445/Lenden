@@ -801,7 +801,7 @@ class _TransactionPageState extends State<TransactionPage> {
                   Text(
                     'New Transaction',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: Colors.black,
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 1.2,

@@ -26,6 +26,10 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  readBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    refPath: 'recipientModel'
+  }],
   createdAt: {
     type: Date,
     default: Date.now,

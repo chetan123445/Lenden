@@ -202,7 +202,7 @@ class _NotesPageState extends State<NotesPage> {
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        icon: const Icon(Icons.arrow_back, color: Colors.black),
                         onPressed: () {
                           Navigator.pushReplacementNamed(context, '/user/dashboard');
                         },

@@ -21,6 +21,7 @@ import 'activity_page.dart';
 import 'help_support_page.dart';
 import 'feedback.dart'; // Import the feedback page
 import 'notifications_page.dart';
+import '../widgets/notification_icon.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -841,19 +842,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       ),
                       Row(
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.notifications,
-                                color: Colors.black, size: 28),
-                            tooltip: 'Notifications',
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const UserNotificationsPage(),
-                                ),
-                              );
-                            },
-                          ),
+                          NotificationIcon(),
                           GestureDetector(
                             onTap: () async {
                               print(

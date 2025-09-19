@@ -468,7 +468,7 @@ class _ActivityPageState extends State<ActivityPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF00B4D8),
-        foregroundColor: Colors.white,
+        foregroundColor: Colors.black,
         title: const Text('Activity Log'),
         actions: [
           IconButton(

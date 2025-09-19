@@ -58,7 +58,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         appBar: AppBar(
           backgroundColor: Color(0xFF00B4D8),
           elevation: 0,
-          title: Text('Analytics', style: TextStyle(color: Colors.white)),
+          title: Text('Analytics', style: TextStyle(color: Colors.black)),
         ),
         backgroundColor: Color(0xFFF8F6FA),
         body: Center(child: CircularProgressIndicator()),

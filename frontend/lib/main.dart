@@ -20,6 +20,10 @@ import 'admin/admin_ratings_page.dart';
 import 'admin/admin_feedbacks_page.dart';
 import 'user/notifications_page.dart';
 import 'admin/notifications_page.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'api_config.dart';
+import 'widgets/notification_icon.dart';
 
 void main() {
   runApp(
@@ -220,89 +224,7 @@ class HomePage extends StatelessWidget {
                         Row(
                           children: [
                             // Notification bell
-                            Consumer<SessionProvider>(
-                              builder: (context, session, _) => IconButton(
-                                icon: const Icon(Icons.notifications_none,
-                                    color: Colors.black),
-                                onPressed: () {
-                                  if (session.token != null &&
-                                      session.user != null) {
-                                    if (session.isAdmin) {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const AdminNotificationsPage(),
-                                        ),
-                                      );
-                                    } else {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const UserNotificationsPage(),
-                                        ),
-                                      );
-                                    }
-                                  } else {
-                                    showDialog(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(24),
-                                        ),
-                                        backgroundColor:
-                                            const Color(0xFFF6F7FB),
-                                        elevation: 12,
-                                        title: Row(
-                                          children: [
-                                            Icon(Icons.lock_outline,
-                                                color: Color(0xFF00B4D8),
-                                                size: 28),
-                                            SizedBox(width: 10),
-                                            Text('Login Required',
-                                                style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 22)),
-                                          ],
-                                        ),
-                                        content: Text(
-                                          'Please login to view notifications.',
-                                          style: TextStyle(
-                                              fontSize: 16,
-                                              color: Colors.black87),
-                                        ),
-                                        actions: [
-                                          TextButton(
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: Colors.white,
-                                              backgroundColor:
-                                                  Color(0xFF00B4D8),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                              ),
-                                            ),
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(),
-                                            child: Padding(
-                                              padding: EdgeInsets.symmetric(
-                                                  horizontal: 18, vertical: 6),
-                                              child: Text('OK',
-                                                  style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 16)),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }
-                                },
-                              ),
-                            ),
+                            NotificationIcon(),
                             // Profile picture or icon
                             Consumer<SessionProvider>(
                               builder: (context, session, _) {
@@ -528,6 +450,7 @@ class HomePage extends StatelessWidget {
     );
   }
 }
+
 
 class _FeatureCard extends StatelessWidget {
   final IconData icon;

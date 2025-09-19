@@ -11,45 +11,7 @@ import 'manage_support_queries_page.dart';
 import 'admin_ratings_page.dart';
 import 'admin_feedbacks_page.dart';
 import 'notifications_page.dart';
-
-class DashboardBottomWaveClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    Path path = Path();
-    path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
-        size.width * 0.5, size.height * 0.4);
-    path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-class LogoutDialogWaveClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    Path path = Path();
-    path.moveTo(0, 0);
-    path.lineTo(size.width, 0);
-    path.lineTo(size.width, size.height);
-
-    // Create wavy effect
-    path.quadraticBezierTo(
-        size.width * 0.75, size.height * 0.8, size.width * 0.5, size.height);
-    path.quadraticBezierTo(
-        size.width * 0.25, size.height * 0.8, 0, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
+import '../widgets/notification_icon.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -92,16 +54,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     final gender = user?['gender'] ?? 'Other';
     final imageUrl = user?['profileImage'];
 
-    print('🖼️ Admin Dashboard - _getAdminAvatar called:');
-    print('   User: ${user != null ? 'Present' : 'Missing'}');
-    print('   User data: $user');
-    print('   Gender: $gender');
-    print('   Profile image URL: $imageUrl');
-    print('   Image URL type: ${imageUrl.runtimeType}');
-    print('   Image URL is null: ${imageUrl == null}');
-    print('   Image URL is empty: ${imageUrl == ""}');
-    print('   Image URL is "null": ${imageUrl == "null"}');
-
     if (imageUrl != null &&
         imageUrl is String &&
         imageUrl.trim().isNotEmpty &&
@@ -109,10 +61,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       // Add cache busting parameter for real-time updates
       final cacheBustingUrl =
           '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
-      print('   ✅ Using network image: $cacheBustingUrl');
       return NetworkImage(cacheBustingUrl);
     } else {
-      print('   ⚠️ Using default asset image for gender: $gender');
       return AssetImage(
         gender == 'Male'
             ? 'assets/Male.png'
@@ -146,12 +96,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 title: const Text('Dashboard'),
                 onTap: () {
                   Navigator.of(context).pop(); // Close drawer
-                  // Optionally, navigate to dashboard if not already there
-                  // If you want to force navigation, uncomment below:
-                  // Navigator.pushReplacement(
-                  //   context,
-                  //   MaterialPageRoute(builder: (_) => const AdminDashboardPage()),
-                  // );
                 },
               ),
               ListTile(
@@ -351,42 +295,22 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                       Row(
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.notifications,
-                                color: Colors.black, size: 28),
-                            tooltip: 'Notifications',
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const AdminNotificationsPage(),
-                                ),
-                              );
-                            },
-                          ),
+                          NotificationIcon(),
                           GestureDetector(
                             onTap: () async {
-                              print(
-                                  'Admin profile icon tapped - navigating to profile page');
-                              try {
-                                await Navigator.push(
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ProfilePage()),
+                              );
+                              final session = Provider.of<SessionProvider>(
                                   context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          const ProfilePage()),
-                                );
-                                print('Admin returned from profile page');
-                                // Force refresh after returning from profile page
-                                final session = Provider.of<SessionProvider>(
-                                    context,
-                                    listen: false);
-                                await session.forceRefreshProfile();
-                                setState(() {
-                                  _imageRefreshKey++;
-                                });
-                              } catch (e) {
-                                print('Error navigating to profile: $e');
-                              }
+                                  listen: false);
+                              await session.forceRefreshProfile();
+                              setState(() {
+                                _imageRefreshKey++;
+                              });
                             },
                             child: CircleAvatar(
                               key: ValueKey(_imageRefreshKey),
@@ -394,7 +318,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               backgroundColor: Colors.white,
                               backgroundImage: _getAdminAvatar(),
                               onBackgroundImageError: (exception, stackTrace) {
-                                // Handle image loading error
                               },
                               child: _getAdminAvatar() is AssetImage
                                   ? Icon(
@@ -465,7 +388,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Blue wavy header bar
               Container(
                 height: 80,
                 decoration: BoxDecoration(
@@ -487,12 +409,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   ),
                 ),
               ),
-              // White content area
               Container(
                 padding: EdgeInsets.all(24),
                 child: Column(
                   children: [
-                    // Title
                     Text(
                       'Are you sure?',
                       style: TextStyle(
@@ -503,8 +423,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     ),
                     SizedBox(height: 16),
-
-                    // Message
                     Text(
                       'Do you want to logout?',
                       style: TextStyle(
@@ -514,12 +432,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       textAlign: TextAlign.center,
                     ),
                     SizedBox(height: 32),
-
-                    // Stylish buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        // NO button
                         Expanded(
                           child: Container(
                             margin: EdgeInsets.only(right: 8),
@@ -552,7 +467,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                             ),
                           ),
                         ),
-                        // YES button
                         Expanded(
                           child: Container(
                             margin: EdgeInsets.only(left: 8),
@@ -602,43 +516,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 }
 
-class GoogleMenuIcon extends StatelessWidget {
-  const GoogleMenuIcon({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(height: 3),
-        ColoredBar(color: Color(0xFF4285F4)), // Blue
-        SizedBox(height: 4),
-        ColoredBar(color: Color(0xFFDB4437)), // Red
-        SizedBox(height: 4),
-        ColoredBar(color: Color(0xFFF4B400)), // Yellow
-      ],
-    );
-  }
-}
-
-class ColoredBar extends StatelessWidget {
-  final Color color;
-  const ColoredBar({Key? key, required this.color}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 4,
-      width: 24,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(2),
-      ),
-    );
-  }
-}
-
 class TopWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
@@ -657,7 +534,7 @@ class TopWaveClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
-class BottomWaveClipper extends CustomClipper<Path> {
+class DashboardBottomWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     Path path = Path();
@@ -675,7 +552,7 @@ class BottomWaveClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
-class LogoutWaveClipper extends CustomClipper<Path> {
+class LogoutDialogWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     Path path = Path();

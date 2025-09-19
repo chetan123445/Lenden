@@ -282,6 +282,8 @@ module.exports = (io) => {
   router.post('/notifications', auth, isAdmin, notificationController.createNotification);
   router.get('/notifications', auth, notificationController.getNotifications);
   router.get('/notifications/sent', auth, isAdmin, notificationController.getSentNotifications);
+  router.get('/notifications/unread-count', auth, notificationController.getUnreadNotificationCount);
+  router.post('/notifications/mark-as-read', auth, notificationController.markNotificationsAsRead);
   router.delete('/notifications/:id', auth, notificationController.deleteNotification);
   router.put('/notifications/:id', auth, notificationController.updateNotification);
 
