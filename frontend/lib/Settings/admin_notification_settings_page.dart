@@ -502,8 +502,8 @@ class _AdminNotificationSettingsPageState
                         (value) => setState(() => _emailNotifications = value),
                       ),
                       _buildSwitchTile(
-                        'Push Notifications',
-                        'Receive push notifications',
+                        'Push App Notifications',
+                        'Receive notifications in the app',
                         Icons.notifications_active_outlined,
                         _pushNotifications,
                         (value) => setState(() => _pushNotifications = value),
@@ -514,13 +514,6 @@ class _AdminNotificationSettingsPageState
                         Icons.sms_outlined,
                         _smsNotifications,
                         (value) => setState(() => _smsNotifications = value),
-                      ),
-                      _buildSwitchTile(
-                        'In-App Notifications',
-                        'Receive in-app notifications',
-                        Icons.notifications_outlined,
-                        _inAppNotifications,
-                        (value) => setState(() => _inAppNotifications = value),
                       ),
                       _buildSwitchTile(
                         'Display Notification Count',

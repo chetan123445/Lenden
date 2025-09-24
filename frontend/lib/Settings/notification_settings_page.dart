@@ -304,8 +304,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                         (value) => setState(() => _emailNotifications = value),
                       ),
                       _buildSwitchTile(
-                        'Push Notifications',
-                        'Receive notifications on your device',
+                        'Push App Notifications',
+                        'Receive notifications in the app',
                         Icons.notifications_active_outlined,
                         _pushNotifications,
                         (value) => setState(() => _pushNotifications = value),
