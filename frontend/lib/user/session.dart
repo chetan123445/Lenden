@@ -233,4 +233,12 @@ class SessionProvider extends ChangeNotifier {
     await clearToken();
     clearUser();
   }
+
+  void updateNotificationSettings(Map<String, dynamic> settings) {
+    if (_user != null) {
+      _user!['notificationSettings'] = settings;
+      _saveUserData(_user!);
+      notifyListeners();
+    }
+  }
 } 

@@ -26,6 +26,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   bool _emailNotifications = true;
   bool _pushNotifications = true;
   bool _smsNotifications = false;
+  bool _displayNotificationCount = true;
 
   // Notification frequency
   String _reminderFrequency = 'daily'; // daily, weekly, monthly
@@ -68,6 +69,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           _quietHoursStart = settings['quietHoursStart'] ?? '22:00';
           _quietHoursEnd = settings['quietHoursEnd'] ?? '08:00';
           _quietHoursEnabled = settings['quietHoursEnabled'] ?? false;
+          _displayNotificationCount = settings['displayNotificationCount'] ?? true;
         });
       }
     } catch (e) {
@@ -109,10 +111,13 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           'quietHoursStart': _quietHoursStart,
           'quietHoursEnd': _quietHoursEnd,
           'quietHoursEnabled': _quietHoursEnabled,
+          'displayNotificationCount': _displayNotificationCount,
         }),
       );
 
       if (response.statusCode == 200) {
+        final settings = json.decode(response.body);
+        session.updateNotificationSettings(settings);
         if (mounted) {
           CustomWarningWidget.showAnimatedSuccess(
               context, 'Notification settings saved successfully!');
@@ -311,6 +316,14 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                         Icons.sms_outlined,
                         _smsNotifications,
                         (value) => setState(() => _smsNotifications = value),
+                      ),
+                      _buildSwitchTile(
+                        'Display Notification Count',
+                        'Show the number of unread notifications',
+                        Icons.looks_one,
+                        _displayNotificationCount,
+                        (value) =>
+                            setState(() => _displayNotificationCount = value),
                       ),
                     ],
                   ),

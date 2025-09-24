@@ -1,4 +1,5 @@
 const User = require('../models/user');
+const Admin = require('../models/admin');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { sendAlternativeEmailOTP: sendEmail } = require('../utils/alternativeEmailOtp');
@@ -220,6 +221,7 @@ const getNotificationSettings = async (req, res) => {
       quietHoursStart: user.notificationSettings?.quietHoursStart ?? '22:00',
       quietHoursEnd: user.notificationSettings?.quietHoursEnd ?? '08:00',
       quietHoursEnabled: user.notificationSettings?.quietHoursEnabled ?? false,
+      displayNotificationCount: user.notificationSettings?.displayNotificationCount ?? true,
     };
 
     res.json(settings);
@@ -244,6 +246,7 @@ const updateNotificationSettings = async (req, res) => {
       quietHoursStart,
       quietHoursEnd,
       quietHoursEnabled,
+      displayNotificationCount,
     } = req.body;
 
     const user = await User.findByIdAndUpdate(
@@ -261,6 +264,7 @@ const updateNotificationSettings = async (req, res) => {
           quietHoursStart,
           quietHoursEnd,
           quietHoursEnabled,
+          displayNotificationCount,
         }
       },
       { new: true }
@@ -461,6 +465,56 @@ const deleteAccount = async (req, res) => {
   }
 };
 
+
+const getAdminNotificationSettings = async (req, res) => {
+  try {
+    const adminId = req.user._id;
+
+    const admin = await Admin.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    const settings = {
+      displayNotificationCount: admin.notificationSettings?.displayNotificationCount ?? true,
+    };
+
+    res.json(settings);
+  } catch (error) {
+    console.error('Error getting admin notification settings:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+const updateAdminNotificationSettings = async (req, res) => {
+  try {
+    const adminId = req.user._id;
+    const { displayNotificationCount } = req.body;
+
+    const admin = await Admin.findByIdAndUpdate(
+      adminId,
+      {
+        notificationSettings: {
+          displayNotificationCount,
+        }
+      },
+      { new: true }
+    );
+
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    res.json({ 
+      message: 'Admin notification settings updated successfully',
+      settings: admin.notificationSettings 
+    });
+  } catch (error) {
+    console.error('Error updating admin notification settings:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   changePassword,
   sendAlternativeEmailOTP,
@@ -474,4 +528,6 @@ module.exports = {
   updateAccountInformation,
   downloadUserData,
   deleteAccount,
+  getAdminNotificationSettings,
+  updateAdminNotificationSettings,
 };

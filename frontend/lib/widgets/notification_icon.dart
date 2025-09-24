@@ -14,10 +14,11 @@ class NotificationIcon extends StatefulWidget {
 
 class _NotificationIconState extends State<NotificationIcon> {
   int _notificationCount = 0;
+  bool _displayNotificationCount = true;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _fetchUnreadNotificationCount();
   }
 
@@ -26,18 +27,29 @@ class _NotificationIconState extends State<NotificationIcon> {
     if (session.token == null) return;
 
     final token = session.token;
-    final url = '${ApiConfig.baseUrl}/api/notifications/unread-count';
-    try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+    final unreadCountUrl = '${ApiConfig.baseUrl}/api/notifications/unread-count';
+    final settingsUrl = session.isAdmin
+        ? '${ApiConfig.baseUrl}/api/admin/notification-settings'
+        : '${ApiConfig.baseUrl}/api/users/notification-settings';
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          _notificationCount = data['count'];
-        });
+    try {
+      final responses = await Future.wait([
+        http.get(Uri.parse(unreadCountUrl), headers: {'Authorization': 'Bearer $token'}),
+        http.get(Uri.parse(settingsUrl), headers: {'Authorization': 'Bearer $token'}),
+      ]);
+
+      if (responses[0].statusCode == 200) {
+        final data = json.decode(responses[0].body);
+        _notificationCount = data['count'];
+      }
+
+      if (responses[1].statusCode == 200) {
+        final settings = json.decode(responses[1].body);
+        _displayNotificationCount = settings['displayNotificationCount'] ?? true;
+      }
+
+      if (mounted) {
+        setState(() {});
       }
     } catch (e) {
       // Handle error
@@ -68,7 +80,7 @@ class _NotificationIconState extends State<NotificationIcon> {
                     ),
                   );
                 }
-                _fetchUnreadNotificationCount();
+                await _fetchUnreadNotificationCount();
               } else {
                 showDialog(
                   context: context,
@@ -127,7 +139,7 @@ class _NotificationIconState extends State<NotificationIcon> {
               }
             },
           ),
-          if (_notificationCount > 0)
+          if (_notificationCount > 0 && _displayNotificationCount)
             Positioned(
               right: 11,
               top: 11,

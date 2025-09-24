@@ -48,6 +48,7 @@ const userSchema = new mongoose.Schema({
     quietHoursStart: { type: String, default: '22:00' },
     quietHoursEnd: { type: String, default: '08:00' },
     quietHoursEnabled: { type: Boolean, default: false },
+    displayNotificationCount: { type: Boolean, default: true },
   },
   
   // Privacy Settings

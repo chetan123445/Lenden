@@ -23,6 +23,9 @@ const adminSchema = new mongoose.Schema({
     type: Boolean, 
     default: false 
   },
+  notificationSettings: {
+    displayNotificationCount: { type: Boolean, default: true },
+  },
 }, { timestamps: true });
 
 // Add method to check if admin is protected

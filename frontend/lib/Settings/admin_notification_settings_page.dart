@@ -54,6 +54,7 @@ class _AdminNotificationSettingsPageState
   String _quietHoursStart = '22:00';
   String _quietHoursEnd = '08:00';
   String _timezone = 'UTC';
+  bool _displayNotificationCount = true;
 
   @override
   void initState() {
@@ -112,6 +113,7 @@ class _AdminNotificationSettingsPageState
           _quietHoursStart = settings['quietHoursStart'] ?? '22:00';
           _quietHoursEnd = settings['quietHoursEnd'] ?? '08:00';
           _timezone = settings['timezone'] ?? 'UTC';
+          _displayNotificationCount = settings['displayNotificationCount'] ?? true;
         });
       }
     } catch (e) {
@@ -173,10 +175,13 @@ class _AdminNotificationSettingsPageState
           'quietHoursStart': _quietHoursStart,
           'quietHoursEnd': _quietHoursEnd,
           'timezone': _timezone,
+          'displayNotificationCount': _displayNotificationCount,
         }),
       );
 
       if (response.statusCode == 200) {
+        final settings = json.decode(response.body);
+        session.updateNotificationSettings(settings);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -516,6 +521,14 @@ class _AdminNotificationSettingsPageState
                         Icons.notifications_outlined,
                         _inAppNotifications,
                         (value) => setState(() => _inAppNotifications = value),
+                      ),
+                      _buildSwitchTile(
+                        'Display Notification Count',
+                        'Show the number of unread notifications',
+                        Icons.looks_one,
+                        _displayNotificationCount,
+                        (value) =>
+                            setState(() => _displayNotificationCount = value),
                       ),
                     ],
                   ),

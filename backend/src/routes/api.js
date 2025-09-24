@@ -258,8 +258,8 @@ module.exports = (io) => {
   router.put('/admin/security-settings', auth, isAdmin, adminController.updateSecuritySettings);
 
   // Notification Settings
-  router.get('/admin/notification-settings', auth, isAdmin, adminController.getNotificationSettings);
-  router.put('/admin/notification-settings', auth, isAdmin, adminController.updateNotificationSettings);
+  router.get('/admin/notification-settings', auth, isAdmin, settingsController.getAdminNotificationSettings);
+  router.put('/admin/notification-settings', auth, isAdmin, settingsController.updateAdminNotificationSettings);
 
   // User Activity
   router.get('/admin/user-activity/:searchTerm', auth, isAdmin, userActivityController.getUserActivity);
