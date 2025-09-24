@@ -6,6 +6,7 @@ import 'alternative_email_page.dart';
 import 'notification_settings_page.dart';
 import 'privacy_settings_page.dart';
 import 'account_settings_page.dart';
+import '../user/help_support_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -267,9 +268,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   Icons.help_outline,
                   Icons.arrow_forward_ios,
                   () {
-                    // TODO: Implement help and support
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Help & Support coming soon!')),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => HelpSupportPage(),
+                      ),
                     );
                   },
                 ),
