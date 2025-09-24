@@ -5,8 +5,6 @@ const Admin = require('../models/admin');
 exports.createNotification = async (req, res) => {
   try {
     const { message, recipientType, recipients } = req.body;
-    console.log('req.user:', req.user);
-    console.log('req.user._id:', req.user ? req.user._id : 'undefined');
     const sender = req.user._id;
 
     let recipientIds = [];
@@ -14,15 +12,15 @@ exports.createNotification = async (req, res) => {
     let invalidRecipients = [];
 
     if (recipientType === 'all-users') {
-      const users = await User.find({}, '_id');
+      const users = await User.find({ 'notificationSettings.pushNotifications': true }, '_id');
       recipientIds = users.map((user) => user._id);
       recipientModel = 'User';
     } else if (recipientType === 'all-admins') {
-      const admins = await Admin.find({}, '_id');
+      const admins = await Admin.find({ 'notificationSettings.pushNotifications': true }, '_id');
       recipientIds = admins.map((admin) => admin._id);
       recipientModel = 'Admin';
     } else if (recipientType === 'specific-users') {
-      const users = await User.find({ $or: [{ username: { $in: recipients } }, { email: { $in: recipients } }] }, 'username email _id'); // Fetch username/email to identify invalid ones
+      const users = await User.find({ $or: [{ username: { $in: recipients } }, { email: { $in: recipients } }], 'notificationSettings.pushNotifications': true }, 'username email _id');
       recipientIds = users.map((user) => user._id);
       recipientModel = 'User';
 
@@ -34,7 +32,7 @@ exports.createNotification = async (req, res) => {
       );
 
     } else if (recipientType === 'specific-admins') {
-        const admins = await Admin.find({ $or: [{ username: { $in: recipients } }, { email: { $in: recipients } }] }, 'username email _id'); // Fetch username/email to identify invalid ones
+        const admins = await Admin.find({ $or: [{ username: { $in: recipients } }, { email: { $in: recipients } }], 'notificationSettings.pushNotifications': true }, 'username email _id');
         recipientIds = admins.map((admin) => admin._id);
         recipientModel = 'Admin';
 
@@ -46,12 +44,10 @@ exports.createNotification = async (req, res) => {
         );
     }
 
-    // Check for invalid recipients before proceeding
     if (invalidRecipients.length > 0) {
         return res.status(400).json({ message: `The following recipients were not found: ${invalidRecipients.join(', ')}` });
     }
 
-    // If specific users/admins were selected but no valid recipients were found
     if ((recipientType === 'specific-users' || recipientType === 'specific-admins') && recipientIds.length === 0 && recipients.length > 0) {
         return res.status(400).json({ message: 'No valid recipients found for the specified type among the provided list.' });
     }
@@ -79,10 +75,21 @@ exports.getNotifications = async (req, res) => {
         const userId = req.user._id;
         const userRole = req.user.role;
 
+        if (userRole === 'user') {
+            const user = await User.findById(userId, 'notificationSettings');
+            if (!user.notificationSettings.pushNotifications) {
+                return res.json([]);
+            }
+        } else if (userRole === 'admin') {
+            const admin = await Admin.findById(userId, 'notificationSettings');
+            if (!admin.notificationSettings.pushNotifications) {
+                return res.json([]);
+            }
+        }
+
         let query;
 
         if (userRole === 'user') {
-            // Final attempt: Using $in for a more explicit array match.
             query = Notification.find({
                 recipientModel: 'User',
                 recipients: { $in: [userId] }, 
