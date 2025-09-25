@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const User = require('../models/user');
 
 // Create transporter
 const transporter = nodemailer.createTransport({
@@ -12,6 +13,12 @@ const transporter = nodemailer.createTransport({
 // Send group leave request email to group creator
 const sendGroupLeaveRequestEmail = async (creatorEmail, groupDetails, requestingUserEmail, userBalance) => {
   try {
+    const creator = await User.findOne({ email: creatorEmail });
+    if (!creator || !creator.notificationSettings.emailNotifications) {
+      console.log(`Email notifications are disabled for ${creatorEmail}.`);
+      return false;
+    }
+
     const htmlContent = `
       <!DOCTYPE html>
       <html lang="en">
@@ -313,4 +320,4 @@ const sendGroupLeaveRequestEmail = async (creatorEmail, groupDetails, requesting
 
 module.exports = {
   sendGroupLeaveRequestEmail
-}; 
+};

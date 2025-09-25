@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const User = require('../models/user');
 
 const otpStore = {};
 
@@ -32,23 +33,23 @@ exports.sendDualOtp = async (email1, email2) => {
   const otp1 = generateOtp();
   const otp2 = generateOtp();
   const expires = Date.now() + 2 * 60 * 1000; // 2 minutes
-  otpStore[email1] = { otp: otp1, expires };
-  otpStore[email2] = { otp: otp2, expires };
+  otpStore[email1] = {otp: otp1, expires };
+  otpStore[email2] = {otp: otp2, expires };
   await transporter.sendMail({
     from: process.env.EMAIL_USER,
     to: email1,
     subject: 'Lending/Borrowing OTP Verification',
-    text: `Your OTP for transaction confirmation is: ${otp1}\nThis OTP will expire in 2 minutes.`,
+    text: `Your OTP for transaction confirmation is: ${otp1}\nThis OTP will expire in 2 minutes.`, 
     html: getStylishOtpHtml(otp1),
   });
   await transporter.sendMail({
     from: process.env.EMAIL_USER,
     to: email2,
     subject: 'Lending/Borrowing OTP Verification',
-    text: `Your OTP for transaction confirmation is: ${otp2}\nThis OTP will expire in 2 minutes.`,
+    text: `Your OTP for transaction confirmation is: ${otp2}\nThis OTP will expire in 2 minutes.`, 
     html: getStylishOtpHtml(otp2),
   });
-  return { otp1, otp2 };
+  return {otp1, otp2 };
 };
 
 exports.verifyDualOtp = (email1, otp1, email2, otp2) => {
@@ -68,12 +69,12 @@ exports.verifyDualOtp = (email1, otp1, email2, otp2) => {
 exports.resendOtp = async (email) => {
   const otp = generateOtp();
   const expires = Date.now() + 2 * 60 * 1000;
-  otpStore[email] = { otp, expires };
+  otpStore[email] = {otp, expires };
   await transporter.sendMail({
     from: process.env.EMAIL_USER,
     to: email,
     subject: 'Lending/Borrowing OTP Verification (Resend)',
-    text: `Your OTP for transaction confirmation is: ${otp}\nThis OTP will expire in 2 minutes.`,
+    text: `Your OTP for transaction confirmation is: ${otp}\nThis OTP will expire in 2 minutes.`, 
     html: getStylishOtpHtml(otp),
   });
   console.log('OTP sent:', email, otp);
@@ -96,6 +97,11 @@ exports.verifyLendingBorrowingOtp = (email, otp) => {
 };
 
 exports.sendTransactionReceipt = async (email, transaction, counterpartyNameOrEmail) => {
+  const user = await User.findOne({ email });
+  if (user && !user.notificationSettings.emailNotifications) {
+    return; // Do not send email if notifications are disabled
+  }
+
   const {
     amount, currency, date, time, place, counterpartyEmail, userEmail, role, interestType, interestRate, expectedReturnDate, compoundingFrequency, transactionId
   } = transaction;
@@ -149,6 +155,11 @@ exports.sendTransactionReceipt = async (email, transaction, counterpartyNameOrEm
 };
 
 exports.sendTransactionClearedNotification = async (email, transaction, clearedByEmail) => {
+  const user = await User.findOne({ email });
+  if (user && !user.notificationSettings.emailNotifications) {
+    return; // Do not send email if notifications are disabled
+  }
+
   const {
     amount, currency, date, time, place, counterpartyEmail, userEmail, role, transactionId, userCleared, counterpartyCleared
   } = transaction;
@@ -178,6 +189,11 @@ exports.sendTransactionClearedNotification = async (email, transaction, clearedB
 };
 
 exports.sendReminderEmail = async (email, transaction, daysLeft) => {
+  const user = await User.findOne({ email });
+  if (user && !user.notificationSettings.emailNotifications) {
+    return; // Do not send email if notifications are disabled
+  }
+
   const nodemailer = require('nodemailer');
   const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -213,4 +229,4 @@ exports.sendReminderEmail = async (email, transaction, daysLeft) => {
     subject,
     html
   });
-}; 
+};
