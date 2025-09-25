@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const User = require('../models/user');
+const { shouldSendNotification } = require('./shouldSendNotification');
 
 // Create transporter
 const transporter = nodemailer.createTransport({
@@ -14,8 +15,8 @@ const transporter = nodemailer.createTransport({
 const sendGroupLeaveRequestEmail = async (creatorEmail, groupDetails, requestingUserEmail, userBalance) => {
   try {
     const creator = await User.findOne({ email: creatorEmail });
-    if (!creator || !creator.notificationSettings.emailNotifications) {
-      console.log(`Email notifications are disabled for ${creatorEmail}.`);
+    if (!creator || !creator.notificationSettings.emailNotifications || !shouldSendNotification(creator)) {
+      console.log(`Email notifications are disabled for ${creatorEmail} or user is in quiet hours.`);
       return false;
     }
 

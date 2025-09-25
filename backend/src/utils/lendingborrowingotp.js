@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const User = require('../models/user');
+const { shouldSendNotification } = require('./shouldSendNotification');
 
 const otpStore = {};
 
@@ -98,8 +99,8 @@ exports.verifyLendingBorrowingOtp = (email, otp) => {
 
 exports.sendTransactionReceipt = async (email, transaction, counterpartyNameOrEmail) => {
   const user = await User.findOne({ email });
-  if (user && !user.notificationSettings.emailNotifications) {
-    return; // Do not send email if notifications are disabled
+  if (!user || !user.notificationSettings.emailNotifications || !shouldSendNotification(user)) {
+    return; // Do not send email if notifications are disabled or in quiet hours
   }
 
   const {
@@ -156,8 +157,8 @@ exports.sendTransactionReceipt = async (email, transaction, counterpartyNameOrEm
 
 exports.sendTransactionClearedNotification = async (email, transaction, clearedByEmail) => {
   const user = await User.findOne({ email });
-  if (user && !user.notificationSettings.emailNotifications) {
-    return; // Do not send email if notifications are disabled
+  if (!user || !user.notificationSettings.emailNotifications || !shouldSendNotification(user)) {
+    return; // Do not send email if notifications are disabled or in quiet hours
   }
 
   const {
@@ -190,8 +191,8 @@ exports.sendTransactionClearedNotification = async (email, transaction, clearedB
 
 exports.sendReminderEmail = async (email, transaction, daysLeft) => {
   const user = await User.findOne({ email });
-  if (user && !user.notificationSettings.emailNotifications) {
-    return; // Do not send email if notifications are disabled
+  if (!user || !user.notificationSettings.emailNotifications || !shouldSendNotification(user)) {
+    return; // Do not send email if notifications are disabled or in quiet hours
   }
 
   const nodemailer = require('nodemailer');
