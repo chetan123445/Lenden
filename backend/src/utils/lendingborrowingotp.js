@@ -191,7 +191,7 @@ exports.sendTransactionClearedNotification = async (email, transaction, clearedB
 
 exports.sendReminderEmail = async (email, transaction, daysLeft) => {
   const user = await User.findOne({ email });
-  if (!user || !user.notificationSettings.emailNotifications || !user.notificationSettings.transactionNotifications || !shouldSendNotification(user)) {
+  if (!user || !user.notificationSettings.emailNotifications || !user.notificationSettings.paymentReminders || !shouldSendNotification(user)) {
     return; // Do not send email if notifications are disabled or in quiet hours
   }
 
