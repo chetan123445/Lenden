@@ -99,7 +99,7 @@ exports.verifyLendingBorrowingOtp = (email, otp) => {
 
 exports.sendTransactionReceipt = async (email, transaction, counterpartyNameOrEmail) => {
   const user = await User.findOne({ email });
-  if (!user || !user.notificationSettings.emailNotifications || !shouldSendNotification(user)) {
+  if (!user || !user.notificationSettings.emailNotifications || !user.notificationSettings.transactionNotifications || !shouldSendNotification(user)) {
     return; // Do not send email if notifications are disabled or in quiet hours
   }
 
@@ -157,7 +157,7 @@ exports.sendTransactionReceipt = async (email, transaction, counterpartyNameOrEm
 
 exports.sendTransactionClearedNotification = async (email, transaction, clearedByEmail) => {
   const user = await User.findOne({ email });
-  if (!user || !user.notificationSettings.emailNotifications || !shouldSendNotification(user)) {
+  if (!user || !user.notificationSettings.emailNotifications || !user.notificationSettings.transactionNotifications || !shouldSendNotification(user)) {
     return; // Do not send email if notifications are disabled or in quiet hours
   }
 
@@ -191,7 +191,7 @@ exports.sendTransactionClearedNotification = async (email, transaction, clearedB
 
 exports.sendReminderEmail = async (email, transaction, daysLeft) => {
   const user = await User.findOne({ email });
-  if (!user || !user.notificationSettings.emailNotifications || !shouldSendNotification(user)) {
+  if (!user || !user.notificationSettings.emailNotifications || !user.notificationSettings.transactionNotifications || !shouldSendNotification(user)) {
     return; // Do not send email if notifications are disabled or in quiet hours
   }
 

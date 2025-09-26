@@ -7,7 +7,10 @@ const Notification = require('../models/notification');
 cron.schedule('0 0 * * *', async () => {
   console.log('Running daily reminder check...');
   try {
-    const users = await User.find({ 'notificationSettings.paymentReminders': true });
+    const users = await User.find({ 
+      'notificationSettings.paymentReminders': true,
+      'notificationSettings.transactionNotifications': true 
+    });
 
     for (const user of users) {
       const { reminderFrequency } = user.notificationSettings;
