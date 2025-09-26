@@ -21,7 +21,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
   // Notification settings
   bool _transactionNotifications = true;
   bool _paymentReminders = true;
-  bool _chatNotifications = true;
   bool _groupNotifications = true;
   bool _emailNotifications = true;
   bool _pushNotifications = true;
@@ -60,7 +59,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           _transactionNotifications =
               settings['transactionNotifications'] ?? true;
           _paymentReminders = settings['paymentReminders'] ?? true;
-          _chatNotifications = settings['chatNotifications'] ?? true;
           _groupNotifications = settings['groupNotifications'] ?? true;
           _emailNotifications = settings['emailNotifications'] ?? true;
           _pushNotifications = settings['pushNotifications'] ?? true;
@@ -102,7 +100,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
         body: json.encode({
           'transactionNotifications': _transactionNotifications,
           'paymentReminders': _paymentReminders,
-          'chatNotifications': _chatNotifications,
           'groupNotifications': _groupNotifications,
           'emailNotifications': _emailNotifications,
           'pushNotifications': _pushNotifications,
@@ -272,13 +269,6 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
                         Icons.schedule,
                         _paymentReminders,
                         (value) => setState(() => _paymentReminders = value),
-                      ),
-                      _buildSwitchTile(
-                        'Chat Notifications',
-                        'Get notified about new messages',
-                        Icons.chat_bubble_outline,
-                        _chatNotifications,
-                        (value) => setState(() => _chatNotifications = value),
                       ),
                       _buildSwitchTile(
                         'Group Notifications',

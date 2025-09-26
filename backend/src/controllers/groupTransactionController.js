@@ -2,6 +2,7 @@ const GroupTransaction = require('../models/groupTransaction');
 const User = require('../models/user');
 const { sendGroupSettleOtp } = require('../utils/groupSettleOtp');
 const { sendGroupLeaveRequestEmail } = require('../utils/groupLeaveRequestEmail');
+const groupTransactionEmail = require('../utils/groupTransactionEmail');
 const mongoose = require('mongoose');
 const { logGroupActivity, logGroupActivityForAllMembers } = require('./activityController');
 
@@ -77,8 +78,9 @@ exports.createGroup = async (req, res) => {
         creatorEmail: creatorUser.email
       };
       await logGroupActivityForAllMembers('group_created', group, {}, null, creatorInfo);
+      groupTransactionEmail.sendGroupCreatedEmail(populatedGroup, creatorUser);
     } catch (e) {
-      console.error('Failed to log group activity:', e);
+      console.error('Failed to log group activity or send email:', e);
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -151,8 +153,9 @@ exports.addMember = async (req, res) => {
       await logGroupActivityForAllMembers('member_added', group, {
         memberEmail: email
       }, null, creatorInfo);
+      groupTransactionEmail.sendMemberAddedEmail(populatedGroup, email, req.user.email);
     } catch (e) {
-      console.error('Failed to log group activity:', e);
+      console.error('Failed to log group activity or send email:', e);
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -220,8 +223,9 @@ exports.removeMember = async (req, res) => {
       await logGroupActivityForAllMembers('member_removed', group, {
         memberEmail: email
       }, null, creatorInfo);
+      groupTransactionEmail.sendMemberRemovedEmail(populatedGroup, email, req.user.email);
     } catch (e) {
-      console.error('Failed to log group activity:', e);
+      console.error('Failed to log group activity or send email:', e);
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -410,8 +414,9 @@ exports.addExpense = async (req, res) => {
         expenseAmount: amount,
         currency: '₹' // Default currency, you might want to make this configurable
       }, null, creatorInfo);
+      groupTransactionEmail.sendExpenseAddedEmail(populatedGroup, expenseData, userEmail);
     } catch (e) {
-      console.error('Failed to log group activity:', e);
+      console.error('Failed to log group activity or send email:', e);
     }
   } catch (err) {
     console.error('Error in addExpense:', err);
@@ -611,7 +616,7 @@ exports.leaveGroup = async (req, res) => {
     
     // Check if user has pending balances
     if (userBalance !== 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Cannot leave group with pending balances. Please settle your balance first or send a leave request to the group creator.',
         userBalance: userBalance
       });
@@ -642,6 +647,13 @@ exports.leaveGroup = async (req, res) => {
     groupObj.expenses = processedExpenses;
     
     res.json({ group: groupObj });
+
+    // Send email notification to the rest of the group
+    try {
+      groupTransactionEmail.sendMemberLeftEmail(populatedGroup, req.user.email);
+    } catch (e) {
+      console.error('Failed to send member left email:', e);
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -699,8 +711,9 @@ exports.deleteExpense = async (req, res) => {
         expenseAmount: deletedExpense.amount,
         currency: '₹' // Default currency, you might want to make this configurable
       }, null, creatorInfo);
+      groupTransactionEmail.sendExpenseDeletedEmail(populatedGroup, deletedExpense, req.user.email);
     } catch (e) {
-      console.error('Failed to log group activity:', e);
+      console.error('Failed to log group activity or send email:', e);
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -884,8 +897,9 @@ exports.editExpense = async (req, res) => {
         expenseAmount: amount,
         currency: '₹' // Default currency, you might want to make this configurable
       }, null, creatorInfo);
+      groupTransactionEmail.sendExpenseEditedEmail(group, expense, userEmail);
     } catch (e) {
-      console.error('Failed to log group activity:', e);
+      console.error('Failed to log group activity or send email:', e);
     }
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1105,8 +1119,9 @@ exports.settleExpenseSplits = async (req, res) => {
         settledCount: settledCount,
         memberEmails: memberEmails
       }, null, creatorInfo);
+      groupTransactionEmail.sendExpenseSettledEmail(populatedGroup, expense, req.user.email);
     } catch (e) {
-      console.error('Failed to log group activity:', e);
+      console.error('Failed to log group activity or send email:', e);
     }
   } catch (err) {
     console.error('Error settling expense splits:', err);
