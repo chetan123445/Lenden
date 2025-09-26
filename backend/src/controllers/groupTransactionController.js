@@ -223,6 +223,10 @@ exports.removeMember = async (req, res) => {
       await logGroupActivityForAllMembers('member_removed', group, {
         memberEmail: email
       }, null, creatorInfo);
+
+      // Send email to the removed member first
+      groupTransactionEmail.sendYouHaveBeenRemovedEmail(populatedGroup, email, req.user.email);
+      // Then, send email to the rest of the group
       groupTransactionEmail.sendMemberRemovedEmail(populatedGroup, email, req.user.email);
     } catch (e) {
       console.error('Failed to log group activity or send email:', e);
