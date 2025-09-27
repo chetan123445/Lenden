@@ -881,7 +881,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                               builder: (_) =>
                                   FutureBuilder<Map<String, dynamic>?>(
                                 future: _fetchCounterpartyProfile(
-                                    counterpartyEmail),
+                                    context, counterpartyEmail),
                                 builder: (context, snapshot) {
                                   if (snapshot.connectionState ==
                                       ConnectionState.waiting) {
@@ -895,7 +895,17 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                       name: 'No profile found.',
                                       avatarProvider:
                                           AssetImage('assets/Other.png'),
-                                      email: counterpartyEmail,
+                                    );
+                                  }
+                                  if (profile['profileIsPrivate'] == true) {
+                                    return _StylishProfileDialog(
+                                      title: 'Counterparty Info',
+                                      name: 'This user\'s profile is private.',
+                                      avatarProvider:
+                                          AssetImage('assets/Other.png'),
+                                      email: null,
+                                      phone: null,
+                                      gender: null,
                                     );
                                   }
                                   final gender = profile['gender'] ?? 'Other';
@@ -1921,11 +1931,21 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     );
   }
 
-  Future<Map<String, dynamic>?> _fetchCounterpartyProfile(String email) async {
+  Future<Map<String, dynamic>?> _fetchCounterpartyProfile(
+      BuildContext context, String email) async {
     if (email.isEmpty) return null;
     try {
-      final res = await http.get(Uri.parse(
-          '${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'));
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      final token = session.token;
+      if (token == null) return null;
+
+      final res = await http.get(
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
@@ -2454,523 +2474,532 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
     }
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      backgroundColor: const Color(0xFFF8F6FA),
-      child: Container(
-        width: 400,
-        constraints:
-            BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
-        padding: EdgeInsets.all(24),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.payment, color: Color(0xFF00B4D8), size: 28),
-                  SizedBox(width: 12),
-                  Text(
-                    'Partial Payment',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 20),
-
-              TextFormField(
-                controller: _amountController,
-                decoration: InputDecoration(
-                  labelText: 'Payment Amount',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.attach_money),
-                  helperText: (lenderOtpVerified && borrowerOtpVerified)
-                      ? 'Amount locked after OTP verification'
-                      : 'Maximum: ${_calculateRemainingAmount(widget.transaction)} ${widget.transaction['currency']}',
-                  helperMaxLines: 2,
-                ),
-                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                enabled: !(lenderOtpVerified && borrowerOtpVerified),
-              ),
-              SizedBox(height: 12),
-              TextFormField(
-                controller: _descriptionController,
-                decoration: InputDecoration(
-                  labelText: 'Description (Optional)',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.description),
-                  helperText: (lenderOtpVerified && borrowerOtpVerified)
-                      ? 'Description locked after OTP verification'
-                      : null,
-                ),
-                maxLines: 2,
-                enabled: !(lenderOtpVerified && borrowerOtpVerified),
-              ),
-              SizedBox(height: 20),
-              // Lender OTP Section
-              Container(
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 1,
-                      blurRadius: 3,
-                      offset: Offset(0, 1),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        backgroundColor: const Color(0xFFF8F6FA),
+        child: Container(
+          width: 400,
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8),
+          padding: EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.payment, color: Color(0xFF00B4D8), size: 28),
+                    SizedBox(width: 12),
+                    Text(
+                      'Partial Payment',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
                     ),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.lock_clock,
-                            color: Color(0xFF00B4D8), size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Lender OTP Verification',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    Text('Email: ${lenderEmail ?? ''}'),
-                    SizedBox(height: 8),
-                    if (lenderOtpSent) ...[
-                      Text(
-                        'Enter the 6-digit OTP sent to ${lenderEmail}:',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                SizedBox(height: 20),
+
+                TextFormField(
+                  controller: _amountController,
+                  decoration: InputDecoration(
+                    labelText: 'Payment Amount',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.attach_money),
+                    helperText: (lenderOtpVerified && borrowerOtpVerified)
+                        ? 'Amount locked after OTP verification'
+                        : 'Maximum: ${_calculateRemainingAmount(widget.transaction)} ${widget.transaction['currency']}',
+                    helperMaxLines: 2,
+                  ),
+                  keyboardType: TextInputType.numberWithOptions(decimal: true),
+                  enabled: !(lenderOtpVerified && borrowerOtpVerified),
+                ),
+                SizedBox(height: 12),
+                TextFormField(
+                  controller: _descriptionController,
+                  decoration: InputDecoration(
+                    labelText: 'Description (Optional)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.description),
+                    helperText: (lenderOtpVerified && borrowerOtpVerified)
+                        ? 'Description locked after OTP verification'
+                        : null,
+                  ),
+                  maxLines: 2,
+                  enabled: !(lenderOtpVerified && borrowerOtpVerified),
+                ),
+                SizedBox(height: 20),
+                // Lender OTP Section
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        spreadRadius: 1,
+                        blurRadius: 3,
+                        offset: Offset(0, 1),
                       ),
-                      SizedBox(height: 12),
-                      OtpInput(
-                        onChanged: (val) => _lenderOtpController.text = val,
-                        enabled: lenderOtpSent,
-                        autoFocus: false,
-                      ),
-                      SizedBox(height: 12),
                     ],
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: (lenderEmail != null &&
-                                    !isSendingLenderOtp &&
-                                    !lenderOtpVerified)
-                                ? () => _sendOtp(lenderEmail!, true)
-                                : null,
-                            child: isSendingLenderOtp
-                                ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white),
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text('Sending OTP...'),
-                                    ],
-                                  )
-                                : lenderOtpVerified
-                                    ? Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.check_circle,
-                                              color: Colors.white, size: 16),
-                                          SizedBox(width: 8),
-                                          Text('Verified'),
-                                        ],
-                                      )
-                                    : lenderOtpExpired
-                                        ? Text('Resend OTP')
-                                        : Text('Send OTP'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: lenderOtpVerified
-                                  ? Colors.green
-                                  : Colors.orange,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    // Show expiration status
-                    if (lenderOtpSent && !lenderOtpVerified) ...[
-                      SizedBox(height: 4),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Row(
                         children: [
-                          Icon(
-                            lenderOtpExpired ? Icons.warning : Icons.timer,
-                            color:
-                                lenderOtpExpired ? Colors.red : Colors.orange,
-                            size: 14,
-                          ),
-                          SizedBox(width: 4),
+                          Icon(Icons.lock_clock,
+                              color: Color(0xFF00B4D8), size: 20),
+                          SizedBox(width: 8),
                           Text(
-                            lenderOtpExpired
-                                ? 'OTP expired. Please resend.'
-                                : 'OTP expires in ${lenderOtpSecondsLeft ~/ 60}:${(lenderOtpSecondsLeft % 60).toString().padLeft(2, '0')}',
+                            'Lender OTP Verification',
                             style: TextStyle(
-                              fontSize: 12,
+                                fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Text('Email: ${lenderEmail ?? ''}'),
+                      SizedBox(height: 8),
+                      if (lenderOtpSent) ...[
+                        Text(
+                          'Enter the 6-digit OTP sent to ${lenderEmail}:',
+                          style:
+                              TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        ),
+                        SizedBox(height: 12),
+                        OtpInput(
+                          onChanged: (val) => _lenderOtpController.text = val,
+                          enabled: lenderOtpSent,
+                          autoFocus: false,
+                        ),
+                        SizedBox(height: 12),
+                      ],
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: (lenderEmail != null &&
+                                      !isSendingLenderOtp &&
+                                      !lenderOtpVerified)
+                                  ? () => _sendOtp(lenderEmail!, true)
+                                  : null,
+                              child: isSendingLenderOtp
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text('Sending OTP...'),
+                                      ],
+                                    )
+                                  : lenderOtpVerified
+                                      ? Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.check_circle,
+                                                color: Colors.white, size: 16),
+                                            SizedBox(width: 8),
+                                            Text('Verified'),
+                                          ],
+                                        )
+                                      : lenderOtpExpired
+                                          ? Text('Resend OTP')
+                                          : Text('Send OTP'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: lenderOtpVerified
+                                    ? Colors.green
+                                    : Colors.orange,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Show expiration status
+                      if (lenderOtpSent && !lenderOtpVerified) ...[
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              lenderOtpExpired ? Icons.warning : Icons.timer,
                               color:
                                   lenderOtpExpired ? Colors.red : Colors.orange,
+                              size: 14,
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    // Show message near the button if it's related to lender OTP
-                    if (message != null &&
-                        (message!.contains('lender') ||
-                            message!.contains('Lender'))) ...[
-                      SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: isMessageError
-                              ? Colors.red.withOpacity(0.1)
-                              : Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: isMessageError
-                                ? Colors.red.withOpacity(0.3)
-                                : Colors.green.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isMessageError ? Icons.error : Icons.check_circle,
-                              color: isMessageError ? Colors.red : Colors.green,
-                              size: 16,
-                            ),
-                            SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                message!,
-                                style: TextStyle(
-                                  color: isMessageError
-                                      ? Colors.red[700]
-                                      : Colors.green[700],
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 12,
-                                ),
+                            SizedBox(width: 4),
+                            Text(
+                              lenderOtpExpired
+                                  ? 'OTP expired. Please resend.'
+                                  : 'OTP expires in ${lenderOtpSecondsLeft ~/ 60}:${(lenderOtpSecondsLeft % 60).toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: lenderOtpExpired
+                                    ? Colors.red
+                                    : Colors.orange,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
-                    if (lenderOtpSent && !lenderOtpVerified) ...[
-                      SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: (!isVerifyingLenderOtp)
-                            ? () => _verifyOtp(
-                                lenderEmail!, _lenderOtpController.text, true)
-                            : null,
-                        child: isVerifyingLenderOtp
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: Colors.white),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text('Verifying OTP...'),
-                                ],
-                              )
-                            : Text('Verify OTP'),
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              SizedBox(height: 16),
-              // Borrower OTP Section
-              Container(
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 1,
-                      blurRadius: 3,
-                      offset: Offset(0, 1),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.lock_clock,
-                            color: Color(0xFF00B4D8), size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Borrower OTP Verification',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
                       ],
-                    ),
-                    SizedBox(height: 8),
-                    Text('Email: ${borrowerEmail ?? ''}'),
-                    SizedBox(height: 8),
-                    if (borrowerOtpSent) ...[
-                      Text(
-                        'Enter the 6-digit OTP sent to ${borrowerEmail}:',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                      ),
-                      SizedBox(height: 12),
-                      OtpInput(
-                        onChanged: (val) => _borrowerOtpController.text = val,
-                        enabled: borrowerOtpSent,
-                        autoFocus: false,
-                      ),
-                      SizedBox(height: 12),
-                    ],
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: (borrowerEmail != null &&
-                                    !isSendingBorrowerOtp &&
-                                    !borrowerOtpVerified)
-                                ? () => _sendOtp(borrowerEmail!, false)
-                                : null,
-                            child: isSendingBorrowerOtp
-                                ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white),
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text('Sending OTP...'),
-                                    ],
-                                  )
-                                : borrowerOtpVerified
-                                    ? Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(Icons.check_circle,
-                                              color: Colors.white, size: 16),
-                                          SizedBox(width: 8),
-                                          Text('Verified'),
-                                        ],
-                                      )
-                                    : borrowerOtpExpired
-                                        ? Text('Resend OTP')
-                                        : Text('Send OTP'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: borrowerOtpVerified
-                                  ? Colors.green
-                                  : Colors.orange,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    // Show expiration status
-                    if (borrowerOtpSent && !borrowerOtpVerified) ...[
-                      SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Icon(
-                            borrowerOtpExpired ? Icons.warning : Icons.timer,
-                            color:
-                                borrowerOtpExpired ? Colors.red : Colors.orange,
-                            size: 14,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            borrowerOtpExpired
-                                ? 'OTP expired. Please resend.'
-                                : 'OTP expires in ${borrowerOtpSecondsLeft ~/ 60}:${(borrowerOtpSecondsLeft % 60).toString().padLeft(2, '0')}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: borrowerOtpExpired
-                                  ? Colors.red
-                                  : Colors.orange,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                    // Show message near the button if it's related to borrower OTP
-                    if (message != null &&
-                        (message!.contains('borrower') ||
-                            message!.contains('Borrower'))) ...[
-                      SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: isMessageError
-                              ? Colors.red.withOpacity(0.1)
-                              : Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
+                      // Show message near the button if it's related to lender OTP
+                      if (message != null &&
+                          (message!.contains('lender') ||
+                              message!.contains('Lender'))) ...[
+                        SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.all(8),
+                          decoration: BoxDecoration(
                             color: isMessageError
-                                ? Colors.red.withOpacity(0.3)
-                                : Colors.green.withOpacity(0.3),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isMessageError ? Icons.error : Icons.check_circle,
-                              color: isMessageError ? Colors.red : Colors.green,
-                              size: 16,
+                                ? Colors.red.withOpacity(0.1)
+                                : Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isMessageError
+                                  ? Colors.red.withOpacity(0.3)
+                                  : Colors.green.withOpacity(0.3),
                             ),
-                            SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                message!,
-                                style: TextStyle(
-                                  color: isMessageError
-                                      ? Colors.red[700]
-                                      : Colors.green[700],
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isMessageError
+                                    ? Icons.error
+                                    : Icons.check_circle,
+                                color:
+                                    isMessageError ? Colors.red : Colors.green,
+                                size: 16,
+                              ),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  message!,
+                                  style: TextStyle(
+                                    color: isMessageError
+                                        ? Colors.red[700]
+                                        : Colors.green[700],
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (borrowerOtpSent && !borrowerOtpVerified) ...[
-                      SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: (!isVerifyingBorrowerOtp)
-                            ? () => _verifyOtp(borrowerEmail!,
-                                _borrowerOtpController.text, false)
-                            : null,
-                        child: isVerifyingBorrowerOtp
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: Colors.white),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text('Verifying OTP...'),
-                                ],
-                              )
-                            : Text('Verify OTP'),
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              SizedBox(height: 20),
-              // Show general messages near the bottom buttons
-              if (message != null &&
-                  !message!.contains('lender') &&
-                  !message!.contains('Lender') &&
-                  !message!.contains('borrower') &&
-                  !message!.contains('Borrower')) ...[
-                Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isMessageError
-                        ? Colors.red.withOpacity(0.1)
-                        : Colors.green.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isMessageError
-                          ? Colors.red.withOpacity(0.3)
-                          : Colors.green.withOpacity(0.3),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        isMessageError ? Icons.error : Icons.check_circle,
-                        color: isMessageError ? Colors.red : Colors.green,
-                        size: 20,
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          message!,
-                          style: TextStyle(
-                            color: isMessageError
-                                ? Colors.red[700]
-                                : Colors.green[700],
-                            fontWeight: FontWeight.w500,
+                            ],
                           ),
                         ),
-                      ),
+                      ],
+                      if (lenderOtpSent && !lenderOtpVerified) ...[
+                        SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: (!isVerifyingLenderOtp)
+                              ? () => _verifyOtp(
+                                  lenderEmail!, _lenderOtpController.text, true)
+                              : null,
+                          child: isVerifyingLenderOtp
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Verifying OTP...'),
+                                  ],
+                                )
+                              : Text('Verify OTP'),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green),
+                        ),
+                      ],
                     ],
                   ),
                 ),
                 SizedBox(height: 16),
-              ],
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton(
-                    onPressed:
-                        isProcessing ? null : () => Navigator.pop(context),
-                    child: Text('Cancel'),
-                    style:
-                        ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                // Borrower OTP Section
+                Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        spreadRadius: 1,
+                        blurRadius: 3,
+                        offset: Offset(0, 1),
+                      ),
+                    ],
                   ),
-                  ElevatedButton(
-                    onPressed: (lenderOtpVerified &&
-                            borrowerOtpVerified &&
-                            !isProcessing)
-                        ? _processPartialPayment
-                        : null,
-                    child: isProcessing
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                          )
-                        : Text('Process Payment'),
-                    style:
-                        ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.lock_clock,
+                              color: Color(0xFF00B4D8), size: 20),
+                          SizedBox(width: 8),
+                          Text(
+                            'Borrower OTP Verification',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 8),
+                      Text('Email: ${borrowerEmail ?? ''}'),
+                      SizedBox(height: 8),
+                      if (borrowerOtpSent) ...[
+                        Text(
+                          'Enter the 6-digit OTP sent to ${borrowerEmail}:',
+                          style:
+                              TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        ),
+                        SizedBox(height: 12),
+                        OtpInput(
+                          onChanged: (val) => _borrowerOtpController.text = val,
+                          enabled: borrowerOtpSent,
+                          autoFocus: false,
+                        ),
+                        SizedBox(height: 12),
+                      ],
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: (borrowerEmail != null &&
+                                      !isSendingBorrowerOtp &&
+                                      !borrowerOtpVerified)
+                                  ? () => _sendOtp(borrowerEmail!, false)
+                                  : null,
+                              child: isSendingBorrowerOtp
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text('Sending OTP...'),
+                                      ],
+                                    )
+                                  : borrowerOtpVerified
+                                      ? Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.check_circle,
+                                                color: Colors.white, size: 16),
+                                            SizedBox(width: 8),
+                                            Text('Verified'),
+                                          ],
+                                        )
+                                      : borrowerOtpExpired
+                                          ? Text('Resend OTP')
+                                          : Text('Send OTP'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: borrowerOtpVerified
+                                    ? Colors.green
+                                    : Colors.orange,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Show expiration status
+                      if (borrowerOtpSent && !borrowerOtpVerified) ...[
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              borrowerOtpExpired ? Icons.warning : Icons.timer,
+                              color: borrowerOtpExpired
+                                  ? Colors.red
+                                  : Colors.orange,
+                              size: 14,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              borrowerOtpExpired
+                                  ? 'OTP expired. Please resend.'
+                                  : 'OTP expires in ${borrowerOtpSecondsLeft ~/ 60}:${(borrowerOtpSecondsLeft % 60).toString().padLeft(2, '0')}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: borrowerOtpExpired
+                                    ? Colors.red
+                                    : Colors.orange,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                      // Show message near the button if it's related to borrower OTP
+                      if (message != null &&
+                          (message!.contains('borrower') ||
+                              message!.contains('Borrower'))) ...[
+                        SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: isMessageError
+                                ? Colors.red.withOpacity(0.1)
+                                : Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isMessageError
+                                  ? Colors.red.withOpacity(0.3)
+                                  : Colors.green.withOpacity(0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isMessageError
+                                    ? Icons.error
+                                    : Icons.check_circle,
+                                color:
+                                    isMessageError ? Colors.red : Colors.green,
+                                size: 16,
+                              ),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  message!,
+                                  style: TextStyle(
+                                    color: isMessageError
+                                        ? Colors.red[700]
+                                        : Colors.green[700],
+                                    fontWeight: FontWeight.w500,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (borrowerOtpSent && !borrowerOtpVerified) ...[
+                        SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: (!isVerifyingBorrowerOtp)
+                              ? () => _verifyOtp(borrowerEmail!,
+                                  _borrowerOtpController.text, false)
+                              : null,
+                          child: isVerifyingBorrowerOtp
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2, color: Colors.white),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text('Verifying OTP...'),
+                                  ],
+                                )
+                              : Text('Verify OTP'),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green),
+                        ),
+                      ],
+                    ],
                   ),
+                ),
+                SizedBox(height: 20),
+                // Show general messages near the bottom buttons
+                if (message != null &&
+                    !message!.contains('lender') &&
+                    !message!.contains('Lender') &&
+                    !message!.contains('borrower') &&
+                    !message!.contains('Borrower')) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isMessageError
+                          ? Colors.red.withOpacity(0.1)
+                          : Colors.green.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isMessageError
+                            ? Colors.red.withOpacity(0.3)
+                            : Colors.green.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isMessageError ? Icons.error : Icons.check_circle,
+                          color: isMessageError ? Colors.red : Colors.green,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            message!,
+                            style: TextStyle(
+                              color: isMessageError
+                                  ? Colors.red[700]
+                                  : Colors.green[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
                 ],
-              ),
-            ],
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton(
+                      onPressed:
+                          isProcessing ? null : () => Navigator.pop(context),
+                      child: Text('Cancel'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green),
+                    ),
+                    ElevatedButton(
+                      onPressed: (lenderOtpVerified &&
+                              borrowerOtpVerified &&
+                              !isProcessing)
+                          ? _processPartialPayment
+                          : null,
+                      child: isProcessing
+                          ? SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text('Process Payment'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
-    );
+        ));
   }
 }
 
@@ -3001,205 +3030,204 @@ class PartialPaymentHistoryDialog extends StatelessWidget {
     final currency = transaction['currency'] ?? '';
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        width: 400,
-        constraints:
-            BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
-        padding: EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Row(
-              children: [
-                Icon(Icons.history, color: Colors.purple, size: 28),
-                SizedBox(width: 12),
-                Text(
-                  'Partial Payment History',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.purple[700],
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 20),
-
-            // Partial payments list
-            if (!isPartiallyPaid || partialPayments.isEmpty) ...[
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.history, color: Colors.grey, size: 64),
-                      SizedBox(height: 16),
-                      Text(
-                        'No partial payments as of now',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Partial payment history will appear here once payments are made.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[500],
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ] else ...[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Payment History',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.purple[700],
-                      ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: 400,
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8),
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Icon(Icons.history, color: Colors.purple, size: 28),
+                  SizedBox(width: 12),
+                  Text(
+                    'Partial Payment History',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.purple[700],
                     ),
-                    SizedBox(height: 12),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: partialPayments.length,
-                        itemBuilder: (context, index) {
-                          final payment = partialPayments[index];
-                          final isLast = index == partialPayments.length - 1;
+                  ),
+                ],
+              ),
+              SizedBox(height: 20),
 
-                          return Container(
-                            margin: EdgeInsets.only(bottom: isLast ? 0 : 12),
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: Colors.grey.withOpacity(0.3)),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.payment,
-                                      color: Colors.green,
-                                      size: 20,
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      'Payment ${index + 1}',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                    Spacer(),
-                                    Text(
-                                      '${payment['amount']} $currency',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: Colors.green[700],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Icon(Icons.person,
-                                        color: Colors.blue, size: 16),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Paid by: ${_getPaidByEmail(payment, transaction)}',
-                                      style: TextStyle(fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(Icons.calendar_today,
-                                        color: Colors.orange, size: 16),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(payment['paidAt']))}',
-                                      style: TextStyle(fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(Icons.access_time,
-                                        color: Colors.purple, size: 16),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Time: ${DateFormat('HH:mm').format(DateTime.parse(payment['paidAt']))}',
-                                      style: TextStyle(fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-                                if (payment['description'] != null &&
-                                    payment['description']
-                                        .toString()
-                                        .isNotEmpty) ...[
-                                  SizedBox(height: 4),
+              // Partial payments list
+              if (!isPartiallyPaid || partialPayments.isEmpty) ...[
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.history, color: Colors.grey, size: 64),
+                        SizedBox(height: 16),
+                        Text(
+                          'No partial payments as of now',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Partial payment history will appear here once payments are made.',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ] else ...[
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Payment History',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.purple[700],
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: partialPayments.length,
+                          itemBuilder: (context, index) {
+                            final payment = partialPayments[index];
+                            final isLast = index == partialPayments.length - 1;
+
+                            return Container(
+                              margin: EdgeInsets.only(bottom: isLast ? 0 : 12),
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Colors.grey.withOpacity(0.3)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
                                   Row(
                                     children: [
-                                      Icon(Icons.description,
-                                          color: Colors.purple, size: 16),
-                                      SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          'Note: ${payment['description']}',
-                                          style: TextStyle(
-                                              fontSize: 14,
-                                              fontStyle: FontStyle.italic),
+                                      Icon(
+                                        Icons.payment,
+                                        color: Colors.green,
+                                        size: 20,
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Payment ${index + 1}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      Spacer(),
+                                      Text(
+                                        '${payment['amount']} $currency',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: Colors.green[700],
                                         ),
                                       ),
                                     ],
                                   ),
+                                  SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.person,
+                                          color: Colors.blue, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Paid by: ${_getPaidByEmail(payment, transaction)}',
+                                        style: TextStyle(fontSize: 14),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.calendar_today,
+                                          color: Colors.orange, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Date: ${DateFormat('yyyy-MM-dd').format(DateTime.parse(payment['paidAt']))}',
+                                        style: TextStyle(fontSize: 14),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.access_time,
+                                          color: Colors.purple, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Time: ${DateFormat('HH:mm').format(DateTime.parse(payment['paidAt']))}',
+                                        style: TextStyle(fontSize: 14),
+                                      ),
+                                    ],
+                                  ),
+                                  if (payment['description'] != null &&
+                                      payment['description']
+                                          .toString()
+                                          .isNotEmpty) ...[
+                                    SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.description,
+                                            color: Colors.purple, size: 16),
+                                        SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            'Note: ${payment['description']}',
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                fontStyle: FontStyle.italic),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ],
-                              ],
-                            ),
-                          );
-                        },
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+              ],
+              SizedBox(height: 20),
+
+              // Close button
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Close'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                 ),
               ),
             ],
-            SizedBox(height: 20),
-
-            // Close button
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Close'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+          ),
+        ));
   }
 }
 
@@ -3256,114 +3284,114 @@ class _AttachmentCarouselDialogState extends State<_AttachmentCarouselDialog> {
   Widget build(BuildContext context) {
     final attachments = widget.attachments;
     return Dialog(
-      backgroundColor: Colors.black,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        width: 350,
-        height: 420,
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: attachments.length,
-                onPageChanged: (i) => setState(() => _currentIndex = i),
-                itemBuilder: (context, i) {
-                  final file = attachments[i];
-                  if (file['type'] != null &&
-                      file['type'].toString().startsWith('image/')) {
-                    final bytes = base64Decode(file['data']);
-                    return InteractiveViewer(
-                      child: Image.memory(bytes, fit: BoxFit.contain),
-                    );
-                  } else if (file['type'] == 'application/pdf') {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.picture_as_pdf,
-                              size: 80, color: Colors.red),
-                          SizedBox(height: 16),
-                          Text(file['name'] ?? 'PDF',
-                              style: TextStyle(color: Colors.white)),
-                          SizedBox(height: 16),
-                          ElevatedButton.icon(
-                            icon: Icon(Icons.open_in_new),
-                            label: Text('Open PDF'),
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.teal),
-                            onPressed: () async {
-                              final bytes = base64Decode(file['data']);
-                              final tempDir = await getTemporaryDirectory();
-                              final tempFile = File(
-                                  '${tempDir.path}/${file['name'] ?? 'document.pdf'}');
-                              await tempFile.writeAsBytes(bytes, flush: true);
-                              await OpenFile.open(tempFile.path);
-                            },
-                          ),
-                        ],
-                      ),
-                    );
-                  } else {
-                    return Center(
-                        child: Text('Unsupported file',
-                            style: TextStyle(color: Colors.white)));
-                  }
-                },
-              ),
-            ),
-            SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                  attachments.length,
-                  (i) => Container(
-                        margin: EdgeInsets.symmetric(horizontal: 4),
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color:
-                              i == _currentIndex ? Colors.teal : Colors.white24,
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: 350,
+          height: 420,
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Expanded(
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: attachments.length,
+                  onPageChanged: (i) => setState(() => _currentIndex = i),
+                  itemBuilder: (context, i) {
+                    final file = attachments[i];
+                    if (file['type'] != null &&
+                        file['type'].toString().startsWith('image/')) {
+                      final bytes = base64Decode(file['data']);
+                      return InteractiveViewer(
+                        child: Image.memory(bytes, fit: BoxFit.contain),
+                      );
+                    } else if (file['type'] == 'application/pdf') {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.picture_as_pdf,
+                                size: 80, color: Colors.red),
+                            SizedBox(height: 16),
+                            Text(file['name'] ?? 'PDF',
+                                style: TextStyle(color: Colors.white)),
+                            SizedBox(height: 16),
+                            ElevatedButton.icon(
+                              icon: Icon(Icons.open_in_new),
+                              label: Text('Open PDF'),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal),
+                              onPressed: () async {
+                                final bytes = base64Decode(file['data']);
+                                final tempDir = await getTemporaryDirectory();
+                                final tempFile = File(
+                                    '${tempDir.path}/${file['name'] ?? 'document.pdf'}');
+                                await tempFile.writeAsBytes(bytes, flush: true);
+                                await OpenFile.open(tempFile.path);
+                              },
+                            ),
+                          ],
                         ),
-                      )),
-            ),
-            SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                IconButton(
-                  icon: Icon(Icons.arrow_back_ios, color: Colors.white),
-                  onPressed: () {
-                    int newIndex = (_currentIndex - 1 + attachments.length) %
-                        attachments.length;
-                    _pageController?.animateToPage(newIndex,
-                        duration: Duration(milliseconds: 300),
-                        curve: Curves.ease);
+                      );
+                    } else {
+                      return Center(
+                          child: Text('Unsupported file',
+                              style: TextStyle(color: Colors.white)));
+                    }
                   },
                 ),
-                IconButton(
-                  icon: Icon(Icons.arrow_forward_ios, color: Colors.white),
-                  onPressed: () {
-                    int newIndex = (_currentIndex + 1) % attachments.length;
-                    _pageController?.animateToPage(newIndex,
-                        duration: Duration(milliseconds: 300),
-                        curve: Curves.ease);
-                  },
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Close'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
-            ),
-          ],
-        ),
-      ),
-    );
+              ),
+              SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                    attachments.length,
+                    (i) => Container(
+                          margin: EdgeInsets.symmetric(horizontal: 4),
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: i == _currentIndex
+                                ? Colors.teal
+                                : Colors.white24,
+                          ),
+                        )),
+              ),
+              SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.arrow_back_ios, color: Colors.white),
+                    onPressed: () {
+                      int newIndex = (_currentIndex - 1 + attachments.length) %
+                          attachments.length;
+                      _pageController?.animateToPage(newIndex,
+                          duration: Duration(milliseconds: 300),
+                          curve: Curves.ease);
+                    },
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.arrow_forward_ios, color: Colors.white),
+                    onPressed: () {
+                      int newIndex = (_currentIndex + 1) % attachments.length;
+                      _pageController?.animateToPage(newIndex,
+                          duration: Duration(milliseconds: 300),
+                          curve: Curves.ease);
+                    },
+                  ),
+                ],
+              ),
+              SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Close'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+              ),
+            ],
+          ),
+        ));
   }
 }
 

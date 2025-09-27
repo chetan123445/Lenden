@@ -54,15 +54,42 @@ exports.getAdminProfileImage = async (req, res) => {
 exports.getUserProfileByEmail = async (req, res) => {
   try {
     const { email } = req.query;
-    if (!email) return res.status(400).json({ error: 'Email is required' });
-    const user = await User.findOne({ email }).select('-password');
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    const requesterEmail = req.user?.email;
+
+    if (!email) {
+      console.error('Email query param missing');
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Case-insensitive search for email
+    const user = await User.findOne({ email: { $regex: new RegExp('^' + email + '$', 'i') } }).select('-password');
+
+    if (!user) {
+      console.error(`User not found for email: ${email}`);
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const privacySettings = user.privacySettings || {};
+
+    // If profile is private and requester is not the user, return only minimal info
+    if (
+      privacySettings.profileVisibility === false &&
+      (!requesterEmail || email.toLowerCase() !== requesterEmail.toLowerCase())
+    ) {
+      return res.json({
+        name: 'Private User',
+        profileIsPrivate: true
+        // Do not include email, phone, gender, or profileImage
+      });
+    }
+
     const userObj = user.toObject();
     if (userObj.profileImage) {
       userObj.profileImage = `${req.protocol}://${req.get('host')}/api/users/${userObj._id}/profile-image`;
     }
     res.json(userObj);
   } catch (err) {
+    console.error('Error in getUserProfileByEmail:', err);
     res.status(500).json({ error: err.message });
   }
-}; 
+};
