@@ -1,8 +1,11 @@
 const User = require('../models/user');
 const Admin = require('../models/admin');
+const Transaction = require('../models/transaction');
+const GroupTransaction = require('../models/groupTransaction');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { sendAlternativeEmailOTP: sendEmail } = require('../utils/alternativeEmailOtp');
+const { sendAccountDeletedEmail } = require('../utils/accountDeletedEmail');
 
 // Change Password
 const changePassword = async (req, res) => {
@@ -414,50 +417,99 @@ const updateAccountInformation = async (req, res) => {
   }
 };
 
-// Data Management
-const downloadUserData = async (req, res) => {
+const deleteAccount = async (req, res) => {
   try {
     const userId = req.user._id;
-
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+    const userEmail = user.email;
 
-    // In a real implementation, you would:
-    // 1. Generate a comprehensive data export
-    // 2. Send it via email or provide a download link
-    // 3. Log the data request for compliance
-
-    // For now, we'll just acknowledge the request
-    res.json({ 
-      message: 'Data download request received. You will receive an email with your data shortly.',
-      requestId: `DATA_${Date.now()}_${userId}`
+    // 1. Check for uncleared transactions (as lender or borrower)
+    // Transaction is uncleared if either userCleared or counterpartyCleared is false and remainingAmount > 0
+    const unclearedTx = await Transaction.findOne({
+      $and: [
+        {
+          $or: [
+            { userEmail: userEmail },
+            { counterpartyEmail: userEmail }
+          ]
+        },
+        {
+          $or: [
+            { userCleared: false },
+            { counterpartyCleared: false }
+          ]
+        },
+        { remainingAmount: { $gt: 0 } }
+      ]
     });
-  } catch (error) {
-    console.error('Error processing data download request:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-};
 
-const deleteAccount = async (req, res) => {
-  try {
-    const userId = req.user._id;
-
-    // In a real implementation, you would:
-    // 1. Anonymize or delete all user data
-    // 2. Remove from all related collections
-    // 3. Send confirmation email
-    // 4. Log the deletion for compliance
-
-    const user = await User.findByIdAndDelete(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    if (unclearedTx) {
+      let role = '';
+      if (unclearedTx.userEmail === userEmail) role = unclearedTx.role; // 'lender' or 'borrower'
+      if (unclearedTx.counterpartyEmail === userEmail) role = unclearedTx.role === 'lender' ? 'borrower' : 'lender';
+      return res.status(400).json({
+        message: `Cannot delete account. You still have an uncleared transaction as ${role}. Please clear all transactions before deleting your account.`
+      });
     }
 
-    res.json({ message: 'Account deleted successfully' });
+    // 2. Check for unsettled group splits
+    // For each group, for each expense, for each split, if split.user matches userId and split.amount > 0 and not settled
+    const groupTxs = await GroupTransaction.find({
+      'expenses.split.user': userId
+    });
+
+    let unsettledSplit = false;
+    let unsettledDetails = null;
+
+    for (const group of groupTxs) {
+      for (const expense of group.expenses || []) {
+        for (const split of expense.split || []) {
+          if (
+            split.user.toString() === userId.toString() &&
+            split.amount > 0 &&
+            (!split.settled || split.settled === false)
+          ) {
+            unsettledSplit = true;
+            unsettledDetails = {
+              groupTitle: group.title,
+              expenseDescription: expense.description,
+              amount: split.amount
+            };
+            break;
+          }
+        }
+        if (unsettledSplit) break;
+      }
+      if (unsettledSplit) break;
+    }
+
+    if (unsettledSplit) {
+      return res.status(400).json({
+        message: `Cannot delete account. You have unsettled group expenses (e.g., group: "${unsettledDetails.groupTitle}", expense: "${unsettledDetails.expenseDescription}", amount: ${unsettledDetails.amount}). Please settle all group splits before deleting your account.`
+      });
+    }
+
+    // Passed all checks, mark user as deactivated
+    user.deactivatedAccount = true;
+    await user.save();
+
+    // Send account deactivated email
+    try {
+      await sendAccountDeletedEmail({
+        to: userEmail,
+        name: user.name || user.username || 'User',
+        deactivated: true
+      });
+    } catch (e) {
+      console.error('Failed to send account deactivated email:', e);
+    }
+
+    res.json({ message: 'Account deactivated successfully.' });
   } catch (error) {
-    console.error('Error deleting account:', error);
+    console.error('Error deactivating account:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 };
@@ -606,7 +658,6 @@ module.exports = {
   getPrivacySettings,
   updatePrivacySettings,
   updateAccountInformation,
-  downloadUserData,
   deleteAccount,
   getAdminNotificationSettings,
   updateAdminNotificationSettings,

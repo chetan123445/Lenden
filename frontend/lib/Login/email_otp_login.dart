@@ -80,6 +80,15 @@ class EmailOtpLogin {
           'userType': userType,
           'token': token,
         };
+      } else if (otpVerifyRes['status'] == 403 &&
+          otpVerifyRes['data']['canRecover'] == true) {
+        return {
+          'success': false,
+          'canRecover': true,
+          'error': otpVerifyRes['data']['error'],
+          'email': otpVerifyRes['data']['email'],
+          'username': otpVerifyRes['data']['username'],
+        };
       } else {
         print('❌ OTP verification failed: ${otpVerifyRes['data']['error']}');
         return {

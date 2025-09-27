@@ -4,8 +4,8 @@ const Admin = require('../models/admin');
 exports.getUserProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password');
-    if (!user) return res.status(404).json({ error: 'User not found' });
     const userObj = user.toObject();
+    userObj.deactivatedAccount = user.deactivatedAccount;
     if (userObj.profileImage) {
       userObj.profileImage = `${req.protocol}://${req.get('host')}/api/users/${userObj._id}/profile-image`;
     }
@@ -69,6 +69,7 @@ exports.getUserProfileByEmail = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
+
     const privacySettings = user.privacySettings || {};
 
     // If profile is private and requester is not the user, return only minimal info
@@ -85,6 +86,7 @@ exports.getUserProfileByEmail = async (req, res) => {
 
     // Prepare user object for response
     const userObj = user.toObject();
+    userObj.deactivatedAccount = user.deactivatedAccount;
 
     // Hide phone if contactSharing is false and requester is not the user
     if (

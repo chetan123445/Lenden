@@ -57,6 +57,7 @@ module.exports = (io) => {
   router.post('/users/send-reset-otp', forgotPasswordController.sendResetOtp);
   router.post('/users/verify-reset-otp', forgotPasswordController.verifyResetOtp);
   router.post('/users/reset-password', forgotPasswordController.resetPassword);
+  router.post('/users/recover-account', userController.recoverAccount);
   // All authenticated user routes should use sessionTimeout after auth
   router.get('/users/me', auth, sessionTimeout, profileController.getUserProfile);
   router.put('/users/me', auth, sessionTimeout, upload.single('profileImage'), editProfileController.updateUserProfile);
@@ -217,7 +218,6 @@ module.exports = (io) => {
   router.put('/users/account-information', auth, settingsController.updateAccountInformation);
 
   // Data Management
-  router.get('/users/download-data', auth, sessionTimeout, settingsController.downloadUserData);
   router.delete('/users/delete-account', auth, sessionTimeout, settingsController.deleteAccount);
 
   // Admin routes

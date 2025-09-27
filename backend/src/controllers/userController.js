@@ -135,6 +135,14 @@ exports.login = async (req, res) => {
     
     // Check if it's a user
     if (user) {
+      if (user.deactivatedAccount) {
+        return res.status(403).json({
+          error: 'This account has been deactivated. Would you like to recover it?',
+          canRecover: true,
+          email: user.email,
+          username: user.username
+        });
+      }
       console.log('🔑 Comparing passwords for user...');
       console.log('🔑 Input password length:', password.length);
       console.log('🔑 Stored password hash length:', user.password.length);
@@ -361,6 +369,14 @@ exports.verifyLoginOtp = async (req, res) => {
         console.log('❌ User not found in database for email:', email);
         return res.status(404).json({ error: 'User not found' });
       }
+      if (user.deactivatedAccount) {
+        return res.status(403).json({
+          error: 'This account has been deactivated. Would you like to recover it?',
+          canRecover: true,
+          email: user.email,
+          username: user.username
+        });
+      }
       
       console.log('✅ User found in database:', { id: user._id, name: user.name, email: user.email });
       
@@ -424,5 +440,32 @@ exports.logoutDevice = async (req, res) => {
     res.json({ message: 'Device logged out successfully' });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+};
+
+// Recover deactivated account
+exports.recoverAccount = async (req, res) => {
+  try {
+    const { emailOrUsername } = req.body;
+    if (!emailOrUsername) {
+      return res.status(400).json({ error: 'Email or username is required.' });
+    }
+    const user = await User.findOne({
+      $or: [
+        { email: emailOrUsername.trim().toLowerCase() },
+        { username: emailOrUsername }
+      ]
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found.' });
+    }
+    if (!user.deactivatedAccount) {
+      return res.status(400).json({ error: 'Account is already active.' });
+    }
+    user.deactivatedAccount = false;
+    await user.save();
+    res.json({ message: 'Account recovered successfully. You can now log in.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };

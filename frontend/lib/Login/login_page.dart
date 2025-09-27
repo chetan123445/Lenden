@@ -21,6 +21,8 @@ class UserLoginPage extends StatefulWidget {
 class _UserLoginPageState extends State<UserLoginPage> {
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _isDeactivated = false;
+  Map<String, dynamic>? _recoverInfo;
 
   // Login method selection
   String _loginMethod = 'Email + Password';
@@ -75,6 +77,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
     dynamic userOrAdmin;
     String? userType;
     String? token;
+    Map<String, dynamic>? recoverInfo;
     try {
       if (_loginMethod == 'Email + Password') {
         final result = await EmailPasswordLogin.login(
@@ -90,6 +93,9 @@ class _UserLoginPageState extends State<UserLoginPage> {
           token = result['token'];
         } else {
           error = result['error'];
+          if (result['canRecover'] == true) {
+            recoverInfo = result;
+          }
         }
       } else if (_loginMethod == 'Username + Password') {
         final result = await UsernamePasswordLogin.login(
@@ -105,6 +111,9 @@ class _UserLoginPageState extends State<UserLoginPage> {
           token = result['token'];
         } else {
           error = result['error'];
+          if (result['canRecover'] == true) {
+            recoverInfo = result;
+          }
         }
       } else if (_loginMethod == 'Email + OTP') {
         if (!_otpSent) {
@@ -252,6 +261,14 @@ class _UserLoginPageState extends State<UserLoginPage> {
         } else {
           Navigator.pushReplacementNamed(context, '/user/dashboard');
         }
+      } else if (recoverInfo != null) {
+        setState(() {
+          _isDeactivated = true;
+          _recoverInfo = recoverInfo;
+        });
+        // ScaffoldMessenger.of(context).showSnackBar(
+        //   SnackBar(content: Text(error ?? 'This account is deactivated.')),
+        // );
       } else if (error != null) {
         if (error == 'Incorrect password') {
           _showIncorrectPasswordDialog();
@@ -261,6 +278,79 @@ class _UserLoginPageState extends State<UserLoginPage> {
       }
     } catch (e) {
       _showErrorDialog('Login failed. Please try again.');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Widget _buildDeactivatedAccountWidget() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.red.withOpacity(0.5), width: 1),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'This account has been deactivated.',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Would you like to recover it and log in?',
+            style: TextStyle(fontSize: 14, color: Colors.black87),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => _recoverAccountAndLogin(_recoverInfo!),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+            ),
+            child: _isLoading
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      ),
+                      SizedBox(width: 10),
+                      Text('Recovering...', style: TextStyle(fontSize: 16, color: Colors.white)),
+                    ],
+                  )
+                : const Text('Recover & Login', style: TextStyle(fontSize: 16, color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _recoverAccountAndLogin(Map<String, dynamic> recoverInfo) async {
+    setState(() => _isLoading = true);
+    try {
+      final emailOrUsername = recoverInfo['email'] ?? recoverInfo['username'];
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/users/recover-account'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'emailOrUsername': emailOrUsername}),
+      );
+      if (response.statusCode == 200) {
+        // After recovery, try login again
+        _login();
+      } else {
+        final errorData = json.decode(response.body);
+        _showErrorDialog(errorData['error'] ?? 'Failed to recover account');
+      }
+    } catch (e) {
+      _showErrorDialog('Failed to recover account. Please try again.');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -357,6 +447,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
                           style: TextStyle(fontSize: 16, color: Colors.grey),
                           textAlign: TextAlign.center),
                       const SizedBox(height: 32),
+                      if (_isDeactivated) _buildDeactivatedAccountWidget(),
                       // Dropdown for login method
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -542,11 +633,21 @@ class _UserLoginPageState extends State<UserLoginPage> {
                                     const EdgeInsets.symmetric(vertical: 16),
                               ),
                               child: _isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2, color: Colors.white))
+                                  ? Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2, color: Colors.white),
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text('Sending OTP...',
+                                            style: TextStyle(
+                                                fontSize: 18, color: Colors.white)),
+                                      ],
+                                    )
                                   : const Text('Send OTP',
                                       style: TextStyle(
                                           fontSize: 18, color: Colors.white)),
@@ -598,11 +699,21 @@ class _UserLoginPageState extends State<UserLoginPage> {
                                     const EdgeInsets.symmetric(vertical: 16),
                               ),
                               child: _isVerifyingOtp
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2, color: Colors.white))
+                                  ? Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2, color: Colors.white),
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text('Verifying OTP...',
+                                            style: TextStyle(
+                                                fontSize: 18, color: Colors.white)),
+                                      ],
+                                    )
                                   : const Text('Verify OTP',
                                       style: TextStyle(
                                           fontSize: 18, color: Colors.white)),
@@ -620,7 +731,11 @@ class _UserLoginPageState extends State<UserLoginPage> {
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: _isLoading ? null : _login,
+                          onPressed: _isLoading
+                              ? null
+                              : (_isDeactivated
+                                  ? () => _recoverAccountAndLogin(_recoverInfo!)
+                                  : _login),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF00B4D8),
                             shape: RoundedRectangleBorder(
@@ -628,17 +743,26 @@ class _UserLoginPageState extends State<UserLoginPage> {
                             padding: const EdgeInsets.symmetric(vertical: 16),
                           ),
                           child: _isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2, color: Colors.white))
-                              : const Text('Login',
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    ),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      _isDeactivated ? 'Recovering...' : 'Logging in...',
+                                      style: TextStyle(fontSize: 18, color: Colors.white),
+                                    ),
+                                  ],
+                                )
+                              : Text(_isDeactivated ? 'Recover & Login' : 'Login',
                                   style: TextStyle(
                                       fontSize: 18, color: Colors.white)),
                         ),
                       ),
-                      const SizedBox(height: 18),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

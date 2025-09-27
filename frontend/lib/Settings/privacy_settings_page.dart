@@ -126,36 +126,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     }
   }
 
-  Future<void> _downloadUserData() async {
-    try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/download-data'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        if (mounted) {
-          CustomWarningWidget.showAnimatedSuccess(
-              context, 'Data download initiated. Check your email.');
-        }
-      } else {
-        final errorData = json.decode(response.body);
-        if (mounted) {
-          CustomWarningWidget.showAnimatedError(
-              context, errorData['message'] ?? 'Failed to download data');
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        CustomWarningWidget.showAnimatedError(
-            context, 'Error: ${e.toString()}');
-      }
-    }
-  }
-
   Future<void> _deleteAccount() async {
     showDialog(
       context: context,
@@ -165,14 +135,14 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
             borderRadius: BorderRadius.circular(16),
           ),
           title: const Text(
-            'Delete Account',
+            'Deactivate Account',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: Colors.red,
             ),
           ),
           content: const Text(
-            'Are you sure you want to delete your account? This action is permanent and cannot be undone. All your data will be permanently deleted.',
+            'Are you sure you want to deactivate your account? This action is reversible. All your data will be preserved, but you will not be able to use your account until you recover it.',
             style: TextStyle(color: Colors.black87),
           ),
           actions: [
@@ -195,7 +165,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                 ),
               ),
               child: const Text(
-                'Delete Account',
+                'Deactivate Account',
                 style: TextStyle(color: Colors.white),
               ),
             ),
@@ -206,6 +176,31 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   }
 
   Future<void> _performAccountDeletion() async {
+    // Show progress dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Row(
+          children: const [
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+            SizedBox(width: 18),
+            Expanded(
+              child: Text(
+                'Deactivating account...',
+                style: TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final response = await http.delete(
@@ -215,12 +210,14 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
         },
       );
 
+      Navigator.of(context, rootNavigator: true).pop(); // Close progress dialog
+
       if (response.statusCode == 200) {
         if (mounted) {
-          session.logout();
+          await session.logout();
           Navigator.of(context).pushReplacementNamed('/');
           CustomWarningWidget.showAnimatedSuccess(
-              context, 'Account deleted successfully');
+              context, 'Account deactivated successfully');
         }
       } else {
         final errorData = json.decode(response.body);
@@ -230,9 +227,10 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
         }
       }
     } catch (e) {
+      Navigator.of(context, rootNavigator: true).pop(); // Close progress dialog
       if (mounted) {
-        CustomWarningWidget.showAnimatedError(
-            context, 'Error: ${e.toString()}');
+        CustomWarningWidget.showAnimatedError(context,
+            'Network error: Unable to delete account. Please try again.');
       }
     }
   }
@@ -513,17 +511,11 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
 
                   // Data Management Section
                   _buildSettingsSection(
-                    'Data Management',
+                    'Account Management',
                     [
                       _buildActionTile(
-                        'Download My Data',
-                        'Get a copy of all your data',
-                        Icons.download_outlined,
-                        () => _downloadUserData(),
-                      ),
-                      _buildActionTile(
-                        'Delete Account',
-                        'Permanently delete your account and all data',
+                        'Deactivate Account',
+                        'Temporarily deactivate your account. You can recover it later.',
                         Icons.delete_forever_outlined,
                         () => _deleteAccount(),
                         isDestructive: true,

@@ -897,6 +897,14 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                           AssetImage('assets/Other.png'),
                                     );
                                   }
+                                  if (profile['deactivatedAccount'] == true) {
+                                    return _StylishProfileDialog(
+                                      title: 'Counterparty Info',
+                                      name: 'This account is Deactivated.',
+                                      avatarProvider:
+                                          AssetImage('assets/Other.png'),
+                                    );
+                                  }
                                   if (profile['profileIsPrivate'] == true) {
                                     return _StylishProfileDialog(
                                       title: 'Counterparty Info',

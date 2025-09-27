@@ -52,6 +52,14 @@ class UsernamePasswordLogin {
             'userType': 'admin'
           };
         }
+      } else if (res['status'] == 403 && res['data']['canRecover'] == true) {
+        return {
+          'success': false,
+          'canRecover': true,
+          'error': res['data']['error'],
+          'email': res['data']['email'],
+          'username': res['data']['username'],
+        };
       }
       print('❌ Login failed: ${res['data']['error']}');
       return {'success': false, 'error': res['data']['error']};
