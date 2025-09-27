@@ -83,7 +83,17 @@ exports.getUserProfileByEmail = async (req, res) => {
       });
     }
 
+    // Prepare user object for response
     const userObj = user.toObject();
+
+    // Hide phone if contactSharing is false and requester is not the user
+    if (
+      privacySettings.contactSharing === false &&
+      (!requesterEmail || email.toLowerCase() !== requesterEmail.toLowerCase())
+    ) {
+      userObj.phone = undefined;
+    }
+
     if (userObj.profileImage) {
       userObj.profileImage = `${req.protocol}://${req.get('host')}/api/users/${userObj._id}/profile-image`;
     }

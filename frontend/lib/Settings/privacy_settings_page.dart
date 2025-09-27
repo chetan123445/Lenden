@@ -19,7 +19,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
 
   // Privacy settings
   bool _profileVisibility = true;
-  bool _transactionHistory = true;
   bool _contactSharing = false;
   bool _analyticsSharing = true;
   bool _marketingEmails = false;
@@ -55,7 +54,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
         final settings = json.decode(response.body);
         setState(() {
           _profileVisibility = settings['profileVisibility'] ?? true;
-          _transactionHistory = settings['transactionHistory'] ?? true;
           _contactSharing = settings['contactSharing'] ?? false;
           _analyticsSharing = settings['analyticsSharing'] ?? true;
           _marketingEmails = settings['marketingEmails'] ?? false;
@@ -95,7 +93,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
         },
         body: json.encode({
           'profileVisibility': _profileVisibility,
-          'transactionHistory': _transactionHistory,
           'contactSharing': _contactSharing,
           'analyticsSharing': _analyticsSharing,
           'marketingEmails': _marketingEmails,
@@ -348,15 +345,8 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                         (value) => setState(() => _profileVisibility = value),
                       ),
                       _buildSwitchTile(
-                        'Transaction History',
-                        'Share transaction history with trusted contacts',
-                        Icons.history,
-                        _transactionHistory,
-                        (value) => setState(() => _transactionHistory = value),
-                      ),
-                      _buildSwitchTile(
                         'Contact Sharing',
-                        'Allow the app to access your contacts',
+                        'Allow others to see your contact number',
                         Icons.contacts_outlined,
                         _contactSharing,
                         (value) => setState(() => _contactSharing = value),
