@@ -10,6 +10,7 @@ module.exports = (io) => {
   const profileController = require('../controllers/profileController');
   const editProfileController = require('../controllers/editProfileController');
   const auth = require('../middleware/auth');
+  const sessionTimeout = require('../middleware/sessionTimeout');
   const multer = require('multer');
   const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 } // 10 MB per file (industry standard for images/PDFs)
@@ -56,11 +57,14 @@ module.exports = (io) => {
   router.post('/users/send-reset-otp', forgotPasswordController.sendResetOtp);
   router.post('/users/verify-reset-otp', forgotPasswordController.verifyResetOtp);
   router.post('/users/reset-password', forgotPasswordController.resetPassword);
-  router.get('/users/me', auth, profileController.getUserProfile);
-  router.put('/users/me', auth, upload.single('profileImage'), editProfileController.updateUserProfile);
+  // All authenticated user routes should use sessionTimeout after auth
+  router.get('/users/me', auth, sessionTimeout, profileController.getUserProfile);
+  router.put('/users/me', auth, sessionTimeout, upload.single('profileImage'), editProfileController.updateUserProfile);
   // Serve user profile image
   router.get('/users/:id/profile-image', profileController.getUserProfileImage);
   router.get('/users/profile-by-email', profileController.getUserProfileByEmail);
+  router.get('/users/devices', auth, sessionTimeout, userController.listDevices);
+  router.post('/users/logout-device', auth, sessionTimeout, userController.logoutDevice);
 
   // Support routes (User)
   router.post('/support/queries', auth, supportController.createSupportQuery);
@@ -206,15 +210,15 @@ module.exports = (io) => {
   router.put('/users/notification-settings', auth, settingsController.updateNotificationSettings);
 
   // Privacy Settings
-  router.get('/users/privacy-settings', auth, settingsController.getPrivacySettings);
-  router.put('/users/privacy-settings', auth, settingsController.updatePrivacySettings);
+  router.get('/users/privacy-settings', auth, sessionTimeout, settingsController.getPrivacySettings);
+  router.put('/users/privacy-settings', auth, sessionTimeout, settingsController.updatePrivacySettings);
 
   // Account Information
   router.put('/users/account-information', auth, settingsController.updateAccountInformation);
 
   // Data Management
-  router.get('/users/download-data', auth, settingsController.downloadUserData);
-  router.delete('/users/delete-account', auth, settingsController.deleteAccount);
+  router.get('/users/download-data', auth, sessionTimeout, settingsController.downloadUserData);
+  router.delete('/users/delete-account', auth, sessionTimeout, settingsController.deleteAccount);
 
   // Admin routes
   // User Management

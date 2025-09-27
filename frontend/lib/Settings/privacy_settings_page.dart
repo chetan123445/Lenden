@@ -23,15 +23,19 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   bool _analyticsSharing = true;
 
   // Security settings
-  bool _twoFactorAuth = false;
   bool _loginNotifications = true;
   bool _deviceManagement = true;
   String _sessionTimeout = '30'; // minutes
+
+  List<Map<String, dynamic>> _devices = [];
+  String? _currentDeviceId;
 
   @override
   void initState() {
     super.initState();
     _loadPrivacySettings();
+    _loadDevices();
+    _loadCurrentDeviceId();
   }
 
   Future<void> _loadPrivacySettings() async {
@@ -54,7 +58,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
           _profileVisibility = settings['profileVisibility'] ?? true;
           _contactSharing = settings['contactSharing'] ?? false;
           _analyticsSharing = settings['analyticsSharing'] ?? true;
-          _twoFactorAuth = settings['twoFactorAuth'] ?? false;
           _loginNotifications = settings['loginNotifications'] ?? true;
           _deviceManagement = settings['deviceManagement'] ?? true;
           _sessionTimeout = settings['sessionTimeout']?.toString() ?? '30';
@@ -91,7 +94,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
           'profileVisibility': _profileVisibility,
           'contactSharing': _contactSharing,
           'analyticsSharing': _analyticsSharing,
-          'twoFactorAuth': _twoFactorAuth,
           'loginNotifications': _loginNotifications,
           'deviceManagement': _deviceManagement,
           'sessionTimeout': int.parse(_sessionTimeout),
@@ -235,6 +237,77 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
     }
   }
 
+  Future<void> _loadDevices() async {
+    try {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/users/devices'),
+        headers: {
+          'Authorization': 'Bearer ${session.token}',
+        },
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _devices = List<Map<String, dynamic>>.from(data['devices'] ?? []);
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  Future<void> _logoutDevice(String deviceId) async {
+    try {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/users/logout-device'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${session.token}',
+        },
+        body: json.encode({'deviceId': deviceId}),
+      );
+      if (response.statusCode == 200) {
+        if (mounted) {
+          // If logging out current device, also log out locally
+          if (deviceId == _currentDeviceId) {
+            await session.logout();
+            if (Navigator.canPop(context)) {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            }
+            Navigator.of(context).pushReplacementNamed('/');
+            CustomWarningWidget.showAnimatedSuccess(
+                context, 'Logged out from this device');
+            return;
+          }
+          CustomWarningWidget.showAnimatedSuccess(context, 'Device logged out');
+          _loadDevices();
+        }
+      } else {
+        final errorData = json.decode(response.body);
+        if (mounted) {
+          CustomWarningWidget.showAnimatedError(
+              context, errorData['error'] ?? 'Failed to logout device');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        CustomWarningWidget.showAnimatedError(
+            context, 'Error: ${e.toString()}');
+      }
+    }
+  }
+
+  Future<void> _loadCurrentDeviceId() async {
+    // Try to get deviceId from local storage
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final deviceId = await session.getDeviceId();
+    setState(() {
+      _currentDeviceId = deviceId;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -362,15 +435,8 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                     'Security Settings',
                     [
                       _buildSwitchTile(
-                        'Two-Factor Authentication',
-                        'Add an extra layer of security to your account',
-                        Icons.security,
-                        _twoFactorAuth,
-                        (value) => setState(() => _twoFactorAuth = value),
-                      ),
-                      _buildSwitchTile(
                         'Login Notifications',
-                        'Get notified when someone logs into your account',
+                        'Get notified by email when someone logs into your account',
                         Icons.notifications_active_outlined,
                         _loginNotifications,
                         (value) => setState(() => _loginNotifications = value),
@@ -396,6 +462,50 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                         },
                         (value) => setState(() => _sessionTimeout = value!),
                       ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Device Management Section
+                  _buildSettingsSection(
+                    'Active Devices',
+                    [
+                      if (_devices.isEmpty)
+                        const ListTile(
+                          title: Text('No active devices found'),
+                        ),
+                      ..._devices.map((device) {
+                        final isCurrent =
+                            device['deviceId'] == _currentDeviceId;
+                        return ListTile(
+                          leading: Icon(
+                            Icons.devices,
+                            color: isCurrent ? Colors.green : Colors.grey,
+                          ),
+                          title: Text(
+                            device['userAgent'] ?? 'Unknown Device',
+                            style: TextStyle(
+                              fontWeight: isCurrent
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isCurrent ? Colors.green : Colors.black87,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'IP: ${device['ipAddress'] ?? 'N/A'}\n'
+                            'Last Active: ${device['lastActive'] != null ? device['lastActive'].toString().substring(0, 19).replaceFirst('T', ' ') : 'N/A'}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.logout, color: Colors.red),
+                            tooltip: isCurrent
+                                ? 'Logout from this device'
+                                : 'Logout from this device remotely',
+                            onPressed: () => _logoutDevice(device['deviceId']),
+                          ),
+                        );
+                      }).toList(),
                     ],
                   ),
 

@@ -9,6 +9,7 @@ import '../user/session.dart';
 import 'email_password_login.dart';
 import 'username_password_login.dart';
 import 'email_otp_login.dart';
+import 'package:uuid/uuid.dart';
 
 class UserLoginPage extends StatefulWidget {
   const UserLoginPage({super.key});
@@ -39,6 +40,25 @@ class _UserLoginPageState extends State<UserLoginPage> {
   String _loginOtp = '';
   String? _otpErrorMessage;
   int _otpSecondsLeft = 0;
+  String? _deviceId;
+
+  @override
+  void initState() {
+    super.initState();
+    _initDeviceId();
+  }
+
+  Future<void> _initDeviceId() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    String? deviceId = await session.getDeviceId();
+    if (deviceId == null) {
+      deviceId = const Uuid().v4();
+      await session.saveDeviceId(deviceId);
+    }
+    setState(() {
+      _deviceId = deviceId;
+    });
+  }
 
   @override
   void dispose() {
@@ -61,6 +81,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
           email: _emailController.text,
           password: _passwordController.text,
           context: context,
+          deviceId: _deviceId ?? '', // Pass non-null String
         );
 
         if (result['success']) {
@@ -75,6 +96,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
           username: _usernameController.text,
           password: _passwordController.text,
           context: context,
+          deviceId: _deviceId ?? '',
         );
 
         if (result['success']) {
@@ -113,6 +135,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
             email: _emailController.text,
             otp: _loginOtp,
             context: context,
+            deviceId: _deviceId ?? '',
           );
           setState(() => _isVerifyingOtp = false);
 

@@ -305,7 +305,7 @@ const getPrivacySettings = async (req, res) => {
       twoFactorAuth: user.privacySettings?.twoFactorAuth ?? false,
       loginNotifications: user.privacySettings?.loginNotifications ?? true,
       deviceManagement: user.privacySettings?.deviceManagement ?? true,
-      sessionTimeout: user.privacySettings?.sessionTimeout ?? 30,
+      sessionTimeout: user.sessionTimeout ?? 30,
     };
 
     res.json(settings);
@@ -344,20 +344,17 @@ const updatePrivacySettings = async (req, res) => {
           twoFactorAuth,
           loginNotifications,
           deviceManagement,
-          sessionTimeout,
         }
       },
       { new: true }
     );
 
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    if (typeof req.body.sessionTimeout === 'number') {
+      user.sessionTimeout = req.body.sessionTimeout;
     }
 
-    res.json({ 
-      message: 'Privacy settings updated successfully',
-      settings: user.privacySettings 
-    });
+    await user.save();
+    res.json({ message: 'Privacy settings updated successfully' });
   } catch (error) {
     console.error('Error updating privacy settings:', error);
     res.status(500).json({ message: 'Internal server error' });

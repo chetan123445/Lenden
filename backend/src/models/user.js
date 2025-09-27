@@ -62,12 +62,28 @@ const userSchema = new mongoose.Schema({
     twoFactorAuth: { type: Boolean, default: false },
     loginNotifications: { type: Boolean, default: true },
     deviceManagement: { type: Boolean, default: true },
-    sessionTimeout: { type: Number, default: 30 }, // minutes
+    sessionTimeout: {
+      type: Number,
+      default: 30 // in minutes, 0 means never timeout
+    },
+    lastActivityAt: {
+      type: Date,
+      default: Date.now
+    },
   },
+  devices: [
+    {
+      deviceId: { type: String, required: true },
+      userAgent: String,
+      ipAddress: String,
+      lastActive: { type: Date, default: Date.now },
+      createdAt: { type: Date, default: Date.now }
+    }
+  ],
 }, { timestamps: true });
 
 userSchema.index({ email: 1 });
 userSchema.index({ username: 1 });
 userSchema.index({ phone: 1 });
 
-module.exports = mongoose.model('User', userSchema); 
+module.exports = mongoose.model('User', userSchema);

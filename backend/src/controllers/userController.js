@@ -3,8 +3,10 @@ const Admin = require('../models/admin');
 const bcrypt = require('bcrypt');
 const { sendRegistrationOTP } = require('../utils/registrationemailotp');
 const { sendLoginOTP } = require('../utils/loginsendotp');
+const { sendLoginNotificationEmail } = require('../utils/loginNotificationEmail');
 const jwt = require('jsonwebtoken');
 const { logProfileActivity } = require('./activityController');
+const { v4: uuidv4 } = require('uuid');
 
 // In-memory OTP store (for demo; use DB or cache in production)
 const otpStore = {};
@@ -146,7 +148,13 @@ exports.login = async (req, res) => {
       
       // Generate JWT for user
       const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
-      const token = jwt.sign({ _id: user._id, email: user.email, role: 'user' }, jwtSecret, { expiresIn: '7d' });
+      // Generate a deviceId for this session
+      const deviceId = req.body.deviceId || uuidv4();
+      const token = jwt.sign(
+        { _id: user._id, email: user.email, role: 'user', deviceId },
+        jwtSecret,
+        { expiresIn: '7d' }
+      );
       console.log('✅ Login successful for user:', username);
       console.log('🎫 Token generated successfully');
       
@@ -159,8 +167,43 @@ exports.login = async (req, res) => {
       } catch (e) {
         console.error('Failed to log login activity:', e);
       }
-      
-      res.json({ message: 'Login successful', user, token });
+
+      // Send login notification email if enabled
+      if (user.loginNotifications !== false) { // default true if undefined
+        try {
+          await sendLoginNotificationEmail({
+            to: user.email,
+            name: user.name,
+            ipAddress: req.ip,
+            userAgent: req.get('User-Agent'),
+            loginTime: new Date()
+          });
+        } catch (e) {
+          console.error('Failed to send login notification email:', e);
+        }
+      }
+
+      // Device management: enforce single-device login if needed
+      if (user.deviceManagement === false) {
+        // Remove all other devices
+        user.devices = [];
+      }
+      // Add/update this device
+      const userAgent = req.get('User-Agent');
+      const ipAddress = req.ip;
+      const now = new Date();
+      // Remove any existing entry for this deviceId
+      user.devices = user.devices.filter(d => d.deviceId !== deviceId);
+      user.devices.push({
+        deviceId,
+        userAgent,
+        ipAddress,
+        lastActive: now,
+        createdAt: now
+      });
+      await user.save();
+
+      res.json({ message: 'Login successful', user, token, deviceId });
       return;
     }
     
@@ -356,4 +399,30 @@ exports.verifyLoginOtp = async (req, res) => {
     console.error('❌ Error in verifyLoginOtp:', err);
     res.status(400).json({ error: err.message });
   }
-}; 
+};
+
+// List active devices for the current user
+exports.listDevices = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('devices');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ devices: user.devices || [] });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+// Logout a specific device
+exports.logoutDevice = async (req, res) => {
+  try {
+    const { deviceId } = req.body;
+    if (!deviceId) return res.status(400).json({ error: 'deviceId required' });
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    user.devices = (user.devices || []).filter(d => d.deviceId !== deviceId);
+    await user.save();
+    res.json({ message: 'Device logged out successfully' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};

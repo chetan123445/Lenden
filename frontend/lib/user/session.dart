@@ -9,11 +9,14 @@ class SessionProvider extends ChangeNotifier {
   String? _token;
   Map<String, dynamic>? _user;
   String? _role;
-  bool _userDataManuallySet = false; // Flag to track if user data was set manually
+  bool _userDataManuallySet =
+      false; // Flag to track if user data was set manually
   String? get token => _token;
   Map<String, dynamic>? get user => _user;
   String? get role => _role;
   bool get isAdmin => _role == 'admin';
+
+  static const String _deviceIdKey = 'device_id';
 
   Future<void> loadToken() async {
     _token = await _storage.read(key: 'token');
@@ -21,7 +24,8 @@ class SessionProvider extends ChangeNotifier {
   }
 
   Future<void> saveToken(String token) async {
-    print('💾 SessionProvider.saveToken called with token: ${token != null ? 'Present' : 'Missing'}');
+    print(
+        '💾 SessionProvider.saveToken called with token: ${token != null ? 'Present' : 'Missing'}');
     _token = token;
     await _storage.write(key: 'token', value: token);
     print('💾 Token saved to storage');
@@ -43,21 +47,24 @@ class SessionProvider extends ChangeNotifier {
     print('🔄 SessionProvider.initSession() called');
     _token = await _storage.read(key: 'token');
     print('🔄 Token from storage: ${_token != null ? 'Present' : 'Missing'}');
-    
+
     if (_token != null) {
       // First try to load saved user data
       await _loadUserData();
-      print('🔄 After loading user data: _user = ${_user != null ? 'Present' : 'Missing'}, _role = $_role');
-      
+      print(
+          '🔄 After loading user data: _user = ${_user != null ? 'Present' : 'Missing'}, _role = $_role');
+
       // Only try to fetch user profile if we don't already have user data and it wasn't manually set
       if (_user == null && !_userDataManuallySet) {
-        print('🔄 No user data found and not manually set, fetching from API...');
+        print(
+            '🔄 No user data found and not manually set, fetching from API...');
       } else {
-        print('🔄 Skipping API fetch - user data already available or manually set');
+        print(
+            '🔄 Skipping API fetch - user data already available or manually set');
         print('🔄 _user: ${_user != null ? 'Present' : 'Missing'}');
         print('🔄 _userDataManuallySet: $_userDataManuallySet');
       }
-      
+
       if (_user == null && !_userDataManuallySet) {
         try {
           // Try user endpoint first
@@ -67,7 +74,8 @@ class SessionProvider extends ChangeNotifier {
           );
           if (response.statusCode == 200) {
             var user = jsonDecode(response.body);
-            if (user['profileImage'] is Map && user['profileImage']['url'] != null) {
+            if (user['profileImage'] is Map &&
+                user['profileImage']['url'] != null) {
               user['profileImage'] = user['profileImage']['url'];
             }
             _user = user;
@@ -82,7 +90,8 @@ class SessionProvider extends ChangeNotifier {
           );
           if (response.statusCode == 200) {
             var user = jsonDecode(response.body);
-            if (user['profileImage'] is Map && user['profileImage']['url'] != null) {
+            if (user['profileImage'] is Map &&
+                user['profileImage']['url'] != null) {
               user['profileImage'] = user['profileImage']['url'];
             }
             _user = user;
@@ -111,7 +120,7 @@ class SessionProvider extends ChangeNotifier {
 
   void setUser(Map<String, dynamic> user) {
     print('🔧 SessionProvider.setUser called with: $user');
-    
+
     // Normalize profileImage to always be a String
     if (user['profileImage'] is Map && user['profileImage']['url'] != null) {
       user['profileImage'] = user['profileImage']['url'];
@@ -119,17 +128,18 @@ class SessionProvider extends ChangeNotifier {
     _user = user;
     _role = user['role'] ?? 'user';
     _userDataManuallySet = true; // Mark that user data was set manually
-    
+
     print('🔧 SessionProvider: _user set to: $_user');
     print('🔧 SessionProvider: _role set to: $_role');
-    print('🔧 SessionProvider: _userDataManuallySet set to: $_userDataManuallySet');
-    
+    print(
+        '🔧 SessionProvider: _userDataManuallySet set to: $_userDataManuallySet');
+
     // Save user data to secure storage
     _saveUserData(user);
-    
+
     notifyListeners();
     print('🔧 SessionProvider: notifyListeners() called');
-    
+
     // Verify the session state after setting
     print('🔍 Session state after setUser:');
     print('   _token: ${_token != null ? 'Present' : 'Missing'}');
@@ -155,7 +165,8 @@ class SessionProvider extends ChangeNotifier {
         final user = jsonDecode(userData);
         _user = user;
         _role = user['role'] ?? 'user';
-        _userDataManuallySet = true; // Mark that user data was loaded from storage
+        _userDataManuallySet =
+            true; // Mark that user data was loaded from storage
         print('📱 Loaded saved user data: $_user');
         print('📱 User role: $_role');
         print('📱 _userDataManuallySet: $_userDataManuallySet');
@@ -169,21 +180,26 @@ class SessionProvider extends ChangeNotifier {
 
   Future<void> refreshUserProfile() async {
     if (_token == null) return;
-    
+
     try {
       final isAdmin = _role == 'admin';
       final url = isAdmin
           ? '${ApiConfig.baseUrl}/api/admins/me'
           : '${ApiConfig.baseUrl}/api/users/me';
-      
+
       final response = await http.get(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer $_token'},
       );
-      
+
       if (response.statusCode == 200) {
         final user = jsonDecode(response.body);
         setUser(user);
+      } else if (response.statusCode == 440) {
+        // Session timeout
+        await logout();
+        // Optionally show a dialog/snackbar
+        // You can use a callback or a global key to show a message in your app
       }
     } catch (e) {
       print('Error refreshing user profile: $e');
@@ -193,16 +209,16 @@ class SessionProvider extends ChangeNotifier {
   // Method to force clear image cache and refresh profile
   Future<void> forceRefreshProfile() async {
     if (_token == null) return;
-    
+
     try {
       final isAdmin = _role == 'admin';
       final url = isAdmin
           ? '${ApiConfig.baseUrl}/api/admins/me'
           : '${ApiConfig.baseUrl}/api/users/me';
-      
+
       // Add cache busting parameter
       final cacheBustingUrl = '$url?t=${DateTime.now().millisecondsSinceEpoch}';
-      
+
       final response = await http.get(
         Uri.parse(cacheBustingUrl),
         headers: {
@@ -211,7 +227,7 @@ class SessionProvider extends ChangeNotifier {
           'Pragma': 'no-cache',
         },
       );
-      
+
       if (response.statusCode == 200) {
         final user = jsonDecode(response.body);
         setUser(user);
@@ -241,4 +257,12 @@ class SessionProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-} 
+
+  Future<void> saveDeviceId(String deviceId) async {
+    await _storage.write(key: _deviceIdKey, value: deviceId);
+  }
+
+  Future<String?> getDeviceId() async {
+    return await _storage.read(key: _deviceIdKey);
+  }
+}
