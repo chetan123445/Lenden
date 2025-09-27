@@ -21,8 +21,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   bool _profileVisibility = true;
   bool _contactSharing = false;
   bool _analyticsSharing = true;
-  bool _marketingEmails = false;
-  bool _dataCollection = true;
 
   // Security settings
   bool _twoFactorAuth = false;
@@ -56,8 +54,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
           _profileVisibility = settings['profileVisibility'] ?? true;
           _contactSharing = settings['contactSharing'] ?? false;
           _analyticsSharing = settings['analyticsSharing'] ?? true;
-          _marketingEmails = settings['marketingEmails'] ?? false;
-          _dataCollection = settings['dataCollection'] ?? true;
           _twoFactorAuth = settings['twoFactorAuth'] ?? false;
           _loginNotifications = settings['loginNotifications'] ?? true;
           _deviceManagement = settings['deviceManagement'] ?? true;
@@ -95,8 +91,6 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
           'profileVisibility': _profileVisibility,
           'contactSharing': _contactSharing,
           'analyticsSharing': _analyticsSharing,
-          'marketingEmails': _marketingEmails,
-          'dataCollection': _dataCollection,
           'twoFactorAuth': _twoFactorAuth,
           'loginNotifications': _loginNotifications,
           'deviceManagement': _deviceManagement,
@@ -353,24 +347,10 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
                       ),
                       _buildSwitchTile(
                         'Analytics Sharing',
-                        'Help improve the app by sharing usage data',
+                        'Hide Analytics data on Analytics Page',
                         Icons.analytics_outlined,
                         _analyticsSharing,
                         (value) => setState(() => _analyticsSharing = value),
-                      ),
-                      _buildSwitchTile(
-                        'Marketing Emails',
-                        'Receive promotional emails and offers',
-                        Icons.campaign_outlined,
-                        _marketingEmails,
-                        (value) => setState(() => _marketingEmails = value),
-                      ),
-                      _buildSwitchTile(
-                        'Data Collection',
-                        'Allow data collection for app functionality',
-                        Icons.data_usage,
-                        _dataCollection,
-                        (value) => setState(() => _dataCollection = value),
                       ),
                     ],
                   ),

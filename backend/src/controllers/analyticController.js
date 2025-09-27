@@ -1,9 +1,18 @@
 const Transaction = require('../models/transaction');
+const User = require('../models/user'); // Add this
 
 exports.getUserAnalytics = async (req, res) => {
   try {
     const { email } = req.query;
     if (!email) return res.status(400).json({ error: 'Email is required' });
+
+    // Check analytics sharing privacy
+    const user = await User.findOne({ email }).select('privacySettings');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.privacySettings && user.privacySettings.analyticsSharing === false) {
+      return res.json({ analyticsSharing: false });
+    }
+
     const transactions = await Transaction.find({
       $or: [
         { userEmail: email },
@@ -69,9 +78,10 @@ exports.getUserAnalytics = async (req, res) => {
       total: transactions.length,
       monthlyCounts,
       months: months.map(m => m.toISOString().slice(0, 7)),
-      topCounterparties
+      topCounterparties,
+      analyticsSharing: true // Always include this for frontend
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-}; 
+};
