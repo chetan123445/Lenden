@@ -192,19 +192,21 @@ exports.login = async (req, res) => {
       }
 
       // Device management: enforce single-device login if needed
+      const deviceName = req.body.deviceName || req.get('User-Agent');
       if (user.deviceManagement === false) {
-        // Remove all other devices
+        if (user.devices && user.devices.length > 0 && user.devices[0].deviceId !== deviceId) {
+          return res.status(409).json({ error: 'This account is already logged in on another device.' });
+        }
         user.devices = [];
       }
       // Add/update this device
-      const userAgent = req.get('User-Agent');
       const ipAddress = req.ip;
       const now = new Date();
       // Remove any existing entry for this deviceId
       user.devices = user.devices.filter(d => d.deviceId !== deviceId);
       user.devices.push({
         deviceId,
-        userAgent,
+        userAgent: deviceName,
         ipAddress,
         lastActive: now,
         createdAt: now

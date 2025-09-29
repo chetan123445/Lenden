@@ -21,21 +21,28 @@ const Admin = require('./models/admin');
 const PORT = process.env.PORT || 5000;
 
 // CORS Configuration
+const allowedOrigins = [
+  'https://lenden-backend-kf3c.onrender.com',
+  'http://localhost:3000',
+  'http://localhost:8080',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:8080',
+  'https://lenden-seven.vercel.app'
+];
+
 const corsOptions = {
-  origin: [
-    'https://lenden-backend-kf3c.onrender.com',
-    'http://localhost:3000',
-    'http://localhost:8080',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:8080',
-    // Add your Flutter app's domain if it has one
-    // For mobile apps, you might want to allow all origins
-    '*'
-  ],
+  origin: function (origin, callback) {
+    console.log('Request origin:', origin);
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
+    'Content-Type',
+    'Authorization',
     'X-Requested-With',
     'Accept',
     'Origin'

@@ -5,6 +5,9 @@ import '../api_config.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
 
+import 'package:device_info_plus/device_info_plus.dart';
+import 'dart:io';
+
 class EmailPasswordLogin {
   static Future<Map<String, dynamic>> login({
     required String email,
@@ -25,9 +28,31 @@ class EmailPasswordLogin {
       {String? username, required String password, String? deviceId}) async {
     try {
       print('🔐 Attempting login for username: $username');
+      DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+      String deviceName;
+      if (Platform.isAndroid) {
+        AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+        deviceName = androidInfo.model;
+      } else if (Platform.isIOS) {
+        IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+        deviceName = iosInfo.utsname.machine;
+      } else if (Platform.isLinux) {
+        LinuxDeviceInfo linuxInfo = await deviceInfo.linuxInfo;
+        deviceName = linuxInfo.name;
+      } else if (Platform.isWindows) {
+        WindowsDeviceInfo windowsInfo = await deviceInfo.windowsInfo;
+        deviceName = windowsInfo.computerName;
+      } else if (Platform.isMacOS) {
+        MacOsDeviceInfo macOsInfo = await deviceInfo.macOsInfo;
+        deviceName = macOsInfo.computerName;
+      } else {
+        deviceName = 'Unknown Device';
+      }
+
       final res = await _post('/api/users/login', {
         'username': username,
         'password': password,
+        'deviceName': deviceName,
         if (deviceId != null) 'deviceId': deviceId,
       });
       print('📥 Login response status: ${res['status']}');
