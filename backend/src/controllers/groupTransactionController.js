@@ -1224,8 +1224,12 @@ exports.generateGroupReceipt = async (req, res) => {
       return res.status(404).json({ error: 'Group not found' });
     }
 
-    // Generate PDF
-    const doc = new PDFDocument({ margin: 50 });
+    // Generate PDF with custom styling
+    const doc = new PDFDocument({ 
+      margin: 0,
+      size: 'A4'
+    });
+    
     const buffers = [];
     doc.on('data', buffers.push.bind(buffers));
     doc.on('end', async () => {
@@ -1248,39 +1252,283 @@ exports.generateGroupReceipt = async (req, res) => {
       }
     });
 
-    // PDF Content
-    doc.fontSize(20).text(`Group Receipt: ${group.title}`, { align: 'center' });
-    doc.fontSize(12).text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
-    doc.moveDown();
+    // Define colors
+    const limeGreen = '#C5E063';
+    const darkText = '#1a1a1a';
+    const lightGray = '#f5f5f5';
+    const successGreen = '#4CAF50';
+    const warningRed = '#F44336';
 
-    doc.fontSize(16).text('Group Members', { underline: true });
-    group.members.forEach(member => {
-      if (member.user) {
-        doc.fontSize(10).text(`- ${member.user.name} (${member.user.email})`);
+    // Add lime green header background
+    doc.rect(0, 0, 595, 150).fill(limeGreen);
+
+    // Add title "Cash Receipt" in header
+    doc.fillColor(darkText)
+       .font('Helvetica-Bold')
+       .fontSize(36)
+       .text('Group Transaction Receipt', 50, 55, { align: 'center' });
+
+    // Create white rounded rectangle for main content
+    const contentY = 180;
+    const contentX = 50;
+    const contentWidth = 495;
+
+    let currentY = contentY;
+
+    // Helper function to check if we need a new page
+    const checkPageBreak = (spaceNeeded) => {
+      if (currentY + spaceNeeded > 750) {
+        doc.addPage();
+        currentY = 50;
+        return true;
+      }
+      return false;
+    };
+
+    // Draw white background box
+    doc.rect(contentX, currentY, contentWidth, 120).fill('#ffffff');
+    doc.rect(contentX, currentY, contentWidth, 120).stroke('#e0e0e0');
+
+    // Title inside white box
+    doc.fillColor(darkText)
+       .font('Helvetica-Bold')
+       .fontSize(16)
+       .text('GROUP INFORMATION', contentX, currentY + 15, {
+         width: contentWidth,
+         align: 'center'
+       });
+
+    currentY += 50;
+    const leftMargin = contentX + 40;
+
+    // Generate receipt number
+    const receiptNumber = group._id.toString().slice(-6).toUpperCase();
+    
+    // Group basic info
+    doc.font('Helvetica-Bold')
+       .text('Group Title:', leftMargin, currentY)
+       .font('Helvetica')
+       .text(group.title, leftMargin + 150, currentY);
+    currentY += 20;
+
+    doc.font('Helvetica-Bold')
+       .text('Creator:', leftMargin, currentY)
+       .font('Helvetica')
+       .text(`${group.creator.name || group.creator.email}`, leftMargin + 150, currentY);
+    currentY += 20;
+
+    doc.font('Helvetica-Bold')
+       .text('Created On:', leftMargin, currentY)
+       .font('Helvetica')
+       .text(new Date(group.createdAt).toLocaleDateString('en-US', { 
+         year: 'numeric', 
+         month: 'long', 
+         day: 'numeric' 
+       }), leftMargin + 150, currentY);
+    currentY += 20;
+
+    doc.font('Helvetica-Bold')
+       .text('Status:', leftMargin, currentY)
+       .font('Helvetica')
+       .fillColor(group.isActive ? successGreen : warningRed)
+       .text(group.isActive ? 'Active' : 'Inactive', leftMargin + 150, currentY);
+    
+    currentY += 40;
+    checkPageBreak(150);
+
+    // MEMBERS SECTION
+    doc.fillColor(darkText)
+       .font('Helvetica-Bold')
+       .fontSize(14)
+       .text('GROUP MEMBERS', leftMargin, currentY);
+    currentY += 25;
+
+    // Members table header
+    doc.rect(leftMargin, currentY, contentWidth - 80, 25).fill(lightGray);
+    doc.fillColor(darkText)
+       .font('Helvetica-Bold')
+       .fontSize(10)
+       .text('Member Email', leftMargin + 5, currentY + 8, { width: 180 })
+       .text('Joined', leftMargin + 190, currentY + 8, { width: 80 })
+       .text('Left', leftMargin + 275, currentY + 8, { width: 80 })
+       .text('Status', leftMargin + 360, currentY + 8, { width: 55 });
+    currentY += 25;
+
+    // Display members
+    group.members.forEach((member, index) => {
+      checkPageBreak(20);
+      if (index % 2 === 0) {
+        doc.rect(leftMargin, currentY, contentWidth - 80, 20).fill('#fafafa');
+      }
+      
+      doc.fillColor(darkText)
+         .font('Helvetica')
+         .fontSize(9)
+         .text(member.user.email.substring(0, 28), leftMargin + 5, currentY + 5, { width: 180 })
+         .text(new Date(member.joinedAt).toLocaleDateString(), leftMargin + 190, currentY + 5, { width: 80 })
+         .text(member.leftAt ? new Date(member.leftAt).toLocaleDateString() : '-', leftMargin + 275, currentY + 5, { width: 80 });
+      
+      doc.fillColor(member.leftAt ? warningRed : successGreen)
+         .text(member.leftAt ? 'Left' : 'Active', leftMargin + 360, currentY + 5, { width: 55 });
+      
+      currentY += 20;
+    });
+
+    currentY += 30;
+    checkPageBreak(150);
+
+    // Display balances
+    group.balances.forEach((balance, index) => {
+      checkPageBreak(20);
+      const member = group.members.find(m => m.user._id.equals(balance.user));
+      if (member && member.user) {
+        if (index % 2 === 0) {
+          doc.rect(leftMargin, currentY, contentWidth - 80, 20).fill('#fafafa');
+        }
+        
+        doc.fillColor(darkText)
+           .font('Helvetica')
+           .fontSize(9)
+           .text(member.user.email, leftMargin + 5, currentY + 5, { width: 280 });
+        
+        const balanceColor = balance.balance > 0 ? warningRed : (balance.balance < 0 ? successGreen : darkText);
+        doc.fillColor(balanceColor)
+           .text(balance.balance.toFixed(2), leftMargin + 290, currentY + 5, { width: 125, align: 'right' });
+        
+        currentY += 20;
       }
     });
-    doc.moveDown();
 
-    doc.fontSize(16).text('Expenses', { underline: true });
-    group.expenses.forEach(expense => {
-      doc.fontSize(12).text(`Description: ${expense.description}`);
-      doc.text(`Amount: ${expense.amount}`);
-      doc.text(`Paid by: ${expense.addedBy}`);
-      doc.text(`Date: ${new Date(expense.date).toLocaleString()}`);
+    currentY += 30;
+    checkPageBreak(150);
+
+    // EXPENSES SECTION
+    doc.fillColor(darkText)
+       .font('Helvetica-Bold')
+       .fontSize(14)
+       .text('DETAILED EXPENSES', leftMargin, currentY);
+    currentY += 25;
+
+    // Calculate total
+    const totalAmount = group.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+
+    // Display each expense with full details
+    group.expenses.forEach((expense, expIndex) => {
+      checkPageBreak(200);
+
+      // Expense box
+      doc.rect(leftMargin, currentY, contentWidth - 80, 25).fill(limeGreen);
+      doc.fillColor(darkText)
+         .font('Helvetica-Bold')
+         .fontSize(11)
+         .text(`Expense #${expIndex + 1}: ${expense.description}`, leftMargin + 5, currentY + 7);
+      currentY += 25;
+
+      // Expense details
+      doc.rect(leftMargin, currentY, contentWidth - 80, 90).fill('#ffffff');
+      doc.rect(leftMargin, currentY, contentWidth - 80, 90).stroke('#e0e0e0');
       
-      doc.fontSize(10).text('Splits:');
-      expense.split.forEach(split => {
+      doc.fillColor(darkText)
+         .font('Helvetica-Bold')
+         .fontSize(9)
+         .text('Amount:', leftMargin + 10, currentY + 10)
+         .font('Helvetica')
+         .text(`₹${expense.amount.toFixed(2)}`, leftMargin + 100, currentY + 10);
+      
+      doc.font('Helvetica-Bold')
+         .text('Added By:', leftMargin + 10, currentY + 25)
+         .font('Helvetica')
+         .text(expense.addedBy, leftMargin + 100, currentY + 25);
+      
+      doc.font('Helvetica-Bold')
+         .text('Date:', leftMargin + 10, currentY + 40)
+         .font('Helvetica')
+         .text(new Date(expense.date).toLocaleDateString('en-US', { 
+           year: 'numeric', 
+           month: 'long', 
+           day: 'numeric',
+           hour: '2-digit',
+           minute: '2-digit'
+         }), leftMargin + 100, currentY + 40);
+      
+      doc.font('Helvetica-Bold')
+         .text('Selected Members:', leftMargin + 10, currentY + 55)
+         .font('Helvetica')
+         .fontSize(8)
+         .text(expense.selectedMembers ? expense.selectedMembers.join(', ') : 'N/A', leftMargin + 100, currentY + 55, { width: 300 });
+      
+      currentY += 95;
+
+      // Split details header
+      checkPageBreak(100);
+      doc.rect(leftMargin + 10, currentY, contentWidth - 100, 20).fill(lightGray);
+      doc.fillColor(darkText)
+         .font('Helvetica-Bold')
+         .fontSize(9)
+         .text('Member', leftMargin + 15, currentY + 6, { width: 150 })
+         .text('Amount', leftMargin + 170, currentY + 6, { width: 70, align: 'right' })
+         .text('Settled', leftMargin + 245, currentY + 6, { width: 60 })
+         .text('Settled At', leftMargin + 310, currentY + 6, { width: 70 })
+         .text('Settled By', leftMargin + 385, currentY + 6, { width: 60 });
+      currentY += 20;
+
+      // Split items
+      expense.split.forEach((split, splitIndex) => {
+        checkPageBreak(20);
         const member = group.members.find(m => m.user._id.equals(split.user));
         if (member && member.user) {
-          doc.text(`  - ${member.user.email}: ${split.amount.toFixed(2)}`);
+          if (splitIndex % 2 === 0) {
+            doc.rect(leftMargin + 10, currentY, contentWidth - 100, 18).fill('#fafafa');
+          }
+          
+          doc.fillColor(darkText)
+             .font('Helvetica')
+             .fontSize(8)
+             .text(member.user.email.substring(0, 22), leftMargin + 15, currentY + 4, { width: 150 })
+             .text(split.amount.toFixed(2), leftMargin + 170, currentY + 4, { width: 70, align: 'right' });
+          
+          doc.fillColor(split.settled ? successGreen : warningRed)
+             .text(split.settled ? 'Yes' : 'No', leftMargin + 245, currentY + 4, { width: 60 });
+          
+          doc.fillColor(darkText)
+             .text(split.settledAt ? new Date(split.settledAt).toLocaleDateString() : '-', leftMargin + 310, currentY + 4, { width: 70 })
+             .text(split.settledBy ? split.settledBy.substring(0, 12) : '-', leftMargin + 385, currentY + 4, { width: 60 });
+          
+          currentY += 18;
         }
       });
-      doc.moveDown();
+
+      currentY += 25;
     });
+
+    // Total summary
+    checkPageBreak(80);
+    doc.rect(leftMargin, currentY, contentWidth - 80, 35).fill(limeGreen);
+    doc.fillColor(darkText)
+       .font('Helvetica-Bold')
+       .fontSize(14)
+       .text('TOTAL EXPENSE:', leftMargin + 10, currentY + 10)
+       .fontSize(16)
+       .text(`₹${totalAmount.toFixed(2)}`, leftMargin + 200, currentY + 8, { width: 215, align: 'right' });
+    
+    currentY += 50;
+
+    // Footer
+    checkPageBreak(50);
+    doc.fillColor('#999999')
+       .font('Helvetica')
+       .fontSize(8)
+       .text(
+         `Generated on ${new Date().toLocaleString()} | Group ID: ${group._id}`,
+         50,
+         currentY + 20,
+         { align: 'center', width: 495 }
+       );
 
     doc.end();
 
   } catch (err) {
+    console.error('Error generating group receipt:', err);
     res.status(500).json({ error: 'Failed to generate group receipt', details: err.message });
   }
 };

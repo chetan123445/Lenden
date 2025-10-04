@@ -1239,18 +1239,29 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                             Row(
                                               mainAxisAlignment: MainAxisAlignment.end,
                                               children: [
-                                                ElevatedButton.icon(
-                                                  icon: Icon(Icons.receipt_long, size: 18, color: Colors.white),
-                                                  label: Text('Generate Receipt', style: TextStyle(color: Colors.white)),
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor: Color(0xFF00B4D8),
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(12),
+                                                                                                Container(
+                                                  decoration: BoxDecoration(
+                                                    gradient: LinearGradient(
+                                                      colors: [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)],
+                                                      begin: Alignment.topCenter,
+                                                      end: Alignment.bottomCenter,
                                                     ),
+                                                    borderRadius: BorderRadius.circular(12),
                                                   ),
-                                                  onPressed: () {
-                                                    _showGroupReceiptOptionsDialog(group);
-                                                  },
+                                                  child: ElevatedButton.icon(
+                                                    icon: Icon(Icons.receipt_long, size: 18, color: Colors.black),
+                                                    label: Text('Generate Receipt', style: TextStyle(color: Colors.black)),
+                                                    style: ElevatedButton.styleFrom(
+                                                      backgroundColor: Colors.transparent,
+                                                      shadowColor: Colors.transparent,
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius: BorderRadius.circular(12),
+                                                      ),
+                                                    ),
+                                                    onPressed: () {
+                                                      _showGroupReceiptOptionsDialog(group);
+                                                    },
+                                                  ),
                                                 ),
                                               ],
                                             ),
