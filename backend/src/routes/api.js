@@ -185,6 +185,9 @@ module.exports = (io) => {
   // New: Send leave request to group creator
   router.post('/group-transactions/:groupId/send-leave-request', auth, groupTransactionController.sendLeaveRequest);
 
+  // New: Generate group receipt
+  router.post('/group-transactions/:groupId/receipt', auth, groupTransactionController.generateGroupReceipt);
+
   // Activity routes
   router.get('/activities', auth, activityController.getUserActivities);
   router.get('/activities/stats', auth, activityController.getActivityStats);

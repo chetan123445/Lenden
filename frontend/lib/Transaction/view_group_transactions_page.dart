@@ -4,6 +4,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
 import '../user/session.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 
 class ViewGroupTransactionsPage extends StatefulWidget {
   const ViewGroupTransactionsPage({super.key});
@@ -1232,6 +1235,28 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                             ),
                                             SizedBox(height: 16),
                                             
+                                            // Action Buttons
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.end,
+                                              children: [
+                                                ElevatedButton.icon(
+                                                  icon: Icon(Icons.receipt_long, size: 18, color: Colors.white),
+                                                  label: Text('Generate Receipt', style: TextStyle(color: Colors.white)),
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: Color(0xFF00B4D8),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                  ),
+                                                  onPressed: () {
+                                                    _showGroupReceiptOptionsDialog(group);
+                                                  },
+                                                ),
+                                              ],
+                                            ),
+                                            
+                                            SizedBox(height: 16),
+                                            
                                             // Expenses List
                                             if (expenses.isNotEmpty) ...[
                                               Row(
@@ -1435,4 +1460,251 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                     ),
     );
   }
-} 
+
+  void _showGroupReceiptOptionsDialog(Map<String, dynamic> group) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: 20),
+              Text(
+                'Generate Group Receipt',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Colors.blue[600],
+                ),
+              ),
+              SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'Choose an option to generate the receipt for the group "${group['title']}".',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.black87),
+                ),
+              ),
+              SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton.icon(
+                      icon: Icon(Icons.email, color: Colors.white),
+                      label: Text('Send to Email',
+                          style: TextStyle(color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[600],
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _sendGroupReceiptByEmail(group);
+                      },
+                    ),
+                    ElevatedButton.icon(
+                      icon: Icon(Icons.download, color: Colors.white),
+                      label: Text('Download Locally',
+                          style: TextStyle(color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[600],
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _downloadGroupReceiptLocally(group);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _sendGroupReceiptByEmail(Map<String, dynamic> group) async {
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    final email = user?['email'];
+    if (email == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('User email not found.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text("Sending to email..."),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group['_id']}/receipt'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
+        },
+        body: jsonEncode({'email': email, 'action': 'email'}),
+      );
+
+      Navigator.pop(context); // Close the loading dialog
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text('Receipt sent to your email!'))
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        String errorMessage = data['error'] ?? 'Failed to send receipt';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text(errorMessage)),
+              ],
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context); // Close the loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Network error: ${e.toString()}'))
+            ],
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _downloadGroupReceiptLocally(Map<String, dynamic> group) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text("Downloading locally..."),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      final user = Provider.of<SessionProvider>(context, listen: false).user;
+      final email = user?['email'];
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group['_id']}/receipt'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
+        },
+        body: jsonEncode({'email': email, 'action': 'download'}),
+      );
+
+      Navigator.pop(context); // Close the loading dialog
+
+      if (response.statusCode == 200) {
+        final output = await getTemporaryDirectory();
+        final file = File('${output.path}/group-receipt-${group['_id']}.pdf');
+        await file.writeAsBytes(response.bodyBytes);
+
+        OpenFile.open(file.path);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Receipt downloaded to ${file.path}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        final data = jsonDecode(response.body);
+        String errorMessage = data['error'] ?? 'Failed to download receipt';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text(errorMessage)),
+              ],
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context); // Close the loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Network error: ${e.toString()}'))
+            ],
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}

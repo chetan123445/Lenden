@@ -5,6 +5,8 @@ const { sendGroupLeaveRequestEmail } = require('../utils/groupLeaveRequestEmail'
 const groupTransactionEmail = require('../utils/groupTransactionEmail');
 const mongoose = require('mongoose');
 const { logGroupActivity, logGroupActivityForAllMembers } = require('./activityController');
+const PDFDocument = require('pdfkit');
+const { sendGroupReceiptEmail } = require('../utils/groupReceiptEmail');
 
 // Helper function to process expenses and convert Object IDs to emails in addedBy field
 async function processExpenses(expenses) {
@@ -1202,5 +1204,83 @@ exports.sendLeaveRequest = async (req, res) => {
   } catch (err) {
     console.error('Error sending leave request:', err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+exports.generateGroupReceipt = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { action, email } = req.body;
+
+    if (!action || !email) {
+      return res.status(400).json({ error: 'Action and email are required' });
+    }
+
+    const group = await GroupTransaction.findById(groupId)
+      .populate('members.user', 'email name')
+      .populate('creator', 'email name');
+
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    // Generate PDF
+    const doc = new PDFDocument({ margin: 50 });
+    const buffers = [];
+    doc.on('data', buffers.push.bind(buffers));
+    doc.on('end', async () => {
+      const pdfBuffer = Buffer.concat(buffers);
+
+      if (action === 'email') {
+        try {
+          await sendGroupReceiptEmail(email, group, pdfBuffer);
+          res.json({ success: true, message: 'Group receipt sent to email' });
+        } catch (error) {
+          console.error('Failed to send group receipt email:', error);
+          res.status(500).json({ error: 'Failed to send group receipt email' });
+        }
+      } else if (action === 'download') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=group-receipt-${group._id}.pdf`);
+        res.send(pdfBuffer);
+      } else {
+        res.status(400).json({ error: 'Invalid action' });
+      }
+    });
+
+    // PDF Content
+    doc.fontSize(20).text(`Group Receipt: ${group.title}`, { align: 'center' });
+    doc.fontSize(12).text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
+    doc.moveDown();
+
+    doc.fontSize(16).text('Group Members', { underline: true });
+    group.members.forEach(member => {
+      if (member.user) {
+        doc.fontSize(10).text(`- ${member.user.name} (${member.user.email})`);
+      }
+    });
+    doc.moveDown();
+
+    doc.fontSize(16).text('Expenses', { underline: true });
+    group.expenses.forEach(expense => {
+      doc.fontSize(12).text(`Description: ${expense.description}`);
+      doc.text(`Amount: ${expense.amount}`);
+      doc.text(`Paid by: ${expense.addedBy}`);
+      doc.text(`Date: ${new Date(expense.date).toLocaleString()}`);
+      
+      doc.fontSize(10).text('Splits:');
+      expense.split.forEach(split => {
+        const member = group.members.find(m => m.user._id.equals(split.user));
+        if (member && member.user) {
+          doc.text(`  - ${member.user.email}: ${split.amount.toFixed(2)}`);
+        }
+      });
+      doc.moveDown();
+    });
+
+    doc.end();
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate group receipt', details: err.message });
   }
 };
