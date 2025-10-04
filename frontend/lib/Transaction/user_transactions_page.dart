@@ -1313,21 +1313,29 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                   SizedBox(width: 8),
                                 ],
                                 Expanded(
-                                  child: ElevatedButton.icon(
-                                    icon: Icon(Icons.receipt,
-                                        color: Colors.white),
-                                    label: Text('Generate Receipt',
-                                        style:
-                                            TextStyle(color: Colors.white)),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(8)),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)],
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-                                    onPressed: () {
-                                      _showReceiptOptionsDialog(Map<String, dynamic>.from(t));
-                                    },
+                                    child: ElevatedButton.icon(
+                                      icon: Icon(Icons.receipt, color: Colors.black),
+                                      label: Text('Generate Receipt', style: TextStyle(color: Colors.black)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        shadowColor: Colors.transparent,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        _showReceiptOptionsDialog(Map<String, dynamic>.from(t));
+                                      },
+                                    ),
                                   ),
                                 ),
                               ],
