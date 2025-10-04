@@ -138,6 +138,8 @@ module.exports = (io) => {
   router.post('/transactions/verify-user-otp', transactionController.verifyUserOTP);
   router.post('/transactions/clear', transactionController.clearTransaction);
   router.delete('/transactions/delete', transactionController.deleteTransaction);
+  router.post('/transactions/:transactionId/receipt', transactionController.generateReceipt);
+
   router.get('/transactions/user', transactionController.getUserTransactions);
 
   // Partial payment routes

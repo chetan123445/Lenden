@@ -7,6 +7,118 @@ const multer = require('multer');
 const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg'];
 const PDFDocument = require('pdfkit');
 
+const { sendReceiptEmail } = require('../utils/receiptEmail');
+
+// Generate and send/download a transaction receipt
+exports.generateReceipt = async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const { action, email } = req.body; // action can be 'email' or 'download'
+
+    if (!action || !email) {
+      return res.status(400).json({ error: 'Action and email are required' });
+    }
+
+    const transaction = await Transaction.findOne({ transactionId });
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    // Generate PDF
+    const doc = new PDFDocument({ margin: 50 });
+    const buffers = [];
+    doc.on('data', buffers.push.bind(buffers));
+    doc.on('end', async () => {
+      const pdfBuffer = Buffer.concat(buffers);
+
+      if (action === 'email') {
+        try {
+          await sendReceiptEmail(email, transaction, pdfBuffer);
+          res.json({ success: true, message: 'Receipt sent to email' });
+        } catch (error) {
+          console.error('Failed to send receipt email:', error);
+          res.status(500).json({ error: 'Failed to send receipt email' });
+        }
+      } else if (action === 'download') {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=receipt-${transaction.transactionId}.pdf`);
+        res.send(pdfBuffer);
+      } else {
+        res.status(400).json({ error: 'Invalid action' });
+      }
+    });
+
+    // Stylish PDF content
+    // Header
+    doc
+      .fillColor('#00B4D8')
+      .fontSize(24)
+      .text('LenDen', { align: 'center' });
+    doc
+      .fontSize(18)
+      .text('Transaction Receipt', { align: 'center' });
+    doc.moveDown(2);
+
+    // Transaction Details
+    doc.fillColor('#000').fontSize(12);
+    const transactionDate = new Date(transaction.date).toLocaleDateString();
+    doc.text(`Transaction ID: ${transaction.transactionId}`);
+    doc.text(`Date: ${transactionDate}`);
+    doc.text(`Time: ${transaction.time}`);
+    doc.moveDown();
+
+    // Amount and Parties
+    doc.fontSize(14).fillColor('#0077B6').text('Transaction Details', { underline: true });
+    doc.moveDown();
+    doc.fontSize(12).fillColor('#000');
+    doc.text(`Amount: ${transaction.amount} ${transaction.currency}`);
+    doc.text(`From: ${transaction.userEmail}`);
+    doc.text(`To: ${transaction.counterpartyEmail}`);
+    doc.text(`Place: ${transaction.place}`);
+    doc.moveDown();
+
+    // Description
+    if (transaction.description) {
+      doc.fontSize(14).fillColor('#0077B6').text('Description', { underline: true });
+      doc.moveDown();
+      doc.fontSize(12).fillColor('#000').text(transaction.description);
+      doc.moveDown();
+    }
+
+    // Interest Details
+    if (transaction.interestType !== 'none') {
+      doc.fontSize(14).fillColor('#0077B6').text('Interest Details', { underline: true });
+      doc.moveDown();
+      doc.fontSize(12).fillColor('#000');
+      doc.text(`  Type: ${transaction.interestType}`);
+      doc.text(`  Rate: ${transaction.interestRate}%`);
+      if (transaction.compoundingFrequency) {
+        doc.text(`  Compounding: ${transaction.compoundingFrequency} times per year`);
+      }
+      doc.moveDown();
+    }
+
+    // Status
+    doc.fontSize(14).fillColor('#0077B6').text('Status', { underline: true });
+    doc.moveDown();
+    doc.fontSize(12).fillColor('#000');
+    doc.text(`  User Cleared: ${transaction.userCleared ? 'Yes' : 'No'}`);
+    doc.text(`  Counterparty Cleared: ${transaction.counterpartyCleared ? 'Yes' : 'No'}`);
+    doc.moveDown(2);
+
+    // Footer
+    doc
+      .fontSize(10)
+      .fillColor('#888')
+      .text('Thank you for using LenDen!', { align: 'center' });
+
+    doc.end();
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate receipt', details: err.message });
+  }
+};
+
 // Create a new transaction
 exports.createTransaction = async (req, res) => {
   try {

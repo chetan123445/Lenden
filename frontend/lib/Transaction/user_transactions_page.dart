@@ -15,6 +15,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:string_similarity/string_similarity.dart';
 import '../otp_input.dart';
 import 'chat_page.dart'; // Corrected import for ChatPage
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 class UserTransactionsPage extends StatefulWidget {
   @override
@@ -173,7 +175,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             children: [
               Icon(Icons.error, color: Colors.white),
               SizedBox(width: 8),
-              Expanded(child: Text('Network error: ${e.toString()}')),
+              Expanded(child: Text('Network error: ${e.toString()}'))
             ],
           ),
           backgroundColor: Colors.red,
@@ -458,8 +460,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           Icon(Icons.percent, color: Colors.blue, size: 20),
           SizedBox(width: 6),
           Text(
-              '$typeLabel @ ${rate.toStringAsFixed(2)}%' +
-                  (freqLabel.isNotEmpty ? ' ($freqLabel)' : ''),
+              '$typeLabel @ ${rate.toStringAsFixed(2)}%' + (freqLabel.isNotEmpty ? ' ($freqLabel)' : ''),
               style: TextStyle(fontWeight: FontWeight.w500)),
         ],
       ));
@@ -879,7 +880,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                             showDialog(
                               context: context,
                               builder: (_) =>
-                                  FutureBuilder<Map<String, dynamic>?>(
+                                  FutureBuilder<Map<String, dynamic>?>( // Corrected type here
                                 future: _fetchCounterpartyProfile(
                                     context, counterpartyEmail),
                                 builder: (context, snapshot) {
@@ -1003,13 +1004,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                 ? Colors.orange.withOpacity(0.1)
                                 : Colors.grey.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: fullyCleared
-                              ? Colors.green.withOpacity(0.3)
-                              : (youCleared || otherCleared)
-                                  ? Colors.orange.withOpacity(0.3)
-                                  : Colors.grey.withOpacity(0.3),
-                          width: 1,
+                        border: Border(
+                          left: BorderSide(color: borderColor, width: 6),
                         ),
                       ),
                       child: Row(
@@ -1258,8 +1254,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                               BorderRadius.circular(8)),
                                     ),
                                     onPressed: () {
-                                      final transactionId =
-                                          t != null && t['_id'] != null
+                                      final transactionId = t != null && t['_id'] != null
                                               ? t['_id']
                                               : '';
                                       final session =
@@ -1321,6 +1316,27 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                       onPressed: () {
                                         _showDeleteConfirmationDialog(
                                             t['transactionId']);
+                                      },
+                                    ),
+                                  ),
+                                if (fullyCleared)
+                                  SizedBox(width: 8),
+                                if (fullyCleared)
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      icon: Icon(Icons.receipt,
+                                          color: Colors.white),
+                                      label: Text('Generate Receipt',
+                                          style:
+                                              TextStyle(color: Colors.white)),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8)),
+                                      ),
+                                      onPressed: () {
+                                        _showReceiptOptionsDialog(Map<String, dynamic>.from(t));
                                       },
                                     ),
                                   ),
@@ -1453,19 +1469,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Row(children: [
-                              Icon(Icons.person, size: 18),
-                              SizedBox(width: 6),
-                              Text('My Side')
-                            ]),
+                            child: Row(children: [Icon(Icons.person, size: 18), SizedBox(width: 6), Text('My Side')]),
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Row(children: [
-                              Icon(Icons.people, size: 18),
-                              SizedBox(width: 6),
-                              Text('Other Party Side')
-                            ]),
+                            child: Row(children: [Icon(Icons.people, size: 18), SizedBox(width: 6), Text('Other Party Side')]),
                           ),
                         ],
                       ),
@@ -1614,8 +1622,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     if (_maxAmount != null && (amount == null || amount > _maxAmount!))
       return false;
     if (interestTypeFilter != 'All' &&
-        (t['interestType'] ?? '').toString().toLowerCase() !=
-            interestTypeFilter) return false;
+        (t['interestType'] ?? '').toString().toLowerCase() != 
+            interestTypeFilter)
+      return false;
     // Global fuzzy search
     if (globalSearch.isNotEmpty) {
       final q = globalSearch.toLowerCase();
@@ -2082,6 +2091,253 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         return PartialPaymentHistoryDialog(transaction: transaction);
       },
     );
+  }
+
+  void _showReceiptOptionsDialog(Map<String, dynamic> transaction) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(height: 20),
+              Text(
+                'Generate Receipt',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Colors.blue[600],
+                ),
+              ),
+              SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  'Choose an option to generate the receipt.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.black87),
+                ),
+              ),
+              SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton.icon(
+                      icon: Icon(Icons.email, color: Colors.white),
+                      label: Text('Send to Email',
+                          style: TextStyle(color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[600],
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _sendReceiptByEmail(transaction);
+                      },
+                    ),
+                    ElevatedButton.icon(
+                      icon: Icon(Icons.download, color: Colors.white),
+                      label: Text('Download Locally',
+                          style: TextStyle(color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[600],
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _downloadReceiptLocally(transaction);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _sendReceiptByEmail(Map<String, dynamic> transaction) async {
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    final email = user?['email'];
+    if (email == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('User email not found.')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text("Sending to email..."),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/transactions/${transaction['transactionId']}/receipt'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
+        },
+        body: jsonEncode({'email': email, 'action': 'email'}),
+      );
+
+      Navigator.pop(context); // Close the loading dialog
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text('Receipt sent to your email!'))
+              ],
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        String errorMessage = data['error'] ?? 'Failed to send receipt';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text(errorMessage)),
+              ],
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context); // Close the loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Network error: ${e.toString()}'))
+            ],
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _downloadReceiptLocally(Map<String, dynamic> transaction) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return Dialog(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text("Downloading locally..."),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    try {
+      final user = Provider.of<SessionProvider>(context, listen: false).user;
+      final email = user?['email'];
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/transactions/${transaction['transactionId']}/receipt'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
+        },
+        body: jsonEncode({'email': email, 'action': 'download'}),
+      );
+
+      Navigator.pop(context); // Close the loading dialog
+
+      if (response.statusCode == 200) {
+        final output = await getTemporaryDirectory();
+        final file = File('${output.path}/receipt-${transaction['transactionId']}.pdf');
+        await file.writeAsBytes(response.bodyBytes);
+
+        OpenFile.open(file.path);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Receipt downloaded to ${file.path}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        final data = jsonDecode(response.body);
+        String errorMessage = data['error'] ?? 'Failed to download receipt';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(child: Text(errorMessage)),
+              ],
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.pop(context); // Close the loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Network error: ${e.toString()}'))
+            ],
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }
 
@@ -2600,8 +2856,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         SizedBox(
-                                          width: 16,
-                                          height: 16,
+                                          width: 16, height: 16,
                                           child: CircularProgressIndicator(
                                               strokeWidth: 2,
                                               color: Colors.white),
@@ -2716,8 +2971,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     SizedBox(
-                                      width: 16,
-                                      height: 16,
+                                      width: 16, height: 16,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2, color: Colors.white),
                                     ),
@@ -2796,8 +3050,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         SizedBox(
-                                          width: 16,
-                                          height: 16,
+                                          width: 16, height: 16,
                                           child: CircularProgressIndicator(
                                               strokeWidth: 2,
                                               color: Colors.white),
@@ -2913,8 +3166,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     SizedBox(
-                                      width: 16,
-                                      height: 16,
+                                      width: 16, height: 16,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2, color: Colors.white),
                                     ),
@@ -2993,8 +3245,7 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                           : null,
                       child: isProcessing
                           ? SizedBox(
-                              width: 16,
-                              height: 16,
+                              width: 16, height: 16,
                               child: CircularProgressIndicator(
                                   strokeWidth: 2, color: Colors.white),
                             )
@@ -3452,27 +3703,15 @@ class _StylishProfileDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (email != null) ...[
-                  Row(children: [
-                    Icon(Icons.email, size: 18, color: Colors.teal),
-                    SizedBox(width: 8),
-                    Text(email!, style: TextStyle(fontSize: 16))
-                  ]),
+                  Row(children: [Icon(Icons.email, size: 18, color: Colors.teal), SizedBox(width: 8), Text(email!, style: TextStyle(fontSize: 16))]),
                   SizedBox(height: 10),
                 ],
                 if (phone != null && phone!.isNotEmpty) ...[
-                  Row(children: [
-                    Icon(Icons.phone, size: 18, color: Colors.teal),
-                    SizedBox(width: 8),
-                    Text(phone!, style: TextStyle(fontSize: 16))
-                  ]),
+                  Row(children: [Icon(Icons.phone, size: 18, color: Colors.teal), SizedBox(width: 8), Text(phone!, style: TextStyle(fontSize: 16))]),
                   SizedBox(height: 10),
                 ],
                 if (gender != null) ...[
-                  Row(children: [
-                    Icon(Icons.transgender, size: 18, color: Colors.teal),
-                    SizedBox(width: 8),
-                    Text(gender!, style: TextStyle(fontSize: 16))
-                  ]),
+                  Row(children: [Icon(Icons.transgender, size: 18, color: Colors.teal), SizedBox(width: 8), Text(gender!, style: TextStyle(fontSize: 16))]),
                   SizedBox(height: 10),
                 ],
               ],
