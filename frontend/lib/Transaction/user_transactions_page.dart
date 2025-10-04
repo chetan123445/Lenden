@@ -1290,7 +1290,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                 ),
                                 SizedBox(width: 8),
                                 // Delete button - only show if both parties have cleared
-                                if (fullyCleared)
+                                if (fullyCleared) ...[
                                   Expanded(
                                     child: ElevatedButton.icon(
                                       icon: Icon(Icons.delete_forever,
@@ -1310,27 +1310,26 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                       },
                                     ),
                                   ),
-                                if (fullyCleared)
                                   SizedBox(width: 8),
-                                if (fullyCleared)
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      icon: Icon(Icons.receipt,
-                                          color: Colors.white),
-                                      label: Text('Generate Receipt',
-                                          style:
-                                              TextStyle(color: Colors.white)),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.blue,
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8)),
-                                      ),
-                                      onPressed: () {
-                                        _showReceiptOptionsDialog(Map<String, dynamic>.from(t));
-                                      },
+                                ],
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    icon: Icon(Icons.receipt,
+                                        color: Colors.white),
+                                    label: Text('Generate Receipt',
+                                        style:
+                                            TextStyle(color: Colors.white)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8)),
                                     ),
+                                    onPressed: () {
+                                      _showReceiptOptionsDialog(Map<String, dynamic>.from(t));
+                                    },
                                   ),
+                                ),
                               ],
                             ),
                           ],

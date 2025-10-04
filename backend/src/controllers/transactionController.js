@@ -166,7 +166,7 @@ exports.generateReceipt = async (req, res) => {
     drawField('Date (Transaction Created)', transactionDate, yPos);
     yPos += lineHeight;
 
-    drawField('Time', transaction.time, yPos);
+    drawField('Time(Transaction Created)', transaction.time, yPos);
     yPos += lineHeight;
 
     drawField('Party 1 (Creator)', transaction.userEmail, yPos);
