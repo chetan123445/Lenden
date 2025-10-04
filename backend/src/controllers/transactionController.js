@@ -10,6 +10,7 @@ const PDFDocument = require('pdfkit');
 const { sendReceiptEmail } = require('../utils/receiptEmail');
 
 // Generate and send/download a transaction receipt
+// Generate and send/download a transaction receipt
 exports.generateReceipt = async (req, res) => {
   try {
     const { transactionId } = req.params;
@@ -54,11 +55,32 @@ exports.generateReceipt = async (req, res) => {
 
     // === STYLED PDF CONTENT ===
     
-    // Green header background (lime green like the image)
+    // Green header background
     doc.rect(0, 0, 595.28, 180)
        .fill('#C7DC5C');
 
-    // "Cash Receipt" title in header
+    // Receipt generated timestamp at top right
+    const now = new Date();
+    const generatedDate = now.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+    const generatedTime = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    
+    doc.fillColor('#1F2937')
+       .fontSize(9)
+       .font('Helvetica')
+       .text(`Generated: ${generatedDate} at ${generatedTime}`, 420, 20, {
+         width: 155,
+         align: 'right'
+       });
+
+    // "LenDen Transaction Receipt" title in header
     doc.fillColor('#1F2937')
        .fontSize(42)
        .font('Helvetica-Bold')
@@ -68,7 +90,17 @@ exports.generateReceipt = async (req, res) => {
     const boxX = 50;
     const boxY = 160;
     const boxWidth = 495.28;
-    const boxHeight = 600;
+    let boxHeight = 600; // Will be adjusted dynamically
+
+    // Calculate required height based on content
+    let estimatedHeight = 600;
+    if (transaction.interestType && transaction.interestType !== 'none') {
+      estimatedHeight += 150;
+    }
+    if (transaction.partialPayments && transaction.partialPayments.length > 0) {
+      estimatedHeight += 50 + (transaction.partialPayments.length * 35);
+    }
+    boxHeight = Math.min(estimatedHeight, 650); // Cap at 650 to fit in page
 
     doc.rect(boxX, boxY, boxWidth, boxHeight)
        .fill('#FFFFFF');
@@ -82,7 +114,7 @@ exports.generateReceipt = async (req, res) => {
     // Content inside white box
     let yPos = boxY + 40;
 
-    // "CASH PAYMENT RECEIPT" subtitle
+    // "TRANSACTION RECEIPT" subtitle
     doc.fillColor('#000000')
        .fontSize(16)
        .font('Helvetica-Bold')
@@ -96,9 +128,9 @@ exports.generateReceipt = async (req, res) => {
     // Receipt details
     const leftMargin = boxX + 40;
     const lineHeight = 35;
-    const labelWidth = 150;
+    const labelWidth = 180;
 
-    // Format date
+    // Format date and time
     const transactionDate = new Date(transaction.date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
@@ -115,7 +147,9 @@ exports.generateReceipt = async (req, res) => {
       doc.fillColor('#374151')
          .fontSize(11)
          .font('Helvetica')
-         .text(value, leftMargin + labelWidth, y);
+         .text(value, leftMargin + labelWidth, y, {
+           width: boxWidth - labelWidth - 80
+         });
       
       // Underline
       doc.moveTo(leftMargin + labelWidth, y + 16)
@@ -125,28 +159,40 @@ exports.generateReceipt = async (req, res) => {
          .stroke();
     };
 
-    // Draw all fields
+    // Draw all basic fields
     drawField('Transaction ID', transaction.transactionId, yPos);
     yPos += lineHeight;
 
-    drawField('Date(Transaction Created)', transactionDate, yPos);
+    drawField('Date (Transaction Created)', transactionDate, yPos);
     yPos += lineHeight;
 
-    drawField('Party 1', transaction.counterpartyEmail, yPos);
+    drawField('Time', transaction.time, yPos);
     yPos += lineHeight;
 
-    drawField('Party 2', transaction.userEmail, yPos);
+    drawField('Party 1 (Creator)', transaction.userEmail, yPos);
     yPos += lineHeight;
 
-    drawField('Amount', `${transaction.amount} ${transaction.currency}`, yPos);
+    drawField('Party 2 (Counterparty)', transaction.counterpartyEmail, yPos);
     yPos += lineHeight;
 
-    drawField('Place', transaction.place || 'Transaction', yPos);
+    drawField('Original Amount', `${transaction.amount} ${transaction.currency}`, yPos);
+    yPos += lineHeight;
+
+    // Show remaining amount if partially paid
+    if (transaction.isPartiallyPaid) {
+      drawField('Remaining Amount', `${transaction.remainingAmount.toFixed(2)} ${transaction.currency}`, yPos);
+      yPos += lineHeight;
+    }
+
+    drawField('Place', transaction.place || 'Not specified', yPos);
     yPos += lineHeight;
 
     // Description (if exists)
     if (transaction.description) {
-      drawField('Description', transaction.description.substring(0, 50) + (transaction.description.length > 50 ? '...' : ''), yPos);
+      const descText = transaction.description.length > 60 
+        ? transaction.description.substring(0, 60) + '...' 
+        : transaction.description;
+      drawField('Description', descText, yPos);
       yPos += lineHeight;
     }
 
@@ -164,13 +210,55 @@ exports.generateReceipt = async (req, res) => {
       drawField('Interest Type', transaction.interestType.toUpperCase(), yPos);
       yPos += lineHeight;
 
-      drawField('Interest Rate', `${transaction.interestRate}%`, yPos);
+      drawField('Interest Rate', `${transaction.interestRate}% per annum`, yPos);
       yPos += lineHeight;
 
-      if (transaction.compoundingFrequency) {
-        drawField('Compounding', `${transaction.compoundingFrequency}x per year`, yPos);
+      if (transaction.compoundingFrequency && transaction.interestType === 'compound') {
+        drawField('Compounding Frequency', `${transaction.compoundingFrequency}x per year`, yPos);
         yPos += lineHeight;
       }
+
+      if (transaction.expectedReturnDate) {
+        const returnDate = new Date(transaction.expectedReturnDate).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        drawField('Expected Return Date', returnDate, yPos);
+        yPos += lineHeight;
+      }
+
+      if (transaction.totalAmountWithInterest && transaction.totalAmountWithInterest !== transaction.amount) {
+        drawField('Total with Interest', `${transaction.totalAmountWithInterest.toFixed(2)} ${transaction.currency}`, yPos);
+        yPos += lineHeight;
+      }
+    }
+
+    // Partial Payments section (if applicable)
+    if (transaction.partialPayments && transaction.partialPayments.length > 0) {
+      yPos += 20;
+      
+      doc.fillColor('#000000')
+         .fontSize(13)
+         .font('Helvetica-Bold')
+         .text('PARTIAL PAYMENTS', leftMargin, yPos);
+      
+      yPos += 30;
+
+      // Show partial payments count and total paid
+      const totalPaid = transaction.partialPayments.reduce((sum, p) => sum + p.amount, 0);
+      drawField('Payments Made', `${transaction.partialPayments.length} payment(s)`, yPos);
+      yPos += lineHeight;
+
+      drawField('Total Paid', `${totalPaid.toFixed(2)} ${transaction.currency}`, yPos);
+      yPos += lineHeight;
+
+      // Add note about payment history
+      doc.fillColor('#6B7280')
+         .fontSize(9)
+         .font('Helvetica-Oblique')
+         .text('View full payment history in the app', leftMargin, yPos);
+      yPos += 25;
     }
 
     // Status section
@@ -183,10 +271,14 @@ exports.generateReceipt = async (req, res) => {
     
     yPos += 30;
 
-    drawField('User Cleared', transaction.userCleared ? 'Yes ✓' : 'No ✗', yPos);
+    drawField('User Cleared', transaction.userCleared ? 'Yes' : 'No', yPos);
     yPos += lineHeight;
 
-    drawField('Counterparty Cleared', transaction.counterpartyCleared ? 'Yes ✓' : 'No ✗', yPos);
+    drawField('Counterparty Cleared', transaction.counterpartyCleared ? 'Yes' : 'No', yPos);
+    yPos += lineHeight;
+
+    const fullyCleared = transaction.userCleared && transaction.counterpartyCleared;
+    drawField('Transaction Status', fullyCleared ? 'FULLY CLEARED' : 'PENDING', yPos);
 
     // Footer at the bottom
     doc.fillColor('#6B7280')
