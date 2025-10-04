@@ -567,18 +567,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
 
     // Add partial payment button only to the borrower (person who owes money)
     if (!fullyCleared) {
-      final user = Provider.of<SessionProvider>(context, listen: false).user;
-      final userEmail = user?['email'];
-
-      // Check if current user is the borrower
-      bool isBorrower = false;
-      if (isLending) {
-        // If this is a lending transaction, the borrower is the counterparty
-        isBorrower = (userEmail == t['counterpartyEmail']);
-      } else {
-        // If this is a borrowing transaction, the borrower is the user
-        isBorrower = (userEmail == t['userEmail']);
-      }
+      // The backend has already sorted transactions into lending and borrowing lists.
+      // If it's not a lending transaction for the user, it must be a borrowing one.
+      final isBorrower = !isLending;
 
       // Only show partial payment button to the borrower
       if (isBorrower) {
