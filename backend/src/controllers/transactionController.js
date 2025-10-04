@@ -13,7 +13,7 @@ const { sendReceiptEmail } = require('../utils/receiptEmail');
 exports.generateReceipt = async (req, res) => {
   try {
     const { transactionId } = req.params;
-    const { action, email } = req.body; // action can be 'email' or 'download'
+    const { action, email } = req.body;
 
     if (!action || !email) {
       return res.status(400).json({ error: 'Action and email are required' });
@@ -24,8 +24,12 @@ exports.generateReceipt = async (req, res) => {
       return res.status(404).json({ error: 'Transaction not found' });
     }
 
-    // Generate PDF
-    const doc = new PDFDocument({ margin: 50 });
+    // Generate PDF with custom size
+    const doc = new PDFDocument({ 
+      margin: 0,
+      size: [595.28, 841.89] // A4 size
+    });
+    
     const buffers = [];
     doc.on('data', buffers.push.bind(buffers));
     doc.on('end', async () => {
@@ -48,69 +52,150 @@ exports.generateReceipt = async (req, res) => {
       }
     });
 
-    // Stylish PDF content
-    // Header
-    doc
-      .fillColor('#00B4D8')
-      .fontSize(24)
-      .text('LenDen', { align: 'center' });
-    doc
-      .fontSize(18)
-      .text('Transaction Receipt', { align: 'center' });
-    doc.moveDown(2);
+    // === STYLED PDF CONTENT ===
+    
+    // Green header background (lime green like the image)
+    doc.rect(0, 0, 595.28, 180)
+       .fill('#C7DC5C');
 
-    // Transaction Details
-    doc.fillColor('#000').fontSize(12);
-    const transactionDate = new Date(transaction.date).toLocaleDateString();
-    doc.text(`Transaction ID: ${transaction.transactionId}`);
-    doc.text(`Date: ${transactionDate}`);
-    doc.text(`Time: ${transaction.time}`);
-    doc.moveDown();
+    // "Cash Receipt" title in header
+    doc.fillColor('#1F2937')
+       .fontSize(42)
+       .font('Helvetica-Bold')
+       .text('LenDen Transaction Receipt', 0, 60, { align: 'center' });
 
-    // Amount and Parties
-    doc.fontSize(14).fillColor('#0077B6').text('Transaction Details', { underline: true });
-    doc.moveDown();
-    doc.fontSize(12).fillColor('#000');
-    doc.text(`Amount: ${transaction.amount} ${transaction.currency}`);
-    doc.text(`From: ${transaction.userEmail}`);
-    doc.text(`To: ${transaction.counterpartyEmail}`);
-    doc.text(`Place: ${transaction.place}`);
-    doc.moveDown();
+    // White content box with rounded corners effect
+    const boxX = 50;
+    const boxY = 160;
+    const boxWidth = 495.28;
+    const boxHeight = 600;
 
-    // Description
+    doc.rect(boxX, boxY, boxWidth, boxHeight)
+       .fill('#FFFFFF');
+
+    // Add shadow effect
+    doc.rect(boxX - 2, boxY - 2, boxWidth + 4, boxHeight + 4)
+       .strokeColor('#E5E7EB')
+       .lineWidth(2)
+       .stroke();
+
+    // Content inside white box
+    let yPos = boxY + 40;
+
+    // "CASH PAYMENT RECEIPT" subtitle
+    doc.fillColor('#000000')
+       .fontSize(16)
+       .font('Helvetica-Bold')
+       .text('TRANSACTION RECEIPT', boxX + 20, yPos, { 
+         width: boxWidth - 40,
+         align: 'center' 
+       });
+
+    yPos += 50;
+
+    // Receipt details
+    const leftMargin = boxX + 40;
+    const lineHeight = 35;
+    const labelWidth = 150;
+
+    // Format date
+    const transactionDate = new Date(transaction.date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    // Helper function to draw a field
+    const drawField = (label, value, y) => {
+      doc.fillColor('#000000')
+         .fontSize(11)
+         .font('Helvetica-Bold')
+         .text(label + ':', leftMargin, y);
+      
+      doc.fillColor('#374151')
+         .fontSize(11)
+         .font('Helvetica')
+         .text(value, leftMargin + labelWidth, y);
+      
+      // Underline
+      doc.moveTo(leftMargin + labelWidth, y + 16)
+         .lineTo(boxX + boxWidth - 40, y + 16)
+         .strokeColor('#E5E7EB')
+         .lineWidth(1)
+         .stroke();
+    };
+
+    // Draw all fields
+    drawField('Transaction ID', transaction.transactionId, yPos);
+    yPos += lineHeight;
+
+    drawField('Date(Transaction Created)', transactionDate, yPos);
+    yPos += lineHeight;
+
+    drawField('Party 1', transaction.counterpartyEmail, yPos);
+    yPos += lineHeight;
+
+    drawField('Party 2', transaction.userEmail, yPos);
+    yPos += lineHeight;
+
+    drawField('Amount', `${transaction.amount} ${transaction.currency}`, yPos);
+    yPos += lineHeight;
+
+    drawField('Place', transaction.place || 'Transaction', yPos);
+    yPos += lineHeight;
+
+    // Description (if exists)
     if (transaction.description) {
-      doc.fontSize(14).fillColor('#0077B6').text('Description', { underline: true });
-      doc.moveDown();
-      doc.fontSize(12).fillColor('#000').text(transaction.description);
-      doc.moveDown();
+      drawField('Description', transaction.description.substring(0, 50) + (transaction.description.length > 50 ? '...' : ''), yPos);
+      yPos += lineHeight;
     }
 
-    // Interest Details
-    if (transaction.interestType !== 'none') {
-      doc.fontSize(14).fillColor('#0077B6').text('Interest Details', { underline: true });
-      doc.moveDown();
-      doc.fontSize(12).fillColor('#000');
-      doc.text(`  Type: ${transaction.interestType}`);
-      doc.text(`  Rate: ${transaction.interestRate}%`);
+    // Interest details section (if applicable)
+    if (transaction.interestType && transaction.interestType !== 'none') {
+      yPos += 20;
+      
+      doc.fillColor('#000000')
+         .fontSize(13)
+         .font('Helvetica-Bold')
+         .text('INTEREST DETAILS', leftMargin, yPos);
+      
+      yPos += 30;
+
+      drawField('Interest Type', transaction.interestType.toUpperCase(), yPos);
+      yPos += lineHeight;
+
+      drawField('Interest Rate', `${transaction.interestRate}%`, yPos);
+      yPos += lineHeight;
+
       if (transaction.compoundingFrequency) {
-        doc.text(`  Compounding: ${transaction.compoundingFrequency} times per year`);
+        drawField('Compounding', `${transaction.compoundingFrequency}x per year`, yPos);
+        yPos += lineHeight;
       }
-      doc.moveDown();
     }
 
-    // Status
-    doc.fontSize(14).fillColor('#0077B6').text('Status', { underline: true });
-    doc.moveDown();
-    doc.fontSize(12).fillColor('#000');
-    doc.text(`  User Cleared: ${transaction.userCleared ? 'Yes' : 'No'}`);
-    doc.text(`  Counterparty Cleared: ${transaction.counterpartyCleared ? 'Yes' : 'No'}`);
-    doc.moveDown(2);
+    // Status section
+    yPos += 20;
+    
+    doc.fillColor('#000000')
+       .fontSize(13)
+       .font('Helvetica-Bold')
+       .text('CLEARANCE STATUS', leftMargin, yPos);
+    
+    yPos += 30;
 
-    // Footer
-    doc
-      .fontSize(10)
-      .fillColor('#888')
-      .text('Thank you for using LenDen!', { align: 'center' });
+    drawField('User Cleared', transaction.userCleared ? 'Yes ✓' : 'No ✗', yPos);
+    yPos += lineHeight;
+
+    drawField('Counterparty Cleared', transaction.counterpartyCleared ? 'Yes ✓' : 'No ✗', yPos);
+
+    // Footer at the bottom
+    doc.fillColor('#6B7280')
+       .fontSize(10)
+       .font('Helvetica')
+       .text('Thank you for using LenDen!', 0, 780, { 
+         align: 'center',
+         width: 595.28
+       });
 
     doc.end();
 
