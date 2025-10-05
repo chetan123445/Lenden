@@ -3799,30 +3799,41 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           // Search bar at the top
-                          TextField(
-                            decoration: InputDecoration(
-                              hintText: 'Search by group name or creator email...',
-                              prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+                          Container(
+                            padding: const EdgeInsets.all(2), // border width
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Colors.orange, Colors.white, Colors.green],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
-                              ),
+                              borderRadius: BorderRadius.circular(18),
                             ),
-                            onChanged: (val) {
-                              groupSearchQuery = val;
-                              _filterAndSearchGroups();
-                            },
+                            child: TextField(
+                              decoration: InputDecoration(
+                                hintText: 'Search by group name or creator email...',
+                                prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
+                                filled: true,
+                                fillColor: Colors.white,
+                                contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide.none,
+                                ),
+                              ),
+                              onChanged: (val) {
+                                groupSearchQuery = val;
+                                _filterAndSearchGroups();
+                              },
+                            ),
                           ),
                           SizedBox(height: 16),
                           

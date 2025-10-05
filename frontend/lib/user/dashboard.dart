@@ -532,10 +532,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       child: Container(
                         margin:
                             EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(2), // border width
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(18),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black12,
@@ -544,23 +548,30 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                             ),
                           ],
                         ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.swap_horiz,
-                                color: Colors.teal, size: 40),
-                            SizedBox(width: 20),
-                            Expanded(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Text(
-                                  'Create Transactions',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 22),
+                        child: Container(
+                          padding: EdgeInsets.all(22),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.swap_horiz,
+                                  color: Colors.teal, size: 40),
+                              SizedBox(width: 20),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Text(
+                                    'Create Transactions',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 22),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -572,10 +583,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       child: Container(
                         margin:
                             EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(2), // border width
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(18),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black12,
@@ -584,23 +599,30 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                             ),
                           ],
                         ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.account_balance_wallet,
-                                color: Colors.blue, size: 40),
-                            SizedBox(width: 20),
-                            Expanded(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Text(
-                                  'Your Transactions',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 22),
+                        child: Container(
+                          padding: EdgeInsets.all(22),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.account_balance_wallet,
+                                  color: Colors.blue, size: 40),
+                              SizedBox(width: 20),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Text(
+                                    'Your Transactions',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 22),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -610,10 +632,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       child: Container(
                         margin:
                             EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(2), // border width
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(18),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black12,
@@ -622,37 +648,44 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                             ),
                           ],
                         ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.analytics,
-                                color: Color(0xFF00B4D8), size: 40),
-                            SizedBox(width: 20),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: Text(
-                                      'Visual Analytics',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 22),
+                        child: Container(
+                          padding: EdgeInsets.all(22),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.analytics,
+                                  color: Color(0xFF00B4D8), size: 40),
+                              SizedBox(width: 20),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Text(
+                                        'Visual Analytics',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 22),
+                                      ),
                                     ),
-                                  ),
-                                  SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: Text(
-                                      '(for individual transactions)',
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600]),
+                                    SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: Text(
+                                        '(for individual transactions)',
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600]),
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -704,10 +737,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       child: Container(
                         margin:
                             EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(2), // border width
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(18),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black12,
@@ -716,23 +753,30 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                             ),
                           ],
                         ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.group,
-                                color: Colors.deepPurple, size: 40),
-                            SizedBox(width: 20),
-                            Expanded(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Text(
-                                  'Create Group Transaction',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 22),
+                        child: Container(
+                          padding: EdgeInsets.all(22),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.group,
+                                  color: Colors.deepPurple, size: 40),
+                              SizedBox(width: 20),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Text(
+                                    'Create Group Transaction',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 22),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -744,10 +788,14 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       child: Container(
                         margin:
                             EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: EdgeInsets.all(24),
+                        padding: const EdgeInsets.all(2), // border width
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(18),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black12,
@@ -756,23 +804,30 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                             ),
                           ],
                         ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.visibility,
-                                color: Colors.orange, size: 40),
-                            SizedBox(width: 20),
-                            Expanded(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Text(
-                                  'View Group Transactions',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 22),
+                        child: Container(
+                          padding: EdgeInsets.all(22),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.visibility,
+                                  color: Colors.orange, size: 40),
+                              SizedBox(width: 20),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Text(
+                                    'View Group Transactions',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 22),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
