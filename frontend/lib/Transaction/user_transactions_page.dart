@@ -1543,34 +1543,38 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         // Interest type filter chips
         Container(
           margin: EdgeInsets.only(top: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ChoiceChip(
-                label: Text('All'),
-                selected: interestTypeFilter == 'All',
-                onSelected: (_) => setState(() => interestTypeFilter = 'All'),
-                selectedColor: Color(0xFF00B4D8).withOpacity(0.2),
-              ),
-              SizedBox(width: 8),
-              ChoiceChip(
-                label: Text('Simple Interest'),
-                selected: interestTypeFilter == 'simple',
-                onSelected: (_) =>
-                    setState(() => interestTypeFilter = 'simple'),
-                selectedColor: Colors.green.withOpacity(0.2),
-                labelStyle: TextStyle(color: Colors.green[800]),
-              ),
-              SizedBox(width: 8),
-              ChoiceChip(
-                label: Text('Compound Interest'),
-                selected: interestTypeFilter == 'compound',
-                onSelected: (_) =>
-                    setState(() => interestTypeFilter = 'compound'),
-                selectedColor: Colors.blue.withOpacity(0.2),
-                labelStyle: TextStyle(color: Colors.blue[800]),
-              ),
-            ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ChoiceChip(
+                  label: Text('All'),
+                  selected: interestTypeFilter == 'All',
+                  onSelected: (_) =>
+                      setState(() => interestTypeFilter = 'All'),
+                  selectedColor: Color(0xFF00B4D8).withOpacity(0.2),
+                ),
+                SizedBox(width: 8),
+                ChoiceChip(
+                  label: Text('Simple Interest'),
+                  selected: interestTypeFilter == 'simple',
+                  onSelected: (_) =>
+                      setState(() => interestTypeFilter = 'simple'),
+                  selectedColor: Colors.green.withOpacity(0.2),
+                  labelStyle: TextStyle(color: Colors.green[800]),
+                ),
+                SizedBox(width: 8),
+                ChoiceChip(
+                  label: Text('Compound Interest'),
+                  selected: interestTypeFilter == 'compound',
+                  onSelected: (_) =>
+                      setState(() => interestTypeFilter = 'compound'),
+                  selectedColor: Colors.blue.withOpacity(0.2),
+                  labelStyle: TextStyle(color: Colors.blue[800]),
+                ),
+              ],
+            ),
           ),
         ),
       ],

@@ -357,117 +357,122 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                                             ),
                                           ],
                                         ),
-                                        padding: const EdgeInsets.all(20),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
+                                        child: SingleChildScrollView(
+                                          padding: const EdgeInsets.all(20),
+                                          scrollDirection: Axis.horizontal,
+                                          child: IntrinsicWidth(
+                                            child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Container(
-                                                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                                        decoration: BoxDecoration(
-                                                          color: Color(0xFF00B4D8).withOpacity(0.1),
-                                                          borderRadius: BorderRadius.circular(12),
-                                                          border: Border.all(
-                                                            color: Color(0xFF00B4D8).withOpacity(0.3),
-                                                            width: 1,
-                                                          ),
-                                                        ),
-                                                        child: Text(
-                                                          note['title'] ?? '(No Title)',
-                                                          style: const TextStyle(
-                                                            fontSize: 18, 
-                                                            fontWeight: FontWeight.bold, 
-                                                            color: Color(0xFF00B4D8)
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 12),
-                                                      Container(
-                                                        padding: EdgeInsets.all(16),
-                                                        decoration: BoxDecoration(
-                                                          color: Colors.grey.withOpacity(0.05),
-                                                          borderRadius: BorderRadius.circular(12),
-                                                          border: Border.all(
-                                                            color: Colors.grey.withOpacity(0.2),
-                                                            width: 1,
-                                                          ),
-                                                        ),
-                                                        child: Text(
-                                                          note['content'] ?? '',
-                                                          style: const TextStyle(fontSize: 16, color: Colors.black87),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Column(
+                                                Row(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
-                                                    Container(
-                                                      decoration: BoxDecoration(
-                                                        color: Color(0xFF00B4D8).withOpacity(0.1),
-                                                        borderRadius: BorderRadius.circular(12),
-                                                        border: Border.all(
-                                                          color: Color(0xFF00B4D8).withOpacity(0.3),
-                                                          width: 1,
-                                                        ),
-                                                      ),
-                                                      child: IconButton(
-                                                        icon: const Icon(Icons.edit, color: Color(0xFF00B4D8)),
-                                                        onPressed: () => createOrEditNote(note: note),
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Container(
+                                                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                            decoration: BoxDecoration(
+                                                              color: Color(0xFF00B4D8).withOpacity(0.1),
+                                                              borderRadius: BorderRadius.circular(12),
+                                                              border: Border.all(
+                                                                color: Color(0xFF00B4D8).withOpacity(0.3),
+                                                                width: 1,
+                                                              ),
+                                                            ),
+                                                            child: Text(
+                                                              note['title'] ?? '(No Title)',
+                                                              style: const TextStyle(
+                                                                fontSize: 18, 
+                                                                fontWeight: FontWeight.bold, 
+                                                                color: Color(0xFF00B4D8)
+                                                              ),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(height: 12),
+                                                          Container(
+                                                            padding: EdgeInsets.all(16),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.grey.withOpacity(0.05),
+                                                              borderRadius: BorderRadius.circular(12),
+                                                              border: Border.all(
+                                                                color: Colors.grey.withOpacity(0.2),
+                                                                width: 1,
+                                                              ),
+                                                            ),
+                                                            child: Text(
+                                                              note['content'] ?? '',
+                                                              style: const TextStyle(fontSize: 16, color: Colors.black87),
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
                                                     ),
-                                                    const SizedBox(height: 8),
-                                                    Container(
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.red.withOpacity(0.1),
-                                                        borderRadius: BorderRadius.circular(12),
-                                                        border: Border.all(
-                                                          color: Colors.red.withOpacity(0.3),
-                                                          width: 1,
+                                                    const SizedBox(width: 12),
+                                                    Column(
+                                                      children: [
+                                                        Container(
+                                                          decoration: BoxDecoration(
+                                                            color: Color(0xFF00B4D8).withOpacity(0.1),
+                                                            borderRadius: BorderRadius.circular(12),
+                                                            border: Border.all(
+                                                              color: Color(0xFF00B4D8).withOpacity(0.3),
+                                                              width: 1,
+                                                            ),
+                                                          ),
+                                                          child: IconButton(
+                                                            icon: const Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                                                            onPressed: () => createOrEditNote(note: note),
+                                                          ),
                                                         ),
-                                                      ),
-                                                      child: IconButton(
-                                                        icon: const Icon(Icons.delete, color: Colors.red),
-                                                        onPressed: () => deleteNote(note['_id']),
-                                                      ),
+                                                        const SizedBox(height: 8),
+                                                        Container(
+                                                          decoration: BoxDecoration(
+                                                            color: Colors.red.withOpacity(0.1),
+                                                            borderRadius: BorderRadius.circular(12),
+                                                            border: Border.all(
+                                                              color: Colors.red.withOpacity(0.3),
+                                                              width: 1,
+                                                            ),
+                                                          ),
+                                                          child: IconButton(
+                                                            icon: const Icon(Icons.delete, color: Colors.red),
+                                                            onPressed: () => deleteNote(note['_id']),
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ],
                                                 ),
+                                                const SizedBox(height: 16),
+                                                Container(
+                                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.grey.withOpacity(0.1),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(
+                                                      color: Colors.grey.withOpacity(0.2),
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(Icons.calendar_today, size: 14, color: Colors.grey[600]),
+                                                      const SizedBox(width: 4),
+                                                      Text('Created: ${_formatDate(note['createdAt'])}', 
+                                                           style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                                                      const SizedBox(width: 16),
+                                                      Icon(Icons.update, size: 14, color: Colors.grey[600]),
+                                                      const SizedBox(width: 4),
+                                                      Text('Updated: ${_formatDate(note['updatedAt'])}', 
+                                                           style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                                                    ],
+                                                  ),
+                                                ),
                                               ],
                                             ),
-                                            const SizedBox(height: 16),
-                                            Container(
-                                              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey.withOpacity(0.1),
-                                                borderRadius: BorderRadius.circular(8),
-                                                border: Border.all(
-                                                  color: Colors.grey.withOpacity(0.2),
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  Icon(Icons.calendar_today, size: 14, color: Colors.grey[600]),
-                                                  const SizedBox(width: 4),
-                                                  Text('Created: ${_formatDate(note['createdAt'])}', 
-                                                       style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                                                  const SizedBox(width: 16),
-                                                  Icon(Icons.update, size: 14, color: Colors.grey[600]),
-                                                  const SizedBox(width: 4),
-                                                  Text('Updated: ${_formatDate(note['updatedAt'])}', 
-                                                       style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
+                                          ),
                                         ),
                                       );
                                     },
@@ -518,4 +523,4 @@ class BottomWaveClipper extends CustomClipper<Path> {
   }
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-} 
+}
