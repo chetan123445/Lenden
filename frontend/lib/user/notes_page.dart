@@ -81,41 +81,119 @@ class _NotesPageState extends State<NotesPage> {
     final isEdit = note != null;
     final result = await showDialog<Map<String, String>>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Text(isEdit ? 'Edit Note' : 'New Note', style: TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: InputDecoration(hintText: 'Title'),
-              maxLength: 50,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                colors: [Color(0xFF00B4D8), Color(0xFFADE8F4)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            TextField(
-              controller: contentController,
-              maxLines: 5,
-              decoration: InputDecoration(hintText: 'Enter note...'),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Text(
+                      isEdit ? 'Edit Note' : 'New Note',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: TextField(
+                      controller: titleController,
+                      style: TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Title',
+                        hintStyle: TextStyle(color: Colors.white70),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.white70),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.white),
+                        ),
+                        counterStyle: TextStyle(color: Colors.white70),
+                      ),
+                      maxLength: 50,
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: TextField(
+                      controller: contentController,
+                      style: TextStyle(color: Colors.white),
+                      maxLines: 5,
+                      decoration: InputDecoration(
+                        hintText: 'Enter note...',
+                        hintStyle: TextStyle(color: Colors.white70),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.white70),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text('Cancel', style: TextStyle(color: Colors.white, fontSize: 16)),
+                        ),
+                        SizedBox(width: 10),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          ),
+                          onPressed: () {
+                            final title = titleController.text.trim();
+                            final content = contentController.text.trim();
+                            if (title.isEmpty || content.isEmpty) return;
+                            Navigator.pop(context, {'title': title, 'content': content});
+                          },
+                          child: Text(
+                            isEdit ? 'Update' : 'Create',
+                            style: TextStyle(color: Color(0xFF00B4D8), fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFF00B4D8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            ),
-            onPressed: () {
-              final title = titleController.text.trim();
-              final content = contentController.text.trim();
-              if (title.isEmpty || content.isEmpty) return;
-              Navigator.pop(context, {'title': title, 'content': content});
-            },
-            child: Text(isEdit ? 'Update' : 'Create', style: TextStyle(color: Colors.white)),
           ),
-        ],
-      ),
+        );
+      },
     );
     if (result != null && result['title']!.isNotEmpty && result['content']!.isNotEmpty) {
       final session = Provider.of<SessionProvider>(context, listen: false);
