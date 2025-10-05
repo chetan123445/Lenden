@@ -367,40 +367,56 @@ class HomePage extends StatelessWidget {
                     const SizedBox(height: 8),
                     const SizedBox(height: 28),
                     // ...removed testimonial carousel...
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        final session = Provider.of<SessionProvider>(context,
-                            listen: false);
-                        if (session.token != null && session.user != null) {
-                          if (session.isAdmin) {
-                            Navigator.pushNamed(context, '/admin/dashboard');
-                          } else {
-                            Navigator.pushNamed(context, '/user/dashboard');
-                          }
-                        } else {
-                          Navigator.pushNamed(context, '/login');
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00B4D8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          side: const BorderSide(
-                              color: Color(0xFF0077B6), width: 2.5),
+                    Container(
+                      padding: const EdgeInsets.all(2.5), // border width
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Colors.orange, Colors.white, Colors.green],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        elevation: 6,
-                        shadowColor: const Color(0xFF00B4D8).withOpacity(0.3),
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 32),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF00B4D8).withOpacity(0.3),
+                            blurRadius: 6,
+                            offset: Offset(0, 4),
+                          )
+                        ],
                       ),
-                      icon:
-                          const Icon(Icons.arrow_forward, color: Colors.white),
-                      label: const Text('Get Started',
-                          style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2)),
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          final session = Provider.of<SessionProvider>(context,
+                              listen: false);
+                          if (session.token != null && session.user != null) {
+                            if (session.isAdmin) {
+                              Navigator.pushNamed(context, '/admin/dashboard');
+                            } else {
+                              Navigator.pushNamed(context, '/user/dashboard');
+                            }
+                          } else {
+                            Navigator.pushNamed(context, '/login');
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00B4D8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(21.5), // 24 - 2.5
+                          ),
+                          elevation: 0,
+                          shadowColor: Colors.transparent,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 16, horizontal: 32),
+                        ),
+                        icon: const Icon(Icons.arrow_forward,
+                            color: Colors.white),
+                        label: const Text('Get Started',
+                            style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.2)),
+                      ),
                     ),
                     const SizedBox(height: 18),
                     Consumer<SessionProvider>(
@@ -464,14 +480,14 @@ class _FeatureCard extends StatelessWidget {
     return Container(
       width: 180,
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(2.5), // border width
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Color(0xFF00B4D8),
-          width: 2.5,
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
             color: Colors.black12,
@@ -480,25 +496,32 @@ class _FeatureCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: Color(0xFF00B4D8), size: 32),
-          const SizedBox(height: 10),
-          Text(title,
-              style:
-                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 4),
-          Flexible(
-            child: Text(
-              description,
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15.5),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Color(0xFF00B4D8), size: 32),
+            const SizedBox(height: 10),
+            Text(title,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            Flexible(
+              child: Text(
+                description,
+                style: const TextStyle(color: Colors.grey, fontSize: 13),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
