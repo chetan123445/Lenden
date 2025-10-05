@@ -1152,13 +1152,20 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: Color(0xFF00B4D8),
-                                        width: 2,
+                                      gradient: LinearGradient(
+                                        colors: [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)],
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
                                       ),
                                       borderRadius: BorderRadius.circular(16),
                                     ),
-                                  child: ExpansionTile(
+                                    child: Container(
+                                      margin: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).cardColor,
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      child: ExpansionTile(
                                     leading: CircleAvatar(
                                       backgroundColor: Color(0xFF00B4D8),
                                       child: Text(
@@ -1460,6 +1467,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                         ),
                                       ),
                                     ],
+                                  ),
                                   ),
                                   ),
                                 );
