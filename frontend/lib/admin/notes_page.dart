@@ -241,10 +241,14 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                   const SizedBox(height: 16),
                   // Search Bar
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.all(2), // This creates the border width
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(25),
+                      borderRadius: BorderRadius.circular(27), // Outer radius
+                      gradient: const LinearGradient(
+                        colors: [Colors.orange, Colors.white, Colors.green],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.1),
@@ -253,34 +257,41 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                         ),
                       ],
                     ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.search,
-                          color: Colors.grey[600],
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            onChanged: filterNotes,
-                            decoration: InputDecoration(
-                              hintText: 'Search by title...',
-                              hintStyle: TextStyle(color: Colors.grey[400]),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(25), // Inner radius
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.search,
+                            color: Colors.grey[600],
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              onChanged: filterNotes,
+                              decoration: InputDecoration(
+                                hintText: 'Search by title...',
+                                hintStyle: TextStyle(color: Colors.grey[400]),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                              ),
+                              style: const TextStyle(fontSize: 16),
                             ),
-                            style: const TextStyle(fontSize: 16),
                           ),
-                        ),
-                        if (searchQuery.isNotEmpty)
-                          IconButton(
-                            icon: Icon(Icons.clear, color: Colors.grey[600], size: 20),
-                            onPressed: () => filterNotes(''),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                      ],
+                          if (searchQuery.isNotEmpty)
+                            IconButton(
+                              icon: Icon(Icons.clear, color: Colors.grey[600], size: 20),
+                              onPressed: () => filterNotes(''),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
