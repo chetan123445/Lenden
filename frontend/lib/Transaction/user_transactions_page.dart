@@ -742,610 +742,669 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
               left: BorderSide(color: borderColor, width: 6),
             ),
           ),
-          child: Column(
-            children: [
-              // Main content (always visible)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header with expand/collapse arrow
-                    Row(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: IntrinsicWidth(
+              child: Column(
+                children: [
+                  // Main content (always visible)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(
-                            isLending
-                                ? Icons.arrow_upward
-                                : Icons.arrow_downward,
-                            color: isLending ? Colors.green : Colors.orange,
-                            size: 28),
-                        if (t['isPartiallyPaid'] == true) ...[
-                          SizedBox(width: 4),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.purple,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'Partial',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                        SizedBox(width: 10),
-                        // Only one profile icon for the logged-in user
-                        GestureDetector(
-                          onTap: () async {
-                            final profile = user;
-                            final gender = profile?['gender'] ?? 'Other';
-                            dynamic imageUrl = profile?['profileImage'];
-                            if (imageUrl is Map && imageUrl['url'] != null)
-                              imageUrl = imageUrl['url'];
-                            if (imageUrl != null && imageUrl is! String)
-                              imageUrl = null;
-                            ImageProvider avatarProvider;
-                            if (imageUrl != null &&
-                                imageUrl.toString().isNotEmpty &&
-                                imageUrl != 'null') {
-                              avatarProvider = NetworkImage(imageUrl);
-                            } else {
-                              avatarProvider = AssetImage(
-                                gender == 'Male'
-                                    ? 'assets/Male.png'
-                                    : gender == 'Female'
-                                        ? 'assets/Female.png'
-                                        : 'assets/Other.png',
-                              );
-                            }
-                            final phoneStr =
-                                (profile?['phone'] ?? '').toString();
-                            showDialog(
-                              context: context,
-                              builder: (_) => _StylishProfileDialog(
-                                title: 'You',
-                                name: profile?['name'] ?? 'You',
-                                avatarProvider: avatarProvider,
-                                email: profile?['email'],
-                                phone: phoneStr,
-                                gender: profile?['gender'],
-                              ),
-                            );
-                          },
-                          child: CircleAvatar(
-                            radius: 18,
-                            backgroundColor: Colors.teal.shade100,
-                            child: Icon(Icons.person,
-                                color: Colors.teal, size: 22),
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            isLending
-                                ? 'Lending (You gave money)'
-                                : 'Borrowing (You took money)',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isLending ? Colors.green : Colors.orange,
-                                fontSize: 16),
-                          ),
-                        ),
-                        // Expand/collapse arrow
-                        GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              isExpanded = !isExpanded;
-                            });
-                          },
-                          child: Container(
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.teal.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: AnimatedRotation(
-                              turns: isExpanded ? 0.5 : 0,
-                              duration: Duration(milliseconds: 300),
-                              child: Icon(
-                                Icons.keyboard_arrow_down,
-                                color: Colors.teal,
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 10),
-                    // Counterparty info (always visible)
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () async {
-                            showDialog(
-                              context: context,
-                              builder: (_) =>
-                                  FutureBuilder<Map<String, dynamic>?>( // Corrected type here
-                                future: _fetchCounterpartyProfile(
-                                    context, counterpartyEmail),
-                                builder: (context, snapshot) {
-                                  if (snapshot.connectionState ==
-                                      ConnectionState.waiting) {
-                                    return Center(
-                                        child: CircularProgressIndicator());
-                                  }
-                                  final profile = snapshot.data;
-                                  if (profile == null) {
-                                    return _StylishProfileDialog(
-                                      title: 'Counterparty Info',
-                                      name: 'No profile found.',
-                                      avatarProvider:
-                                          AssetImage('assets/Other.png'),
-                                    );
-                                  }
-                                  if (profile['deactivatedAccount'] == true) {
-                                    return _StylishProfileDialog(
-                                      title: 'Counterparty Info',
-                                      name: 'This account is Deactivated.',
-                                      avatarProvider:
-                                          AssetImage('assets/Other.png'),
-                                    );
-                                  }
-                                  if (profile['profileIsPrivate'] == true) {
-                                    return _StylishProfileDialog(
-                                      title: 'Counterparty Info',
-                                      name: 'This user\'s profile is private.',
-                                      avatarProvider:
-                                          AssetImage('assets/Other.png'),
-                                      email: null,
-                                      phone: null,
-                                      gender: null,
-                                    );
-                                  }
-                                  final gender = profile['gender'] ?? 'Other';
-                                  dynamic imageUrl = profile['profileImage'];
-                                  if (imageUrl is Map &&
-                                      imageUrl['url'] != null)
-                                    imageUrl = imageUrl['url'];
-                                  if (imageUrl != null && imageUrl is! String)
-                                    imageUrl = null;
-                                  ImageProvider avatarProvider;
-                                  if (imageUrl != null &&
-                                      imageUrl.toString().isNotEmpty &&
-                                      imageUrl != 'null') {
-                                    avatarProvider = NetworkImage(imageUrl);
-                                  } else {
-                                    avatarProvider = AssetImage(
-                                      gender == 'Male'
-                                          ? 'assets/Male.png'
-                                          : gender == 'Female'
-                                              ? 'assets/Female.png'
-                                              : 'assets/Other.png',
-                                    );
-                                  }
-                                  final phoneStr =
-                                      (profile['phone'] ?? '').toString();
-                                  return _StylishProfileDialog(
-                                    title: 'Counterparty',
-                                    name: profile['name'] ?? 'Counterparty',
-                                    avatarProvider: avatarProvider,
-                                    email: profile['email'],
-                                    phone: phoneStr,
-                                    gender: profile['gender'],
-                                  );
-                                },
-                              ),
-                            );
-                          },
-                          child: CircleAvatar(
-                            radius: 14,
-                            backgroundColor: Colors.teal.shade100,
-                            child: Icon(Icons.person_outline,
-                                color: Colors.teal, size: 16),
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text('Counterparty: $counterpartyEmail',
-                              style: TextStyle(
-                                  fontSize: 15, color: Colors.black87)),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 6),
-                    // Amount (always visible - most important)
-                    Row(
-                      children: [
-                        Icon(Icons.attach_money, color: Colors.green, size: 20),
-                        SizedBox(width: 6),
-                        Text(
-                          'Amount: ${t['amount']} ${t['currency']}',
-                          style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green[700]),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 6),
-                    // Date (always visible)
-                    Row(
-                      children: [
-                        Icon(Icons.calendar_today,
-                            color: Colors.blue, size: 18),
-                        SizedBox(width: 6),
-                        Text('Date: $dateStr', style: TextStyle(fontSize: 14)),
-                      ],
-                    ),
-                    // Status indicator (always visible)
-                    SizedBox(height: 8),
-                    Container(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: fullyCleared
-                            ? Colors.green.withOpacity(0.1)
-                            : (youCleared || otherCleared)
-                                ? Colors.orange.withOpacity(0.1)
-                                : Colors.grey.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border(
-                          left: BorderSide(color: borderColor, width: 6),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            fullyCleared
-                                ? Icons.verified
-                                : (youCleared || otherCleared)
-                                    ? Icons.check
-                                    : Icons.hourglass_empty,
-                            color: fullyCleared
-                                ? Colors.green
-                                : (youCleared || otherCleared)
-                                    ? Colors.orange
-                                    : Colors.grey,
-                            size: 16,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            fullyCleared
-                                ? 'Fully Cleared'
-                                : (youCleared && !otherCleared)
-                                    ? 'You cleared'
-                                    : (!youCleared && otherCleared)
-                                        ? 'Other cleared'
-                                        : 'Uncleared',
-                            style: TextStyle(
-                              color: fullyCleared
-                                  ? Colors.green
-                                  : (youCleared || otherCleared)
-                                      ? Colors.orange
-                                      : Colors.grey,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Expandable content
-              AnimatedContainer(
-                duration: Duration(milliseconds: 300),
-                height: isExpanded ? null : 0,
-                child: isExpanded
-                    ? Padding(
-                        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        // Header with expand/collapse arrow
+                        Row(
                           children: [
-                            // Divider
-                            Divider(
-                                color: Colors.grey.withOpacity(0.3),
-                                thickness: 1),
-                            SizedBox(height: 12),
-
-                            // Time
-                            Row(
-                              children: [
-                                Icon(Icons.access_time,
-                                    color: Colors.deepPurple, size: 18),
-                                SizedBox(width: 6),
-                                Text('Time: $timeStr',
-                                    style: TextStyle(fontSize: 14)),
-                              ],
-                            ),
-                            SizedBox(height: 6),
-
-                            // Place
-                            Row(
-                              children: [
-                                Icon(Icons.place,
-                                    color: Colors.purple, size: 18),
-                                SizedBox(width: 6),
-                                Text('Place: ${t['place'] ?? ''}',
-                                    style: TextStyle(fontSize: 14)),
-                              ],
-                            ),
-                            SizedBox(height: 6),
-
-                            // Transaction ID
-                            Row(
-                              children: [
-                                Icon(Icons.confirmation_number,
-                                    color: Colors.grey, size: 18),
-                                SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                      'Transaction ID: ${t['transactionId']}',
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[700])),
+                            Icon(
+                                isLending
+                                    ? Icons.arrow_upward
+                                    : Icons.arrow_downward,
+                                color:
+                                    isLending ? Colors.green : Colors.orange,
+                                size: 28),
+                            if (t['isPartiallyPaid'] == true) ...[
+                              SizedBox(width: 4),
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.purple,
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                              ],
-                            ),
-
-                            // Attachments
-                            if (attachments.isNotEmpty) ...[
-                              SizedBox(height: 10),
-                              ElevatedButton.icon(
-                                icon: Icon(Icons.attach_file),
-                                label: Text('View Attachments'),
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.teal),
-                                onPressed: () {
-                                  showDialog(
-                                    context: context,
-                                    builder: (_) => _AttachmentCarouselDialog(
-                                        attachments: attachments),
-                                  );
-                                },
-                              ),
-                            ] else ...[
-                              SizedBox(height: 10),
-                              Text('No attachments',
+                                child: Text(
+                                  'Partial',
                                   style: TextStyle(
-                                      color: Colors.grey,
-                                      fontStyle: FontStyle.italic)),
-                            ],
-
-                            // File widgets
-                            if (fileWidgets.isNotEmpty) ...[
-                              SizedBox(height: 10),
-                              ...fileWidgets,
-                            ],
-
-                            // Interest widgets
-                            if (interestWidgets.isNotEmpty) ...[
-                              SizedBox(height: 10),
-                              ...interestWidgets,
-                            ],
-
-                            // Amount details section
-                            SizedBox(height: 10),
-                            Container(
-                              padding: EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: Colors.blue.withOpacity(0.3)),
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                               ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(Icons.account_balance_wallet,
-                                          color: Colors.blue, size: 20),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Amount Details',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: Colors.blue[700],
-                                        ),
-                                      ),
-                                    ],
+                            ],
+                            SizedBox(width: 10),
+                            // Only one profile icon for the logged-in user
+                            GestureDetector(
+                              onTap: () async {
+                                final profile = user;
+                                final gender = profile?['gender'] ?? 'Other';
+                                dynamic imageUrl = profile?['profileImage'];
+                                if (imageUrl is Map &&
+                                    imageUrl['url'] != null)
+                                  imageUrl = imageUrl['url'];
+                                if (imageUrl != null && imageUrl is! String)
+                                  imageUrl = null;
+                                ImageProvider avatarProvider;
+                                if (imageUrl != null &&
+                                    imageUrl.toString().isNotEmpty &&
+                                    imageUrl != 'null') {
+                                  avatarProvider = NetworkImage(imageUrl);
+                                } else {
+                                  avatarProvider = AssetImage(
+                                    gender == 'Male'
+                                        ? 'assets/Male.png'
+                                        : gender == 'Female'
+                                            ? 'assets/Female.png'
+                                            : 'assets/Other.png',
+                                  );
+                                }
+                                final phoneStr =
+                                    (profile?['phone'] ?? '').toString();
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => _StylishProfileDialog(
+                                    title: 'You',
+                                    name: profile?['name'] ?? 'You',
+                                    avatarProvider: avatarProvider,
+                                    email: profile?['email'],
+                                    phone: phoneStr,
+                                    gender: profile?['gender'],
                                   ),
-                                  SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.attach_money,
-                                          color: Colors.green, size: 16),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'Original Amount: ${t['amount']} ${t['currency']}',
-                                        style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w500),
-                                      ),
-                                    ],
-                                  ),
-                                  // Amount Paid Till Now
-                                  SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.payments,
-                                          color: Colors.green, size: 16),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'Amount Paid Till Now: ${_calculateAmountPaidTillNow(t)} ${t['currency']}',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.green[700],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  // Remaining Amount (Original + Interest - Partial Payments)
-                                  SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.account_balance_wallet,
-                                          color: Colors.orange, size: 16),
-                                      SizedBox(width: 6),
-                                      Text(
-                                        'Remaining Amount: ${_calculateRemainingAmount(t)} ${t['currency']}',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.orange[700],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                );
+                              },
+                              child: CircleAvatar(
+                                radius: 18,
+                                backgroundColor: Colors.teal.shade100,
+                                child: Icon(Icons.person,
+                                    color: Colors.teal, size: 22),
                               ),
                             ),
-
-                            // Delete indicator
-                            if (deleteIndicator != null) ...[
-                              SizedBox(height: 10),
-                              deleteIndicator,
-                            ],
-
-                            // See description button
-                            SizedBox(height: 10),
-                            seeDescriptionButton,
-
-                            // Status widgets
-                            SizedBox(height: 10),
-                            ...statusWidgets,
-
-                            // Action buttons
-                            SizedBox(height: 10),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    icon: Icon(Icons.chat_bubble,
-                                        color: Colors.white),
-                                    label: Text('Chat',
-                                        style: TextStyle(color: Colors.white)),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors
-                                          .green, // Make the chat button green
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(8)),
-                                    ),
-                                    onPressed: () {
-                                      final transactionId = t != null && t['_id'] != null
-                                              ? t['_id']
-                                              : '';
-                                      final session =
-                                          Provider.of<SessionProvider>(context,
-                                              listen: false);
-                                      final userObj = session.user;
-                                      final userEmail = userObj != null
-                                          ? userObj['email']
-                                          : null;
-                                      String? counterpartyEmail;
-                                      if (t['userEmail'] == userEmail) {
-                                        counterpartyEmail =
-                                            t['counterpartyEmail'];
-                                      } else {
-                                        counterpartyEmail = t['userEmail'];
-                                      }
-                                      print('transactionId: $transactionId');
-                                      print('userEmail: $userEmail');
-                                      print(
-                                          'counterpartyEmail: $counterpartyEmail');
-                                      if (transactionId != '' &&
-                                          counterpartyEmail != null) {
-                                        Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => ChatPage(
-                                                transactionId: transactionId,
-                                                counterpartyEmail:
-                                                    counterpartyEmail!, // Use null assertion operator
-                                              ),
-                                            ));
-                                      } else {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                              content: Text(
-                                                  'Unable to open chat: missing transaction or user info')),
-                                        );
-                                      }
-                                    },
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                isLending
+                                    ? 'Lending (You gave money)'
+                                    : 'Borrowing (You took money)',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isLending
+                                        ? Colors.green
+                                        : Colors.orange,
+                                    fontSize: 16),
+                              ),
+                            ),
+                            // Expand/collapse arrow
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  isExpanded = !isExpanded;
+                                });
+                              },
+                              child: Container(
+                                padding: EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: AnimatedRotation(
+                                  turns: isExpanded ? 0.5 : 0,
+                                  duration: Duration(milliseconds: 300),
+                                  child: Icon(
+                                    Icons.keyboard_arrow_down,
+                                    color: Colors.teal,
+                                    size: 24,
                                   ),
                                 ),
-                                SizedBox(width: 8),
-                                // Delete button - only show if both parties have cleared
-                                if (fullyCleared) ...[
-                                  Expanded(
-                                    child: ElevatedButton.icon(
-                                      icon: Icon(Icons.delete_forever,
-                                          color: Colors.white),
-                                      label: Text('Delete',
-                                          style:
-                                              TextStyle(color: Colors.white)),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.red,
-                                        shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8)),
-                                      ),
-                                      onPressed: () {
-                                        _showDeleteConfirmationDialog(
-                                            t['transactionId']);
-                                      },
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                ],
-                                Expanded(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)],
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                      ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: ElevatedButton.icon(
-                                      icon: Icon(Icons.receipt, color: Colors.black),
-                                      label: Text('Generate Receipt', style: TextStyle(color: Colors.black)),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.transparent,
-                                        shadowColor: Colors.transparent,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                      ),
-                                      onPressed: () {
-                                        _showReceiptOptionsDialog(Map<String, dynamic>.from(t));
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ],
                         ),
-                      )
-                    : null,
+                        SizedBox(height: 10),
+                        // Counterparty info (always visible)
+                        Row(
+                          children: [
+                            GestureDetector(
+                              onTap: () async {
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => FutureBuilder<
+                                      Map<String, dynamic>?>(
+                                    // Corrected type here
+                                    future: _fetchCounterpartyProfile(
+                                        context, counterpartyEmail),
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState ==
+                                          ConnectionState.waiting) {
+                                        return Center(
+                                            child:
+                                                CircularProgressIndicator());
+                                      }
+                                      final profile = snapshot.data;
+                                      if (profile == null) {
+                                        return _StylishProfileDialog(
+                                          title: 'Counterparty Info',
+                                          name: 'No profile found.',
+                                          avatarProvider:
+                                              AssetImage('assets/Other.png'),
+                                        );
+                                      }
+                                      if (profile['deactivatedAccount'] ==
+                                          true) {
+                                        return _StylishProfileDialog(
+                                          title: 'Counterparty Info',
+                                          name:
+                                              'This account is Deactivated.',
+                                          avatarProvider:
+                                              AssetImage('assets/Other.png'),
+                                        );
+                                      }
+                                      if (profile['profileIsPrivate'] ==
+                                          true) {
+                                        return _StylishProfileDialog(
+                                          title: 'Counterparty Info',
+                                          name:
+                                              'This user\'s profile is private.',
+                                          avatarProvider:
+                                              AssetImage('assets/Other.png'),
+                                          email: null,
+                                          phone: null,
+                                          gender: null,
+                                        );
+                                      }
+                                      final gender =
+                                          profile['gender'] ?? 'Other';
+                                      dynamic imageUrl =
+                                          profile['profileImage'];
+                                      if (imageUrl is Map &&
+                                          imageUrl['url'] != null)
+                                        imageUrl = imageUrl['url'];
+                                      if (imageUrl != null &&
+                                          imageUrl is! String)
+                                        imageUrl = null;
+                                      ImageProvider avatarProvider;
+                                      if (imageUrl != null &&
+                                          imageUrl.toString().isNotEmpty &&
+                                          imageUrl != 'null') {
+                                        avatarProvider =
+                                            NetworkImage(imageUrl);
+                                      } else {
+                                        avatarProvider = AssetImage(
+                                          gender == 'Male'
+                                              ? 'assets/Male.png'
+                                              : gender == 'Female'
+                                                  ? 'assets/Female.png'
+                                                  : 'assets/Other.png',
+                                        );
+                                      }
+                                      final phoneStr =
+                                          (profile['phone'] ?? '')
+                                              .toString();
+                                      return _StylishProfileDialog(
+                                        title: 'Counterparty',
+                                        name: profile['name'] ??
+                                            'Counterparty',
+                                        avatarProvider: avatarProvider,
+                                        email: profile['email'],
+                                        phone: phoneStr,
+                                        gender: profile['gender'],
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
+                              child: CircleAvatar(
+                                radius: 14,
+                                backgroundColor: Colors.teal.shade100,
+                                child: Icon(Icons.person_outline,
+                                    color: Colors.teal, size: 16),
+                              ),
+                            ),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                  'Counterparty: $counterpartyEmail',
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.black87)),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 6),
+                        // Amount (always visible - most important)
+                        Row(
+                          children: [
+                            Icon(Icons.attach_money,
+                                color: Colors.green, size: 20),
+                            SizedBox(width: 6),
+                            Text(
+                              'Amount: ${t['amount']} ${t['currency']}',
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green[700]),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 6),
+                        // Date (always visible)
+                        Row(
+                          children: [
+                            Icon(Icons.calendar_today,
+                                color: Colors.blue, size: 18),
+                            SizedBox(width: 6),
+                            Text('Date: $dateStr',
+                                style: TextStyle(fontSize: 14)),
+                          ],
+                        ),
+                        // Status indicator (always visible)
+                        SizedBox(height: 8),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: fullyCleared
+                                ? Colors.green.withOpacity(0.1)
+                                : (youCleared || otherCleared)
+                                    ? Colors.orange.withOpacity(0.1)
+                                    : Colors.grey.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border(
+                              left: BorderSide(color: borderColor, width: 6),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                fullyCleared
+                                    ? Icons.verified
+                                    : (youCleared || otherCleared)
+                                        ? Icons.check
+                                        : Icons.hourglass_empty,
+                                color: fullyCleared
+                                    ? Colors.green
+                                    : (youCleared || otherCleared)
+                                        ? Colors.orange
+                                        : Colors.grey,
+                                size: 16,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                fullyCleared
+                                    ? 'Fully Cleared'
+                                    : (youCleared && !otherCleared)
+                                        ? 'You cleared'
+                                        : (!youCleared && otherCleared)
+                                            ? 'Other cleared'
+                                            : 'Uncleared',
+                                style: TextStyle(
+                                  color: fullyCleared
+                                      ? Colors.green
+                                      : (youCleared || otherCleared)
+                                          ? Colors.orange
+                                          : Colors.grey,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Expandable content
+                  AnimatedContainer(
+                    duration: Duration(milliseconds: 300),
+                    height: isExpanded ? null : 0,
+                    child: isExpanded
+                        ? Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Divider
+                                Divider(
+                                    color: Colors.grey.withOpacity(0.3),
+                                    thickness: 1),
+                                SizedBox(height: 12),
+
+                                // Time
+                                Row(
+                                  children: [
+                                    Icon(Icons.access_time,
+                                        color: Colors.deepPurple, size: 18),
+                                    SizedBox(width: 6),
+                                    Text('Time: $timeStr',
+                                        style: TextStyle(fontSize: 14)),
+                                  ],
+                                ),
+                                SizedBox(height: 6),
+
+                                // Place
+                                Row(
+                                  children: [
+                                    Icon(Icons.place,
+                                        color: Colors.purple, size: 18),
+                                    SizedBox(width: 6),
+                                    Text('Place: ${t['place'] ?? ''}',
+                                        style: TextStyle(fontSize: 14)),
+                                  ],
+                                ),
+                                SizedBox(height: 6),
+
+                                // Transaction ID
+                                Row(
+                                  children: [
+                                    Icon(Icons.confirmation_number,
+                                        color: Colors.grey, size: 18),
+                                    SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                          'Transaction ID: ${t['transactionId']}',
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[700])),
+                                    ),
+                                  ],
+                                ),
+
+                                // Attachments
+                                if (attachments.isNotEmpty) ...[
+                                  SizedBox(height: 10),
+                                  ElevatedButton.icon(
+                                    icon: Icon(Icons.attach_file),
+                                    label: Text('View Attachments'),
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.teal),
+                                    onPressed: () {
+                                      showDialog(
+                                        context: context,
+                                        builder: (_) =>
+                                            _AttachmentCarouselDialog(
+                                                attachments: attachments),
+                                      );
+                                    },
+                                  ),
+                                ] else ...[
+                                  SizedBox(height: 10),
+                                  Text('No attachments',
+                                      style: TextStyle(
+                                          color: Colors.grey,
+                                          fontStyle: FontStyle.italic)),
+                                ],
+
+                                // File widgets
+                                if (fileWidgets.isNotEmpty) ...[
+                                  SizedBox(height: 10),
+                                  ...fileWidgets,
+                                ],
+
+                                // Interest widgets
+                                if (interestWidgets.isNotEmpty) ...[
+                                  SizedBox(height: 10),
+                                  ...interestWidgets,
+                                ],
+
+                                // Amount details section
+                                SizedBox(height: 10),
+                                Container(
+                                  padding: EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color:
+                                            Colors.blue.withOpacity(0.3)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                              Icons.account_balance_wallet,
+                                              color: Colors.blue,
+                                              size: 20),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Amount Details',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: Colors.blue[700],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.attach_money,
+                                              color: Colors.green,
+                                              size: 16),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'Original Amount: ${t['amount']} ${t['currency']}',
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight:
+                                                    FontWeight.w500),
+                                          ),
+                                        ],
+                                      ),
+                                      // Amount Paid Till Now
+                                      SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.payments,
+                                              color: Colors.green,
+                                              size: 16),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'Amount Paid Till Now: ${_calculateAmountPaidTillNow(t)} ${t['currency']}',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.green[700],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      // Remaining Amount (Original + Interest - Partial Payments)
+                                      SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                              Icons.account_balance_wallet,
+                                              color: Colors.orange,
+                                              size: 16),
+                                          SizedBox(width: 6),
+                                          Text(
+                                            'Remaining Amount: ${_calculateRemainingAmount(t)} ${t['currency']}',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.orange[700],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // Delete indicator
+                                if (deleteIndicator != null) ...[
+                                  SizedBox(height: 10),
+                                  deleteIndicator,
+                                ],
+
+                                // See description button
+                                SizedBox(height: 10),
+                                seeDescriptionButton,
+
+                                // Status widgets
+                                SizedBox(height: 10),
+                                ...statusWidgets,
+
+                                // Action buttons
+                                SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        icon: Icon(Icons.chat_bubble,
+                                            color: Colors.white),
+                                        label: Text('Chat',
+                                            style: TextStyle(
+                                                color: Colors.white)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors
+                                              .green, // Make the chat button green
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                      8)),
+                                        ),
+                                        onPressed: () {
+                                          final transactionId = t != null &&
+                                                  t['_id'] != null
+                                              ? t['_id']
+                                              : '';
+                                          final session = Provider.of<
+                                                  SessionProvider>(context,
+                                              listen: false);
+                                          final userObj = session.user;
+                                          final userEmail =
+                                              userObj != null
+                                                  ? userObj['email']
+                                                  : null;
+                                          String? counterpartyEmail;
+                                          if (t['userEmail'] ==
+                                              userEmail) {
+                                            counterpartyEmail =
+                                                t['counterpartyEmail'];
+                                          } else {
+                                            counterpartyEmail =
+                                                t['userEmail'];
+                                          }
+                                          print(
+                                              'transactionId: $transactionId');
+                                          print('userEmail: $userEmail');
+                                          print(
+                                              'counterpartyEmail: $counterpartyEmail');
+                                          if (transactionId != '' &&
+                                              counterpartyEmail != null) {
+                                            Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => ChatPage(
+                                                    transactionId:
+                                                        transactionId,
+                                                    counterpartyEmail:
+                                                        counterpartyEmail!, // Use null assertion operator
+                                                  ),
+                                                ));
+                                          } else {
+                                            ScaffoldMessenger.of(context)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                  content: Text(
+                                                      'Unable to open chat: missing transaction or user info')),
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    // Delete button - only show if both parties have cleared
+                                    if (fullyCleared) ...[
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          icon: Icon(
+                                              Icons.delete_forever,
+                                              color: Colors.white),
+                                          label: Text('Delete',
+                                              style: TextStyle(
+                                                  color: Colors.white)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.red,
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(
+                                                        8)),
+                                          ),
+                                          onPressed: () {
+                                            _showDeleteConfirmationDialog(
+                                                t['transactionId']);
+                                          },
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                    ],
+                                    Expanded(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              Color(0xFFFF9933),
+                                              Color(0xFFFFFFFF),
+                                              Color(0xFF138808)
+                                            ],
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: ElevatedButton.icon(
+                                          icon: Icon(Icons.receipt,
+                                              color: Colors.black),
+                                          label: Text('Generate Receipt',
+                                              style: TextStyle(
+                                                  color: Colors.black)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                Colors.transparent,
+                                            shadowColor:
+                                                Colors.transparent,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          onPressed: () {
+                                            _showReceiptOptionsDialog(
+                                                Map<String, dynamic>.from(
+                                                    t));
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          )
+                        : null,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         );
       },
