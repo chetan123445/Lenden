@@ -5,9 +5,10 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:math' as math;
 import '../api_config.dart';
 import '../profile/edit_profile_page.dart';
-import 'dart:async'; // Added for Timer
+import 'dart:async';
 import '../otp_input.dart';
 import '../Transaction/transaction_page.dart';
 import '../Transaction/user_transactions_page.dart';
@@ -19,7 +20,7 @@ import '../profile/profile_page.dart';
 import 'ratings_page.dart';
 import 'activity_page.dart';
 import 'help_support_page.dart';
-import 'feedback.dart'; // Import the feedback page
+import 'feedback.dart';
 import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
 
@@ -30,29 +31,95 @@ class UserDashboardPage extends StatefulWidget {
   State<UserDashboardPage> createState() => _UserDashboardPageState();
 }
 
-class _UserDashboardPageState extends State<UserDashboardPage> {
+class _UserDashboardPageState extends State<UserDashboardPage>
+    with TickerProviderStateMixin {
   List<Map<String, dynamic>> transactions = [];
+  List<Map<String, dynamic>> counterparties = [];
   bool loading = true;
-  int _imageRefreshKey = 0; // Key to force avatar rebuild
+  bool _counterpartiesLoading = true;
+  int _imageRefreshKey = 0;
   final ScrollController _scrollController = ScrollController();
-  bool _showScrollIndicator = false; // Control visibility of scroll indicator
+  bool _showScrollIndicator = false;
   bool _hasRatedApp = false;
   bool _ratingDialogShown = false;
+  final TextEditingController _searchController = TextEditingController();
+  final Map<String, GlobalKey> _sectionKeys = {
+    'transactions': GlobalKey(),
+    'your_transactions': GlobalKey(),
+    'analytics': GlobalKey(),
+    'group_transaction': GlobalKey(),
+    'view_group': GlobalKey(),
+  };
+
+  // Carousel rotation
+  late AnimationController _rotationController;
+  Timer? _carouselTimer;
+
+  final List<Map<String, dynamic>> _carouselItems = [
+    {
+      'icon': Icons.account_balance_wallet,
+      'label': 'Balance',
+      'color': Colors.blue,
+      'action': 'balance'
+    },
+    {
+      'icon': Icons.history,
+      'label': 'History',
+      'color': Colors.orange,
+      'action': 'history'
+    },
+    {
+      'icon': Icons.favorite,
+      'label': 'Favourites',
+      'color': Colors.red,
+      'action': 'favourites'
+    },
+    {
+      'icon': Icons.local_offer,
+      'label': 'Offers',
+      'color': Colors.purple,
+      'action': 'offers'
+    },
+    {
+      'icon': Icons.share,
+      'label': 'Refer',
+      'color': Colors.green,
+      'action': 'refer'
+    },
+    {
+      'icon': Icons.star,
+      'label': 'Ratings',
+      'color': Colors.amber,
+      'action': 'ratings'
+    },
+  ];
 
   @override
   void initState() {
     super.initState();
     fetchTransactions();
+    _fetchCounterparties();
     _checkAndShowRatingDialog();
 
-    // Listen to session changes to refresh profile image
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = Provider.of<SessionProvider>(context, listen: false);
       session.addListener(_onSessionChanged);
     });
 
-    // Listen to scroll events to show/hide scroll indicator
     _scrollController.addListener(_onScroll);
+
+    // Initialize rotation controller
+    _rotationController = AnimationController(
+      duration: const Duration(seconds: 20),
+      vsync: this,
+    );
+
+    // Start carousel auto-rotation
+    _startCarouselRotation();
+  }
+
+  void _startCarouselRotation() {
+    _rotationController.repeat();
   }
 
   @override
@@ -61,6 +128,9 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     session.removeListener(_onSessionChanged);
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _searchController.dispose();
+    _rotationController.dispose();
+    _carouselTimer?.cancel();
     super.dispose();
   }
 
@@ -71,15 +141,42 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
   }
 
   void _onScroll() {
-    // Show scroll indicator when user scrolls down past the first few items
     if (_scrollController.hasClients) {
-      final showIndicator =
-          _scrollController.offset > 200; // Show after scrolling 200px
+      final showIndicator = _scrollController.offset > 200;
       if (showIndicator != _showScrollIndicator) {
         setState(() {
           _showScrollIndicator = showIndicator;
         });
       }
+    }
+  }
+
+  void _performSearch(String query) {
+    if (query.isEmpty) return;
+
+    final lowerQuery = query.toLowerCase();
+    String? matchedSection;
+
+    if (lowerQuery.contains('create') || lowerQuery.contains('transaction')) {
+      matchedSection = 'transactions';
+    } else if (lowerQuery.contains('your') || lowerQuery.contains('detail')) {
+      matchedSection = 'your_transactions';
+    } else if (lowerQuery.contains('analytic') ||
+        lowerQuery.contains('visual')) {
+      matchedSection = 'analytics';
+    } else if (lowerQuery.contains('group') && lowerQuery.contains('create')) {
+      matchedSection = 'group_transaction';
+    } else if (lowerQuery.contains('group') && lowerQuery.contains('view')) {
+      matchedSection = 'view_group';
+    }
+
+    if (matchedSection != null &&
+        _sectionKeys[matchedSection]?.currentContext != null) {
+      Scrollable.ensureVisible(
+        _sectionKeys[matchedSection]!.currentContext!,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
     }
   }
 
@@ -98,37 +195,65 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     });
   }
 
+  Future<void> _fetchCounterparties() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final email = session.user?['email'];
+    if (email == null) {
+      return;
+    }
+    try {
+      final res = await http.get(
+          Uri.parse('${ApiConfig.baseUrl}/api/analytics/user?email=$email'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['topCounterparties'] != null) {
+          List<Map<String, dynamic>> topCounterparties = 
+              List<Map<String, dynamic>>.from(data['topCounterparties']);
+
+          // Fetch all profiles in parallel
+          final profiles = await Future.wait(topCounterparties
+              .map((cp) => _fetchCounterpartyProfile(cp['email'])));
+
+          List<Map<String, dynamic>> populatedCounterparties = [];
+          for (int i = 0; i < topCounterparties.length; i++) {
+            final profile = profiles[i];
+            if (profile != null) {
+              populatedCounterparties.add(profile);
+            } else {
+              populatedCounterparties.add({
+                'email': topCounterparties[i]['email'],
+                'name': 'Unknown'
+              });
+            }
+          }
+
+          setState(() {
+            counterparties = populatedCounterparties;
+          });
+        }
+      }
+    } catch (e) {
+      // Handle error silently
+    }
+  }
+
   void showTransactionForm() => Navigator.push(
       context, MaterialPageRoute(builder: (_) => TransactionPage()));
 
-  // Helper function to get user's profile image
   ImageProvider _getUserAvatar() {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final user = session.user;
     final gender = user?['gender'] ?? 'Other';
     final imageUrl = user?['profileImage'];
 
-    print('🖼️ Dashboard - _getUserAvatar called:');
-    print('   User: ${user != null ? 'Present' : 'Missing'}');
-    print('   User data: $user');
-    print('   Gender: $gender');
-    print('   Profile image URL: $imageUrl');
-    print('   Image URL type: ${imageUrl.runtimeType}');
-    print('   Image URL is null: ${imageUrl == null}');
-    print('   Image URL is empty: ${imageUrl == ""}');
-    print('   Image URL is "null": ${imageUrl == "null"}');
-
     if (imageUrl != null &&
         imageUrl is String &&
         imageUrl.trim().isNotEmpty &&
         imageUrl != 'null') {
-      // Add cache busting parameter for real-time updates
       final cacheBustingUrl =
           '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
-      print('   ✅ Using network image: $cacheBustingUrl');
       return NetworkImage(cacheBustingUrl);
     } else {
-      print('   ⚠️ Using default asset image for gender: $gender');
       return AssetImage(
         gender == 'Male'
             ? 'assets/Male.png'
@@ -137,19 +262,6 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 : 'assets/Other.png',
       );
     }
-  }
-
-  Future<double?> _fetchAvgRating() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final baseUrl = ApiConfig.baseUrl;
-    final res = await http.get(Uri.parse('$baseUrl/api/ratings/me'),
-        headers: {'Authorization': 'Bearer $token'});
-    if (res.statusCode == 200) {
-      final data = json.decode(res.body);
-      return data['avgRating']?.toDouble();
-    }
-    return null;
   }
 
   Future<void> _checkAndShowRatingDialog() async {
@@ -166,7 +278,6 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
         setState(() {
           _hasRatedApp = data['rating'] != null;
         });
-        // Only show dialog if not rated, and only sometimes (e.g. 1 in 3 chance)
         if (!_hasRatedApp &&
             !_ratingDialogShown &&
             (DateTime.now().millisecondsSinceEpoch % 3 == 0)) {
@@ -374,14 +485,43 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
     );
   }
 
+  void _handleCarouselAction(String action) {
+    switch (action) {
+      case 'balance':
+        Navigator.push(
+            context, MaterialPageRoute(builder: (_) => AnalyticsPage()));
+        break;
+      case 'history':
+        Navigator.push(
+            context, MaterialPageRoute(builder: (_) => ActivityPage()));
+        break;
+      case 'favourites':
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Favourites coming soon!')),
+        );
+        break;
+      case 'offers':
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Offers coming soon!')),
+        );
+        break;
+      case 'refer':
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Refer a friend coming soon!')),
+        );
+        break;
+      case 'ratings':
+        Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const RatingsPage()));
+        break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final userId = session.user?['_id'];
-    final lendingList =
-        transactions.where((t) => t['lender']?['_id'] == userId).toList();
-    final borrowingList =
-        transactions.where((t) => t['borrower']?['_id'] == userId).toList();
+
     return PopScope(
       canPop: false,
       onPopInvoked: (didPop) async {
@@ -404,13 +544,7 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 leading: const Icon(Icons.dashboard),
                 title: const Text('Dashboard'),
                 onTap: () {
-                  Navigator.of(context).pop(); // Close drawer
-                  // Optionally, navigate to dashboard if not already there
-                  // If you want to force navigation, uncomment below:
-                  // Navigator.pushReplacement(
-                  //   context,
-                  //   MaterialPageRoute(builder: (_) => const UserDashboardPage()),
-                  // );
+                  Navigator.of(context).pop();
                 },
               ),
               ListTile(
@@ -437,8 +571,10 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 title: const Text('Activity'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => ActivityPage()));
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ActivityPage()));
                 },
               ),
               ListTile(
@@ -455,17 +591,21 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 title: const Text('Ratings'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const RatingsPage()));
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const RatingsPage()));
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.help_center), // New icon
+                leading: const Icon(Icons.help_center),
                 title: const Text('Help & Support'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => HelpSupportPage()));
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => HelpSupportPage()));
                 },
               ),
               ListTile(
@@ -487,52 +627,186 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
         backgroundColor: const Color(0xFFF8F6FA),
         body: Stack(
           children: [
-            Positioned(
-              top: 20,
-              right: 20,
-              child: FutureBuilder<double?>(
-                future: _fetchAvgRating(),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const SizedBox();
-                  }
-                  final avgRating = snapshot.data;
-                  return avgRating != null
-                      ? Row(
-                          children: [
-                            const Icon(Icons.star,
-                                color: Colors.amber, size: 28),
-                            const SizedBox(width: 4),
-                            Text(avgRating.toStringAsFixed(2),
-                                style: const TextStyle(
-                                    fontSize: 20, fontWeight: FontWeight.bold)),
-                          ],
-                        )
-                      : const SizedBox();
-                },
-              ),
-            ),
-            // Main content area
-            // Main content area
+            // Main content
             SafeArea(
               child: SingleChildScrollView(
                 controller: _scrollController,
                 padding: EdgeInsets.only(
-                  top: 160, // Account for top blue wave + extra spacing
-                  bottom: 130, // Account for bottom blue wave + extra spacing
+                  top: 80,
+                  bottom: 100,
                   left: 0,
                   right: 0,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // First 3 options (always visible)
+                    // Search Bar with tricolor border
+                    Container(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(27),
+                        gradient: const LinearGradient(
+                          colors: [Colors.orange, Colors.white, Colors.green],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.search,
+                              color: Colors.grey[600],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: _searchController,
+                                onSubmitted: _performSearch,
+                                decoration: InputDecoration(
+                                  hintText: 'Search sections...',
+                                  hintStyle:
+                                      TextStyle(color: Colors.grey[400]),
+                                  border: InputBorder.none,
+                                  contentPadding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                ),
+                                style: const TextStyle(fontSize: 16),
+                              ),
+                            ),
+                            if (_searchController.text.isNotEmpty)
+                              IconButton(
+                                icon: Icon(Icons.clear, 
+                                    color: Colors.grey[600], size: 20),
+                                onPressed: () {
+                                  setState(() {
+                                    _searchController.clear();
+                                  });
+                                },
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Rotating Carousel
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: SizedBox(
+                        height: 120,
+                        child: AnimatedBuilder(
+                          animation: _rotationController,
+                          builder: (context, child) {
+                            return Stack(
+                              alignment: Alignment.center,
+                              children: List.generate(_carouselItems.length, (index) {
+                                final item = _carouselItems[index];
+                                final angle = (index / _carouselItems.length) *
+                                        2 *
+                                        math.pi +
+                                    (_rotationController.value * 2 * math.pi);
+                                final x = math.cos(angle) * 120;
+                                final y = math.sin(angle) * 30;
+                                final scale =
+                                    0.7 + (math.sin(angle) + 1) / 2 * 0.5;
+
+                                return Transform(
+                                  transform: Matrix4.identity()
+                                    ..translate(x, y)
+                                    ..scale(scale),
+                                  alignment: Alignment.center,
+                                  child: Opacity(
+                                    opacity:
+                                        (math.sin(angle) + 1) / 2 * 0.8 + 0.2,
+                                    child: _buildQuickActionItem(
+                                      icon: item['icon'] as IconData,
+                                      label: item['label'] as String,
+                                      color: item['color'] as Color,
+                                      onTap: () => _handleCarouselAction(
+                                          item['action'] as String),
+                                    ),
+                                  ),
+                                );
+                              }),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Counterparties section with tricolor border
+                    Container(
+                      margin: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        gradient: const LinearGradient(
+                          colors: [Colors.orange, Colors.white, Colors.green],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.people, color: Color(0xFF00B4D8)),
+                                SizedBox(width: 8),
+                                const Text(
+                                  'Top Counterparties',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF00B4D8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _buildCounterpartiesGrid(userId),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Main action cards
                     GestureDetector(
+                      key: _sectionKeys['transactions'],
                       onTap: showTransactionForm,
                       child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2), // border width
+                        margin: EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 24),
+                        padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Colors.orange, Colors.white, Colors.green],
@@ -576,14 +850,15 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       ),
                     ),
                     GestureDetector(
+                      key: _sectionKeys['your_transactions'],
                       onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
                               builder: (_) => UserTransactionsPage())),
                       child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2), // border width
+                        margin: EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 24),
+                        padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Colors.orange, Colors.white, Colors.green],
@@ -627,12 +902,13 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       ),
                     ),
                     GestureDetector(
+                      key: _sectionKeys['analytics'],
                       onTap: () => Navigator.push(context,
                           MaterialPageRoute(builder: (_) => AnalyticsPage())),
                       child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2), // border width
+                        margin: EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 24),
+                        padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Colors.orange, Colors.white, Colors.green],
@@ -690,13 +966,12 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       ),
                     ),
 
-                    // Scroll indicator (appears when user scrolls down)
                     if (_showScrollIndicator) ...[
                       SizedBox(height: 20),
                       Center(
                         child: Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
                             color: Color(0xFF00B4D8).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(20),
@@ -727,17 +1002,17 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       SizedBox(height: 20),
                     ],
 
-                    // Additional options (always visible, but scroll indicator suggests more content)
                     SizedBox(height: 20),
                     GestureDetector(
+                      key: _sectionKeys['group_transaction'],
                       onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
                               builder: (_) => GroupTransactionPage())),
                       child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2), // border width
+                        margin: EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 24),
+                        padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Colors.orange, Colors.white, Colors.green],
@@ -781,14 +1056,15 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                       ),
                     ),
                     GestureDetector(
+                      key: _sectionKeys['view_group'],
                       onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
                               builder: (_) => ViewGroupTransactionsPage())),
                       child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2), // border width
+                        margin: EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 24),
+                        padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             colors: [Colors.orange, Colors.white, Colors.green],
@@ -835,7 +1111,8 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 ),
               ),
             ),
-            // Top blue shape (background)
+
+            // Top blue wave
             Positioned(
               top: 0,
               left: 0,
@@ -843,12 +1120,13 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
               child: ClipPath(
                 clipper: TopWaveClipper(),
                 child: Container(
-                  height: 120,
+                  height: 80,
                   color: const Color(0xFF00B4D8),
                 ),
               ),
             ),
-            // Bottom blue shape (background)
+
+            // Bottom blue wave
             Positioned(
               bottom: 0,
               left: 0,
@@ -861,252 +1139,89 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                 ),
               ),
             ),
-            // Header buttons overlay (on top)
+
+            // Header section
             Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: SafeArea(
                 bottom: false,
-                child: Container(
-                  height: 60,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back,
-                                color: Colors.black),
-                            onPressed: () async {
-                              final popped =
-                                  await Navigator.of(context).maybePop();
-                              if (!popped && context.mounted) {
-                                Navigator.pushReplacementNamed(context, '/');
-                              }
-                            },
-                          ),
-                          Builder(
-                            builder: (context) => IconButton(
-                              icon: const Icon(Icons.menu, color: Colors.black),
-                              onPressed: () =>
-                                  Scaffold.of(context).openDrawer(),
-                            ),
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          NotificationIcon(),
-                          GestureDetector(
-                            onTap: () async {
-                              print(
-                                  'Profile icon tapped - navigating to profile page');
-                              try {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          const ProfilePage()),
-                                );
-                                print('Returned from profile page');
-                                // Force refresh after returning from profile page
-                                final session = Provider.of<SessionProvider>(
-                                    context,
-                                    listen: false);
-                                await session.forceRefreshProfile();
-                                setState(() {
-                                  _imageRefreshKey++;
-                                });
-                              } catch (e) {
-                                print('Error navigating to profile: $e');
-                              }
-                            },
-                            child: CircleAvatar(
-                              key: ValueKey(_imageRefreshKey),
-                              radius: 16,
-                              backgroundColor: Colors.white,
-                              backgroundImage: _getUserAvatar(),
-                              onBackgroundImageError: (exception, stackTrace) {
-                                // Handle image loading error
-                              },
-                              child: _getUserAvatar() is AssetImage
-                                  ? Icon(
-                                      Icons.person,
-                                      color: Colors.grey[400],
-                                      size: 20,
-                                    )
-                                  : null,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.logout,
-                                color: Colors.black, size: 28),
-                            tooltip: 'Logout',
-                            onPressed: () => _confirmLogout(context),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _confirmLogout(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => Dialog(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  color: Colors.white,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 20,
-                      offset: Offset(0, 10),
-                    ),
-                  ],
-                ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Blue wavy header bar
                     Container(
-                      height: 80,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(20),
-                          topRight: Radius.circular(20),
-                        ),
-                      ),
-                      child: ClipPath(
-                        clipper: LogoutWaveClipper(),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Color(0xFF00B4D8), Color(0xFF0096CC)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // White content area
-                    Container(
-                      padding: EdgeInsets.all(24),
-                      child: Column(
+                      height: 60,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Title
-                          Text(
-                            'Are you sure?',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          SizedBox(height: 16),
-
-                          // Message
-                          Text(
-                            'Do you want to logout?',
-                            style: TextStyle(
-                              color: Colors.grey[700],
-                              fontSize: 16,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          SizedBox(height: 32),
-
-                          // Stylish buttons
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              // NO button
-                              Expanded(
-                                child: Container(
-                                  margin: EdgeInsets.only(right: 8),
-                                  child: ElevatedButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(false),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.grey[100],
-                                      foregroundColor: Colors.grey[700],
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        side: BorderSide(
-                                            color: Colors.grey[300]!),
-                                      ),
-                                      padding:
-                                          EdgeInsets.symmetric(vertical: 16),
-                                      elevation: 0,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.close, size: 20),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'NO',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                              IconButton(
+                                icon: const Icon(Icons.arrow_back,
+                                    color: Colors.black),
+                                onPressed: () async {
+                                  final popped =
+                                      await Navigator.of(context).maybePop();
+                                  if (!popped && context.mounted) {
+                                    Navigator.pushReplacementNamed(
+                                        context, '/');
+                                  }
+                                },
+                              ),
+                              Builder(
+                                builder: (context) => IconButton(
+                                  icon: const Icon(Icons.menu,
+                                      color: Colors.black),
+                                  onPressed: () =>
+                                      Scaffold.of(context).openDrawer(),
                                 ),
                               ),
-                              // YES button
-                              Expanded(
-                                child: Container(
-                                  margin: EdgeInsets.only(left: 8),
-                                  child: ElevatedButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(true),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Color(0xFF00B4D8),
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding:
-                                          EdgeInsets.symmetric(vertical: 16),
-                                      elevation: 2,
-                                      shadowColor:
-                                          Color(0xFF00B4D8).withOpacity(0.3),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.logout, size: 20),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'YES',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              NotificationIcon(),
+                              GestureDetector(
+                                onTap: () async {
+                                  try {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (context) =>
+                                              const ProfilePage()),
+                                    );
+                                    final session =
+                                        Provider.of<SessionProvider>(context,
+                                            listen: false);
+                                    await session.forceRefreshProfile();
+                                    setState(() {
+                                      _imageRefreshKey++;
+                                    });
+                                  } catch (e) {
+                                    print('Error navigating to profile: $e');
+                                  }
+                                },
+                                child: CircleAvatar(
+                                  key: ValueKey(_imageRefreshKey),
+                                  radius: 16,
+                                  backgroundColor: Colors.white,
+                                  backgroundImage: _getUserAvatar(),
+                                  onBackgroundImageError:
+                                      (exception, stackTrace) {},
+                                  child: _getUserAvatar() is AssetImage
+                                      ? Icon(
+                                          Icons.person,
+                                          color: Colors.grey[400],
+                                          size: 20,
+                                        )
+                                      : null,
                                 ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.logout,
+                                    color: Colors.black, size: 28),
+                                tooltip: 'Logout',
+                                onPressed: () => _confirmLogout(context),
                               ),
                             ],
                           ),
@@ -1116,48 +1231,355 @@ class _UserDashboardPageState extends State<UserDashboardPage> {
                   ],
                 ),
               ),
-            ));
-    if (confirmed == true) {
-      await Provider.of<SessionProvider>(context, listen: false).logout();
-      Navigator.pushReplacementNamed(context, '/login');
-    }
-  }
-}
-
-class GoogleMenuIcon extends StatelessWidget {
-  const GoogleMenuIcon({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(height: 3),
-        ColoredBar(color: Color(0xFF4285F4)), // Blue
-        SizedBox(height: 4),
-        ColoredBar(color: Color(0xFFDB4437)), // Red
-        SizedBox(height: 4),
-        ColoredBar(color: Color(0xFFF4B400)), // Yellow
-      ],
-    );
-  }
-}
-
-class ColoredBar extends StatelessWidget {
-  final Color color;
-  const ColoredBar({Key? key, required this.color}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 4,
-      width: 24,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(2),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildQuickActionItem({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withOpacity(0.4), width: 2),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[800],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCounterpartiesGrid(String? userId) {
+    if (counterparties.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            'No counterparties yet',
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+          ),
+        ),
+      );
+    }
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 1,
+      ),
+      itemCount: counterparties.length,
+      itemBuilder: (context, index) {
+        final counterparty = counterparties[index];
+        return _buildCounterpartyCard(counterparty);
+      },
+    );
+  }
+
+  Widget _buildCounterpartyCard(Map<String, dynamic> counterparty) {
+    final name = counterparty['name'] ?? 'Unknown';
+    final imageUrl = counterparty['profileImage'];
+    final gender = counterparty['gender'] ?? 'Other';
+
+    ImageProvider avatarImage;
+    if (imageUrl != null &&
+        imageUrl is String &&
+        imageUrl.trim().isNotEmpty &&
+        imageUrl != 'null') {
+      avatarImage = NetworkImage(imageUrl);
+    } else {
+      avatarImage = AssetImage(
+        gender == 'Male'
+            ? 'assets/Male.png'
+            : gender == 'Female'
+                ? 'assets/Female.png'
+                : 'assets/Other.png',
+      );
+    }
+
+    return GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (_) => _StylishProfileDialog(
+            title: 'Counterparty',
+            name: name,
+            avatarProvider: avatarImage,
+            email: counterparty['email'],
+            phone: counterparty['phone']?.toString(),
+            gender: gender,
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: const LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: Colors.grey[300],
+                backgroundImage: avatarImage,
+                onBackgroundImageError: (_, __) {},
+              ),
+              const SizedBox(height: 4),
+              Text(
+                name.length > 8 ? '${name.substring(0, 8)}...' : name,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>?> _fetchCounterpartyProfile(String email) async {
+    if (email.isEmpty) return null;
+    try {
+      final res = await http.get(Uri.parse(
+          '${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'));
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    bool isLoggingOut = false;
+
+    final confirmed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => StatefulBuilder(
+              builder: (context, setState) => Dialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20)),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 20,
+                        offset: Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        height: 80,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(20),
+                            topRight: Radius.circular(20),
+                          ),
+                        ),
+                        child: ClipPath(
+                          clipper: LogoutWaveClipper(),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF00B4D8), Color(0xFF0096CC)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            if (isLoggingOut) ...[
+                              CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Color(0xFF00B4D8),
+                                ),
+                              ),
+                              SizedBox(height: 20),
+                              Text(
+                                'Logging out...', 
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ] else ...[
+                              Text(
+                                'Are you sure?',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              SizedBox(height: 16),
+                              Text(
+                                'Do you want to logout?',
+                                style: TextStyle(
+                                  color: Colors.grey[700],
+                                  fontSize: 16,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: 32),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                children: [
+                                  Expanded(
+                                    child: Container(
+                                      margin: EdgeInsets.only(right: 8),
+                                      child: ElevatedButton(
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(false),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.grey[100],
+                                          foregroundColor: Colors.grey[700],
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                            side: BorderSide(
+                                                color: Colors.grey[300]!),
+                                          ),
+                                          padding: EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          elevation: 0,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.close, size: 20),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              'NO',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                      margin: EdgeInsets.only(left: 8),
+                                      child: ElevatedButton(
+                                        onPressed: () async {
+                                          setState(() {
+                                            isLoggingOut = true;
+                                          });
+
+                                          await Provider.of<SessionProvider>(
+                                                  context,
+                                                  listen: false)
+                                              .logout();
+
+                                          Navigator.of(context).pop(true);
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Color(0xFF00B4D8),
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          padding: EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          elevation: 2,
+                                          shadowColor: Color(0xFF00B4D8)
+                                              .withOpacity(0.3),
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.logout, size: 20),
+                                            SizedBox(width: 8),
+                                            Text(
+                                              'YES',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ));
+
+    if (confirmed == true && context.mounted) {
+      Navigator.pushReplacementNamed(context, '/login');
+    }
   }
 }
 
@@ -1186,7 +1608,8 @@ class BottomWaveClipper extends CustomClipper<Path> {
     path.moveTo(0, 0);
     path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
         size.width * 0.5, size.height * 0.4);
-    path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
+    path.quadraticBezierTo(
+        size.width * 0.75, 0, size.width, size.height * 0.4);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
@@ -1204,8 +1627,6 @@ class LogoutWaveClipper extends CustomClipper<Path> {
     path.moveTo(0, 0);
     path.lineTo(size.width, 0);
     path.lineTo(size.width, size.height);
-
-    // Create wavy effect
     path.quadraticBezierTo(
         size.width * 0.75, size.height * 0.8, size.width * 0.5, size.height);
     path.quadraticBezierTo(
@@ -1218,940 +1639,94 @@ class LogoutWaveClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
-class LendingBorrowingPage extends StatefulWidget {
-  final String type; // 'lending' or 'borrowing'
-  final VoidCallback onSuccess;
-  const LendingBorrowingPage(
-      {required this.type, required this.onSuccess, super.key});
-
-  @override
-  State<LendingBorrowingPage> createState() => _LendingBorrowingPageState();
-}
-
-class _LendingBorrowingPageState extends State<LendingBorrowingPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _amountController = TextEditingController();
-  final _counterpartyController = TextEditingController();
-  final _dateController = TextEditingController();
-  final _timeController = TextEditingController();
-  final _placeController = TextEditingController();
-  final _otpSelfController = TextEditingController();
-  final _otpCounterpartyController = TextEditingController();
-  List<File> _photos = [];
-  bool _sendingOtps = false;
-  bool _verifyingOtps = false;
-  String? _otpSelfError;
-  String? _otpCounterpartyError;
-  int _otpSelfSeconds = 0;
-  int _otpCounterpartySeconds = 0;
-  Timer? _otpSelfTimer;
-  Timer? _otpCounterpartyTimer;
-  String? _selfEmail;
-  String? _counterpartyEmail;
-  String _selectedCurrency = '₹';
-  final List<Map<String, String>> _currencies = [
-    {'symbol': '₹', 'name': 'Rupee'},
-    {'symbol': ' 24', 'name': 'Dollar'},
-    {'symbol': '€', 'name': 'Euro'},
-    {'symbol': '£', 'name': 'Pound'},
-    {'symbol': '¥', 'name': 'Yen'},
-    {'symbol': '₩', 'name': 'Won'},
-    {'symbol': '₽', 'name': 'Ruble'},
-    {'symbol': '₺', 'name': 'Lira'},
-    {'symbol': 'R\$', 'name': 'Real'},
-    {'symbol': 'A\$', 'name': 'Australian Dollar'},
-  ];
-  bool _lenderOtpSent = false;
-  bool _borrowerOtpSent = false;
-  bool _lenderVerified = false;
-  bool _borrowerVerified = false;
-  String _lenderOtp = '';
-  String _borrowerOtp = '';
-  int _lenderOtpSeconds = 0;
-  int _borrowerOtpSeconds = 0;
-  Timer? _lenderOtpTimer;
-  Timer? _borrowerOtpTimer;
-  bool _counterpartyExists = true;
-  String? _counterpartyError;
-  Timer? _counterpartyDebounce;
-  String? _counterpartyResolvedEmail;
-  bool _sendingLenderOtp = false;
-  bool _sendingBorrowerOtp = false;
-  bool _sameUserError = false;
-
-  // Add helper to determine which email to verify first
-  bool get _verifyBorrowerFirst => widget.type == 'lending';
-  bool get _verifyLenderFirst => widget.type == 'borrowing';
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    _counterpartyController.dispose();
-    _dateController.dispose();
-    _timeController.dispose();
-    _placeController.dispose();
-    _otpSelfController.dispose();
-    _otpCounterpartyController.dispose();
-    _otpSelfTimer?.cancel();
-    _otpCounterpartyTimer?.cancel();
-    _lenderOtpTimer?.cancel();
-    _borrowerOtpTimer?.cancel();
-    _counterpartyDebounce?.cancel();
-    super.dispose();
-  }
-
-  void _startOtpTimers() {
-    setState(() {
-      _otpSelfSeconds = 120;
-      _otpCounterpartySeconds = 120;
-    });
-    _otpSelfTimer?.cancel();
-    _otpCounterpartyTimer?.cancel();
-    _otpSelfTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_otpSelfSeconds > 0) {
-        setState(() => _otpSelfSeconds--);
-      } else {
-        timer.cancel();
-      }
-    });
-    _otpCounterpartyTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_otpCounterpartySeconds > 0) {
-        setState(() => _otpCounterpartySeconds--);
-      } else {
-        timer.cancel();
-      }
-    });
-  }
-
-  Future<void> _pickPhotos() async {
-    final picked = await ImagePicker().pickMultiImage();
-    if (picked != null && picked.isNotEmpty) {
-      setState(() => _photos = picked.map((x) => File(x.path)).toList());
-    }
-  }
-
-  Future<void> _sendOtps() async {
-    setState(() {
-      _sendingOtps = true;
-      _otpSelfError = null;
-      _otpCounterpartyError = null;
-    });
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    _selfEmail = session.user?['email'] ?? '';
-    _counterpartyEmail = _counterpartyController.text;
-    final baseUrl = ApiConfig.baseUrl;
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/transactions/send-otps'),
-      body: json.encode({'email1': _selfEmail, 'email2': _counterpartyEmail}),
-      headers: {'Content-Type': 'application/json'},
-    );
-    setState(() {
-      _sendingOtps = false;
-    });
-    if (res.statusCode == 200) {
-      _showOtpDialog('OTPs sent to both emails!');
-      _startOtpTimers();
-    } else {
-      _showOtpDialog('Failed to send OTPs.');
-    }
-  }
-
-  Future<void> _resendOtp(String email, bool isSelf) async {
-    final baseUrl = ApiConfig.baseUrl;
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/transactions/resend-otp'),
-      body: json.encode({'email': email}),
-      headers: {'Content-Type': 'application/json'},
-    );
-    if (res.statusCode == 200) {
-      _showOtpDialog('OTP resent to $email');
-      setState(() {
-        if (isSelf) {
-          _otpSelfSeconds = 120;
-          _otpSelfTimer?.cancel();
-          _otpSelfTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-            if (_otpSelfSeconds > 0) {
-              setState(() => _otpSelfSeconds--);
-            } else {
-              timer.cancel();
-            }
-          });
-        } else {
-          _otpCounterpartySeconds = 120;
-          _otpCounterpartyTimer?.cancel();
-          _otpCounterpartyTimer =
-              Timer.periodic(const Duration(seconds: 1), (timer) {
-            if (_otpCounterpartySeconds > 0) {
-              setState(() => _otpCounterpartySeconds--);
-            } else {
-              timer.cancel();
-            }
-          });
-        }
-      });
-    } else {
-      _showOtpDialog('Failed to resend OTP.');
-    }
-  }
-
-  void _showOtpDialog(String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        backgroundColor: const Color(0xFFE0F7FA),
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.email, color: Color(0xFF00B4D8), size: 60),
-            SizedBox(height: 12),
-            Text('OTP Notification',
-                style: TextStyle(
-                    color: Color(0xFF0077B5),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22),
-                textAlign: TextAlign.center),
-          ],
-        ),
-        content: Text(
-          message,
-          style: const TextStyle(fontSize: 16, color: Colors.black87),
-          textAlign: TextAlign.center,
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('OK',
-                style: TextStyle(
-                    color: Color(0xFF00B4D8),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_otpSelfController.text.isEmpty ||
-        _otpCounterpartyController.text.isEmpty) {
-      setState(() {
-        if (_otpSelfController.text.isEmpty) _otpSelfError = 'Required';
-        if (_otpCounterpartyController.text.isEmpty)
-          _otpCounterpartyError = 'Required';
-      });
-      return;
-    }
-    setState(() {
-      _verifyingOtps = true;
-    });
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final baseUrl = ApiConfig.baseUrl;
-    final uri = Uri.parse('$baseUrl/api/transactions');
-    var request = http.MultipartRequest('POST', uri);
-    request.headers['Authorization'] = 'Bearer $token';
-    request.fields['counterpartyUsernameOrEmail'] =
-        _counterpartyController.text;
-    request.fields['amount'] = _amountController.text;
-    request.fields['currency'] = _selectedCurrency;
-    request.fields['date'] = _dateController.text;
-    request.fields['time'] = _timeController.text;
-    request.fields['place'] = _placeController.text;
-    request.fields['role'] = widget.type == 'lending' ? 'lender' : 'borrower';
-    request.fields['selfEmail'] = _selfEmail ?? '';
-    request.fields['counterpartyEmail'] = _counterpartyEmail ?? '';
-    request.fields['otpSelf'] = _otpSelfController.text;
-    request.fields['otpCounterparty'] = _otpCounterpartyController.text;
-    for (int i = 0; i < _photos.length; i++) {
-      request.files
-          .add(await http.MultipartFile.fromPath('photos', _photos[i].path));
-    }
-    final streamed = await request.send();
-    if (streamed.statusCode == 201) {
-      widget.onSuccess();
-      Navigator.of(context).pop();
-    } else {
-      final resp = await streamed.stream.bytesToString();
-      _showOtpDialog('Failed: ${resp.isNotEmpty ? resp : 'Unknown error'}');
-    }
-    setState(() {
-      _verifyingOtps = false;
-    });
-  }
-
-  Future<void> _sendOtp(String emailOrUsername, bool isLender) async {
-    print('Sending OTP to: $emailOrUsername (isLender: $isLender)');
-    final normalizedEmail = emailOrUsername.trim().toLowerCase();
-    // Check if user exists before sending OTP
-    if (!isLender &&
-        (!_counterpartyExists || _counterpartyResolvedEmail == null)) {
-      _showOtpDialog('User not found. Please enter a valid email or username.');
-      return;
-    }
-    final email = isLender ? normalizedEmail : _counterpartyResolvedEmail;
-    if (isLender && (email == null || email.isEmpty)) {
-      _showOtpDialog('Your email is missing.');
-      return;
-    }
-    setState(() {
-      if (isLender) {
-        _lenderOtpSent = false;
-        _sendingLenderOtp = true;
-      } else {
-        _borrowerOtpSent = false;
-        _sendingBorrowerOtp = true;
-      }
-    });
-    final baseUrl = ApiConfig.baseUrl;
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/transactions/resend-otp'),
-      body: json.encode({'email': email}),
-      headers: {'Content-Type': 'application/json'},
-    );
-    setState(() {
-      if (isLender)
-        _sendingLenderOtp = false;
-      else
-        _sendingBorrowerOtp = false;
-    });
-    if (res.statusCode == 200) {
-      _showOtpDialog('OTP sent to $email');
-      setState(() {
-        if (isLender) {
-          _lenderOtpSent = true;
-          _lenderOtpSeconds = 120;
-          _lenderOtpTimer?.cancel();
-          _lenderOtpTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-            if (_lenderOtpSeconds > 0) {
-              setState(() => _lenderOtpSeconds--);
-            } else {
-              timer.cancel();
-            }
-          });
-        } else {
-          _borrowerOtpSent = true;
-          _borrowerOtpSeconds = 120;
-          _borrowerOtpTimer?.cancel();
-          _borrowerOtpTimer =
-              Timer.periodic(const Duration(seconds: 1), (timer) {
-            if (_borrowerOtpSeconds > 0) {
-              setState(() => _borrowerOtpSeconds--);
-            } else {
-              timer.cancel();
-            }
-          });
-        }
-      });
-    } else {
-      _showOtpDialog('Failed to send OTP.');
-    }
-  }
-
-  Future<void> _verifyOtp(String email, String otp, bool isLender) async {
-    print('Verifying OTP for email: $email, OTP: $otp, isLender: $isLender');
-    final normalizedEmail = email.trim().toLowerCase();
-    final baseUrl = ApiConfig.baseUrl;
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/transactions/verify-otp'),
-      body: json.encode({'email': normalizedEmail, 'otp': otp}),
-      headers: {'Content-Type': 'application/json'},
-    );
-    if (res.statusCode == 200) {
-      setState(() {
-        if (isLender)
-          _lenderVerified = true;
-        else
-          _borrowerVerified = true;
-      });
-      _showOtpDialog('${isLender ? 'Lender' : 'Borrower'} email verified!');
-    } else {
-      final resp = res.body.isNotEmpty ? res.body : 'Unknown error';
-      _showOtpDialog('OTP verification failed. Details: $resp');
-    }
-  }
-
-  Future<void> _checkCounterpartyExists(String value) async {
-    print('Checking counterparty existence for: $value');
-    final normalizedValue = value.trim().toLowerCase();
-    if (normalizedValue.isEmpty) {
-      setState(() {
-        _counterpartyExists = false;
-        _counterpartyError = 'Required';
-        _counterpartyResolvedEmail = null;
-        _sameUserError = false;
-      });
-      return;
-    }
-    final baseUrl = ApiConfig.baseUrl;
-    String? resolvedEmail;
-    if (normalizedValue.contains('@')) {
-      // Treat as email
-      final res = await http.post(
-        Uri.parse('$baseUrl/api/users/check-email'),
-        body: json.encode({'email': normalizedValue}),
-        headers: {'Content-Type': 'application/json'},
-      );
-      if (res.statusCode == 200 && json.decode(res.body)['unique'] == false) {
-        resolvedEmail = normalizedValue;
-        setState(() {
-          _counterpartyExists = true;
-          _counterpartyError = null;
-          _counterpartyResolvedEmail =
-              resolvedEmail; // FIX: use resolvedEmail instead of normalizedEmail
-          _sameUserError = (_selfEmail != null && _selfEmail == resolvedEmail);
-        });
-      } else {
-        setState(() {
-          _counterpartyExists = false;
-          _counterpartyError = 'User not found';
-          _counterpartyResolvedEmail = null;
-          _sameUserError = false;
-        });
-      }
-    } else {
-      // Treat as username
-      final res = await http.post(
-        Uri.parse('$baseUrl/api/users/check-username'),
-        body: json.encode({'username': normalizedValue}),
-        headers: {'Content-Type': 'application/json'},
-      );
-      final data = json.decode(res.body);
-      if (res.statusCode == 200 && data['unique'] == false && data['email']) {
-        resolvedEmail = data['email'];
-        setState(() {
-          _counterpartyExists = true;
-          _counterpartyError = null;
-          _counterpartyResolvedEmail = data['email'];
-          _sameUserError = (_selfEmail != null && _selfEmail == resolvedEmail);
-        });
-      } else {
-        setState(() {
-          _counterpartyExists = false;
-          _counterpartyError = 'User not found';
-          _counterpartyResolvedEmail = null;
-          _sameUserError = false;
-        });
-      }
-    }
-  }
-
+class _StylishProfileDialog extends StatelessWidget {
+  final String title;
+  final String name;
+  final ImageProvider avatarProvider;
+  final String? email;
+  final String? phone;
+  final String? gender;
+  const _StylishProfileDialog(
+      {required this.title,
+      required this.name,
+      required this.avatarProvider,
+      this.email,
+      this.phone,
+      this.gender});
   @override
   Widget build(BuildContext context) {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    _selfEmail = session.user?['email'] ?? '';
-    return Scaffold(
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(widget.type == 'lending' ? 'Lend Money' : 'Borrow Money',
-              style: const TextStyle(color: Colors.black)),
-          centerTitle: true,
-        ),
-        backgroundColor: const Color(0xFFF8F6FA),
-        body: SingleChildScrollView(
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                _selectedCurrency,
-                                style: const TextStyle(
-                                  color: Color(0xFF00B4D8),
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _amountController,
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Amount',
-                                    border: InputBorder.none,
-                                  ),
-                                  validator: (v) => v == null || v.isEmpty
-                                      ? 'Required'
-                                      : null,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      DropdownButton<String>(
-                        value: _selectedCurrency,
-                        items: _currencies
-                            .map((c) => DropdownMenuItem<String>(
-                                  value: c['symbol'],
-                                  child: Text('${c['symbol']} (${c['name']})'),
-                                ))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null)
-                            setState(() => _selectedCurrency = val);
-                        },
-                      ),
-                    ],
-                  ),
-                  _inputField(
-                      Icons.person,
-                      widget.type == 'lending'
-                          ? 'Borrower Username/Email'
-                          : 'Lender Username/Email',
-                      _counterpartyController),
-                  if (_sameUserError)
-                    const Text('Counterparty must be a different user.',
-                        style: TextStyle(color: Colors.red)),
-                  _inputField(Icons.cake, 'Date', _dateController,
-                      readOnly: true, onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null)
-                      _dateController.text =
-                          picked.toIso8601String().split('T').first;
-                  }),
-                  _inputField(
-                    Icons.access_time,
-                    'Time (e.g. 14:30)',
-                    _timeController,
-                    readOnly: true,
-                    onTap: () async {
-                      final result = await showDialog<String>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Select Time'),
-                          content: const Text(
-                              'Do you want to use the current time or pick a time?'),
-                          actions: [
-                            TextButton(
-                              onPressed: () {
-                                final now = TimeOfDay.now();
-                                _timeController.text = now.format(context);
-                                Navigator.of(context).pop('current');
-                              },
-                              child: const Text('Use Current Time'),
-                            ),
-                            TextButton(
-                              onPressed: () async {
-                                Navigator.of(context).pop('pick');
-                              },
-                              child: const Text('Pick Time'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (result == 'pick') {
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: TimeOfDay.now(),
-                        );
-                        if (picked != null) {
-                          _timeController.text = picked.format(context);
-                        }
-                      }
-                    },
-                  ),
-                  _inputField(Icons.place, 'Place', _placeController),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: _pickPhotos,
-                        icon: const Icon(Icons.photo),
-                        label: const Text('Add Proof Photos'),
-                      ),
-                      if (_photos.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        ..._photos.map((f) => Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: SizedBox(
-                                width: 40,
-                                height: 40,
-                                child: Image.file(f, fit: BoxFit.cover),
-                              ),
-                            )),
-                      ]
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // OTP Verification Order
-                  // Lender email and OTP
-                  _inputField(Icons.email, 'Your Email',
-                      TextEditingController(text: _selfEmail ?? ''),
-                      readOnly: true),
-                  if (!_lenderVerified) ...[
-                    ElevatedButton(
-                      onPressed: _lenderOtpSeconds > 0 || _sendingLenderOtp
-                          ? null
-                          : () => _sendOtp(_selfEmail ?? '', true),
-                      child: _sendingLenderOtp
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2)),
-                                SizedBox(width: 8),
-                                Text('Sending OTP...'),
-                              ],
-                            )
-                          : Text(_lenderOtpSeconds > 0
-                              ? 'Resend in ${_lenderOtpSeconds ~/ 60}:${(_lenderOtpSeconds % 60).toString().padLeft(2, '0')}'
-                              : 'Send OTP'),
-                    ),
-                    if (_lenderOtpSent)
-                      Column(
-                        children: [
-                          const SizedBox(height: 8),
-                          OtpInput(
-                            onChanged: (val) => _lenderOtp = val,
-                            enabled: true,
-                            autoFocus: true,
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: _lenderOtp.length == 6
-                                ? () => _verifyOtp(
-                                    _selfEmail ?? '', _lenderOtp, true)
-                                : null,
-                            child: const Text('Verify OTP'),
-                          ),
-                        ],
-                      ),
-                  ] else ...[
-                    Row(
-                      children: const [
-                        Icon(Icons.check_circle, color: Colors.green),
-                        SizedBox(width: 8),
-                        Text('Lender email verified!',
-                            style: TextStyle(
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  // Borrower email and OTP
-                  _inputField(
-                    Icons.email,
-                    'Counterparty Email',
-                    _counterpartyController,
-                    keyboardType: TextInputType.emailAddress,
-                    onChanged: (val) {
-                      _counterpartyDebounce?.cancel();
-                      _counterpartyDebounce =
-                          Timer(const Duration(milliseconds: 500), () {
-                        _checkCounterpartyExists(val);
-                      });
-                    },
-                    onFieldSubmitted: (val) => _checkCounterpartyExists(val),
-                    errorText: _counterpartyError,
-                  ),
-                  if (!_counterpartyExists)
-                    const Text(
-                        'User not found. Please enter a valid email or username.',
-                        style: TextStyle(color: Colors.red)),
-                  if (!_borrowerVerified) ...[
-                    ElevatedButton(
-                      onPressed: _borrowerOtpSeconds > 0 ||
-                              _sendingBorrowerOtp ||
-                              !_counterpartyExists ||
-                              _sameUserError
-                          ? null
-                          : () => _sendOtp(_counterpartyController.text, false),
-                      child: _sendingBorrowerOtp
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2)),
-                                SizedBox(width: 8),
-                                Text('Sending OTP...'),
-                              ],
-                            )
-                          : Text(_borrowerOtpSeconds > 0
-                              ? 'Resend in ${_borrowerOtpSeconds ~/ 60}:${(_borrowerOtpSeconds % 60).toString().padLeft(2, '0')}'
-                              : 'Send OTP'),
-                    ),
-                    if (_borrowerOtpSent)
-                      Column(
-                        children: [
-                          const SizedBox(height: 8),
-                          OtpInput(
-                            onChanged: (val) => _borrowerOtp = val,
-                            enabled: true,
-                            autoFocus: true,
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: _borrowerOtp.length == 6
-                                ? () => _verifyOtp(_counterpartyController.text,
-                                    _borrowerOtp, false)
-                                : null,
-                            child: const Text('Verify OTP'),
-                          ),
-                        ],
-                      ),
-                  ] else ...[
-                    Row(
-                      children: const [
-                        Icon(Icons.check_circle, color: Colors.green),
-                        SizedBox(width: 8),
-                        Text('Borrower email verified!',
-                            style: TextStyle(
-                                color: Colors.green,
-                                fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: _lenderVerified &&
-                            _borrowerVerified &&
-                            !_verifyingOtps &&
-                            _counterpartyExists &&
-                            !_sameUserError
-                        ? _submit
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00B4D8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24)),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: _verifyingOtps
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Text('Submit',
-                            style:
-                                TextStyle(fontSize: 18, color: Colors.white)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ));
-  }
-
-  Widget _inputField(
-      IconData icon, String label, TextEditingController controller,
-      {TextInputType keyboardType = TextInputType.text,
-      bool readOnly = false,
-      void Function()? onTap,
-      void Function(String)? onChanged,
-      void Function(String)? onFieldSubmitted,
-      String? errorText}) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: const Color(0xFF00B4D8)),
-          const SizedBox(width: 16),
-          Expanded(
-            child: TextFormField(
-              controller: controller,
-              keyboardType: keyboardType,
-              readOnly: readOnly,
-              decoration: InputDecoration(
-                labelText: label,
-                border: InputBorder.none,
-                errorText: errorText,
-              ),
-              validator: (val) =>
-                  val == null || val.isEmpty ? 'Required' : null,
-              onTap: onTap,
-              onChanged: onChanged,
-              onFieldSubmitted: onFieldSubmitted,
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Color(0xFF00B4D8),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Column(
+              children: [
+                CircleAvatar(radius: 36, backgroundImage: avatarProvider),
+                SizedBox(height: 12),
+                Text(name,
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                        color: Colors.white)),
+                SizedBox(height: 4),
+                Text(title,
+                    style: TextStyle(fontSize: 14, color: Colors.white70)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (email != null) ...[
+                  Row(children: [ 
+                    Icon(Icons.email, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(email!, style: TextStyle(fontSize: 16))
+                  ]),
+                  SizedBox(height: 10),
+                ],
+                if (phone != null && phone!.isNotEmpty) ...[
+                  Row(children: [ 
+                    Icon(Icons.phone, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(phone!, style: TextStyle(fontSize: 16))
+                  ]),
+                  SizedBox(height: 10),
+                ],
+                if (gender != null) ...[
+                  Row(children: [ 
+                    Icon(Icons.transgender, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(gender!, style: TextStyle(fontSize: 16))
+                  ]),
+                  SizedBox(height: 10),
+                ],
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Close'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF00B4D8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12))),
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _otpField(TextEditingController controller, String? error, int seconds,
-      VoidCallback onResend) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: controller,
-                decoration: const InputDecoration(labelText: 'OTP'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: seconds > 0 ? null : onResend,
-              child: Text(seconds > 0
-                  ? 'Resend in ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}'
-                  : 'Resend OTP'),
-            ),
-          ],
-        ),
-        if (error != null)
-          Text(error, style: const TextStyle(color: Colors.red)),
-      ],
-    );
-  }
-}
-
-class TransactionDetailsPage extends StatefulWidget {
-  const TransactionDetailsPage({super.key});
-  @override
-  State<TransactionDetailsPage> createState() => _TransactionDetailsPageState();
-}
-
-class _TransactionDetailsPageState extends State<TransactionDetailsPage> {
-  List<Map<String, dynamic>> details = [];
-  bool loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    fetchDetails();
-  }
-
-  Future<void> fetchDetails() async {
-    setState(() => loading = true);
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final baseUrl = ApiConfig.baseUrl;
-    final res = await http.get(Uri.parse('$baseUrl/api/transactions/details'),
-        headers: {'Authorization': 'Bearer $token'});
-    setState(() {
-      details = res.statusCode == 200
-          ? List<Map<String, dynamic>>.from(json.decode(res.body))
-          : [];
-      loading = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Transaction Details',
-            style: TextStyle(color: Colors.black)),
-        centerTitle: true,
-      ),
-      backgroundColor: const Color(0xFFF8F6FA),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.separated(
-              padding: const EdgeInsets.all(20),
-              itemCount: details.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 16),
-              itemBuilder: (context, i) {
-                final t = details[i];
-                return Card(
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(18.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                                t['type'] == 'lending'
-                                    ? Icons.arrow_upward
-                                    : Icons.arrow_downward,
-                                color: t['type'] == 'lending'
-                                    ? Colors.green
-                                    : Colors.orange),
-                            const SizedBox(width: 8),
-                            Text(t['type'].toUpperCase(),
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: t['type'] == 'lending'
-                                        ? Colors.green
-                                        : Colors.orange)),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Amount: ₹${t['amount']}',
-                            style: const TextStyle(fontSize: 16)),
-                        Text('Date: ${t['date']?.split('T')?.first ?? ''}'),
-                        Text('Time: ${t['time'] ?? ''}'),
-                        Text('Place: ${t['place'] ?? ''}'),
-                        Text('Lender: ${t['lender']?['username'] ?? ''}'),
-                        Text('Borrower: ${t['borrower']?['username'] ?? ''}'),
-                        Text('Transaction ID: ${t['transactionId'] ?? ''}',
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.grey)),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
     );
   }
 }
