@@ -48,10 +48,10 @@ const activitySchema = new mongoose.Schema({
     // Feedback activities
     'feedback_submitted',
     // User rating activities
-    'user_rated',
-    'user_rating_received'
-    ],
-    required: true
+          'user_rated',
+        'user_rating_received',
+        'receipt_generated'
+        ],    required: true
   },
   title: {
     type: String,

@@ -62,7 +62,8 @@ class _ActivityPageState extends State<ActivityPage> {
     'app_rated',
     'feedback_submitted',
     'user_rated',
-    'user_rating_received'
+    'user_rating_received',
+    'receipt_generated'
   ];
 
   @override
@@ -344,6 +345,8 @@ class _ActivityPageState extends State<ActivityPage> {
         return 'User Rated';
       case 'user_rating_received':
         return 'User Rating Received';
+      case 'receipt_generated':
+        return 'Receipt Generated';
       default:
         return type.replaceAll('_', ' ').toUpperCase();
     }
@@ -388,6 +391,8 @@ class _ActivityPageState extends State<ActivityPage> {
         return Icons.person;
       case 'user_rating_received':
         return Icons.person_outline;
+      case 'receipt_generated':
+        return Icons.receipt;
       default:
         return Icons.info;
     }
@@ -430,6 +435,8 @@ class _ActivityPageState extends State<ActivityPage> {
         return Colors.green;
       case 'user_rating_received':
         return Colors.teal;
+      case 'receipt_generated':
+        return Colors.brown;
       default:
         return Colors.grey;
     }

@@ -174,6 +174,10 @@ exports.logTransactionActivity = async (userId, type, transaction, metadata = {}
         activityData.description = `Received partial payment of ${transaction.currency}${metadata.paymentAmount} by ${creatorEmail}`;
       }
       break;
+    case 'receipt_generated':
+      activityData.title = 'Receipt Generated';
+      activityData.description = `Generated a receipt for transaction with ${transaction.counterpartyEmail}`;
+      break;
   }
   
   return await createActivityLog(userId, type, activityData.title, activityData.description, metadata, {
@@ -291,12 +295,16 @@ exports.logGroupActivityForAllMembers = async (type, group, metadata = {}, exclu
       activityData.title = 'Expense Settled';
       activityData.description = `Settled expense "${metadata.expenseDescription}" in group "${group.title}"`;
       break;
+    case 'receipt_generated':
+      activityData.title = 'Group Receipt Generated';
+      activityData.description = `Generated a receipt for group "${group.title}"`;
+      break;
   }
   
   // Get all active group members (excluding the specified user if provided)
   const memberIds = group.members
     .filter(member => !member.leftAt) // Only active members
-    .map(member => member.user.toString())
+    .map(member => member.user._id.toString())
     .filter(memberId => !excludeUserId || memberId !== excludeUserId.toString());
   
   // Log activity for all members with context-specific messages

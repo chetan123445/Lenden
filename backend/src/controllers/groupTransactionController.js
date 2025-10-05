@@ -1238,6 +1238,7 @@ exports.generateGroupReceipt = async (req, res) => {
       if (action === 'email') {
         try {
           await sendGroupReceiptEmail(email, group, pdfBuffer);
+          await logGroupActivityForAllMembers('receipt_generated', group, { action: 'email', recipient: email }, null, { creatorId: req.user._id, creatorEmail: req.user.email });
           res.json({ success: true, message: 'Group receipt sent to email' });
         } catch (error) {
           console.error('Failed to send group receipt email:', error);
@@ -1246,6 +1247,7 @@ exports.generateGroupReceipt = async (req, res) => {
       } else if (action === 'download') {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=group-receipt-${group._id}.pdf`);
+        await logGroupActivityForAllMembers('receipt_generated', group, { action: 'download' }, null, { creatorId: req.user._id, creatorEmail: req.user.email });
         res.send(pdfBuffer);
       } else {
         res.status(400).json({ error: 'Invalid action' });

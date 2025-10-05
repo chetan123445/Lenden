@@ -25,6 +25,10 @@ exports.generateReceipt = async (req, res) => {
       return res.status(404).json({ error: 'Transaction not found' });
     }
 
+    if (req.user.email !== transaction.userEmail && req.user.email !== transaction.counterpartyEmail) {
+      return res.status(403).json({ error: 'You are not a party to this transaction.' });
+    }
+
     // Generate PDF with custom size
     const doc = new PDFDocument({ 
       margin: 0,
@@ -51,6 +55,7 @@ exports.generateReceipt = async (req, res) => {
       } else {
         res.status(400).json({ error: 'Invalid action' });
       }
+      await logTransactionActivity(req.user._id, 'receipt_generated', transaction, { action: action, recipient: email });
     });
 
     // === STYLED PDF CONTENT ===
