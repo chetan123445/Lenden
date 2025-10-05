@@ -858,16 +858,9 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(20),
                                       gradient: LinearGradient(
-                                        colors: [
-                                          Color(0xFFEFF6FF), // Very light blue
-                                          Color(0xFFDBEAFE), // Light blue
-                                        ],
+                                        colors: [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)],
                                         begin: Alignment.topLeft,
                                         end: Alignment.bottomRight,
-                                      ),
-                                      border: Border.all(
-                                        color: Color(0xFF00B4D8).withOpacity(0.3),
-                                        width: 2,
                                       ),
                                       boxShadow: [
                                         BoxShadow(
@@ -877,51 +870,58 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                         ),
                                       ],
                                     ),
-                                    child: TextField(
-                                      controller: _searchController,
-                                      decoration: InputDecoration(
-                                        labelText: 'Search Groups',
-                                        labelStyle: TextStyle(
-                                          color: Color(0xFF00B4D8),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(20),
-                                          borderSide: BorderSide.none,
-                                        ),
-                                        filled: true,
-                                        fillColor: Colors.transparent,
-                                        prefixIcon: Container(
-                                          margin: EdgeInsets.all(8),
-                                          padding: EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: Color(0xFF00B4D8).withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Icon(
-                                            Icons.search,
-                                            color: Color(0xFF00B4D8),
-                                            size: 20,
-                                          ),
-                                        ),
-                                        suffixIcon: _searchController.text.isNotEmpty
-                                            ? IconButton(
-                                                icon: Icon(Icons.clear, color: Color(0xFF00B4D8)),
-                                                onPressed: () {
-                                                  _searchController.clear();
-                                                },
-                                              )
-                                            : null,
-                                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                        hintText: 'Search by group name, members, or expenses...',
-                                        hintStyle: TextStyle(
-                                          color: Color(0xFF6B7280),
-                                          fontSize: 14,
-                                        ),
+                                    child: Container(
+                                      margin: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(18),
                                       ),
-                                      onChanged: (value) {
-                                        // The _filterGroups function is called automatically via listener
-                                      },
+                                      child: TextField(
+                                        controller: _searchController,
+                                        decoration: InputDecoration(
+                                          labelText: 'Search Groups',
+                                          labelStyle: TextStyle(
+                                            color: Color(0xFF00B4D8),
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(20),
+                                            borderSide: BorderSide.none,
+                                          ),
+                                          filled: true,
+                                          fillColor: Colors.transparent,
+                                          prefixIcon: Container(
+                                            margin: EdgeInsets.all(8),
+                                            padding: EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: Color(0xFF00B4D8).withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Icon(
+                                              Icons.search,
+                                              color: Color(0xFF00B4D8),
+                                              size: 20,
+                                            ),
+                                          ),
+                                          suffixIcon: _searchController.text.isNotEmpty
+                                              ? IconButton(
+                                                  icon: Icon(Icons.clear, color: Color(0xFF00B4D8)),
+                                                  onPressed: () {
+                                                    _searchController.clear();
+                                                  },
+                                                )
+                                              : null,
+                                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                          hintText: 'Search by group name, members, or expenses...',
+                                          hintStyle: TextStyle(
+                                            color: Color(0xFF6B7280),
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        onChanged: (value) {
+                                          // The _filterGroups function is called automatically via listener
+                                        },
+                                      ),
                                     ),
                                   ),
                                 ),

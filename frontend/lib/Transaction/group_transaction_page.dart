@@ -3843,122 +3843,172 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             child: Row(
                               children: [
                                 Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Color(0xFF00B4D8), width: 2),
+                                    gradient: const LinearGradient(
+                                      colors: [Colors.orange, Colors.white, Colors.green],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(18),
                                   ),
-                                  child: DropdownButton<String>(
-                                    value: groupFilter,
-                                    borderRadius: BorderRadius.circular(16),
-                                    style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                    underline: Container(),
-                                    items: const [
-                                      DropdownMenuItem(value: 'all', child: Text('All')),
-                                      DropdownMenuItem(value: 'created', child: Text('Created by Me')),
-                                      DropdownMenuItem(value: 'member', child: Text('Member')),
-                                    ],
-                                    onChanged: (val) {
-                                      if (val != null) {
-                                        groupFilter = val;
-                                        _filterAndSearchGroups();
-                                      }
-                                    },
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Color(0xFF00B4D8), width: 2),
-                                  ),
-                                  child: DropdownButton<String>(
-                                    value: groupSort,
-                                    borderRadius: BorderRadius.circular(16),
-                                    style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                    underline: Container(),
-                                    items: const [
-                                      DropdownMenuItem(value: 'newest', child: Text('Newest')),
-                                      DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
-                                      DropdownMenuItem(value: 'name_az', child: Text('Name A-Z')),
-                                      DropdownMenuItem(value: 'name_za', child: Text('Name Z-A')),
-                                      DropdownMenuItem(value: 'members_high', child: Text('Members High-Low')),
-                                      DropdownMenuItem(value: 'members_low', child: Text('Members Low-High')),
-                                    ],
-                                    onChanged: (val) {
-                                      if (val != null) {
-                                        groupSort = val;
-                                        _filterAndSearchGroups();
-                                      }
-                                    },
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Color(0xFF00B4D8), width: 2),
-                                  ),
-                                  child: DropdownButton<String>(
-                                    value: memberCountFilter,
-                                    borderRadius: BorderRadius.circular(16),
-                                    style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                    underline: Container(),
-                                    items: const [
-                                      DropdownMenuItem(value: 'all', child: Text('All Members')),
-                                      DropdownMenuItem(value: '2-5', child: Text('2-5')),
-                                      DropdownMenuItem(value: '6-10', child: Text('6-10')),
-                                      DropdownMenuItem(value: '10+', child: Text('10+')),
-                                    ],
-                                    onChanged: (val) {
-                                      if (val != null) {
-                                        memberCountFilter = val;
-                                        _filterAndSearchGroups();
-                                      }
-                                    },
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Color(0xFF00B4D8), width: 2),
-                                  ),
-                                  child: DropdownButton<String>(
-                                    value: dateFilter,
-                                    borderRadius: BorderRadius.circular(16),
-                                    style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                    underline: Container(),
-                                    items: const [
-                                      DropdownMenuItem(value: 'all', child: Text('All Dates')),
-                                      DropdownMenuItem(value: '7days', child: Text('Last 7 Days')),
-                                      DropdownMenuItem(value: '30days', child: Text('Last 30 Days')),
-                                      DropdownMenuItem(value: 'custom', child: Text('Custom')),
-                                    ],
-                                    onChanged: (val) async {
-                                      if (val != null) {
-                                        dateFilter = val;
-                                        if (val == 'custom') {
-                                          final picked = await showDateRangePicker(
-                                            context: context,
-                                            firstDate: DateTime(2020),
-                                            lastDate: DateTime.now(),
-                                          );
-                                          if (picked != null) {
-                                            customStartDate = picked.start;
-                                            customEndDate = picked.end;
-                                          }
+                                  padding: const EdgeInsets.all(2),
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: DropdownButton<String>(
+                                      value: groupFilter,
+                                      borderRadius: BorderRadius.circular(16),
+                                      style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                      underline: Container(),
+                                      items: const [
+                                        DropdownMenuItem(value: 'all', child: Text('All')),
+                                        DropdownMenuItem(value: 'created', child: Text('Created by Me')),
+                                        DropdownMenuItem(value: 'member', child: Text('Member')),
+                                      ],
+                                      onChanged: (val) {
+                                        if (val != null) {
+                                          setState(() {
+                                            groupFilter = val;
+                                          });
+                                          _filterAndSearchGroups();
                                         }
-                                        _filterAndSearchGroups();
-                                      }
-                                    },
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Colors.orange, Colors.white, Colors.green],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  padding: const EdgeInsets.all(2),
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: DropdownButton<String>(
+                                      value: groupSort,
+                                      borderRadius: BorderRadius.circular(16),
+                                      style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                      underline: Container(),
+                                      items: const [
+                                        DropdownMenuItem(value: 'newest', child: Text('Newest')),
+                                        DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
+                                        DropdownMenuItem(value: 'name_az', child: Text('Name A-Z')),
+                                        DropdownMenuItem(value: 'name_za', child: Text('Name Z-A')),
+                                        DropdownMenuItem(value: 'members_high', child: Text('Members High-Low')),
+                                        DropdownMenuItem(value: 'members_low', child: Text('Members Low-High')),
+                                      ],
+                                      onChanged: (val) {
+                                        if (val != null) {
+                                          setState(() {
+                                            groupSort = val;
+                                          });
+                                          _filterAndSearchGroups();
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Colors.orange, Colors.white, Colors.green],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  padding: const EdgeInsets.all(2),
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: DropdownButton<String>(
+                                      value: memberCountFilter,
+                                      borderRadius: BorderRadius.circular(16),
+                                      style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                      underline: Container(),
+                                      items: const [
+                                        DropdownMenuItem(value: 'all', child: Text('All Members')),
+                                        DropdownMenuItem(value: '2-5', child: Text('2-5')),
+                                        DropdownMenuItem(value: '6-10', child: Text('6-10')),
+                                        DropdownMenuItem(value: '10+', child: Text('10+')),
+                                      ],
+                                      onChanged: (val) {
+                                        if (val != null) {
+                                          setState(() {
+                                            memberCountFilter = val;
+                                          });
+                                          _filterAndSearchGroups();
+                                        }
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Container(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Colors.orange, Colors.white, Colors.green],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                  padding: const EdgeInsets.all(2),
+                                  child: Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: DropdownButton<String>(
+                                      value: dateFilter,
+                                      borderRadius: BorderRadius.circular(16),
+                                      style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
+                                      underline: Container(),
+                                      items: const [
+                                        DropdownMenuItem(value: 'all', child: Text('All Dates')),
+                                        DropdownMenuItem(value: '7days', child: Text('Last 7 Days')),
+                                        DropdownMenuItem(value: '30days', child: Text('Last 30 Days')),
+                                        DropdownMenuItem(value: 'custom', child: Text('Custom')),
+                                      ],
+                                      onChanged: (val) async {
+                                        if (val != null) {
+                                          setState(() {
+                                            dateFilter = val;
+                                          });
+                                          if (val == 'custom') {
+                                            final picked = await showDateRangePicker(
+                                              context: context,
+                                              firstDate: DateTime(2020),
+                                              lastDate: DateTime.now(),
+                                            );
+                                            if (picked != null) {
+                                              setState(() {
+                                                customStartDate = picked.start;
+                                                customEndDate = picked.end;
+                                              });
+                                            }
+                                          }
+                                          _filterAndSearchGroups();
+                                        }
+                                      },
+                                    ),
                                   ),
                                 ),
                               ],
