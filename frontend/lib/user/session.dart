@@ -246,6 +246,21 @@ class SessionProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    final deviceId = await getDeviceId();
+    if (_token != null && deviceId != null) {
+      try {
+        await http.post(
+          Uri.parse('${ApiConfig.baseUrl}/api/users/logout-device'),
+          headers: {
+            'Authorization': 'Bearer $_token',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({'deviceId': deviceId}),
+        );
+      } catch (e) {
+        print('Error logging out on server: $e');
+      }
+    }
     await clearToken();
     clearUser();
   }

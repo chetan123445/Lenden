@@ -439,6 +439,7 @@ exports.logoutDevice = async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
     user.devices = (user.devices || []).filter(d => d.deviceId !== deviceId);
     await user.save();
+    await logProfileActivity(req.user._id, 'logout');
     res.json({ message: 'Device logged out successfully' });
   } catch (e) {
     res.status(500).json({ error: e.message });
