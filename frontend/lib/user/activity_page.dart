@@ -546,10 +546,14 @@ class _ActivityPageState extends State<ActivityPage> {
   Widget _buildSearchBar() {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(2), // This creates the border width
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(27), // Outer radius
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -558,34 +562,41 @@ class _ActivityPageState extends State<ActivityPage> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.search,
-            color: Colors.grey[600],
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              onChanged: _performSearch,
-              decoration: InputDecoration(
-                hintText: 'Search activities...',
-                hintStyle: TextStyle(color: Colors.grey[400]),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25), // Inner radius
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.search,
+              color: Colors.grey[600],
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                onChanged: _performSearch,
+                decoration: InputDecoration(
+                  hintText: 'Search activities...',
+                  hintStyle: TextStyle(color: Colors.grey[400]),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+                style: const TextStyle(fontSize: 16),
               ),
-              style: const TextStyle(fontSize: 16),
             ),
-          ),
-          if (searchQuery.isNotEmpty)
-            IconButton(
-              icon: Icon(Icons.clear, color: Colors.grey[600], size: 20),
-              onPressed: _clearSearch,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-        ],
+            if (searchQuery.isNotEmpty)
+              IconButton(
+                icon: Icon(Icons.clear, color: Colors.grey[600], size: 20),
+                onPressed: _clearSearch,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1688,94 +1699,104 @@ class _ActivityPageState extends State<ActivityPage> {
                     children: [
                       // Activity Type Filter with enhanced styling
                       Container(
+                        padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          border:
-                              Border.all(color: Colors.grey.withOpacity(0.3)),
-                        ),
-                        child: DropdownButtonFormField<String>(
-                          value: selectedType,
-                          decoration: InputDecoration(
-                            labelText: 'Activity Type',
-                            labelStyle: const TextStyle(
-                              color: Color(0xFF00B4D8),
-                              fontWeight: FontWeight.w600,
-                            ),
-                            prefixIcon: Container(
-                              margin: const EdgeInsets.all(8),
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF00B4D8).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Icon(
-                                Icons.category,
-                                color: Color(0xFF00B4D8),
-                                size: 20,
-                              ),
-                            ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 12),
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          items: [
-                            DropdownMenuItem<String>(
-                              value: null,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: const Icon(Icons.all_inclusive,
-                                        size: 16, color: Colors.grey),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text('All Types',
-                                      style: TextStyle(
-                                          fontWeight: FontWeight.w500)),
-                                ],
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: DropdownButtonFormField<String>(
+                            value: selectedType,
+                            decoration: InputDecoration(
+                              labelText: 'Activity Type',
+                              labelStyle: const TextStyle(
+                                color: Color(0xFF00B4D8),
+                                fontWeight: FontWeight.w600,
                               ),
+                              prefixIcon: Container(
+                                margin: const EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00B4D8).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.category,
+                                  color: Color(0xFF00B4D8),
+                                  size: 20,
+                                ),
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
                             ),
-                            ...activityTypes
-                                .map((type) => DropdownMenuItem<String>(
-                                      value: type,
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(6),
-                                            decoration: BoxDecoration(
-                                              color: _getActivityColor(type)
-                                                  .withOpacity(0.1),
-                                              borderRadius:
-                                                  BorderRadius.circular(6),
-                                            ),
-                                            child: Icon(_getActivityIcon(type),
-                                                size: 16,
-                                                color: _getActivityColor(type)),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Flexible(
-                                            child: Text(
-                                              _getActivityTypeDisplayName(type),
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.w500),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                        ],
+                            items: [
+                              DropdownMenuItem<String>(
+                                value: null,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(6),
                                       ),
-                                    )),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              selectedType = value;
-                            });
-                          },
+                                      child: const Icon(Icons.all_inclusive,
+                                          size: 16, color: Colors.grey),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text('All Types',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w500)),
+                                  ],
+                                ),
+                              ),
+                              ...activityTypes
+                                  .map((type) => DropdownMenuItem<String>(
+                                        value: type,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: BoxDecoration(
+                                                color: _getActivityColor(type)
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(6),
+                                              ),
+                                              child: Icon(_getActivityIcon(type),
+                                                  size: 16,
+                                                  color: _getActivityColor(type)),
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Flexible(
+                                              child: Text(
+                                                _getActivityTypeDisplayName(type),
+                                                style: const TextStyle(
+                                                    fontWeight: FontWeight.w500),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )),
+                            ],
+                            onChanged: (value) {
+                              setState(() {
+                                selectedType = value;
+                              });
+                            },
+                          ),
                         ),
                       ),
 
@@ -1978,49 +1999,55 @@ class _ActivityPageState extends State<ActivityPage> {
     required VoidCallback onPressed,
   }) {
     return Container(
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        color: date != null
-            ? const Color(0xFF00B4D8).withOpacity(0.1)
-            : Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: date != null
-              ? const Color(0xFF00B4D8)
-              : Colors.grey.withOpacity(0.3),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
+      child: Container(
+        decoration: BoxDecoration(
+          color: date != null
+              ? const Color(0xFF00B4D8).withOpacity(0.1)
+              : Colors.white,
           borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.calendar_today,
-                  size: 16,
-                  color: date != null ? const Color(0xFF00B4D8) : Colors.grey,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    date != null
-                        ? DateFormat('MMM dd, yyyy').format(date!)
-                        : label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight:
-                          date != null ? FontWeight.w600 : FontWeight.normal,
-                      color: date != null
-                          ? const Color(0xFF00B4D8)
-                          : Colors.grey[600],
-                    ),
-                    overflow: TextOverflow.ellipsis,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.calendar_today,
+                    size: 16,
+                    color: date != null ? const Color(0xFF00B4D8) : Colors.grey,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      date != null
+                          ? DateFormat('MMM dd, yyyy').format(date!)
+                          : label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight:
+                            date != null ? FontWeight.w600 : FontWeight.normal,
+                        color: date != null
+                            ? const Color(0xFF00B4D8)
+                            : Colors.grey[600],
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
