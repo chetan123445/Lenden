@@ -39,7 +39,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
   bool _counterpartiesLoading = true;
   int _imageRefreshKey = 0;
   final ScrollController _scrollController = ScrollController();
-  bool _showScrollIndicator = false;
+
   bool _hasRatedApp = false;
   bool _ratingDialogShown = false;
   final TextEditingController _searchController = TextEditingController();
@@ -51,9 +51,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     'view_group': GlobalKey(),
   };
 
-  // Carousel rotation
-  late AnimationController _rotationController;
-  Timer? _carouselTimer;
+
 
   final List<Map<String, dynamic>> _carouselItems = [
     {
@@ -106,31 +104,19 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       session.addListener(_onSessionChanged);
     });
 
-    _scrollController.addListener(_onScroll);
 
-    // Initialize rotation controller
-    _rotationController = AnimationController(
-      duration: const Duration(seconds: 20),
-      vsync: this,
-    );
 
-    // Start carousel auto-rotation
-    _startCarouselRotation();
+
   }
 
-  void _startCarouselRotation() {
-    _rotationController.repeat();
-  }
+
 
   @override
   void dispose() {
     final session = Provider.of<SessionProvider>(context, listen: false);
     session.removeListener(_onSessionChanged);
-    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _searchController.dispose();
-    _rotationController.dispose();
-    _carouselTimer?.cancel();
     super.dispose();
   }
 
@@ -140,16 +126,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     });
   }
 
-  void _onScroll() {
-    if (_scrollController.hasClients) {
-      final showIndicator = _scrollController.offset > 200;
-      if (showIndicator != _showScrollIndicator) {
-        setState(() {
-          _showScrollIndicator = showIndicator;
-        });
-      }
-    }
-  }
+
 
   void _performSearch(String query) {
     if (query.isEmpty) return;
@@ -730,48 +707,65 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                       ),
                     ),
 
-                    // Rotating Carousel
+                    // Quick Actions Grid
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: SizedBox(
-                        height: 120,
-                        child: AnimatedBuilder(
-                          animation: _rotationController,
-                          builder: (context, child) {
-                            return Stack(
-                              alignment: Alignment.center,
-                              children: List.generate(_carouselItems.length, (index) {
-                                final item = _carouselItems[index];
-                                final angle = (index / _carouselItems.length) *
-                                        2 *
-                                        math.pi +
-                                    (_rotationController.value * 2 * math.pi);
-                                final x = math.cos(angle) * 120;
-                                final y = math.sin(angle) * 30;
-                                final scale =
-                                    0.7 + (math.sin(angle) + 1) / 2 * 0.5;
-
-                                return Transform(
-                                  transform: Matrix4.identity()
-                                    ..translate(x, y)
-                                    ..scale(scale),
-                                  alignment: Alignment.center,
-                                  child: Opacity(
-                                    opacity:
-                                        (math.sin(angle) + 1) / 2 * 0.8 + 0.2,
-                                    child: _buildQuickActionItem(
-                                      icon: item['icon'] as IconData,
-                                      label: item['label'] as String,
-                                      color: item['color'] as Color,
-                                      onTap: () => _handleCarouselAction(
-                                          item['action'] as String),
-                                    ),
-                                  ),
-                                );
-                              }),
-                            );
-                          },
-                        ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _buildQuickActionItem(
+                                icon: _carouselItems[0]['icon'] as IconData,
+                                label: _carouselItems[0]['label'] as String,
+                                color: _carouselItems[0]['color'] as Color,
+                                onTap: () => _handleCarouselAction(
+                                    _carouselItems[0]['action'] as String),
+                              ),
+                              _buildQuickActionItem(
+                                icon: _carouselItems[1]['icon'] as IconData,
+                                label: _carouselItems[1]['label'] as String,
+                                color: _carouselItems[1]['color'] as Color,
+                                onTap: () => _handleCarouselAction(
+                                    _carouselItems[1]['action'] as String),
+                              ),
+                              _buildQuickActionItem(
+                                icon: _carouselItems[2]['icon'] as IconData,
+                                label: _carouselItems[2]['label'] as String,
+                                color: _carouselItems[2]['color'] as Color,
+                                onTap: () => _handleCarouselAction(
+                                    _carouselItems[2]['action'] as String),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _buildQuickActionItem(
+                                icon: _carouselItems[3]['icon'] as IconData,
+                                label: _carouselItems[3]['label'] as String,
+                                color: _carouselItems[3]['color'] as Color,
+                                onTap: () => _handleCarouselAction(
+                                    _carouselItems[3]['action'] as String),
+                              ),
+                              _buildQuickActionItem(
+                                icon: _carouselItems[4]['icon'] as IconData,
+                                label: _carouselItems[4]['label'] as String,
+                                color: _carouselItems[4]['color'] as Color,
+                                onTap: () => _handleCarouselAction(
+                                    _carouselItems[4]['action'] as String),
+                              ),
+                              _buildQuickActionItem(
+                                icon: _carouselItems[5]['icon'] as IconData,
+                                label: _carouselItems[5]['label'] as String,
+                                color: _carouselItems[5]['color'] as Color,
+                                onTap: () => _handleCarouselAction(
+                                    _carouselItems[5]['action'] as String),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
 
@@ -999,41 +993,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                       ),
                     ),
 
-                    if (_showScrollIndicator) ...[
-                      SizedBox(height: 20),
-                      Center(
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Color(0xFF00B4D8).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                                color: Color(0xFF00B4D8).withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.keyboard_arrow_down,
-                                color: Color(0xFF00B4D8),
-                                size: 20,
-                              ),
-                              SizedBox(width: 8),
-                              Text(
-                                'Scroll for more options',
-                                style: TextStyle(
-                                  color: Color(0xFF00B4D8),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 20),
-                    ],
+
 
                     SizedBox(height: 20),
                     GestureDetector(
