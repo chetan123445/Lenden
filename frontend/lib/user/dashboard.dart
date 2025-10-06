@@ -496,9 +496,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
             context, MaterialPageRoute(builder: (_) => ActivityPage()));
         break;
       case 'favourites':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Favourites coming soon!')),
-        );
+        _showFavouritesDialog();
         break;
       case 'offers':
         ScaffoldMessenger.of(context).showSnackBar(
@@ -515,6 +513,55 @@ class _UserDashboardPageState extends State<UserDashboardPage>
             context, MaterialPageRoute(builder: (_) => const RatingsPage()));
         break;
     }
+  }
+
+  void _showFavouritesDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            padding: EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Favourites',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF00B4D8),
+                  ),
+                ),
+                SizedBox(height: 20),
+                ListTile(
+                  leading: Icon(Icons.person, color: Colors.teal),
+                  title: Text('Transaction'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => UserTransactionsPage(),
+                        settings: RouteSettings(
+                          arguments: {'showFavouritesOnly': true},
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.group, color: Colors.grey),
+                  title: Text('Group (Coming Soon)'),
+                  onTap: null, // Disabled
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override

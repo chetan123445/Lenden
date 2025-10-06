@@ -814,4 +814,47 @@ exports.getTransactionDetails = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch transaction details', details: err.message });
   }
-}; 
+};
+
+// Toggle favourite status of a transaction
+exports.toggleFavourite = async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const { email } = req.body;
+
+    if (!transactionId || !email) {
+      return res.status(400).json({ error: 'Transaction ID and email are required' });
+    }
+
+    const transaction = await Transaction.findOne({ transactionId });
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    // Check if the user is a party to this transaction
+    if (transaction.userEmail !== email && transaction.counterpartyEmail !== email) {
+      return res.status(403).json({ error: 'You are not a party to this transaction' });
+    }
+
+    const isFavourited = transaction.favourite.includes(email);
+
+    if (isFavourited) {
+      // Remove from favourites
+      transaction.favourite = transaction.favourite.filter(favEmail => favEmail !== email);
+    } else {
+      // Add to favourites
+      transaction.favourite.push(email);
+    }
+
+    await transaction.save();
+
+    res.json({ 
+      success: true, 
+      message: `Transaction ${isFavourited ? 'removed from' : 'added to'} favourites`,
+      favourite: transaction.favourite 
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to toggle favourite status', details: err.message });
+  }
+};

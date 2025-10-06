@@ -139,6 +139,7 @@ module.exports = (io) => {
   router.post('/transactions/clear', transactionController.clearTransaction);
   router.delete('/transactions/delete', transactionController.deleteTransaction);
   router.post('/transactions/:transactionId/receipt', auth, transactionController.generateReceipt);
+  router.put('/transactions/:transactionId/favourite', auth, transactionController.toggleFavourite);
 
   router.get('/transactions/user', transactionController.getUserTransactions);
 

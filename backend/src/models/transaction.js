@@ -108,6 +108,10 @@ const transactionSchema = new mongoose.Schema({
   isPartiallyPaid: {
     type: Boolean,
     default: false
+  },
+  favourite: {
+    type: [String],
+    default: []
   }
 }, { timestamps: true });
 

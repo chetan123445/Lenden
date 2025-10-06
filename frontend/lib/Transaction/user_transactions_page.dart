@@ -53,6 +53,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       TextEditingController();
   final TextEditingController _amountController = TextEditingController();
   bool showAllTransactions = false;
+  bool showFavouritesOnly = false;
 
   @override
   void initState() {
@@ -105,6 +106,49 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     }
   }
 
+  Future<void> _toggleFavourite(String transactionId) async {
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    final email = user?['email'];
+    if (email == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('User email not found.')),
+      );
+      return;
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/transactions/$transactionId/favourite'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization':
+              'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
+        },
+        body: jsonEncode({'email': email}),
+      );
+
+      if (response.statusCode == 200) {
+        await fetchTransactions();
+      } else {
+        final data = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['error'] ?? 'Failed to update favourite status'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Network error: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _deleteTransaction(String transactionId) async {
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     final email = user?['email'];
@@ -135,7 +179,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 8),
-                Expanded(child: Text('Transaction deleted successfully!')),
+                Expanded(child: Text('Transaction deleted successfully!'))
               ],
             ),
             backgroundColor: Colors.green,
@@ -481,7 +525,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           Text(
               'Expected Amount: ${expectedAmount.toStringAsFixed(2)} ${t['currency']} (expected amount till expected return date)',
               style: TextStyle(
-                  fontWeight: FontWeight.bold, color: Colors.green[800])),
+                  fontWeight: FontWeight.bold, color: Colors.green[800]))
         ],
       ));
     }
@@ -723,6 +767,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       ),
     );
 
+    final isFavourited = (t['favourite'] as List<dynamic>).contains(email);
+
     // Create expandable card using StatefulBuilder
     return StatefulBuilder(
       builder: (context, setState) {
@@ -843,6 +889,16 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                     fontSize: 16),
                               ),
                             ),
+                            IconButton(
+                              icon: Icon(
+                                isFavourited
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: isFavourited ? Colors.red : Colors.grey,
+                              ),
+                              onPressed: () =>
+                                  _toggleFavourite(t['transactionId']),
+                            ),
                             // Expand/collapse arrow
                             GestureDetector(
                               onTap: () {
@@ -878,8 +934,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                 showDialog(
                                   context: context,
                                   builder: (_) => FutureBuilder<
-                                      Map<String, dynamic>?>(
-                                    // Corrected type here
+                                      Map<String, dynamic>?>( // Corrected type here
                                     future: _fetchCounterpartyProfile(
                                         context, counterpartyEmail),
                                     builder: (context, snapshot) {
@@ -1116,8 +1171,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                           'Transaction ID: ${t['transactionId']}',
                                           style: TextStyle(
                                               fontSize: 12,
-                                              color: Colors.grey[700])),
-                                    ),
+                                              color: Colors.grey[700]))),
                                   ],
                                 ),
 
@@ -1273,8 +1327,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                             style: TextStyle(
                                                 color: Colors.white)),
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors
-                                              .green, // Make the chat button green
+                                          backgroundColor:
+                                              Colors.green, // Make the chat button green
                                           shape: RoundedRectangleBorder(
                                               borderRadius:
                                                   BorderRadius.circular(
@@ -1285,14 +1339,12 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                                   t['_id'] != null
                                               ? t['_id']
                                               : '';
-                                          final session = Provider.of<
-                                                  SessionProvider>(context,
+                                          final session = Provider.of<SessionProvider>(context,
                                               listen: false);
                                           final userObj = session.user;
-                                          final userEmail =
-                                              userObj != null
-                                                  ? userObj['email']
-                                                  : null;
+                                          final userEmail = userObj != null
+                                              ? userObj['email']
+                                              : null;
                                           String? counterpartyEmail;
                                           if (t['userEmail'] ==
                                               userEmail) {
@@ -1436,6 +1488,14 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           onSelected: (_) => setState(() => filter = 'Borrowing'),
           selectedColor: Colors.orange.withOpacity(0.2),
           labelStyle: TextStyle(color: Colors.orange[800]),
+        ),
+        SizedBox(width: 8),
+        ChoiceChip(
+          label: Text('Favourites'),
+          selected: showFavouritesOnly,
+          onSelected: (selected) => setState(() => showFavouritesOnly = selected),
+          selectedColor: Colors.red.withOpacity(0.2),
+          labelStyle: TextStyle(color: Colors.red[800]),
         ),
       ],
     );
@@ -1736,6 +1796,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
 
   List<Widget> _buildFilteredTransactionCards({int? limit}) {
     List<Widget> widgets = [];
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    final email = user?['email'];
+
     bool isTotallyCleared(t) =>
         (t['userCleared'] == true && t['counterpartyCleared'] == true);
     bool isTotallyUncleared(t) =>
@@ -1783,6 +1846,16 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             borrowing.where(isPartiallyClearedOtherSide).toList();
       }
     }
+
+    if (showFavouritesOnly) {
+      lendingFiltered = lendingFiltered
+          .where((t) => (t['favourite'] as List<dynamic>).contains(email))
+          .toList();
+      borrowingFiltered = borrowingFiltered
+          .where((t) => (t['favourite'] as List<dynamic>).contains(email))
+          .toList();
+    }
+
     // --- Apply search filters ---
     bool matchesSearch(t) {
       bool fuzzyMatch(String a, String b) {
