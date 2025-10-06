@@ -51,8 +51,6 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     'view_group': GlobalKey(),
   };
 
-
-
   final List<Map<String, dynamic>> _carouselItems = [
     {
       'icon': Icons.account_balance_wallet,
@@ -103,13 +101,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       final session = Provider.of<SessionProvider>(context, listen: false);
       session.addListener(_onSessionChanged);
     });
-
-
-
-
   }
-
-
 
   @override
   void dispose() {
@@ -125,8 +117,6 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       _imageRefreshKey++;
     });
   }
-
-
 
   void _performSearch(String query) {
     if (query.isEmpty) return;
@@ -200,7 +190,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['topCounterparties'] != null) {
-          List<Map<String, dynamic>> topCounterparties = 
+          List<Map<String, dynamic>> topCounterparties =
               List<Map<String, dynamic>>.from(data['topCounterparties']);
 
           // Fetch all profiles in parallel
@@ -213,10 +203,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
             if (profile != null) {
               populatedCounterparties.add(profile);
             } else {
-              populatedCounterparties.add({
-                'email': topCounterparties[i]['email'],
-                'name': 'Unknown'
-              });
+              populatedCounterparties.add(
+                  {'email': topCounterparties[i]['email'], 'name': 'Unknown'});
             }
           }
 
@@ -520,7 +508,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Container(
             padding: EdgeInsets.all(24),
             child: Column(
@@ -553,7 +542,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                 ),
                 ListTile(
                   leading: Icon(Icons.group, color: Colors.grey),
-                  title: Text('Group (Coming Soon)'),
+                  title: Text('Group Transactions'),
                   onTap: null, // Disabled
                 ),
               ],
@@ -618,10 +607,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                 title: const Text('Activity'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => ActivityPage()));
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => ActivityPage()));
                 },
               ),
               ListTile(
@@ -638,10 +625,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                 title: const Text('Ratings'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const RatingsPage()));
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const RatingsPage()));
                 },
               ),
               ListTile(
@@ -649,10 +634,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                 title: const Text('Help & Support'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => HelpSupportPage()));
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => HelpSupportPage()));
                 },
               ),
               ListTile(
@@ -728,8 +711,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 onSubmitted: _performSearch,
                                 decoration: InputDecoration(
                                   hintText: 'Search sections...',
-                                  hintStyle:
-                                      TextStyle(color: Colors.grey[400]),
+                                  hintStyle: TextStyle(color: Colors.grey[400]),
                                   border: InputBorder.none,
                                   contentPadding:
                                       const EdgeInsets.symmetric(vertical: 8),
@@ -739,7 +721,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                             ),
                             if (_searchController.text.isNotEmpty)
                               IconButton(
-                                icon: Icon(Icons.clear, 
+                                icon: Icon(Icons.clear,
                                     color: Colors.grey[600], size: 20),
                                 onPressed: () {
                                   setState(() {
@@ -756,7 +738,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
                     // Quick Actions Grid
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       child: Column(
                         children: [
                           Row(
@@ -845,7 +828,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.people, color: Color(0xFF00B4D8)),
+                                    Icon(Icons.people,
+                                        color: Color(0xFF00B4D8)),
                                     SizedBox(width: 8),
                                     const Text(
                                       'Top Counterparties',
@@ -858,7 +842,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                   ],
                                 ),
                                 IconButton(
-                                  icon: Icon(Icons.refresh, color: Color(0xFF00B4D8)),
+                                  icon: Icon(Icons.refresh,
+                                      color: Color(0xFF00B4D8)),
                                   onPressed: () =>
                                       _fetchCounterparties(forceRefresh: true),
                                 ),
@@ -878,8 +863,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                       key: _sectionKeys['transactions'],
                       onTap: showTransactionForm,
                       child: Container(
-                        margin: EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 24),
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                         padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -930,8 +915,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                           MaterialPageRoute(
                               builder: (_) => UserTransactionsPage())),
                       child: Container(
-                        margin: EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 24),
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                         padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -980,8 +965,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                       onTap: () => Navigator.push(context,
                           MaterialPageRoute(builder: (_) => AnalyticsPage())),
                       child: Container(
-                        margin: EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 24),
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                         padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -1040,8 +1025,6 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                       ),
                     ),
 
-
-
                     SizedBox(height: 20),
                     GestureDetector(
                       key: _sectionKeys['group_transaction'],
@@ -1050,8 +1033,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                           MaterialPageRoute(
                               builder: (_) => GroupTransactionPage())),
                       child: Container(
-                        margin: EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 24),
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                         padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -1102,8 +1085,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                           MaterialPageRoute(
                               builder: (_) => ViewGroupTransactionsPage())),
                       child: Container(
-                        margin: EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 24),
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                         padding: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -1528,7 +1511,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                               ),
                               SizedBox(height: 20),
                               Text(
-                                'Logging out...', 
+                                'Logging out...',
                                 style: TextStyle(
                                   color: Colors.black,
                                   fontSize: 18,
@@ -1686,8 +1669,7 @@ class BottomWaveClipper extends CustomClipper<Path> {
     path.moveTo(0, 0);
     path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
         size.width * 0.5, size.height * 0.4);
-    path.quadraticBezierTo(
-        size.width * 0.75, 0, size.width, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
@@ -1851,7 +1833,7 @@ class _StylishProfileDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (email != null) ...[
-                  Row(children: [ 
+                  Row(children: [
                     Icon(Icons.email, size: 18, color: Colors.teal),
                     SizedBox(width: 8),
                     Text(email!, style: TextStyle(fontSize: 16))
@@ -1859,7 +1841,7 @@ class _StylishProfileDialog extends StatelessWidget {
                   SizedBox(height: 10),
                 ],
                 if (phone != null && phone!.isNotEmpty) ...[
-                  Row(children: [ 
+                  Row(children: [
                     Icon(Icons.phone, size: 18, color: Colors.teal),
                     SizedBox(width: 8),
                     Text(phone!, style: TextStyle(fontSize: 16))
@@ -1867,7 +1849,7 @@ class _StylishProfileDialog extends StatelessWidget {
                   SizedBox(height: 10),
                 ],
                 if (gender != null) ...[
-                  Row(children: [ 
+                  Row(children: [
                     Icon(Icons.transgender, size: 18, color: Colors.teal),
                     SizedBox(width: 8),
                     Text(gender!, style: TextStyle(fontSize: 16))
@@ -1893,6 +1875,7 @@ class _StylishProfileDialog extends StatelessWidget {
     );
   }
 }
+
 Color _getBoxColor(int index) {
   // Returns alternating soft colors for visual variety
   final colors = [
