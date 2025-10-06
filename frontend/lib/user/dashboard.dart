@@ -195,15 +195,31 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     });
   }
 
-  Future<void> _fetchCounterparties() async {
+  Future<void> _fetchCounterparties({bool forceRefresh = false}) async {
     final session = Provider.of<SessionProvider>(context, listen: false);
+    final now = DateTime.now();
+    final lastFetched = session.counterpartiesLastFetched;
+
+    if (!forceRefresh &&
+        lastFetched != null &&
+        now.difference(lastFetched).inMinutes < 5 &&
+        session.counterparties != null) {
+      setState(() {
+        counterparties = session.counterparties!;
+        _counterpartiesLoading = false;
+      });
+      return;
+    }
+
     final email = session.user?['email'];
     if (email == null) {
       return;
     }
+    final token = session.token;
     try {
       final res = await http.get(
-          Uri.parse('${ApiConfig.baseUrl}/api/analytics/user?email=$email'));
+          Uri.parse('${ApiConfig.baseUrl}/api/analytics/user?email=$email'),
+          headers: {'Authorization': 'Bearer $token'});
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['topCounterparties'] != null) {
@@ -230,6 +246,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
           setState(() {
             counterparties = populatedCounterparties;
           });
+          session.setCounterparties(populatedCounterparties);
         }
       }
     } catch (e) {
@@ -776,23 +793,33 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: _getBoxColor(0),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Icon(Icons.people, color: Color(0xFF00B4D8)),
-                                SizedBox(width: 8),
-                                const Text(
-                                  'Top Counterparties',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF00B4D8),
-                                  ),
+                                Row(
+                                  children: [
+                                    Icon(Icons.people, color: Color(0xFF00B4D8)),
+                                    SizedBox(width: 8),
+                                    const Text(
+                                      'Top Counterparties',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF00B4D8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.refresh, color: Color(0xFF00B4D8)),
+                                  onPressed: () =>
+                                      _fetchCounterparties(forceRefresh: true),
                                 ),
                               ],
                             ),
@@ -831,7 +858,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                         child: Container(
                           padding: EdgeInsets.all(22),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: _getBoxColor(1),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
@@ -883,7 +910,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                         child: Container(
                           padding: EdgeInsets.all(22),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: _getBoxColor(2),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
@@ -933,7 +960,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                         child: Container(
                           padding: EdgeInsets.all(22),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: _getBoxColor(3),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
@@ -1037,7 +1064,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                         child: Container(
                           padding: EdgeInsets.all(22),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: _getBoxColor(4),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
@@ -1089,7 +1116,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                         child: Container(
                           padding: EdgeInsets.all(22),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: _getBoxColor(5),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
@@ -1326,6 +1353,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     final name = counterparty['name'] ?? 'Unknown';
     final imageUrl = counterparty['profileImage'];
     final gender = counterparty['gender'] ?? 'Other';
+    final isPrivate = counterparty['profileIsPrivate'] == true;
+    final isDeactivated = counterparty['deactivatedAccount'] == true;
 
     ImageProvider avatarImage;
     if (imageUrl != null &&
@@ -1345,17 +1374,29 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
     return GestureDetector(
       onTap: () {
-        showDialog(
-          context: context,
-          builder: (_) => _StylishProfileDialog(
-            title: 'Counterparty',
-            name: name,
-            avatarProvider: avatarImage,
-            email: counterparty['email'],
-            phone: counterparty['phone']?.toString(),
-            gender: gender,
-          ),
-        );
+        if (isPrivate || isDeactivated) {
+          showDialog(
+            context: context,
+            builder: (_) => _PrivateProfileDialog(
+              name: name,
+              isPrivate: isPrivate,
+              isDeactivated: isDeactivated,
+              avatarProvider: avatarImage,
+            ),
+          );
+        } else {
+          showDialog(
+            context: context,
+            builder: (_) => _StylishProfileDialog(
+              title: 'Counterparty',
+              name: name,
+              avatarProvider: avatarImage,
+              email: counterparty['email'],
+              phone: counterparty['phone']?.toString(),
+              gender: gender,
+            ),
+          );
+        }
       },
       child: Container(
         padding: const EdgeInsets.all(2),
@@ -1402,9 +1443,14 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
   Future<Map<String, dynamic>?> _fetchCounterpartyProfile(String email) async {
     if (email.isEmpty) return null;
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
     try {
-      final res = await http.get(Uri.parse(
-          '${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'));
+      final res = await http.get(
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
@@ -1659,6 +1705,91 @@ class LogoutWaveClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
+class _PrivateProfileDialog extends StatelessWidget {
+  final String name;
+  final bool isPrivate;
+  final bool isDeactivated;
+  final ImageProvider avatarProvider;
+
+  const _PrivateProfileDialog({
+    required this.name,
+    required this.isPrivate,
+    required this.isDeactivated,
+    required this.avatarProvider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    String message;
+    IconData icon;
+
+    if (isDeactivated) {
+      message = 'This user account is deactivated.';
+      icon = Icons.visibility_off;
+    } else if (isPrivate) {
+      message = 'This user\'s profile is private.';
+      icon = Icons.lock;
+    } else {
+      message = 'This profile is not available.';
+      icon = Icons.error;
+    }
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Color(0xFF00B4D8),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Column(
+              children: [
+                CircleAvatar(radius: 36, backgroundImage: avatarProvider),
+                SizedBox(height: 12),
+                Text(name,
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                        color: Colors.white)),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(icon, size: 40, color: Colors.teal),
+                SizedBox(height: 12),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Close'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF00B4D8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12))),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _StylishProfileDialog extends StatelessWidget {
   final String title;
   final String name;
@@ -1749,4 +1880,16 @@ class _StylishProfileDialog extends StatelessWidget {
       ),
     );
   }
+}
+Color _getBoxColor(int index) {
+  // Returns alternating soft colors for visual variety
+  final colors = [
+    Color(0xFFE8F5E9), // Soft green
+    Color(0xFFFFF8E7), // Soft cream
+    Color(0xFFF3E5F5), // Soft purple
+    Color(0xFFE8F5F7), // Soft blue
+    Color(0xFFFCE4EC), // Soft pink
+    Color(0xFFFFF3E0), // Soft orange
+  ];
+  return colors[index % colors.length];
 }

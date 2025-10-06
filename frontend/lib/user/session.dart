@@ -8,11 +8,15 @@ class SessionProvider extends ChangeNotifier {
   final _storage = const FlutterSecureStorage();
   String? _token;
   Map<String, dynamic>? _user;
+  List<Map<String, dynamic>>? _counterparties;
+  DateTime? _counterpartiesLastFetched;
   String? _role;
   bool _userDataManuallySet =
       false; // Flag to track if user data was set manually
   String? get token => _token;
   Map<String, dynamic>? get user => _user;
+  List<Map<String, dynamic>>? get counterparties => _counterparties;
+  DateTime? get counterpartiesLastFetched => _counterpartiesLastFetched;
   String? get role => _role;
   bool get isAdmin => _role == 'admin';
 
@@ -40,6 +44,7 @@ class SessionProvider extends ChangeNotifier {
     _userDataManuallySet = false;
     await _storage.delete(key: 'token');
     await _storage.delete(key: 'user_data');
+    clearCounterparties();
     notifyListeners();
   }
 
@@ -146,6 +151,18 @@ class SessionProvider extends ChangeNotifier {
     print('   _user: ${_user != null ? 'Present' : 'Missing'}');
     print('   _role: $_role');
     print('   isAdmin: $isAdmin');
+  }
+
+  void setCounterparties(List<Map<String, dynamic>> counterparties) {
+    _counterparties = counterparties;
+    _counterpartiesLastFetched = DateTime.now();
+    notifyListeners();
+  }
+
+  void clearCounterparties() {
+    _counterparties = null;
+    _counterpartiesLastFetched = null;
+    notifyListeners();
   }
 
   Future<void> _saveUserData(Map<String, dynamic> user) async {
@@ -263,6 +280,7 @@ class SessionProvider extends ChangeNotifier {
     }
     await clearToken();
     clearUser();
+    clearCounterparties();
   }
 
   void updateNotificationSettings(Map<String, dynamic> settings) {

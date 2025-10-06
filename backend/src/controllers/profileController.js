@@ -78,7 +78,7 @@ exports.getUserProfileByEmail = async (req, res) => {
       (!requesterEmail || email.toLowerCase() !== requesterEmail.toLowerCase())
     ) {
       return res.json({
-        name: 'Private User',
+        name: user.name,
         profileIsPrivate: true
         // Do not include email, phone, gender, or profileImage
       });
