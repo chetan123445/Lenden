@@ -1296,16 +1296,21 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       );
     }
 
-    return Wrap(
-      spacing: 8.0,
-      runSpacing: 8.0,
-      alignment: WrapAlignment.center,
-      children: counterparties.map((counterparty) {
-        return SizedBox(
-          width: (MediaQuery.of(context).size.width - 64) / 3 - 8,
-          child: _buildCounterpartyCard(counterparty),
-        );
-      }).toList(),
+    return SizedBox(
+      height: 150.0, // Height for two rows
+      child: SingleChildScrollView(
+        child: Wrap(
+          spacing: 8.0,
+          runSpacing: 8.0,
+          alignment: WrapAlignment.center,
+          children: counterparties.map((counterparty) {
+            return SizedBox(
+              width: (MediaQuery.of(context).size.width - 64) / 3 - 8,
+              child: _buildCounterpartyCard(counterparty),
+            );
+          }).toList(),
+        ),
+      ),
     );
   }
 
