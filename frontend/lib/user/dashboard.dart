@@ -234,6 +234,12 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       }
     } catch (e) {
       // Handle error silently
+    } finally {
+      if (mounted) {
+        setState(() {
+          _counterpartiesLoading = false;
+        });
+      }
     }
   }
 
@@ -1273,6 +1279,24 @@ class _UserDashboardPageState extends State<UserDashboardPage>
   }
 
   Widget _buildCounterpartiesGrid(String? userId) {
+    if (_counterpartiesLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 8),
+              Text(
+                'Fetching counterparties...',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (counterparties.isEmpty) {
       return const Center(
         child: Padding(
@@ -1285,20 +1309,16 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       );
     }
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 1,
-      ),
-      itemCount: counterparties.length,
-      itemBuilder: (context, index) {
-        final counterparty = counterparties[index];
-        return _buildCounterpartyCard(counterparty);
-      },
+    return Wrap(
+      spacing: 8.0,
+      runSpacing: 8.0,
+      alignment: WrapAlignment.center,
+      children: counterparties.map((counterparty) {
+        return SizedBox(
+          width: (MediaQuery.of(context).size.width - 64) / 3 - 8,
+          child: _buildCounterpartyCard(counterparty),
+        );
+      }).toList(),
     );
   }
 
