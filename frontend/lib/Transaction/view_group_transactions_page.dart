@@ -24,6 +24,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
   String? error;
   final TextEditingController _searchController = TextEditingController();
   String selectedGroupFilter = 'All Groups'; // 'All Groups', 'Joined Groups', 'Left Groups'
+  bool _showFavouritesOnly = false;
 
   @override
   void initState() {
@@ -36,6 +37,36 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _toggleFavourite(String groupId) async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final email = session.user?['email'];
+
+    if (token == null || email == null) {
+      // Handle not logged in
+      return;
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/$groupId/favourite'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'email': email}),
+      );
+
+      if (response.statusCode == 200) {
+        _fetchUserGroups();
+      } else {
+        // Handle error
+      }
+    } catch (e) {
+      // Handle error
+    }
   }
 
   Future<void> _fetchUserGroups() async {
@@ -86,7 +117,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
           userGroups = allGroups;
           joinedGroups = joined;
           leftGroups = left;
-          filteredGroups = allGroups;
+          _filterGroups(); // Apply initial filter
           loading = false;
         });
       } else {
@@ -142,7 +173,18 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
 
   void _filterGroups() {
     final query = _searchController.text.toLowerCase().trim();
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final myEmail = session.user?['email'] ?? '';
     
+    List<Map<String, dynamic>> temp = userGroups;
+
+    if (_showFavouritesOnly) {
+      temp = temp.where((g) {
+        final isFavourite = (g['favourite'] as List? ?? []).contains(myEmail);
+        return isFavourite;
+      }).toList();
+    }
+
     // First, get the base list based on selected filter
     List<Map<String, dynamic>> baseList;
     switch (selectedGroupFilter) {
@@ -153,7 +195,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
         baseList = List.from(leftGroups);
         break;
       default:
-        baseList = List.from(userGroups);
+        baseList = List.from(temp);
     }
     
     if (query.isEmpty) {
@@ -850,154 +892,205 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                           // Search and Filter Row
                           Padding(
                             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            child: Row(
+                            child: Column(
                               children: [
-                                // Search Bar
-                                Expanded(
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(20),
-                                      gradient: LinearGradient(
-                                        colors: [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Color(0xFF00B4D8).withOpacity(0.1),
-                                          blurRadius: 8,
-                                          offset: Offset(0, 2),
+                                Row(
+                                  children: [
+                                    // Search Bar
+                                    Expanded(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(20),
+                                          gradient: LinearGradient(
+                                            colors: [Color(0xFFFF9933), Color(0xFFFFFFFF), Color(0xFF138808)],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Color(0xFF00B4D8).withOpacity(0.1),
+                                              blurRadius: 8,
+                                              offset: Offset(0, 2),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
-                                    child: Container(
-                                      margin: const EdgeInsets.all(2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(18),
+                                        child: Container(
+                                          margin: const EdgeInsets.all(2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(18),
+                                          ),
+                                          child: TextField(
+                                            controller: _searchController,
+                                            decoration: InputDecoration(
+                                              labelText: 'Search Groups',
+                                              labelStyle: TextStyle(
+                                                color: Color(0xFF00B4D8),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(20),
+                                                borderSide: BorderSide.none,
+                                              ),
+                                              filled: true,
+                                              fillColor: Colors.transparent,
+                                              prefixIcon: Container(
+                                                margin: EdgeInsets.all(8),
+                                                padding: EdgeInsets.all(8),
+                                                decoration: BoxDecoration(
+                                                  color: Color(0xFF00B4D8).withOpacity(0.1),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Icon(
+                                                  Icons.search,
+                                                  color: Color(0xFF00B4D8),
+                                                  size: 20,
+                                                ),
+                                              ),
+                                              suffixIcon: _searchController.text.isNotEmpty
+                                                  ? IconButton(
+                                                      icon: Icon(Icons.clear, color: Color(0xFF00B4D8)),
+                                                      onPressed: () {
+                                                        _searchController.clear();
+                                                      },
+                                                    )
+                                                  : null,
+                                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                              hintText: 'Search by group name, members, or expenses...',
+                                              hintStyle: TextStyle(
+                                                color: Color(0xFF6B7280),
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                            onChanged: (value) {
+                                              // The _filterGroups function is called automatically via listener
+                                            },
+                                          ),
+                                        ),
                                       ),
-                                      child: TextField(
-                                        controller: _searchController,
-                                        decoration: InputDecoration(
-                                          labelText: 'Search Groups',
-                                          labelStyle: TextStyle(
-                                            color: Color(0xFF00B4D8),
+                                    ),
+                                    SizedBox(width: 12),
+                                    
+                                    // Groups Filter Dropdown
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(20),
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Color(0xFF00B4D8),
+                                            Color(0xFF48CAE4),
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        border: Border.all(
+                                          color: Color(0xFF00B4D8).withOpacity(0.3),
+                                          width: 2,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Color(0xFF00B4D8).withOpacity(0.2),
+                                            blurRadius: 8,
+                                            offset: Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: DropdownButtonHideUnderline(
+                                        child: DropdownButton<String>(
+                                          value: selectedGroupFilter,
+                                          onChanged: _onGroupFilterChanged,
+                                          icon: Icon(Icons.arrow_drop_down, color: Colors.white),
+                                          dropdownColor: Color(0xFF00B4D8),
+                                          borderRadius: BorderRadius.circular(16),
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 14,
                                             fontWeight: FontWeight.w600,
                                           ),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(20),
-                                            borderSide: BorderSide.none,
-                                          ),
-                                          filled: true,
-                                          fillColor: Colors.transparent,
-                                          prefixIcon: Container(
-                                            margin: EdgeInsets.all(8),
-                                            padding: EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color: Color(0xFF00B4D8).withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(12),
+                                          items: [
+                                            DropdownMenuItem(
+                                              value: 'All Groups',
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.group, color: Colors.white, size: 18),
+                                                  SizedBox(width: 8),
+                                                  Text('All Groups'),
+                                                ],
+                                              ),
                                             ),
-                                            child: Icon(
-                                              Icons.search,
-                                              color: Color(0xFF00B4D8),
-                                              size: 20,
+                                            DropdownMenuItem(
+                                              value: 'Joined Groups',
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.group_add, color: Colors.white, size: 18),
+                                                  SizedBox(width: 8),
+                                                  Text('Joined Groups'),
+                                                ],
+                                              ),
                                             ),
-                                          ),
-                                          suffixIcon: _searchController.text.isNotEmpty
-                                              ? IconButton(
-                                                  icon: Icon(Icons.clear, color: Color(0xFF00B4D8)),
-                                                  onPressed: () {
-                                                    _searchController.clear();
-                                                  },
-                                                )
-                                              : null,
-                                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                                          hintText: 'Search by group name, members, or expenses...',
-                                          hintStyle: TextStyle(
-                                            color: Color(0xFF6B7280),
-                                            fontSize: 14,
-                                          ),
+                                            DropdownMenuItem(
+                                              value: 'Left Groups',
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.group_remove, color: Colors.white, size: 18),
+                                                  SizedBox(width: 8),
+                                                  Text('Left Groups'),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        onChanged: (value) {
-                                          // The _filterGroups function is called automatically via listener
-                                        },
                                       ),
                                     ),
-                                  ),
+                                  ],
                                 ),
-                                SizedBox(width: 12),
-                                
-                                // Groups Filter Dropdown
                                 Container(
+                                  margin: const EdgeInsets.only(top: 8.0),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(20),
-                                    gradient: LinearGradient(
+                                    gradient: const LinearGradient(
                                       colors: [
-                                        Color(0xFF00B4D8),
-                                        Color(0xFF48CAE4),
+                                        Color(0xFFFF9933),
+                                        Color(0xFFFFFFFF),
+                                        Color(0xFF138808)
                                       ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                     ),
-                                    border: Border.all(
-                                      color: Color(0xFF00B4D8).withOpacity(0.3),
-                                      width: 2,
-                                    ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Color(0xFF00B4D8).withOpacity(0.2),
-                                        blurRadius: 8,
-                                        offset: Offset(0, 2),
+                                        color: Colors.grey.withOpacity(0.5),
+                                        spreadRadius: 1,
+                                        blurRadius: 3,
+                                        offset: const Offset(0, 2),
                                       ),
                                     ],
                                   ),
-                                  child: DropdownButtonHideUnderline(
-                                    child: DropdownButton<String>(
-                                      value: selectedGroupFilter,
-                                      onChanged: _onGroupFilterChanged,
-                                      icon: Icon(Icons.arrow_drop_down, color: Colors.white),
-                                      dropdownColor: Color(0xFF00B4D8),
-                                      borderRadius: BorderRadius.circular(16),
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
+                                  child: Container(
+                                    margin: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: SwitchListTile(
+                                      title: const Text(
+                                        'Show Favourites Only',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF00B4D8),
+                                        ),
                                       ),
-                                      items: [
-                                        DropdownMenuItem(
-                                          value: 'All Groups',
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.group, color: Colors.white, size: 18),
-                                              SizedBox(width: 8),
-                                              Text('All Groups'),
-                                            ],
-                                          ),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'Joined Groups',
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.group_add, color: Colors.white, size: 18),
-                                              SizedBox(width: 8),
-                                              Text('Joined Groups'),
-                                            ],
-                                          ),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'Left Groups',
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.group_remove, color: Colors.white, size: 18),
-                                              SizedBox(width: 8),
-                                              Text('Left Groups'),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
+                                      value: _showFavouritesOnly,
+                                      onChanged: (bool value) {
+                                        setState(() {
+                                          _showFavouritesOnly = value;
+                                          _filterGroups();
+                                        });
+                                      },
+                                      activeColor: const Color(0xFF00B4D8),
                                     ),
                                   ),
                                 ),
@@ -1135,10 +1228,11 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                     itemCount: filteredGroups.length,
                                     itemBuilder: (context, index) {
                                       final group = filteredGroups[index];
-                                final expenses = group['expenses'] ?? [];
-                                final members = group['members'] ?? [];
-                                final creator = group['creator'];
-                                final isCreator = creator?['email'] == currentUserEmail;
+                                      final expenses = group['expenses'] ?? [];
+                                      final members = group['members'] ?? [];
+                                      final creator = group['creator'];
+                                      final isCreator = creator?['email'] == currentUserEmail;
+                                      final isFavourite = (group['favourite'] as List? ?? []).contains(currentUserEmail);
                                 
                                 // Calculate user's total split amount
                                 final userTotalSplit = _calculateUserTotalSplit(group, currentUserEmail ?? '');
@@ -1173,9 +1267,21 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                         style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                       ),
                                     ),
-                                    title: Text(
-                                      group['title'] ?? 'Untitled Group',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                    title: Row(
+                                      children: [
+                                        Text(
+                                          group['title'] ?? 'Untitled Group',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                                        ),
+                                        Spacer(),
+                                        IconButton(
+                                          icon: Icon(
+                                            isFavourite ? Icons.star : Icons.star_border,
+                                            color: isFavourite ? Colors.amber : Colors.grey,
+                                          ),
+                                          onPressed: () => _toggleFavourite(group['_id']),
+                                        ),
+                                      ],
                                     ),
                                     subtitle: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
