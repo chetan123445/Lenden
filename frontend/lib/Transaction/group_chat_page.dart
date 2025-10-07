@@ -297,12 +297,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
     );
   }
 
-  Widget buildMessageBubble(Map<String, dynamic> msg, bool isMine) {
+  Color _getNoteColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6), // Cream
+      Color(0xFFE8F5E9), // Light green
+      Color(0xFFFCE4EC), // Light pink
+      Color(0xFFE3F2FD), // Light blue
+      Color(0xFFFFF9C4), // Light yellow
+      Color(0xFFF3E5F5), // Light purple
+    ];
+    return colors[index % colors.length];
+  }
+
+  Widget buildMessageBubble(Map<String, dynamic> msg, bool isMine, int index) {
     final content = msg['content'] ?? '';
     final isReply = msg['parentId'] != null;
     final parentWidget = isReply ? buildParentMessage(msg['parentId']) : null;
-    final bubbleColor = isMine ? Color(0xFF2196F3) : Color(0xFFF1F0F0);
-    final textColor = isMine ? Colors.white : Colors.black87;
+    final bubbleColor = _getNoteColor(msg['sender']?['_id']?.hashCode ?? index);
+    final textColor = Colors.black87;
     final align = isMine ? Alignment.centerRight : Alignment.centerLeft;
     final borderRadius = BorderRadius.only(
       topLeft: Radius.circular(18),
@@ -339,13 +351,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
               decoration: BoxDecoration(
                 color: bubbleColor,
                 borderRadius: borderRadius,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 2,
-                    offset: Offset(0, 1),
-                  ),
-                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -438,7 +443,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         final msg = messages[i];
                         markAsRead(msg['_id']);
                         final isMine = msg['sender']?['_id'] == userId;
-                        Widget bubble = buildMessageBubble(msg, isMine);
+                        Widget bubble = buildMessageBubble(msg, isMine, i);
                         return Row(
                           mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,16 +468,20 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 return [
                                   PopupMenuItem(
                                     enabled: false,
-                                    child: Text('Date: $dateStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Date: $dateStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+                                        Text('Time: $timeStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+                                      ],
+                                    ),
                                   ),
-                                  PopupMenuItem(
-                                    enabled: false,
-                                    child: Text('Time: $timeStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
-                                  ),
-                                  PopupMenuItem(value: 'reply', child: Text('Reply')),
-                                  PopupMenuItem(value: 'react', child: Text('React')),
-                                  PopupMenuItem(value: 'delete_for_me', child: Text('Delete for me')),
-                                  if (isMine) PopupMenuItem(value: 'delete_for_everyone', child: Text('Delete for everyone', style: TextStyle(color: Colors.red))),
+                                  PopupMenuDivider(),
+                                  PopupMenuItem(value: 'reply', child: Row(children: [Icon(Icons.reply, color: Colors.blue), SizedBox(width: 10), Text('Reply')])),
+                                  PopupMenuItem(value: 'react', child: Row(children: [Icon(Icons.emoji_emotions_outlined, color: Colors.amber), SizedBox(width: 10), Text('React')])),
+                                  PopupMenuDivider(),
+                                  PopupMenuItem(value: 'delete_for_me', child: Row(children: [Icon(Icons.delete_outline, color: Colors.red), SizedBox(width: 10), Text('Delete for me')])),
+                                  if (isMine) PopupMenuItem(value: 'delete_for_everyone', child: Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 10), Text('Delete for everyone', style: TextStyle(color: Colors.red))])),
                                 ];
                               },
                             ),
@@ -498,35 +507,45 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 ),
               Container(
                 margin: EdgeInsets.all(8),
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(0, 1))],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _textController,
-                            decoration: InputDecoration(
-                              hintText: 'Type a message...',
-                              border: InputBorder.none,
+                  gradient: LinearGradient(
+                    colors: [Colors.orange, Colors.white, Colors.green],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(0, 1))]),
+                padding: const EdgeInsets.all(2),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _textController,
+                              decoration: InputDecoration(
+                                hintText: 'Type a message...',
+                                border: InputBorder.none,
+                              ),
+                              onChanged: (v) => setState(() => newMessage = v),
                             ),
-                            onChanged: (v) => setState(() => newMessage = v),
                           ),
-                        ),
-                        if (_textController.text.isNotEmpty)
-                          IconButton(
-                            icon: Icon(Icons.send, color: Colors.blue),
-                            onPressed: () => sendMessage(),
-                          ),
-                      ],
-                    ),
-                  ],
+                          if (_textController.text.isNotEmpty)
+                            IconButton(
+                              icon: Icon(Icons.send, color: Colors.blue),
+                              onPressed: () => sendMessage(),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -645,4 +664,4 @@ class _GroupChatPageState extends State<GroupChatPage> {
     // Simple mapping for demo; in production, use a full emoji name map
     return emoji.codeUnits.map((c) => c.toRadixString(16)).join();
   }
-} 
+}

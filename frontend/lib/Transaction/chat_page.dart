@@ -342,344 +342,710 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  Widget buildMessageBubble(Map<String, dynamic> msg, bool isMine) {
-    final content = msg['content'] ?? '';
-    final isReply = msg['parentId'] != null;
-    final parentWidget = isReply ? buildParentMessage(msg['parentId']) : null;
-    final bubbleColor = isMine ? Color(0xFF2196F3) : Color(0xFFF1F0F0);
-    final textColor = isMine ? Colors.white : Colors.black87;
-    final align = isMine ? Alignment.centerRight : Alignment.centerLeft;
-    final borderRadius = BorderRadius.only(
-      topLeft: Radius.circular(18),
-      topRight: Radius.circular(18),
-      bottomLeft: isMine ? Radius.circular(18) : Radius.circular(4),
-      bottomRight: isMine ? Radius.circular(4) : Radius.circular(18),
-    );
-    return Align(
-      alignment: align,
-      child: Container(
-        margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-        decoration: BoxDecoration(
-          color: bubbleColor,
-          borderRadius: borderRadius,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 2,
-              offset: Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (parentWidget != null) parentWidget,
-            Row(
-              children: [
-                Expanded(child: Text(content, style: TextStyle(fontSize: 16, color: textColor)) ),
-              ],
-            ),
-            buildReactions(msg),
-          ],
-        ),
-      ),
-    );
+  Color _getNoteColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6), // Cream
+      Color(0xFFE8F5E9), // Light green
+      Color(0xFFFCE4EC), // Light pink
+      Color(0xFFE3F2FD), // Light blue
+      Color(0xFFFFF9C4), // Light yellow
+      Color(0xFFF3E5F5), // Light purple
+    ];
+    return colors[index % colors.length];
   }
+
+  Widget buildMessageBubble(Map<String, dynamic> msg, bool isMine, int index) {
+
+    final content = msg['content'] ?? '';
+
+    final isReply = msg['parentId'] != null;
+
+    final parentWidget = isReply ? buildParentMessage(msg['parentId']) : null;
+
+    final bubbleColor = _getNoteColor(msg['sender']?['_id']?.hashCode ?? index);
+
+    final textColor = Colors.black87;
+
+    final align = isMine ? Alignment.centerRight : Alignment.centerLeft;
+
+    final borderRadius = BorderRadius.only(
+
+      topLeft: Radius.circular(18),
+
+      topRight: Radius.circular(18),
+
+      bottomLeft: isMine ? Radius.circular(18) : Radius.circular(4),
+
+      bottomRight: isMine ? Radius.circular(4) : Radius.circular(18),
+
+    );
+
+    return Align(
+
+      alignment: align,
+
+      child: Container(
+
+        margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+
+        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+
+        decoration: BoxDecoration(
+
+          color: bubbleColor,
+
+          borderRadius: borderRadius,
+
+        ),
+
+        child: Column(
+
+          crossAxisAlignment: CrossAxisAlignment.start,
+
+          children: [
+
+            if (parentWidget != null) parentWidget,
+
+            Row(
+
+              children: [
+
+                Expanded(child: Text(content, style: TextStyle(fontSize: 16, color: textColor)) ),
+
+              ],
+
+            ),
+
+            buildReactions(msg),
+
+          ],
+
+        ),
+
+      ),
+
+    );
+
+  }
+
+
 
   Widget buildReplyPreview() {
+
     if (replyToId == null) return SizedBox.shrink();
+
     final parent = messages.firstWhere(
+
       (m) => m['_id'] != null && m['_id'].toString() == replyToId.toString(),
+
       orElse: () => {},
+
     );
+
     final parentContent = parent.isEmpty
+
       ? 'Message not found'
+
       : (parent['deleted'] == true ? 'This message was deleted' : (parent['content'] ?? ''));
+
     return Container(
+
       margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+
       padding: EdgeInsets.all(8),
+
       decoration: BoxDecoration(
+
         color: Colors.blue[50],
+
         borderRadius: BorderRadius.circular(12),
+
       ),
+
       child: Row(
+
         children: [
+
           Icon(Icons.reply, color: Colors.blue),
+
           SizedBox(width: 8),
+
           Expanded(child: Text(parentContent, style: TextStyle(color: Colors.blue))),
+
           IconButton(icon: Icon(Icons.close), onPressed: () => setState(() => replyToId = null)),
+
         ],
+
       ),
+
     );
+
   }
+
+
 
   void showMessageActions(BuildContext context, Map<String, dynamic> msg, bool isMine) {
+
     showModalBottomSheet(
+
       context: context,
+
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+
       builder: (context) => Column(
+
         mainAxisSize: MainAxisSize.min,
+
         children: [
+
           ListTile(leading: Icon(Icons.reply), title: Text('Reply'), onTap: () { setState(() => replyToId = msg['_id']); Navigator.pop(context); }),
+
           ListTile(leading: Icon(Icons.emoji_emotions), title: Text('React'), onTap: () async { final emoji = await showReactionPicker(); if (emoji != null) reactToMessage(msg['_id'], emoji); Navigator.pop(context); }),
+
           if (isMine)
+
             ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete for everyone', style: TextStyle(color: Colors.red)), onTap: () async { await deleteMessage(msg['_id']); Navigator.pop(context); }),
+
           ListTile(leading: Icon(Icons.delete_outline), title: Text('Delete for me'), onTap: () { setState(() { messages.removeWhere((m) => m['_id'] != null && m['_id'].toString() == msg['_id'].toString()); }); Navigator.pop(context); }),
+
         ],
+
       ),
+
     );
+
   }
+
+
 
   @override
+
   Widget build(BuildContext context) {
+
     final displayName = counterpartyProfile?['name'] ?? counterpartyProfile?['email'] ?? widget.counterpartyEmail;
+
     return Scaffold(
+
       backgroundColor: Color(0xFFF7F7FA),
+
       appBar: AppBar(
+
         backgroundColor: Color(0xFF2196F3),
+
         elevation: 0,
+
         titleSpacing: 0,
+
         title: Row(
+
           children: [
+
             CircleAvatar(
+
               backgroundColor: Colors.white,
+
               backgroundImage: counterpartyProfile?['profileImage'] != null
+
                 ? NetworkImage(counterpartyProfile!['profileImage'])
+
                 : null,
+
               child: counterpartyProfile?['profileImage'] == null ? Icon(Icons.person, color: Color(0xFF2196F3)) : null,
+
               radius: 20,
+
             ),
+
             SizedBox(width: 12),
+
             Text(displayName, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+
           ],
+
         ),
+
         actions: [
+
           // Optionally add more icons here (e.g., info, but NOT voice/camera)
+
         ],
+
       ),
+
       body: loading
+
         ? Center(child: CircularProgressIndicator())
+
         : Column(
+
             children: [
+
               if (counterpartyProfile != null)
+
                 SizedBox(height: 8),
+
               Expanded(
+
                 child: Stack(
+
                   children: [
+
                     ListView.builder(
+
                       controller: _scrollController,
+
                       itemCount: messages.length,
+
                       itemBuilder: (context, i) {
+
                         final msg = messages[i];
+
                         markAsRead(msg['_id']);
+
                         final isMine = msg['sender']?['_id'] == userId;
+
                         Widget bubble;
-                        bubble = buildMessageBubble(msg, isMine);
+
+                        bubble = buildMessageBubble(msg, isMine, i);
+
                         return Row(
+
                           mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+
                           crossAxisAlignment: CrossAxisAlignment.start,
+
                           children: [
+
                             ConstrainedBox(
+
                               constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+
                               child: bubble,
+
                             ),
+
                             SizedBox(width: 4),
+
                             PopupMenuButton<String>(
+
                               icon: Icon(Icons.more_vert, size: 20),
+
                               onSelected: (value) async {
+
                                 if (value == 'reply') setState(() => replyToId = msg['_id']);
+
                                 if (value == 'react') showReactionPicker().then((emoji) { if (emoji != null) reactToMessage(msg['_id'], emoji); });
+
                                 if (value == 'delete_for_me') setState(() { messages.removeWhere((m) => m['_id'] != null && m['_id'].toString() == msg['_id'].toString()); });
+
                                 if (value == 'delete_for_everyone' && isMine) await deleteMessage(msg['_id']);
+
                               },
+
                               itemBuilder: (context) {
+
                                 final timestamp = msg['timestamp'] != null ? DateTime.tryParse(msg['timestamp']) : null;
+
                                 final dateStr = timestamp != null ? DateFormat('dd MMM yyyy').format(timestamp) : 'Unknown date';
+
                                 final timeStr = timestamp != null ? DateFormat('hh:mm a').format(timestamp) : 'Unknown time';
+
                                 return [
+
                                   PopupMenuItem(
+
                                     enabled: false,
-                                    child: Text('Date: $dateStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+
+                                    child: Column(
+
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+
+                                      children: [
+
+                                        Text('Date: $dateStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+
+                                        Text('Time: $timeStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+
+                                      ],
+
+                                    ),
+
                                   ),
-                                  PopupMenuItem(
-                                    enabled: false,
-                                    child: Text('Time: $timeStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
-                                  ),
-                                  PopupMenuItem(value: 'reply', child: Text('Reply')),
-                                  PopupMenuItem(value: 'react', child: Text('React')),
-                                  PopupMenuItem(value: 'delete_for_me', child: Text('Delete for me')),
-                                  if (isMine) PopupMenuItem(value: 'delete_for_everyone', child: Text('Delete for everyone', style: TextStyle(color: Colors.red))),
+
+                                  PopupMenuDivider(),
+
+                                  PopupMenuItem(value: 'reply', child: Row(children: [Icon(Icons.reply, color: Colors.blue), SizedBox(width: 10), Text('Reply')])),
+
+                                  PopupMenuItem(value: 'react', child: Row(children: [Icon(Icons.emoji_emotions_outlined, color: Colors.amber), SizedBox(width: 10), Text('React')])),
+
+                                  PopupMenuDivider(),
+
+                                  PopupMenuItem(value: 'delete_for_me', child: Row(children: [Icon(Icons.delete_outline, color: Colors.red), SizedBox(width: 10), Text('Delete for me')])),
+
+                                  if (isMine) PopupMenuItem(value: 'delete_for_everyone', child: Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 10), Text('Delete for everyone', style: TextStyle(color: Colors.red))])),
+
                                 ];
+
                               },
+
                             ),
+
                           ],
+
                         );
+
                       },
+
                     ),
+
                     if (sending)
+
                       Positioned.fill(
+
                         child: Container(
+
                           color: Colors.black.withOpacity(0.05),
+
                           child: Center(child: CircularProgressIndicator()),
+
                         ),
+
                       ),
+
                   ],
+
                 ),
+
               ),
+
               buildReplyPreview(),
+
               if (error != null)
+
                 Padding(
+
                   padding: const EdgeInsets.all(8.0),
+
                   child: Text(error!, style: TextStyle(color: Colors.red)),
+
                 ),
+
               Container(
+
                 margin: EdgeInsets.all(8),
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(0, 1))],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _textController,
-                            decoration: InputDecoration(
-                              hintText: 'Type a message...',
-                              border: InputBorder.none,
+
+                  gradient: LinearGradient(
+
+                    colors: [Colors.orange, Colors.white, Colors.green],
+
+                    begin: Alignment.topLeft,
+
+                    end: Alignment.bottomRight,
+
+                  ),
+
+                  borderRadius: BorderRadius.circular(30),
+
+                  boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2, offset: Offset(0, 1))]),
+
+                padding: const EdgeInsets.all(2),
+
+                child: Container(
+
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+
+                  decoration: BoxDecoration(
+
+                    color: Colors.white,
+
+                    borderRadius: BorderRadius.circular(28),
+
+                  ),
+
+                  child: Column(
+
+                    mainAxisSize: MainAxisSize.min,
+
+                    children: [
+
+                      Row(
+
+                        children: [
+
+                          Expanded(
+
+                            child: TextField(
+
+                              controller: _textController,
+
+                              decoration: InputDecoration(
+
+                                hintText: 'Type a message...', 
+
+                                border: InputBorder.none,
+
+                              ),
+
+                              onChanged: (v) => setState(() => newMessage = v),
+
                             ),
-                            onChanged: (v) => setState(() => newMessage = v),
+
                           ),
-                        ),
-                        if (_textController.text.isNotEmpty)
-                          IconButton(
-                            icon: Icon(Icons.send, color: Colors.blue),
-                            onPressed: () => sendMessage(),
-                          ),
-                      ],
-                    ),
-                  ],
+
+                          if (_textController.text.isNotEmpty)
+
+                            IconButton(
+
+                              icon: Icon(Icons.send, color: Colors.blue),
+
+                              onPressed: () => sendMessage(),
+
+                            ),
+
+                        ],
+
+                      ),
+
+                    ],
+
+                  ),
+
                 ),
+
               ),
+
             ],
+
           ),
+
     );
+
   }
+
+
 
   Future<String?> showReactionPicker() async {
+
     String search = '';
+
     String selectedCategory = kEmojiCategories.keys.first;
+
     List<String> filtered = kEmojiCategories[selectedCategory]!;
+
     return await showModalBottomSheet<String>(
+
       context: context,
+
       isScrollControlled: true,
+
       builder: (context) {
+
         return StatefulBuilder(
+
           builder: (context, setModalState) {
+
             // Filter emojis by search
+
             List<String> emojis = search.isEmpty
+
               ? kEmojiCategories[selectedCategory]!
+
               : kEmojiCategories[selectedCategory]!.where((e) => _emojiName(e).contains(search.toLowerCase())).toList();
+
             return SafeArea(
+
               child: Column(
+
                 mainAxisSize: MainAxisSize.min,
+
                 children: [
+
                   // Search bar
+
                   Padding(
+
                     padding: const EdgeInsets.all(8.0),
+
                     child: TextField(
+
                       decoration: InputDecoration(
-                        hintText: 'Search emoji...',
+
+                        hintText: 'Search emoji...', 
+
                         prefixIcon: Icon(Icons.search),
+
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+
                       ),
+
                       onChanged: (v) => setModalState(() => search = v),
+
                     ),
+
                   ),
+
                   // Category tabs
+
                   SizedBox(
+
                     height: 40,
+
                     child: ListView(
+
                       scrollDirection: Axis.horizontal,
+
                       children: kEmojiCategories.keys.map((cat) => GestureDetector(
+
                         onTap: () => setModalState(() => selectedCategory = cat),
+
                         child: Container(
+
                           margin: EdgeInsets.symmetric(horizontal: 6),
+
                           padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+
                           decoration: BoxDecoration(
+
                             color: selectedCategory == cat ? Colors.blue[100] : Colors.grey[200],
+
                             borderRadius: BorderRadius.circular(16),
+
                           ),
+
                           child: Center(child: Text(cat)),
+
                         ),
+
                       )).toList(),
+
                     ),
+
                   ),
+
                   // Frequently used
+
                   if (_frequentEmojis.isNotEmpty)
+
                     Padding(
+
                       padding: const EdgeInsets.symmetric(vertical: 8.0),
+
                       child: Wrap(
+
                         children: _frequentEmojis.map((e) => GestureDetector(
+
                           onTap: () => Navigator.pop(context, e),
+
                           child: Padding(
+
                             padding: const EdgeInsets.all(6.0),
+
                             child: Text(e, style: TextStyle(fontSize: 28)),
+
                           ),
+
                         )).toList(),
+
                       ),
+
                     ),
+
                   // Emoji grid
+
                   Flexible(
+
                     child: GridView.count(
+
                       crossAxisCount: 8,
+
                       shrinkWrap: true,
+
                       children: emojis.map((e) => GestureDetector(
+
                         onTap: () {
+
                           // Add to frequent
+
                           if (!_frequentEmojis.contains(e)) {
+
                             if (_frequentEmojis.length >= 16) _frequentEmojis.removeLast();
+
                             _frequentEmojis.insert(0, e);
+
                           }
+
                           Navigator.pop(context, e);
+
                         },
+
                         child: Center(child: Text(e, style: TextStyle(fontSize: 28))),
+
                       )).toList(),
+
                     ),
+
                   ),
+
                   // Custom emoji upload
+
                   Padding(
+
                     padding: const EdgeInsets.all(8.0),
+
                     child: ElevatedButton.icon(
+
                       icon: Icon(Icons.add_a_photo),
+
                       label: Text('Upload Custom Emoji'),
+
                       onPressed: () async {
+
                         final result = await FilePicker.platform.pickFiles(type: FileType.image);
+
                         if (result != null && result.files.single.bytes != null) {
+
                           final file = result.files.single;
-                          final base64 = base64Encode(file.bytes!);
+
+                          final base64 = base64Encode(file.bytes!); 
+
                           // Use a special marker for custom emoji
+
                           Navigator.pop(context, 'custom:$base64');
+
                         }
+
                       },
+
                     ),
+
                   ),
+
                 ],
+
               ),
+
             );
+
           },
+
         );
+
       },
+
     );
+
   }
 
+
+
   String _emojiName(String emoji) {
+
     // Simple mapping for demo; in production, use a full emoji name map
+
     return emoji.codeUnits.map((c) => c.toRadixString(16)).join();
+
   }
-} 
+
+}
