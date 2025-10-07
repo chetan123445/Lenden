@@ -7,6 +7,7 @@ exports.getChat = async (req, res) => {
     const { transactionId } = req.params;
     let thread = await ChatThread.findOne({ transactionId }).populate('messages.sender', 'name email');
     if (!thread) return res.json({ messages: [] });
+
     // Sort messages by timestamp ascending
     const sortedMessages = [...thread.messages].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     res.json({ messages: sortedMessages });
@@ -45,13 +46,20 @@ exports.reactMessage = async (req, res) => {
     if (!thread) return res.status(404).json({ error: 'Chat not found' });
     const msg = thread.messages.id(messageId);
     if (!msg) return res.status(404).json({ error: 'Message not found' });
-    // Remove existing reaction by this user (if any)
-    msg.reactions = msg.reactions.filter(r => r.userId.toString() !== userId);
+    
+    let reactions = msg.reactions.toObject();
+    reactions = reactions.filter(r => r.userId.toString() !== userId);
     if (emoji) {
-      msg.reactions.push({ userId, emoji });
+      reactions.push({ userId, emoji });
     }
+    msg.reactions = reactions;
+
     await thread.save();
-    res.json({ message: msg });
+
+    await thread.populate('messages.sender', 'name email');
+    const updatedMsg = thread.messages.id(messageId);
+
+    res.json({ message: updatedMsg.toObject() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to react to message', details: err.message });
   }
@@ -92,4 +100,4 @@ exports.deleteMessage = async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete message', details: err.message });
   }
-}; 
+};

@@ -231,9 +231,13 @@ class _ChatPageState extends State<ChatPage> {
     if (reactions.isEmpty) return SizedBox.shrink();
     Map<String, List<String>> emojiToUsers = {};
     for (var r in reactions) {
-      final emoji = r['emoji'];
-      final uid = r['userId'];
-      emojiToUsers.putIfAbsent(emoji, () => []).add(uid);
+      if (r is Map) {
+        final emoji = r['emoji'];
+        final uid = r['userId'];
+        if (emoji != null && uid != null) {
+          emojiToUsers.putIfAbsent(emoji.toString(), () => []).add(uid.toString());
+        }
+      }
     }
     return Row(
       children: emojiToUsers.entries.map((e) {
