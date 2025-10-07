@@ -510,23 +510,37 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         return Dialog(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          elevation: 16,
           child: Container(
-            padding: EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFFE0F7FA),
+                  Color(0xFFB2EBF2),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Favourites',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF00B4D8),
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Text(
+                    'Favourites',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00796B),
+                    ),
                   ),
                 ),
-                SizedBox(height: 20),
-                ListTile(
-                  leading: Icon(Icons.person, color: Colors.teal),
-                  title: Text('Transaction'),
+                _buildFavouriteItem(
+                  context,
+                  icon: Icons.person,
+                  text: 'Transaction',
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
@@ -540,11 +554,21 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                     );
                   },
                 ),
-                ListTile(
-                  leading: Icon(Icons.group, color: Colors.grey),
-                  title: Text('Group Transactions'),
-                  onTap: null, // Disabled
+                _buildFavouriteItem(
+                  context,
+                  icon: Icons.group,
+                  text: 'Groups',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => GroupTransactionPage(),
+                      ),
+                    );
+                  },
                 ),
+                SizedBox(height: 20),
               ],
             ),
           ),
@@ -552,6 +576,48 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       },
     );
   }
+
+  Widget _buildFavouriteItem(BuildContext context,
+      {required IconData icon,
+      required String text,
+      required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Color(0xFF00796B)),
+            SizedBox(width: 20),
+            Text(
+              text,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF004D40),
+              ),
+            ),
+            Spacer(),
+            Icon(Icons.arrow_forward_ios, color: Color(0xFF00796B), size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
