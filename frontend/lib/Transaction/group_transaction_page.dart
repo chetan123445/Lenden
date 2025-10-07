@@ -50,11 +50,42 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   DateTime? customStartDate;
   DateTime? customEndDate;
   Color? selectedGroupColor; // for group color customization
+  bool _showFavouritesOnly = false;
 
   @override
   void initState() {
     super.initState();
     _fetchUserGroups();
+  }
+
+  Future<void> _toggleFavourite(String groupId) async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final email = session.user?['email'];
+
+    if (token == null || email == null) {
+      // Handle not logged in
+      return;
+    }
+
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/$groupId/favourite'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'email': email}),
+      );
+
+      if (response.statusCode == 200) {
+        _fetchUserGroups();
+      } else {
+        // Handle error
+      }
+    } catch (e) {
+      // Handle error
+    }
   }
 
   @override
@@ -71,7 +102,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/users/check-email'),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({'email': email}),
+        body: jsonEncode({'email': email}),
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -236,7 +267,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions'),
         headers: headers,
-        body: json.encode({
+        body: jsonEncode({
           'title': _titleController.text.trim(),
           'memberEmails': memberEmails, // Backend expects emails for group creation
           'color': selectedGroupColor != null ? '#${selectedGroupColor!.value.toRadixString(16).substring(2).toUpperCase()}' : null,
@@ -424,7 +455,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
         headers: headers,
-        body: json.encode({'email': email}),
+        body: jsonEncode({'email': email}),
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -502,7 +533,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
         headers: headers,
-        body: json.encode({'email': email}),
+        body: jsonEncode({'email': email}),
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -571,7 +602,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-expense'),
         headers: headers,
-        body: json.encode(requestData),
+        body: jsonEncode(requestData),
       );
       
       print('Response status: ${res.statusCode}');
@@ -652,6 +683,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final myEmail = session.user?['email'] ?? '';
     List<Map<String, dynamic>> temp = userGroups.where((g) {
+      if (_showFavouritesOnly) {
+        final isFavourite = (g['favourite'] as List? ?? []).contains(myEmail);
+        if (!isFavourite) return false;
+      }
+
       final title = (g['title'] ?? '').toString().toLowerCase();
       final creatorEmail = (g['creator']?['email'] ?? '').toString().toLowerCase();
       final matchesSearch = groupSearchQuery.isEmpty ||
@@ -766,7 +802,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.put(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/color'),
         headers: headers,
-        body: json.encode({'color': '#${newColor.value.toRadixString(16).substring(2).toUpperCase()}'}),
+        body: jsonEncode({'color': '#${newColor.value.toRadixString(16).substring(2).toUpperCase()}'}),
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1390,7 +1426,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
         headers: headers,
-        body: json.encode({'email': email}),
+        body: jsonEncode({'email': email}),
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1414,7 +1450,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
         headers: headers,
-        body: json.encode({'email': email}),
+        body: jsonEncode({'email': email}),
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1446,7 +1482,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/settle-member-expenses'),
         headers: headers,
-        body: json.encode({'email': email}),
+        body: jsonEncode({'email': email}),
       );
       
       if (res.statusCode != 200) {
@@ -1459,7 +1495,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final removeRes = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
         headers: headers,
-        body: json.encode({'email': email}),
+        body: jsonEncode({'email': email}),
       );
       
       final removeData = json.decode(removeRes.body);
@@ -1514,7 +1550,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.put(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId'),
         headers: headers,
-        body: json.encode(expenseData),
+        body: jsonEncode(expenseData),
       );
       final data = json.decode(res.body);
       
@@ -1556,7 +1592,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final res = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId/settle'),
         headers: headers,
-        body: json.encode({'memberEmails': memberEmails}),
+        body: jsonEncode({'memberEmails': memberEmails}),
       );
       final data = json.decode(res.body);
       
@@ -3729,17 +3765,45 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             top: 40,
             left: 0,
             right: 0,
-            child: Center(
-              child: Text(
-                group == null ? 'Group Transactions' : 'Group: ${group?['title'] ?? ''}',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
-                  shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
-                ),
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (group == null) 
+                  Text(
+                    'Group Transactions',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
+                    ),
+                  )
+                else 
+                  Text(
+                    'Group: ${group?['title'] ?? ''}',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
+                    ),
+                  ),
+                if (group == null)
+                  IconButton(
+                    icon: Icon(
+                      _showFavouritesOnly ? Icons.star : Icons.star_border,
+                      color: _showFavouritesOnly ? Colors.amber : Colors.white,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _showFavouritesOnly = !_showFavouritesOnly;
+                      });
+                      _filterAndSearchGroups();
+                    },
+                  ),
+              ],
             ),
           ),
           Padding(
@@ -3811,7 +3875,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             ),
                             child: TextField(
                               decoration: InputDecoration(
-                                hintText: 'Search by group name or creator email...',
+                                hintText: 'Search by group name or creator email...', 
                                 prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
                                 filled: true,
                                 fillColor: Colors.white,
@@ -3946,7 +4010,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                         DropdownMenuItem(value: 'all', child: Text('All Members')),
                                         DropdownMenuItem(value: '2-5', child: Text('2-5')),
                                         DropdownMenuItem(value: '6-10', child: Text('6-10')),
-                                        DropdownMenuItem(value: '10+', child: Text('10+')),
+                                        DropdownMenuItem(value: '10+', child: Text('10+'))
                                       ],
                                       onChanged: (val) {
                                         if (val != null) {
@@ -3982,10 +4046,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                       style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
                                       underline: Container(),
                                       items: const [
-                                        DropdownMenuItem(value: 'all', child: Text('All Dates')),
-                                        DropdownMenuItem(value: '7days', child: Text('Last 7 Days')),
-                                        DropdownMenuItem(value: '30days', child: Text('Last 30 Days')),
-                                        DropdownMenuItem(value: 'custom', child: Text('Custom')),
+                                        DropdownMenuItem(value: 'all', child: Text('All Dates'))
+                                        ,
+                                        DropdownMenuItem(value: '7days', child: Text('Last 7 Days'))
+                                        ,
+                                        DropdownMenuItem(value: '30days', child: Text('Last 30 Days'))
+                                        ,
+                                        DropdownMenuItem(value: 'custom', child: Text('Custom'))
                                       ],
                                       onChanged: (val) async {
                                         if (val != null) {
@@ -4045,7 +4112,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             final avatarText = () {
                               final title = g['title'] ?? '';
                               return title.isNotEmpty ? title[0].toUpperCase() : '?';
-                            }();
+                            }() ;
                             return Card(
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                               elevation: 6,
@@ -4088,6 +4155,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                           ),
                                         ),
                                         SizedBox(width: 10),
+                                        IconButton(
+                                          icon: Icon(
+                                            (g['favourite'] as List? ?? []).contains(Provider.of<SessionProvider>(context, listen: false).user?['email']) ? Icons.star : Icons.star_border,
+                                            color: (g['favourite'] as List? ?? []).contains(Provider.of<SessionProvider>(context, listen: false).user?['email']) ? Colors.amber : Colors.grey,
+                                          ),
+                                          onPressed: () => _toggleFavourite(g['_id']),
+                                        ),
                                         ElevatedButton(
                                           onPressed: () => _showGroupDetails(g),
                                           style: ElevatedButton.styleFrom(
@@ -5008,7 +5082,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     value: editSplitType,
                     items: [
                       DropdownMenuItem(value: 'equal', child: Text('Equal Split')),
-                      DropdownMenuItem(value: 'custom', child: Text('Custom Split')),
+                      DropdownMenuItem(value: 'custom', child: Text('Custom Split'))
                     ],
                     onChanged: (value) {
                       setDialogState(() {
@@ -5934,9 +6008,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                   ),
                                   SizedBox(height: 4),
                                   Text(
-                                    selectedMembers.isEmpty 
+                                    selectedMembers.isEmpty
                                       ? 'Select members to include in this expense'
-                                      : '${selectedMembers.length} member${selectedMembers.length == 1 ? '' : 's'} selected',
+                                      : "${selectedMembers.length} member${selectedMembers.length == 1 ? '' : 's'} selected",
                                     style: TextStyle(
                                       color: Colors.grey[600],
                                       fontSize: 14,
@@ -6666,4 +6740,4 @@ class SettleWaveClipper extends CustomClipper<Path> {
   
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-} 
+}

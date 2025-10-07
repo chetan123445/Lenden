@@ -529,6 +529,7 @@ exports.getUserGroups = async (req, res) => {
         expenses: processedExpenses,
         balances: obj.balances || [],
         color: obj.color,
+        favourite: obj.favourite || [],
         createdAt: obj.createdAt,
         updatedAt: obj.updatedAt
       };
@@ -539,6 +540,66 @@ exports.getUserGroups = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 }; 
+
+exports.toggleGroupFavourite = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const group = await GroupTransaction.findById(groupId);
+
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if user is a member of the group
+    const isMember = group.members.some(member => member.user.toString() === user._id.toString() && !member.leftAt);
+    if (!isMember) {
+      return res.status(403).json({ error: 'Only group members can favourite a group' });
+    }
+
+    const favouriteIndex = group.favourite.indexOf(email);
+
+    if (favouriteIndex > -1) {
+      // Remove from favourites
+      group.favourite.splice(favouriteIndex, 1);
+    } else {
+      // Add to favourites
+      group.favourite.push(email);
+    }
+
+    await group.save();
+
+    const populatedGroup = await GroupTransaction.findById(group._id)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+
+    const groupObj = populatedGroup.toObject();
+    groupObj.members = groupObj.members.map(m => ({
+      _id: m.user._id,
+      email: m.user.email,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt
+    }));
+    groupObj.creator = {
+      _id: groupObj.creator._id,
+      email: groupObj.creator.email
+    };
+
+    res.json({ group: groupObj });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
 exports.updateGroupColor = async (req, res) => {
   try {

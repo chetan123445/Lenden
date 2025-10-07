@@ -28,6 +28,7 @@ const groupTransactionSchema = new mongoose.Schema({
     balance: { type: Number, default: 0 },
   }],
   isActive: { type: Boolean, default: true },
+  favourite: [{ type: String }] // Array of user emails
 }, { timestamps: true });
 
 groupTransactionSchema.index({ title: 1 });
