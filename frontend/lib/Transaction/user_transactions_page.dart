@@ -1464,40 +1464,44 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   }
 
   Widget _buildFilterChips() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        ChoiceChip(
-          label: Text('All'),
-          selected: filter == 'All',
-          onSelected: (_) => setState(() => filter = 'All'),
-          selectedColor: Color(0xFF00B4D8).withOpacity(0.2),
-        ),
-        SizedBox(width: 8),
-        ChoiceChip(
-          label: Text('Lending'),
-          selected: filter == 'Lending',
-          onSelected: (_) => setState(() => filter = 'Lending'),
-          selectedColor: Colors.green.withOpacity(0.2),
-          labelStyle: TextStyle(color: Colors.green[800]),
-        ),
-        SizedBox(width: 8),
-        ChoiceChip(
-          label: Text('Borrowing'),
-          selected: filter == 'Borrowing',
-          onSelected: (_) => setState(() => filter = 'Borrowing'),
-          selectedColor: Colors.orange.withOpacity(0.2),
-          labelStyle: TextStyle(color: Colors.orange[800]),
-        ),
-        SizedBox(width: 8),
-        ChoiceChip(
-          label: Text('Favourites'),
-          selected: showFavouritesOnly,
-          onSelected: (selected) => setState(() => showFavouritesOnly = selected),
-          selectedColor: Colors.red.withOpacity(0.2),
-          labelStyle: TextStyle(color: Colors.red[800]),
-        ),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          ChoiceChip(
+            label: Text('All'),
+            selected: filter == 'All',
+            onSelected: (_) => setState(() => filter = 'All'),
+            selectedColor: Color(0xFF00B4D8).withOpacity(0.2),
+          ),
+          SizedBox(width: 8),
+          ChoiceChip(
+            label: Text('Lending'),
+            selected: filter == 'Lending',
+            onSelected: (_) => setState(() => filter = 'Lending'),
+            selectedColor: Colors.green.withOpacity(0.2),
+            labelStyle: TextStyle(color: Colors.green[800]),
+          ),
+          SizedBox(width: 8),
+          ChoiceChip(
+            label: Text('Borrowing'),
+            selected: filter == 'Borrowing',
+            onSelected: (_) => setState(() => filter = 'Borrowing'),
+            selectedColor: Colors.orange.withOpacity(0.2),
+            labelStyle: TextStyle(color: Colors.orange[800]),
+          ),
+          SizedBox(width: 8),
+          ChoiceChip(
+            label: Text('Favourites'),
+            selected: showFavouritesOnly,
+            onSelected: (selected) =>
+                setState(() => showFavouritesOnly = selected),
+            selectedColor: Colors.red.withOpacity(0.2),
+            labelStyle: TextStyle(color: Colors.red[800]),
+          ),
+        ],
+      ),
     );
   }
 
