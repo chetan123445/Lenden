@@ -5,6 +5,7 @@ module.exports = (io) => {
   const AppratingController = require('../controllers/AppratingController');
   const feedbackController = require('../controllers/feedbackController');
   const userController = require('../controllers/userController');
+  const quickTransactionController = require('../controllers/quickTransactionController');
   const adminController = require('../controllers/adminController');
   const forgotPasswordController = require('../controllers/forgotPasswordController');
   const profileController = require('../controllers/profileController');
@@ -66,6 +67,14 @@ module.exports = (io) => {
   router.get('/users/profile-by-email', profileController.getUserProfileByEmail);
   router.get('/users/devices', auth, sessionTimeout, userController.listDevices);
   router.post('/users/logout-device', auth, sessionTimeout, userController.logoutDevice);
+
+  // Quick Transaction routes
+  router.get('/quick-transactions', auth, quickTransactionController.getQuickTransactions);
+  router.post('/quick-transactions', auth, quickTransactionController.createQuickTransaction);
+  router.put('/quick-transactions/:id', auth, quickTransactionController.updateQuickTransaction);
+  router.delete('/quick-transactions/:id', auth, quickTransactionController.deleteQuickTransaction);
+  router.put('/quick-transactions/:id/clear', auth, quickTransactionController.clearQuickTransaction);
+  router.delete('/quick-transactions', auth, quickTransactionController.clearAllQuickTransactions);
 
   // Support routes (User)
   router.post('/support/queries', auth, supportController.createSupportQuery);

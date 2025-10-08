@@ -24,6 +24,7 @@ import 'feedback.dart';
 import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
 import 'subscriptions_page.dart';
+import 'quick_transactions_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -45,6 +46,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
   bool _ratingDialogShown = false;
   final TextEditingController _searchController = TextEditingController();
   final Map<String, GlobalKey> _sectionKeys = {
+    'quick_transactions': GlobalKey(),
     'transactions': GlobalKey(),
     'your_transactions': GlobalKey(),
     'analytics': GlobalKey(),
@@ -143,7 +145,9 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     final lowerQuery = query.toLowerCase();
     String? matchedSection;
 
-    if (lowerQuery.contains('create') || lowerQuery.contains('transaction')) {
+    if (lowerQuery.contains('quick') || lowerQuery.contains('transaction')) {
+      matchedSection = 'quick_transactions';
+    } else if (lowerQuery.contains('create') || lowerQuery.contains('transaction')) {
       matchedSection = 'transactions';
     } else if (lowerQuery.contains('your') || lowerQuery.contains('detail')) {
       matchedSection = 'your_transactions';
@@ -985,6 +989,55 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                     const SizedBox(height: 16),
 
                     // Main action cards
+                    GestureDetector(
+                      key: _sectionKeys['quick_transactions'],
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => QuickTransactionsPage())),
+                      child: Container(
+                        margin:
+                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 8,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Container(
+                          padding: EdgeInsets.all(22),
+                          decoration: BoxDecoration(
+                            color: _getBoxColor(0),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.flash_on,
+                                  color: Colors.amber, size: 40),
+                              SizedBox(width: 20),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Text(
+                                    'Quick Transactions',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 22),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                     GestureDetector(
                       key: _sectionKeys['transactions'],
                       onTap: showTransactionForm,
@@ -1964,7 +2017,7 @@ class _StylishProfileDialog extends StatelessWidget {
                     SizedBox(width: 8),
                     Text(email!, style: TextStyle(fontSize: 16))]
                   ),
-                  SizedBox(height: 10),
+                  SizedBox(height: 10), 
                 ],
                 if (phone != null && phone!.isNotEmpty) ...[
                   Row(children: [ 
@@ -1972,7 +2025,7 @@ class _StylishProfileDialog extends StatelessWidget {
                     SizedBox(width: 8),
                     Text(phone!, style: TextStyle(fontSize: 16))]
                   ),
-                  SizedBox(height: 10),
+                  SizedBox(height: 10), 
                 ],
                 if (gender != null) ...[
                   Row(children: [ 
@@ -1980,7 +2033,7 @@ class _StylishProfileDialog extends StatelessWidget {
                     SizedBox(width: 8),
                     Text(gender!, style: TextStyle(fontSize: 16))]
                   ),
-                  SizedBox(height: 10),
+                  SizedBox(height: 10), 
                 ],
               ],
             ),
