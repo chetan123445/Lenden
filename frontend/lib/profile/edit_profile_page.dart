@@ -519,7 +519,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     : null,
               ),
               validator: (val) {
-                if (label == 'Birthday' ||
+                if (readOnly ||label == 'Birthday' ||
                     label == 'Phone' ||
                     label == 'Address') {
                   return null; // Not required
