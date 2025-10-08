@@ -736,15 +736,19 @@ class _NotesPageState extends State<NotesPage> {
                                               ],
                                             ),
                                             const SizedBox(height: 12),
-                                            Text(
-                                              note['content'] ?? '',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: Colors.grey[700],
-                                                height: 1.4,
+                                            SingleChildScrollView(
+                                              scrollDirection: Axis.vertical,
+                                              child: SingleChildScrollView(
+                                                scrollDirection: Axis.horizontal,
+                                                child: Text(
+                                                  note['content'] ?? '',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: Colors.grey[700],
+                                                    height: 1.4,
+                                                  ),
+                                                ),
                                               ),
-                                              maxLines: 3,
-                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ],
                                         ),
