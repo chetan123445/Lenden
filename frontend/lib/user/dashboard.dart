@@ -23,6 +23,7 @@ import 'help_support_page.dart';
 import 'feedback.dart';
 import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
+import 'subscriptions_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -87,6 +88,24 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       'label': 'Ratings',
       'color': Colors.amber,
       'action': 'ratings'
+    },
+    {
+      'icon': Icons.subscriptions,
+      'label': 'Subscriptions',
+      'color': Colors.red,
+      'action': 'subscriptions'
+    },
+    {
+      'icon': Icons.credit_card,
+      'label': 'Credits',
+      'color': Colors.blue,
+      'action': 'credits'
+    },
+    {
+      'icon': Icons.card_giftcard,
+      'label': 'Gift Cards',
+      'color': Colors.green,
+      'action': 'gift_cards'
     },
   ];
 
@@ -156,7 +175,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         headers: {'Authorization': 'Bearer $token'});
     setState(() {
       transactions = res.statusCode == 200
-          ? List<Map<String, dynamic>>.from(json.decode(res.body))
+          ? List<Map<String, dynamic>>.from(jsonDecode(res.body))
           : [];
       loading = false;
     });
@@ -195,7 +214,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
           // Fetch all profiles in parallel
           final profiles = await Future.wait(topCounterparties
-              .map((cp) => _fetchCounterpartyProfile(cp['email'])));
+              .map((cp) => _fetchCounterpartyProfile(cp['email']))); 
 
           List<Map<String, dynamic>> populatedCounterparties = [];
           for (int i = 0; i < topCounterparties.length; i++) {
@@ -262,7 +281,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         headers: {'Authorization': 'Bearer $token'},
       );
       if (res.statusCode == 200) {
-        final data = json.decode(res.body);
+        final data = jsonDecode(res.body);
         setState(() {
           _hasRatedApp = data['rating'] != null;
         });
@@ -499,6 +518,20 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       case 'ratings':
         Navigator.push(
             context, MaterialPageRoute(builder: (_) => const RatingsPage()));
+        break;
+      case 'subscriptions':
+        Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const SubscriptionsPage()));
+        break;
+      case 'credits':
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Credits coming soon!')),
+        );
+        break;
+      case 'gift_cards':
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gift Cards coming soon!')),
+        );
         break;
     }
   }
@@ -858,6 +891,33 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 color: _carouselItems[5]['color'] as Color,
                                 onTap: () => _handleCarouselAction(
                                     _carouselItems[5]['action'] as String),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _buildQuickActionItem(
+                                icon: _carouselItems[6]['icon'] as IconData,
+                                label: _carouselItems[6]['label'] as String,
+                                color: _carouselItems[6]['color'] as Color,
+                                onTap: () => _handleCarouselAction(
+                                    _carouselItems[6]['action'] as String),
+                              ),
+                              _buildQuickActionItem(
+                                icon: _carouselItems[7]['icon'] as IconData,
+                                label: _carouselItems[7]['label'] as String,
+                                color: _carouselItems[7]['color'] as Color,
+                                onTap: () => _handleCarouselAction(
+                                    _carouselItems[7]['action'] as String),
+                              ),
+                              _buildQuickActionItem(
+                                icon: _carouselItems[8]['icon'] as IconData,
+                                label: _carouselItems[8]['label'] as String,
+                                color: _carouselItems[8]['color'] as Color,
+                                onTap: () => _handleCarouselAction(
+                                    _carouselItems[8]['action'] as String),
                               ),
                             ],
                           ),
@@ -1371,7 +1431,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
               CircularProgressIndicator(),
               SizedBox(height: 8),
               Text(
-                'Fetching counterparties...',
+                'Fetching counterparties...', 
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
             ],
@@ -1577,7 +1637,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                               ),
                               SizedBox(height: 20),
                               Text(
-                                'Logging out...',
+                                'Logging out...', 
                                 style: TextStyle(
                                   color: Colors.black,
                                   fontSize: 18,
@@ -1899,27 +1959,27 @@ class _StylishProfileDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (email != null) ...[
-                  Row(children: [
+                  Row(children: [ 
                     Icon(Icons.email, size: 18, color: Colors.teal),
                     SizedBox(width: 8),
-                    Text(email!, style: TextStyle(fontSize: 16))
-                  ]),
+                    Text(email!, style: TextStyle(fontSize: 16))]
+                  ),
                   SizedBox(height: 10),
                 ],
                 if (phone != null && phone!.isNotEmpty) ...[
-                  Row(children: [
+                  Row(children: [ 
                     Icon(Icons.phone, size: 18, color: Colors.teal),
                     SizedBox(width: 8),
-                    Text(phone!, style: TextStyle(fontSize: 16))
-                  ]),
+                    Text(phone!, style: TextStyle(fontSize: 16))]
+                  ),
                   SizedBox(height: 10),
                 ],
                 if (gender != null) ...[
-                  Row(children: [
+                  Row(children: [ 
                     Icon(Icons.transgender, size: 18, color: Colors.teal),
                     SizedBox(width: 8),
-                    Text(gender!, style: TextStyle(fontSize: 16))
-                  ]),
+                    Text(gender!, style: TextStyle(fontSize: 16))]
+                  ),
                   SizedBox(height: 10),
                 ],
               ],
