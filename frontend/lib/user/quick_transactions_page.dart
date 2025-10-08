@@ -19,6 +19,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   String? error;
   String searchQuery = '';
   String sortBy = 'created_desc';
+  String filterBy = 'all'; // 'all', 'cleared', 'not_cleared'
   bool _showAll = false;
 
   @override
@@ -53,8 +54,45 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   void filterTransactions(String query) {
     setState(() {
       searchQuery = query;
-      filteredTransactions = transactions.where((transaction) => (transaction['description'] ?? '').toLowerCase().contains(query.toLowerCase())).toList();
+      filteredTransactions = transactions.where((transaction) {
+        // Apply cleared/not cleared filter first
+        bool matchesStatusFilter = true;
+        if (filterBy == 'cleared') {
+          matchesStatusFilter = transaction['cleared'] == true;
+        } else if (filterBy == 'not_cleared') {
+          matchesStatusFilter = transaction['cleared'] != true;
+        }
+
+        if (!matchesStatusFilter) return false;
+
+        // If no search query, return all that match status filter
+        if (query.isEmpty) return true;
+
+        // Search in description
+        final description = (transaction['description'] ?? '').toLowerCase();
+        final searchLower = query.toLowerCase();
+        
+        // Search in amount
+        final amount = transaction['amount']?.toString() ?? '';
+        
+        // Search in counterparty names and emails
+        final users = transaction['users'] as List? ?? [];
+        final counterpartyInfo = users.map((u) {
+          return '${u['name'] ?? ''} ${u['email'] ?? ''}'.toLowerCase();
+        }).join(' ');
+
+        return description.contains(searchLower) || 
+              amount.contains(searchLower) || 
+              counterpartyInfo.contains(searchLower);
+      }).toList();
       sortTransactions();
+    });
+  }
+
+  void applyFilter(String filter) {
+    setState(() {
+      filterBy = filter;
+      filterTransactions(searchQuery);
     });
   }
 
@@ -70,6 +108,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
         transactions = fetchedTransactions;
         filteredTransactions = fetchedTransactions;
         sortTransactions();
+        filterTransactions(searchQuery); // Apply current filters
         loading = false;
       });
     } else {
@@ -222,6 +261,51 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
   }
 
+  void _showFilterOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Filter By Status',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 16),
+            _buildFilterOption('All Transactions', 'all', Icons.list),
+            _buildFilterOption('Cleared Only', 'cleared', Icons.check_circle),
+            _buildFilterOption('Not Cleared', 'not_cleared', Icons.pending),
+          ],
+        ),
+      ),
+    );
+  }
+
+Widget _buildFilterOption(String label, String value, IconData icon) {
+    final isSelected = filterBy == value;
+    return ListTile(
+      leading: Icon(icon, color: isSelected ? Color(0xFF00B4D8) : Colors.grey),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? Color(0xFF00B4D8) : Colors.black87,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      trailing: isSelected ? Icon(Icons.check, color: Color(0xFF00B4D8)) : null,
+      onTap: () {
+        applyFilter(value);
+        Navigator.pop(context);
+      },
+    );
+  }
+
   Widget _buildSortOption(String label, String value) {
     final isSelected = sortBy == value;
     return ListTile(
@@ -289,7 +373,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                           child: TextField(
                             onChanged: filterTransactions,
                             decoration: InputDecoration(
-                              hintText: 'Search transactions...',
+                              hintText: 'Search by description, amount, or user...',
                               hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
                               border: InputBorder.none,
                               contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -300,7 +384,12 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                         if (searchQuery.isNotEmpty)
                           IconButton(
                             icon: Icon(Icons.clear, color: Colors.grey[400], size: 20),
-                            onPressed: () => filterTransactions(''),
+                            onPressed: () {
+                              setState(() {
+                                searchQuery = '';
+                              });
+                              filterTransactions('');
+                            },
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),
@@ -311,13 +400,65 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
               ),
 
               const SizedBox(height: 16),
-
-              // Sort button
+              // Filter and Sort buttons
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    // Filter button
+                    GestureDetector(
+                      onTap: _showFilterOptions,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                filterBy == 'all' ? Icons.filter_alt_outlined : Icons.filter_alt,
+                                color: filterBy == 'all' ? Colors.black87 : Color(0xFF00B4D8),
+                                size: 18,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                filterBy == 'all' 
+                                    ? 'Filter' 
+                                    : filterBy == 'cleared' 
+                                        ? 'Cleared' 
+                                        : 'Not Cleared',
+                                style: TextStyle(
+                                  color: filterBy == 'all' ? Colors.black87 : Color(0xFF00B4D8),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Sort button
                     GestureDetector(
                       onTap: _showSortOptions,
                       child: Container(
@@ -346,7 +487,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.filter_list, color: Colors.black87, size: 18),
+                              Icon(Icons.sort, color: Colors.black87, size: 18),
                               SizedBox(width: 6),
                               Text(
                                 'Sort',
@@ -381,12 +522,16 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                                     Icon(Icons.receipt_long, size: 80, color: Colors.grey[400]),
                                     const SizedBox(height: 20),
                                     Text(
-                                      'No quick transactions yet.',
+                                      searchQuery.isNotEmpty || filterBy != 'all'
+                                          ? 'No transactions found'
+                                          : 'No quick transactions yet.',
                                       style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.grey[600]),
                                     ),
                                     const SizedBox(height: 10),
                                     Text(
-                                      'Tap the "+" button to create your first one!',
+                                      searchQuery.isNotEmpty || filterBy != 'all'
+                                          ? 'Try adjusting your search or filters'
+                                          : 'Tap the "+" button to create your first one!',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(fontSize: 16, color: Colors.grey[500]),
                                     ),
