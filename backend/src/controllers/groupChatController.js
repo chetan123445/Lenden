@@ -3,197 +3,212 @@ const GroupTransaction = require('../models/groupTransaction');
 const User = require('../models/user');
 const leoProfanity = require('leo-profanity');
 
-exports.getGroupChat = async (req, res) => {
-  try {
-    const { groupTransactionId } = req.params;
-    
-    // Check if user is a member of the group
-    const group = await GroupTransaction.findById(groupTransactionId);
-    if (!group) {
-      return res.status(404).json({ error: 'Group not found' });
+module.exports = (io) => {
+  const getGroupChat = async (req, res) => {
+    try {
+      const { groupTransactionId } = req.params;
+      
+      // Check if user is a member of the group
+      const group = await GroupTransaction.findById(groupTransactionId);
+      if (!group) {
+        return res.status(404).json({ error: 'Group not found' });
+      }
+      
+      const userId = req.user._id;
+      const isMember = group.members.some(member => 
+        member.user.toString() === userId?.toString() && !member.leftAt
+      );
+      
+      if (!isMember) {
+        return res.status(403).json({ error: 'You are not a member of this group' });
+      }
+      
+      let thread = await GroupChatThread.findOne({ groupTransactionId })
+        .populate('messages.sender', 'name email');
+      
+      if (!thread) return res.json({ messages: [] });
+      
+      // Sort messages by timestamp ascending
+      const sortedMessages = [...thread.messages].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      res.json({ messages: sortedMessages });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch group chat', details: err.message });
     }
-    
-    const userId = req.user._id;
-    const isMember = group.members.some(member => 
-      member.user.toString() === userId?.toString() && !member.leftAt
-    );
-    
-    if (!isMember) {
-      return res.status(403).json({ error: 'You are not a member of this group' });
-    }
-    
-    let thread = await GroupChatThread.findOne({ groupTransactionId })
-      .populate('messages.sender', 'name email');
-    
-    if (!thread) return res.json({ messages: [] });
-    
-    // Sort messages by timestamp ascending
-    const sortedMessages = [...thread.messages].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    res.json({ messages: sortedMessages });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch group chat', details: err.message });
-  }
-};
+  };
 
-exports.postGroupMessage = async (req, res) => {
-  try {
-    const { groupTransactionId } = req.params;
-    const { content, parentId } = req.body;
-    const senderId = req.user._id;
-    
-    if (!content || leoProfanity.check(content)) {
-      return res.status(400).json({ error: 'Message contains inappropriate language or is empty.' });
-    }
-    
-    // Check if user is a member of the group
-    const group = await GroupTransaction.findById(groupTransactionId);
-    if (!group) {
-      return res.status(404).json({ error: 'Group not found' });
-    }
-    
-    const isMember = group.members.some(member => 
-      member.user.toString() === senderId?.toString() && !member.leftAt
-    );
-    
-    if (!isMember) {
-      return res.status(403).json({ error: 'You are not a member of this group' });
-    }
-    
-    let thread = await GroupChatThread.findOne({ groupTransactionId });
-    if (!thread) {
-      thread = await GroupChatThread.create({ groupTransactionId, messages: [] });
-    }
-    
-    const message = {
-      sender: senderId,
-      content: content || '',
-      parentId: parentId || null,
-    };
-    
-    thread.messages.push(message);
-    await thread.save();
-    
-    res.status(201).json({ message: thread.messages[thread.messages.length - 1] });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to post group message', details: err.message });
-  }
-};
-
-exports.reactGroupMessage = async (req, res) => {
-  try {
-    const { groupTransactionId, messageId } = req.params;
-    const { emoji } = req.body;
-    const userId = req.user._id;
-    
-    // Check if user is a member of the group
-    const group = await GroupTransaction.findById(groupTransactionId);
-    if (!group) {
-      return res.status(404).json({ error: 'Group not found' });
-    }
-    
-    const isMember = group.members.some(member => 
-      member.user.toString() === userId?.toString() && !member.leftAt
-    );
-    
-    if (!isMember) {
-      return res.status(403).json({ error: 'You are not a member of this group' });
-    }
-    
-    let thread = await GroupChatThread.findOne({ groupTransactionId });
-    if (!thread) return res.status(404).json({ error: 'Group chat not found' });
-    
-    const msg = thread.messages.id(messageId);
-    if (!msg) return res.status(404).json({ error: 'Message not found' });
-    
-    let reactions = msg.reactions.toObject();
-    reactions = reactions.filter(r => r.userId.toString() !== userId.toString());
-    if (emoji) {
-      reactions.push({ userId, emoji });
-    }
-    msg.reactions = reactions;
-    
-    await thread.save();
-
-    await thread.populate('messages.sender', 'name email');
-    const updatedMsg = thread.messages.id(messageId);
-    
-    res.json({ message: updatedMsg.toObject() });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to react to group message', details: err.message });
-  }
-};
-
-exports.readGroupMessage = async (req, res) => {
-  try {
-    const { groupTransactionId, messageId } = req.params;
-    const userId = req.user._id;
-    
-    // Check if user is a member of the group
-    const group = await GroupTransaction.findById(groupTransactionId);
-    if (!group) {
-      return res.status(404).json({ error: 'Group not found' });
-    }
-    
-    const isMember = group.members.some(member => 
-      member.user.toString() === userId?.toString() && !member.leftAt
-    );
-    
-    if (!isMember) {
-      return res.status(403).json({ error: 'You are not a member of this group' });
-    }
-    
-    let thread = await GroupChatThread.findOne({ groupTransactionId });
-    if (!thread) return res.status(404).json({ error: 'Group chat not found' });
-    
-    const msg = thread.messages.id(messageId);
-    if (!msg) return res.status(404).json({ error: 'Message not found' });
-    
-    if (!msg.readBy.includes(userId)) {
-      msg.readBy.push(userId);
+  const postGroupMessage = async (req, res) => {
+    try {
+      const { groupTransactionId } = req.params;
+      const { content, parentId } = req.body;
+      const senderId = req.user._id;
+      
+      if (!content || leoProfanity.check(content)) {
+        return res.status(400).json({ error: 'Message contains inappropriate language or is empty.' });
+      }
+      
+      // Check if user is a member of the group
+      const group = await GroupTransaction.findById(groupTransactionId);
+      if (!group) {
+        return res.status(404).json({ error: 'Group not found' });
+      }
+      
+      const isMember = group.members.some(member => 
+        member.user.toString() === senderId?.toString() && !member.leftAt
+      );
+      
+      if (!isMember) {
+        return res.status(403).json({ error: 'You are not a member of this group' });
+      }
+      
+      let thread = await GroupChatThread.findOne({ groupTransactionId });
+      if (!thread) {
+        thread = await GroupChatThread.create({ groupTransactionId, messages: [] });
+      }
+      
+      const message = {
+        sender: senderId,
+        content: content || '',
+        parentId: parentId || null,
+      };
+      
+      thread.messages.push(message);
       await thread.save();
-    }
-    
-    res.json({ message: msg });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to mark group message as read', details: err.message });
-  }
-};
 
-exports.deleteGroupMessage = async (req, res) => {
-  try {
-    const { groupTransactionId, messageId } = req.params;
-    const userId = req.user._id;
-    
-    // Check if user is a member of the group
-    const group = await GroupTransaction.findById(groupTransactionId);
-    if (!group) {
-      return res.status(404).json({ error: 'Group not found' });
+      const populatedMsg = await GroupChatThread.populate(thread.messages[thread.messages.length - 1], { path: 'sender', select: 'name email' });
+      io.to(`group_${groupTransactionId}`).emit('groupChatMessage', populatedMsg);
+      
+      res.status(201).json({ message: populatedMsg });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to post group message', details: err.message });
     }
-    
-    const isMember = group.members.some(member => 
-      member.user.toString() === userId?.toString() && !member.leftAt
-    );
-    
-    if (!isMember) {
-      return res.status(403).json({ error: 'You are not a member of this group' });
+  };
+
+  const reactGroupMessage = async (req, res) => {
+    try {
+      const { groupTransactionId, messageId } = req.params;
+      const { emoji } = req.body;
+      const userId = req.user._id;
+      
+      // Check if user is a member of the group
+      const group = await GroupTransaction.findById(groupTransactionId);
+      if (!group) {
+        return res.status(404).json({ error: 'Group not found' });
+      }
+      
+      const isMember = group.members.some(member => 
+        member.user.toString() === userId?.toString() && !member.leftAt
+      );
+      
+      if (!isMember) {
+        return res.status(403).json({ error: 'You are not a member of this group' });
+      }
+      
+      let thread = await GroupChatThread.findOne({ groupTransactionId });
+      if (!thread) return res.status(404).json({ error: 'Group chat not found' });
+      
+      const msg = thread.messages.id(messageId);
+      if (!msg) return res.status(404).json({ error: 'Message not found' });
+      
+      let reactions = msg.reactions.toObject();
+      reactions = reactions.filter(r => r.userId.toString() !== userId.toString());
+      if (emoji) {
+        reactions.push({ userId, emoji });
+      }
+      msg.reactions = reactions;
+      
+      await thread.save();
+
+      await thread.populate('messages.sender', 'name email');
+      const updatedMsg = thread.messages.id(messageId);
+
+      io.to(`group_${groupTransactionId}`).emit('groupMessageUpdated', updatedMsg.toObject());
+      res.json({ message: updatedMsg.toObject() });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to react to group message', details: err.message });
     }
-    
-    let thread = await GroupChatThread.findOne({ groupTransactionId });
-    if (!thread) return res.status(404).json({ error: 'Group chat not found' });
-    
-    const msg = thread.messages.id(messageId);
-    if (!msg) return res.status(404).json({ error: 'Message not found' });
-    
-    if (msg.sender.toString() !== userId) {
-      return res.status(403).json({ error: 'Not allowed to delete this message' });
+  };
+
+  const readGroupMessage = async (req, res) => {
+    try {
+      const { groupTransactionId, messageId } = req.params;
+      const userId = req.user._id;
+      
+      // Check if user is a member of the group
+      const group = await GroupTransaction.findById(groupTransactionId);
+      if (!group) {
+        return res.status(404).json({ error: 'Group not found' });
+      }
+      
+      const isMember = group.members.some(member => 
+        member.user.toString() === userId?.toString() && !member.leftAt
+      );
+      
+      if (!isMember) {
+        return res.status(403).json({ error: 'You are not a member of this group' });
+      }
+      
+      let thread = await GroupChatThread.findOne({ groupTransactionId });
+      if (!thread) return res.status(404).json({ error: 'Group chat not found' });
+      
+      const msg = thread.messages.id(messageId);
+      if (!msg) return res.status(404).json({ error: 'Message not found' });
+      
+      if (!msg.readBy.includes(userId)) {
+        msg.readBy.push(userId);
+        await thread.save();
+      }
+      
+      res.json({ message: msg });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to mark group message as read', details: err.message });
     }
-    
-    msg.deleted = true;
-    msg.content = 'This message was deleted';
-    await thread.save();
-    
-    res.json({ message: msg });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete group message', details: err.message });
-  }
+  };
+
+  const deleteGroupMessage = async (req, res) => {
+    try {
+      const { groupTransactionId, messageId } = req.params;
+      const userId = req.user._id;
+      
+      // Check if user is a member of the group
+      const group = await GroupTransaction.findById(groupTransactionId);
+      if (!group) {
+        return res.status(404).json({ error: 'Group not found' });
+      }
+      
+      const isMember = group.members.some(member => 
+        member.user.toString() === userId?.toString() && !member.leftAt
+      );
+      
+      if (!isMember) {
+        return res.status(403).json({ error: 'You are not a member of this group' });
+      }
+      
+      let thread = await GroupChatThread.findOne({ groupTransactionId });
+      if (!thread) return res.status(404).json({ error: 'Group chat not found' });
+      
+      const msg = thread.messages.id(messageId);
+      if (!msg) return res.status(404).json({ error: 'Message not found' });
+      
+      if (msg.sender.toString() !== userId) {
+        return res.status(403).json({ error: 'Not allowed to delete this message' });
+      }
+      
+      msg.deleted = true;
+      msg.content = 'This message was deleted';
+      await thread.save();
+
+      io.to(`group_${groupTransactionId}`).emit('groupMessageDeleted', { messageId });
+      res.json({ message: msg });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to delete group message', details: err.message });
+    }
+  };
+
+  return {
+    getGroupChat,
+    postGroupMessage,
+    reactGroupMessage,
+    readGroupMessage,
+    deleteGroupMessage,
+  };
 };
