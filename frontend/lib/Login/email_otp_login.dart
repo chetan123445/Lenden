@@ -6,6 +6,7 @@ import '../otp_input.dart';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 class EmailOtpLogin {
   static Future<Map<String, dynamic>> sendOtp({
@@ -43,23 +44,27 @@ class EmailOtpLogin {
       print('🔐 Attempting OTP verification for email: $email');
       DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
       String deviceName;
-      if (Platform.isAndroid) {
-        AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
-        deviceName = androidInfo.model;
-      } else if (Platform.isIOS) {
-        IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
-        deviceName = iosInfo.utsname.machine;
-      } else if (Platform.isLinux) {
-        LinuxDeviceInfo linuxInfo = await deviceInfo.linuxInfo;
-        deviceName = linuxInfo.name;
-      } else if (Platform.isWindows) {
-        WindowsDeviceInfo windowsInfo = await deviceInfo.windowsInfo;
-        deviceName = windowsInfo.computerName;
-      } else if (Platform.isMacOS) {
-        MacOsDeviceInfo macOsInfo = await deviceInfo.macOsInfo;
-        deviceName = macOsInfo.computerName;
+      if (kIsWeb) {
+        deviceName = 'Web Browser';
       } else {
-        deviceName = 'Unknown Device';
+        if (Platform.isAndroid) {
+          AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+          deviceName = androidInfo.model;
+        } else if (Platform.isIOS) {
+          IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+          deviceName = iosInfo.utsname.machine;
+        } else if (Platform.isLinux) {
+          LinuxDeviceInfo linuxInfo = await deviceInfo.linuxInfo;
+          deviceName = linuxInfo.name;
+        } else if (Platform.isWindows) {
+          WindowsDeviceInfo windowsInfo = await deviceInfo.windowsInfo;
+          deviceName = windowsInfo.computerName;
+        } else if (Platform.isMacOS) {
+          MacOsDeviceInfo macOsInfo = await deviceInfo.macOsInfo;
+          deviceName = macOsInfo.computerName;
+        } else {
+          deviceName = 'Unknown Device';
+        }
       }
       final otpVerifyRes = await _post('/api/users/verify-login-otp', {
         'email': email,
