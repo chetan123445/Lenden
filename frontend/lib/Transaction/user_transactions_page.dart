@@ -14,7 +14,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:string_similarity/string_similarity.dart';
 import '../otp_input.dart';
-import 'chat_page.dart'; // Corrected import for ChatPage
+
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -1319,70 +1319,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                 SizedBox(height: 10),
                                 Row(
                                   children: [
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        icon: Icon(Icons.chat_bubble,
-                                            color: Colors.white),
-                                        label: Text('Chat',
-                                            style: TextStyle(
-                                                color: Colors.white)),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              Colors.green, // Make the chat button green
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(
-                                                      8)),
-                                        ),
-                                        onPressed: () {
-                                          final transactionId = t != null &&
-                                                  t['_id'] != null
-                                              ? t['_id']
-                                              : '';
-                                          final session = Provider.of<SessionProvider>(context,
-                                              listen: false);
-                                          final userObj = session.user;
-                                          final userEmail = userObj != null
-                                              ? userObj['email']
-                                              : null;
-                                          String? counterpartyEmail;
-                                          if (t['userEmail'] ==
-                                              userEmail) {
-                                            counterpartyEmail =
-                                                t['counterpartyEmail'];
-                                          } else {
-                                            counterpartyEmail =
-                                                t['userEmail'];
-                                          }
-                                          print(
-                                              'transactionId: $transactionId');
-                                          print('userEmail: $userEmail');
-                                          print(
-                                              'counterpartyEmail: $counterpartyEmail');
-                                          if (transactionId != '' &&
-                                              counterpartyEmail != null) {
-                                            Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (_) => ChatPage(
-                                                    transactionId:
-                                                        transactionId,
-                                                    counterpartyEmail:
-                                                        counterpartyEmail!, // Use null assertion operator
-                                                  ),
-                                                ));
-                                          } else {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                  content: Text(
-                                                      'Unable to open chat: missing transaction or user info')),
-                                            );
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                    SizedBox(width: 8),
+
                                     // Delete button - only show if both parties have cleared
                                     if (fullyCleared) ...[
                                       Expanded(
