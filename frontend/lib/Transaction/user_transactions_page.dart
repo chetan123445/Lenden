@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:string_similarity/string_similarity.dart';
 import '../otp_input.dart';
+import './chat_page.dart';
 
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -341,6 +342,44 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       },
     );
   }
+
+  Future<void> _navigateToChat(Map<String, dynamic> transaction) async {
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    if (user == null) return;
+
+    final String? transactionDbId = transaction['_id'];
+    if (transactionDbId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: Missing transaction database ID.'))
+      );
+      return;
+    }
+
+    final currentUserEmail = user['email'];
+    final userEmail = transaction['userEmail'];
+    final counterpartyEmail = transaction['counterpartyEmail'];
+
+    final otherUserEmail = currentUserEmail == userEmail ? counterpartyEmail : userEmail;
+
+    final otherUserProfile = await _fetchCounterpartyProfile(context, otherUserEmail);
+    if (otherUserProfile == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open chat. User not found.'))
+        );
+        return;
+    }
+    final otherUserId = otherUserProfile['_id'];
+
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (context) => ChatPage(
+                transactionId: transactionDbId,
+                otherUserId: otherUserId,
+            ),
+        ),
+    );
+}
 
   Widget _buildTransactionCard(Map t, bool isLending) {
     // Add state for expandable functionality
@@ -888,6 +927,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                         : Colors.orange,
                                     fontSize: 16),
                               ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.chat_bubble_outline),
+                              onPressed: () => _navigateToChat(Map<String, dynamic>.from(t)),
                             ),
                             IconButton(
                               icon: Icon(

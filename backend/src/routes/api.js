@@ -26,6 +26,7 @@ module.exports = (io) => {
   const supportController = require('../controllers/supportController')(io);
   const ratingController = require('../controllers/ratingController');
   const notificationController = require('../controllers/notificationController');
+  const chatController = require('../controllers/chatController')(io);
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -65,6 +66,7 @@ module.exports = (io) => {
   router.get('/users/profile-by-email', profileController.getUserProfileByEmail);
   router.get('/users/devices', auth, sessionTimeout, userController.listDevices);
   router.post('/users/logout-device', auth, sessionTimeout, userController.logoutDevice);
+  router.get('/users/:id', auth, userController.getUserById);
 
   // Quick Transaction routes
   router.get('/quick-transactions', auth, quickTransactionController.getQuickTransactions);
@@ -293,5 +295,9 @@ module.exports = (io) => {
   router.post('/notifications/mark-as-read', auth, notificationController.markNotificationsAsRead);
   router.delete('/notifications/:id', auth, notificationController.deleteNotification);
   router.put('/notifications/:id', auth, notificationController.updateNotification);
+
+  // Chat routes
+  router.get('/chat/messages/:transactionId', auth, chatController.getMessages);
+
   return router;
 };

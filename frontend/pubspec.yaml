@@ -29,6 +29,7 @@ dependencies:
   device_info_plus: ^9.0.0
   pdf: ^3.11.3
   elegant_notification: ^2.0.0
+  emoji_picker_flutter: ^4.3.0
 
 dev_dependencies:
   flutter_launcher_icons: ^0.13.1
