@@ -1,5 +1,6 @@
 const QuickTransaction = require('../models/quickTransaction');
 const User = require('../models/user');
+const { logQuickTransactionActivity } = require('./activityController');
 
 exports.createQuickTransaction = async (req, res) => {
   try {
@@ -26,6 +27,7 @@ exports.createQuickTransaction = async (req, res) => {
     });
 
     await quickTransaction.save();
+    await logQuickTransactionActivity(req.user._id, 'quick_transaction_created', quickTransaction, { counterpartyEmail });
     res.status(201).json({ quickTransaction });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -77,6 +79,7 @@ exports.updateQuickTransaction = async (req, res) => {
     quickTransaction.role = role;
 
     await quickTransaction.save();
+    await logQuickTransactionActivity(req.user._id, 'quick_transaction_updated', quickTransaction);
 
     res.status(200).json({ quickTransaction });
   } catch (error) {
@@ -98,6 +101,7 @@ exports.deleteQuickTransaction = async (req, res) => {
     }
 
     await QuickTransaction.findByIdAndDelete(id);
+    await logQuickTransactionActivity(req.user._id, 'quick_transaction_deleted', quickTransaction);
 
     res.status(200).json({ message: 'Quick transaction deleted successfully' });
   } catch (error) {
@@ -121,6 +125,7 @@ exports.clearQuickTransaction = async (req, res) => {
 
     quickTransaction.cleared = true;
     await quickTransaction.save();
+    await logQuickTransactionActivity(req.user._id, 'quick_transaction_cleared', quickTransaction);
 
     res.status(200).json({ quickTransaction });
   } catch (error) {
@@ -132,6 +137,7 @@ exports.clearAllQuickTransactions = async (req, res) => {
   try {
     const userEmail = req.user.email;
     await QuickTransaction.deleteMany({ users: userEmail });
+    await logQuickTransactionActivity(req.user._id, 'quick_transaction_cleared_all', {});
     res.status(200).json({ message: 'All quick transactions cleared successfully' });
   } catch (error) {
     res.status(400).json({ error: error.message });

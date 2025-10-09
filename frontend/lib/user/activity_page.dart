@@ -63,7 +63,12 @@ class _ActivityPageState extends State<ActivityPage> {
     'feedback_submitted',
     'user_rated',
     'user_rating_received',
-    'receipt_generated'
+    'receipt_generated',
+    'quick_transaction_created',
+    'quick_transaction_updated',
+    'quick_transaction_deleted',
+    'quick_transaction_cleared',
+    'quick_transaction_cleared_all',
   ];
 
   @override
@@ -347,6 +352,16 @@ class _ActivityPageState extends State<ActivityPage> {
         return 'User Rating Received';
       case 'receipt_generated':
         return 'Receipt Generated';
+      case 'quick_transaction_created':
+        return 'Quick Transaction Created';
+      case 'quick_transaction_updated':
+        return 'Quick Transaction Updated';
+      case 'quick_transaction_deleted':
+        return 'Quick Transaction Deleted';
+      case 'quick_transaction_cleared':
+        return 'Quick Transaction Cleared';
+      case 'quick_transaction_cleared_all':
+        return 'All Quick Transactions Cleared';
       default:
         return type.replaceAll('_', ' ').toUpperCase();
     }
@@ -393,6 +408,12 @@ class _ActivityPageState extends State<ActivityPage> {
         return Icons.person_outline;
       case 'receipt_generated':
         return Icons.receipt;
+      case 'quick_transaction_created':
+      case 'quick_transaction_updated':
+      case 'quick_transaction_deleted':
+      case 'quick_transaction_cleared':
+      case 'quick_transaction_cleared_all':
+        return Icons.flash_on;
       default:
         return Icons.info;
     }
@@ -437,6 +458,16 @@ class _ActivityPageState extends State<ActivityPage> {
         return Colors.teal;
       case 'receipt_generated':
         return Colors.brown;
+      case 'quick_transaction_created':
+        return Colors.blue;
+      case 'quick_transaction_updated':
+        return Colors.purple;
+      case 'quick_transaction_deleted':
+        return Colors.red;
+      case 'quick_transaction_cleared':
+        return Colors.green;
+      case 'quick_transaction_cleared_all':
+        return Colors.red;
       default:
         return Colors.grey;
     }
@@ -1998,59 +2029,27 @@ class _ActivityPageState extends State<ActivityPage> {
     required DateTime? date,
     required VoidCallback onPressed,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Colors.orange, Colors.white, Colors.green],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: date != null
-              ? const Color(0xFF00B4D8).withOpacity(0.1)
-              : Colors.white,
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onPressed,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 16,
-                    color: date != null ? const Color(0xFF00B4D8) : Colors.grey,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      date != null
-                          ? DateFormat('MMM dd, yyyy').format(date!)
-                          : label,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight:
-                            date != null ? FontWeight.w600 : FontWeight.normal,
-                        color: date != null
-                            ? const Color(0xFF00B4D8)
-                            : Colors.grey[600],
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
+        side: BorderSide(color: Colors.grey.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.calendar_today, size: 16, color: Colors.orange),
+          const SizedBox(width: 8),
+          Text(
+            date != null ? DateFormat('MMM dd, yyyy').format(date) : label,
+            style: TextStyle(
+              color: date != null ? Colors.black87 : Colors.grey[600],
             ),
           ),
-        ),
+        ],
       ),
     );
   }

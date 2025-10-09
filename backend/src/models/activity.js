@@ -50,7 +50,13 @@ const activitySchema = new mongoose.Schema({
     // User rating activities
           'user_rated',
         'user_rating_received',
-        'receipt_generated'
+        'receipt_generated',
+      // Quick transaction activities
+      'quick_transaction_created',
+      'quick_transaction_updated',
+      'quick_transaction_deleted',
+      'quick_transaction_cleared',
+      'quick_transaction_cleared_all'
         ],    required: true
   },
   title: {

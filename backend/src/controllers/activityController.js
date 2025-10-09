@@ -378,6 +378,41 @@ exports.logNoteActivity = async (userId, type, note, metadata = {}, creatorInfo 
   });
 };
 
+// Create activity for quick transaction events
+exports.logQuickTransactionActivity = async (userId, type, transaction, metadata = {}) => {
+  const activityData = {
+    title: '',
+    description: '',
+    metadata
+  };
+
+  switch (type) {
+    case 'quick_transaction_created':
+      activityData.title = 'Quick Transaction Created';
+      activityData.description = `You added a quick transaction of ${transaction.amount} ${transaction.currency} for "${transaction.description}" with ${metadata.counterpartyEmail}`;
+      break;
+    case 'quick_transaction_updated':
+      activityData.title = 'Quick Transaction Updated';
+      activityData.description = `You updated a quick transaction to ${transaction.amount} ${transaction.currency} for "${transaction.description}"`;
+      break;
+    case 'quick_transaction_deleted':
+      activityData.title = 'Quick Transaction Deleted';
+      activityData.description = `You deleted a quick transaction of ${transaction.amount} ${transaction.currency} for "${transaction.description}"`;
+      break;
+    case 'quick_transaction_cleared':
+      activityData.title = 'Quick Transaction Cleared';
+      activityData.description = `You cleared a quick transaction of ${transaction.amount} ${transaction.currency} for "${transaction.description}"`;
+      break;
+    case 'quick_transaction_cleared_all':
+      activityData.title = 'All Quick Transactions Cleared';
+      activityData.description = 'You cleared all your quick transactions.';
+      break;
+  }
+
+  return await createActivityLog(userId, type, activityData.title, activityData.description, metadata);
+};
+
+
 // Create activity for profile events
 exports.logProfileActivity = async (userId, type, metadata = {}) => {
   const activityData = {
