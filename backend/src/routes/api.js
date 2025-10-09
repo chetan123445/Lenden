@@ -18,8 +18,8 @@ module.exports = (io) => {
   });
   const transactionController = require('../controllers/transactionController');
   const analyticController = require('../controllers/analyticController');
-  const chatController = require('../controllers/chatController')(io);
-  const groupChatController = require('../controllers/groupChatController')(io);
+  const chatController = require('../controllers/chatController');
+  const groupChatController = require('../controllers/groupChatController');
   const noteController = require('../controllers/noteController');
   const groupTransactionController = require('../controllers/groupTransactionController');
   const activityController = require('../controllers/activityController');

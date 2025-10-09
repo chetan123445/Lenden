@@ -104,24 +104,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
       });
       scrollToBottom();
     });
-    socket!.on('groupMessageUpdated', (data) {
-      setState(() {
-        final index = messages.indexWhere((m) => m['_id'] == data['_id']);
-        if (index != -1) {
-          messages[index] = Map<String, dynamic>.from(data);
-        }
-      });
-    });
-    socket!.on('groupMessageDeleted', (data) {
-      setState(() {
-        final messageId = data['messageId'];
-        final index = messages.indexWhere((m) => m['_id'] == messageId);
-        if (index != -1) {
-          messages[index]['content'] = 'This message was deleted';
-          messages[index]['deleted'] = true;
-        }
-      });
-    });
   }
 
   Future<void> fetchMessages() async {
@@ -194,8 +176,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
       headers: headers,
       body: json.encode({'emoji': emoji})
     );
-    if (res.statusCode != 200) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to react to message')));
+    if (res.statusCode == 200) {
+      final updated = json.decode(res.body)['message'];
+      setState(() {
+        final idx = messages.indexWhere((m) => m['_id'] == messageId);
+        if (idx != -1) messages[idx] = updated;
+      });
     }
   }
 
@@ -234,7 +220,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
       headers: headers,
       body: json.encode({})
     );
-    if (res.statusCode != 200) {
+    if (res.statusCode == 200) {
+      final updated = json.decode(res.body)['message'];
+      setState(() {
+        final idx = messages.indexWhere((m) => m['_id'] == messageId);
+        if (idx != -1) messages[idx] = updated;
+      });
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete message')));
     }
   }
@@ -451,7 +443,50 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         final msg = messages[i];
                         markAsRead(msg['_id']);
                         final isMine = msg['sender']?['_id'] == userId;
-                        return buildMessageBubble(msg, isMine, i);
+                        Widget bubble = buildMessageBubble(msg, isMine, i);
+                        return Row(
+                          mainAxisAlignment: isMine ? MainAxisAlignment.end : MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ConstrainedBox(
+                              constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
+                              child: bubble,
+                            ),
+                            SizedBox(width: 4),
+                            PopupMenuButton<String>(
+                              icon: Icon(Icons.more_vert, size: 20),
+                              onSelected: (value) async {
+                                if (value == 'reply') setState(() => replyToId = msg['_id']);
+                                if (value == 'react') showReactionPicker().then((emoji) { if (emoji != null) reactToMessage(msg['_id'], emoji); });
+                                if (value == 'delete_for_me') setState(() { messages.removeWhere((m) => m['_id'] != null && m['_id'].toString() == msg['_id'].toString()); });
+                                if (value == 'delete_for_everyone' && isMine) await deleteMessage(msg['_id']);
+                              },
+                              itemBuilder: (context) {
+                                final timestamp = msg['timestamp'] != null ? DateTime.tryParse(msg['timestamp']) : null;
+                                final dateStr = timestamp != null ? DateFormat('dd MMM yyyy').format(timestamp) : 'Unknown date';
+                                final timeStr = timestamp != null ? DateFormat('hh:mm a').format(timestamp) : 'Unknown time';
+                                return [
+                                  PopupMenuItem(
+                                    enabled: false,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Date: $dateStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+                                        Text('Time: $timeStr', style: TextStyle(color: Colors.grey[700], fontStyle: FontStyle.italic)),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuDivider(),
+                                  PopupMenuItem(value: 'reply', child: Row(children: [Icon(Icons.reply, color: Colors.blue), SizedBox(width: 10), Text('Reply')])),
+                                  PopupMenuItem(value: 'react', child: Row(children: [Icon(Icons.emoji_emotions_outlined, color: Colors.amber), SizedBox(width: 10), Text('React')])),
+                                  PopupMenuDivider(),
+                                  PopupMenuItem(value: 'delete_for_me', child: Row(children: [Icon(Icons.delete_outline, color: Colors.red), SizedBox(width: 10), Text('Delete for me')])),
+                                  if (isMine) PopupMenuItem(value: 'delete_for_everyone', child: Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 10), Text('Delete for everyone', style: TextStyle(color: Colors.red))])),
+                                ];
+                              },
+                            ),
+                          ],
+                        );
                       },
                     ),
                     if (sending)
