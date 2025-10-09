@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
 import 'package:provider/provider.dart';
-import 'session.dart';
+import '../user/session.dart';
 
 class QuickTransactionsPage extends StatefulWidget {
   const QuickTransactionsPage({Key? key}) : super(key: key);

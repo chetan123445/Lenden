@@ -24,7 +24,7 @@ import 'feedback.dart';
 import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
 import 'subscriptions_page.dart';
-import 'quick_transactions_page.dart';
+import '../Transaction/quick_transactions_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
