@@ -116,34 +116,18 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void connectSocket() {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    print('Connecting to socket with token: $token');
-    socket = IO.io(
-        ApiConfig.baseUrl,
-        IO.OptionBuilder()
-            .setTransports(['websocket', 'polling'])
-            .disableAutoConnect()
-            .setExtraHeaders({'Authorization': 'Bearer $token'})
-            .build());
+    socket = IO.io(ApiConfig.baseUrl, IO.OptionBuilder().setTransports(['websocket']).disableAutoConnect().build());
     socket!.connect();
     socket!.onConnect((_) {
-      print('Socket connected');
       socket!.emit('join', {'transactionId': widget.transactionId});
     });
-    socket!.onConnectError((data) => print('Socket connect error: $data'));
-    socket!.onError((data) => print('Socket error: $data'));
-    socket!.onDisconnect((_) => print('Socket disconnected'));
-
     socket!.on('chatMessage', (data) {
-      print('Received chat message: $data');
       setState(() {
         messages.add(Map<String, dynamic>.from(data));
       });
       scrollToBottom();
     });
     socket!.on('messageUpdated', (data) {
-      print('Received message updated: $data');
       setState(() {
         final index = messages.indexWhere((m) => m['_id'] == data['_id']);
         if (index != -1) {
@@ -152,7 +136,6 @@ class _ChatPageState extends State<ChatPage> {
       });
     });
     socket!.on('messageDeleted', (data) {
-      print('Received message deleted: $data');
       setState(() {
         final messageId = data['messageId'];
         final index = messages.indexWhere((m) => m['_id'] == messageId);
@@ -196,7 +179,6 @@ class _ChatPageState extends State<ChatPage> {
       'imageType': imageType,
       'imageName': imageName
     };
-    print('Sending message: $msg');
     socket?.emit('chatMessage', msg);
     setState(() {
       newMessage = '';

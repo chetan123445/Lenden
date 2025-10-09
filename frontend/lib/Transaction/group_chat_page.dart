@@ -93,34 +93,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   void connectSocket() {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    print('Connecting to group socket with token: $token');
-    socket = IO.io(
-        ApiConfig.baseUrl,
-        IO.OptionBuilder()
-            .setTransports(['websocket', 'polling'])
-            .disableAutoConnect()
-            .setExtraHeaders({'Authorization': 'Bearer $token'})
-            .build());
+    socket = IO.io(ApiConfig.baseUrl, IO.OptionBuilder().setTransports(['websocket']).disableAutoConnect().build());
     socket!.connect();
     socket!.onConnect((_) {
-      print('Group socket connected');
       socket!.emit('joinGroup', {'groupTransactionId': widget.groupTransactionId});
     });
-    socket!.onConnectError((data) => print('Group socket connect error: $data'));
-    socket!.onError((data) => print('Group socket error: $data'));
-    socket!.onDisconnect((_) => print('Group socket disconnected'));
-
     socket!.on('groupChatMessage', (data) {
-      print('Received group chat message: $data');
       setState(() {
         messages.add(Map<String, dynamic>.from(data));
       });
       scrollToBottom();
     });
     socket!.on('groupMessageUpdated', (data) {
-      print('Received group message updated: $data');
       setState(() {
         final index = messages.indexWhere((m) => m['_id'] == data['_id']);
         if (index != -1) {
@@ -129,7 +113,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
       });
     });
     socket!.on('groupMessageDeleted', (data) {
-      print('Received group message deleted: $data');
       setState(() {
         final messageId = data['messageId'];
         final index = messages.indexWhere((m) => m['_id'] == messageId);
@@ -184,7 +167,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
       'content': _textController.text,
       'parentId': replyToId,
     };
-    print('Sending group message: $msg');
     socket?.emit('groupChatMessage', msg);
     setState(() {
       newMessage = '';
