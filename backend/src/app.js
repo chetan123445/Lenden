@@ -11,8 +11,7 @@ const http = require('http');
 const socketio = require('socket.io');
 const server = http.createServer(app);
 const io = socketio(server, { cors: { origin: '*' } });
-const ChatThread = require('./models/chatThread');
-const GroupChatThread = require('./models/groupChatThread');
+
 const leoProfanity = require('leo-profanity');
 
 const apiRoutes = require('./routes/api');

@@ -18,8 +18,6 @@ module.exports = (io) => {
   });
   const transactionController = require('../controllers/transactionController');
   const analyticController = require('../controllers/analyticController');
-  const chatController = require('../controllers/chatController');
-  const groupChatController = require('../controllers/groupChatController');
   const noteController = require('../controllers/noteController');
   const groupTransactionController = require('../controllers/groupTransactionController');
   const activityController = require('../controllers/activityController');
@@ -157,11 +155,7 @@ module.exports = (io) => {
   router.post('/transactions/verify-partial-payment-otp', transactionController.verifyPartialPaymentOTP);
   router.post('/transactions/partial-payment', transactionController.processPartialPayment);
   router.get('/transactions/:transactionId', transactionController.getTransactionDetails);
-  router.get('/transactions/:transactionId/chat', chatController.getChat);
-  router.post('/transactions/:transactionId/chat', chatController.postMessage);
-  router.patch('/transactions/:transactionId/chat/:messageId/react', chatController.reactMessage);
-  router.patch('/transactions/:transactionId/chat/:messageId/read', chatController.readMessage);
-  router.delete('/transactions/:transactionId/chat/:messageId', chatController.deleteMessage);
+
 
   // Analytics routes
   router.get('/analytics/user', analyticController.getUserAnalytics);
@@ -204,13 +198,6 @@ module.exports = (io) => {
   router.get('/activities/stats', auth, activityController.getActivityStats);
   router.delete('/activities/:activityId', auth, activityController.deleteActivity);
   router.delete('/activities/cleanup', auth, activityController.cleanupOldActivities);
-
-  // Group Chat routes
-  router.get('/group-transactions/:groupTransactionId/chat', auth, groupChatController.getGroupChat);
-  router.post('/group-transactions/:groupTransactionId/chat', auth, groupChatController.postGroupMessage);
-  router.patch('/group-transactions/:groupTransactionId/chat/:messageId/react', auth, groupChatController.reactGroupMessage);
-  router.patch('/group-transactions/:groupTransactionId/chat/:messageId/read', auth, groupChatController.readGroupMessage);
-  router.delete('/group-transactions/:groupTransactionId/chat/:messageId', auth, groupChatController.deleteGroupMessage);
 
   // Settings routes
   // Change Password
@@ -306,6 +293,5 @@ module.exports = (io) => {
   router.post('/notifications/mark-as-read', auth, notificationController.markNotificationsAsRead);
   router.delete('/notifications/:id', auth, notificationController.deleteNotification);
   router.put('/notifications/:id', auth, notificationController.updateNotification);
-
   return router;
 };
