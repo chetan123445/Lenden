@@ -17,6 +17,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http_parser/http_parser.dart';
+import 'user_transactions_page.dart';
 
 class TopWaveClipper extends CustomClipper<Path> {
   @override
@@ -453,10 +454,15 @@ class _TransactionPageState extends State<TransactionPage> {
                       padding: EdgeInsets.symmetric(vertical: 14),
                     ),
                     onPressed: () {
-                      Navigator.of(context).pop();
-                      Navigator.of(context).pop();
+                      Navigator.of(context).pop(); // Close the success dialog
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => UserTransactionsPage(),
+                        ),
+                      );
                     },
-                    child: Text('Back to Dashboard',
+                    child: Text('View Transactions',
                         style: TextStyle(fontSize: 16, color: Colors.white)),
                   ),
                 ),
