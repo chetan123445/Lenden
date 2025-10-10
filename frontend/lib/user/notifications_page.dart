@@ -25,10 +25,24 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
     _markNotificationsAsRead();
   }
 
+  Color _getNoteColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6), // Cream
+      Color(0xFFE8F5E9), // Light green
+      Color(0xFFFCE4EC), // Light pink
+      Color(0xFFE3F2FD), // Light blue
+      Color(0xFFFFF9C4), // Light yellow
+      Color(0xFFF3E5F5), // Light purple
+    ];
+    return colors[index % colors.length];
+  }
+
   void _calculateUnreadCount() {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final userId = session.user!['_id'];
-    _unreadCount = _notifications.where((notification) => !notification['readBy'].contains(userId)).length;
+    _unreadCount = _notifications
+        .where((notification) => !notification['readBy'].contains(userId))
+        .length;
   }
 
   Future<void> _fetchNotifications({bool viewAll = false}) async {
@@ -127,7 +141,8 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                         ),
                       ),
                       // Placeholder for alignment if needed, or remove if not
-                      const SizedBox(width: 48), // Adjust width to match IconButton's visual space
+                      const SizedBox(
+                          width: 48), // Adjust width to match IconButton's visual space
                     ],
                   ),
                 ),
@@ -147,7 +162,8 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                   SizedBox(height: 16),
                                   Text(
                                     'No notifications yet.',
-                                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                                    style: TextStyle(
+                                        fontSize: 18, color: Colors.grey),
                                   ),
                                 ],
                               ),
@@ -171,24 +187,42 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                       itemBuilder: (context, index) {
                                         final notification =
                                             _notifications[index];
-                                        final bool isRead = notification['readBy'].contains(userId);
-                                        return Card(
-                                          color: isRead ? Colors.white : Colors.blue.shade50,
+                                        final bool isRead =
+                                            notification['readBy'].contains(userId);
+                                        return Container(
                                           margin: const EdgeInsets.symmetric(
                                               vertical: 8.0, horizontal: 16.0),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(16.0),
-                                            side: BorderSide(
-                                              color: const Color(0xFF00B4D8)
-                                                  .withOpacity(0.5),
-                                              width: 1,
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(18),
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Colors.orange,
+                                                Colors.white,
+                                                Colors.green
+                                              ],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
                                             ),
                                           ),
-                                          elevation: 2,
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(16.0),
-                                            child: Text(notification['message']),
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: _getNoteColor(index),
+                                              borderRadius: BorderRadius.circular(16),
+                                            ),
+                                            child: ListTile(
+                                              title: Text(notification['message']),
+                                              trailing: isRead
+                                                  ? null
+                                                  : Container(
+                                                      width: 10,
+                                                      height: 10,
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.blue,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                            ),
                                           ),
                                         );
                                       },
@@ -197,24 +231,29 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                   if (_notifications.length == 3 &&
                                       !_isShowingAll)
                                     Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 16.0),
+                                      padding: const EdgeInsets.only(
+                                          bottom: 16.0),
                                       child: ElevatedButton(
                                         onPressed: () =>
                                             _fetchNotifications(viewAll: true),
                                         style: ElevatedButton.styleFrom(
                                           padding: EdgeInsets.zero,
                                           shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(20),
+                                            borderRadius:
+                                                BorderRadius.circular(20),
                                           ),
                                           elevation: 5,
                                         ),
                                         child: Ink(
                                           decoration: BoxDecoration(
                                             gradient: const LinearGradient(
-                                              colors: [Color(0xFF00B4D8), Color(0xFF0077B6)],
+                                              colors: [
+                                                Color(0xFF00B4D8),
+                                                Color(0xFF0077B6)
+                                              ],
                                             ),
-                                            borderRadius: BorderRadius.circular(20),
+                                            borderRadius:
+                                                BorderRadius.circular(20),
                                           ),
                                           child: Container(
                                             width: 150,

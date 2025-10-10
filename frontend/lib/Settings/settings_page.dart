@@ -22,11 +22,24 @@ class _SettingsPageState extends State<SettingsPage> {
     // No need to refresh on init as the session should already have user data
   }
 
+  Color _getNoteColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6), // Cream
+      Color(0xFFE8F5E9), // Light green
+      Color(0xFFFCE4EC), // Light pink
+      Color(0xFFE3F2FD), // Light blue
+      Color(0xFFFFF9C4), // Light yellow
+      Color(0xFFF3E5F5), // Light purple
+    ];
+    return colors[index % colors.length];
+  }
+
   @override
   Widget build(BuildContext context) {
     final session = Provider.of<SessionProvider>(context);
-    
+
     return Scaffold(
+      extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFFF8F6FA),
       appBar: AppBar(
         title: const Text(
@@ -43,315 +56,382 @@ class _SettingsPageState extends State<SettingsPage> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // User Profile Section
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    spreadRadius: 1,
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 120,
+                color: const Color(0xFF00B4D8),
               ),
-              child: Row(
+            ),
+          ),
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: const Color(0xFF00B4D8),
-                                         child: session.user?['profileImage'] != null
-                         ? ClipOval(
-                             child: session.user!['profileImage'] is String
-                                 ? Image.network(
-                                     session.user!['profileImage'],
-                                     width: 60,
-                                     height: 60,
-                                     fit: BoxFit.cover,
-                                     errorBuilder: (context, error, stackTrace) {
-                                       return Text(
-                                         (session.user?['name'] as String?)?.substring(0, 1).toUpperCase() ?? 'U',
-                                         style: const TextStyle(
-                                           fontSize: 24,
-                                           fontWeight: FontWeight.bold,
-                                           color: Colors.white,
-                                         ),
-                                       );
-                                     },
-                                   )
-                                 : Image.memory(
-                                     session.user!['profileImage'],
-                                     width: 60,
-                                     height: 60,
-                                     fit: BoxFit.cover,
-                                   ),
-                           )
-                         : Text(
-                             (session.user?['name'] as String?)?.substring(0, 1).toUpperCase() ?? 'U',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                  // User Profile Section
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Colors.orange, Colors.white, Colors.green],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    padding: const EdgeInsets.all(2),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: _getNoteColor(0),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(3), // border width
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Colors.orange,
+                                  Colors.white,
+                                  Colors.green
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: CircleAvatar(
+                              radius: 30,
+                              backgroundColor: const Color(0xFF00B4D8),
+                              child: session.user?['profileImage'] != null
+                                  ? ClipOval(
+                                      child: session.user!['profileImage']
+                                              is String
+                                          ? Image.network(
+                                              session.user!['profileImage'],
+                                              width: 60,
+                                              height: 60,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error,
+                                                  stackTrace) {
+                                                return Text(
+                                                  (session.user?['name']
+                                                              as String?)
+                                                          ?.substring(0, 1)
+                                                          .toUpperCase() ??
+                                                      'U',
+                                                  style: const TextStyle(
+                                                    fontSize: 24,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: Colors.white,
+                                                  ),
+                                                );
+                                              },
+                                            )
+                                          : Image.memory(
+                                              session.user!['profileImage'],
+                                              width: 60,
+                                              height: 60,
+                                              fit: BoxFit.cover,
+                                            ),
+                                    )
+                                  : Text(
+                                      (session.user?['name'] as String?)
+                                              ?.substring(0, 1)
+                                              .toUpperCase() ??
+                                          'U',
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
                             ),
                           ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                                                 Text(
-                           session.user?['name'] ?? 'User',
-                           style: const TextStyle(
-                             fontSize: 18,
-                             fontWeight: FontWeight.bold,
-                             color: Colors.black,
-                           ),
-                         ),
-                                                 const SizedBox(height: 4),
-                         Text(
-                           session.user?['email'] ?? 'user@example.com',
-                           style: const TextStyle(
-                             fontSize: 14,
-                             color: Colors.grey,
-                           ),
-                         ),
-                         if (session.user?['altEmail'] != null && (session.user!['altEmail'] as String).isNotEmpty) ...[
-                           const SizedBox(height: 2),
-                           Row(
-                             mainAxisSize: MainAxisSize.min,
-                             children: [
-                               const Icon(
-                                 Icons.check_circle,
-                                 size: 12,
-                                 color: Colors.green,
-                               ),
-                               const SizedBox(width: 4),
-                               Text(
-                                 'Alternative email set',
-                                 style: const TextStyle(
-                                   fontSize: 10,
-                                   color: Colors.green,
-                                   fontWeight: FontWeight.w500,
-                                 ),
-                               ),
-                             ],
-                           ),
-                         ],
-                      ],
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  session.user?['name'] ?? 'User',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  session.user?['email'] ?? 'user@example.com',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                if (session.user?['altEmail'] != null &&
+                                    (session.user!['altEmail'] as String)
+                                        .isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.check_circle,
+                                        size: 12,
+                                        color: Colors.green,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Alternative email set',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.green,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon:
+                                const Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                            onPressed: () {
+                              Navigator.pushNamed(context, '/profile');
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.edit, color: Color(0xFF00B4D8)),
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/profile');
-                    },
+
+                  const SizedBox(height: 24),
+
+                  // Settings Categories
+                  _buildSettingsSection(
+                    context,
+                    'Account Settings',
+                    [
+                      _buildSettingsTile(
+                        context,
+                        'Change Password',
+                        Icons.lock_outline,
+                        Icons.arrow_forward_ios,
+                        () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ChangePasswordPage(),
+                            ),
+                          ).then((_) => setState(() {}));
+                        },
+                      ),
+                      _buildSettingsTile(
+                        context,
+                        session.user?['altEmail'] != null &&
+                                (session.user!['altEmail'] as String)
+                                    .isNotEmpty
+                            ? 'Change Alternative Email'
+                            : 'Add Alternative Email',
+                        Icons.email_outlined,
+                        Icons.arrow_forward_ios,
+                        () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const AlternativeEmailPage(),
+                            ),
+                          ).then((_) => setState(() {}));
+                        },
+                        subtitle: session.user?['altEmail'] != null &&
+                                (session.user!['altEmail'] as String)
+                                    .isNotEmpty
+                            ? session.user!['altEmail'] as String
+                            : 'Add a backup email for account recovery',
+                        showStatus: true,
+                        isActive: session.user?['altEmail'] != null &&
+                            (session.user!['altEmail'] as String).isNotEmpty,
+                      ),
+                      _buildSettingsTile(
+                        context,
+                        'Account Information',
+                        Icons.person_outline,
+                        Icons.arrow_forward_ios,
+                        () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AccountSettingsPage(),
+                            ),
+                          ).then((_) => setState(() {}));
+                        },
+                      ),
+                    ],
+                    1,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  _buildSettingsSection(
+                    context,
+                    'Preferences',
+                    [
+                      _buildSettingsTile(
+                        context,
+                        'Notification Settings',
+                        Icons.notifications_outlined,
+                        Icons.arrow_forward_ios,
+                        () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  const NotificationSettingsPage(),
+                            ),
+                          ).then((_) => setState(() {}));
+                        },
+                      ),
+                      _buildSettingsTile(
+                        context,
+                        'Privacy Settings',
+                        Icons.privacy_tip_outlined,
+                        Icons.arrow_forward_ios,
+                        () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const PrivacySettingsPage(),
+                            ),
+                          ).then((_) => setState(() {}));
+                        },
+                      ),
+                    ],
+                    2,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  _buildSettingsSection(
+                    context,
+                    'Support & About',
+                    [
+                      _buildSettingsTile(
+                        context,
+                        'Help & Support',
+                        Icons.help_outline,
+                        Icons.arrow_forward_ios,
+                        () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => HelpSupportPage(),
+                            ),
+                          );
+                        },
+                      ),
+                      _buildSettingsTile(
+                        context,
+                        'About Lenden',
+                        Icons.info_outline,
+                        Icons.arrow_forward_ios,
+                        () {
+                          // TODO: Implement about page
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('About page coming soon!')),
+                          );
+                        },
+                      ),
+                      _buildSettingsTile(
+                        context,
+                        'Terms of Service',
+                        Icons.description_outlined,
+                        Icons.arrow_forward_ios,
+                        () {
+                          // TODO: Implement terms of service
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content:
+                                    Text('Terms of Service coming soon!')),
+                          );
+                        },
+                      ),
+                      _buildSettingsTile(
+                        context,
+                        'Privacy Policy',
+                        Icons.security_outlined,
+                        Icons.arrow_forward_ios,
+                        () {
+                          // TODO: Implement privacy policy
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content: Text('Privacy Policy coming soon!')),
+                          );
+                        },
+                      ),
+                    ],
+                    3,
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Logout Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        _showLogoutDialog(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text(
+                        'Logout',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-            
-            const SizedBox(height: 24),
-            
-            // Settings Categories
-            _buildSettingsSection(
-              context,
-              'Account Settings',
-              [
-                _buildSettingsTile(
-                  context,
-                  'Change Password',
-                  Icons.lock_outline,
-                  Icons.arrow_forward_ios,
-                                     () {
-                     Navigator.push(
-                       context,
-                       MaterialPageRoute(
-                         builder: (context) => const ChangePasswordPage(),
-                       ),
-                     ).then((_) => setState(() {}));
-                   },
-                ),
-                _buildSettingsTile(
-                  context,
-                                     session.user?['altEmail'] != null && (session.user!['altEmail'] as String).isNotEmpty
-                       ? 'Change Alternative Email'
-                       : 'Add Alternative Email',
-                  Icons.email_outlined,
-                  Icons.arrow_forward_ios,
-                                     () {
-                     Navigator.push(
-                       context,
-                       MaterialPageRoute(
-                         builder: (context) => const AlternativeEmailPage(),
-                       ),
-                     ).then((_) => setState(() {}));
-                   },
-                                     subtitle: session.user?['altEmail'] != null && (session.user!['altEmail'] as String).isNotEmpty
-                       ? session.user!['altEmail'] as String
-                       : 'Add a backup email for account recovery',
-                   showStatus: true,
-                   isActive: session.user?['altEmail'] != null && (session.user!['altEmail'] as String).isNotEmpty,
-                ),
-                _buildSettingsTile(
-                  context,
-                  'Account Information',
-                  Icons.person_outline,
-                  Icons.arrow_forward_ios,
-                                     () {
-                     Navigator.push(
-                       context,
-                       MaterialPageRoute(
-                         builder: (context) => const AccountSettingsPage(),
-                       ),
-                     ).then((_) => setState(() {}));
-                   },
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
-            
-            _buildSettingsSection(
-              context,
-              'Preferences',
-              [
-                _buildSettingsTile(
-                  context,
-                  'Notification Settings',
-                  Icons.notifications_outlined,
-                  Icons.arrow_forward_ios,
-                                     () {
-                     Navigator.push(
-                       context,
-                       MaterialPageRoute(
-                         builder: (context) => const NotificationSettingsPage(),
-                       ),
-                     ).then((_) => setState(() {}));
-                   },
-                ),
-                _buildSettingsTile(
-                  context,
-                  'Privacy Settings',
-                  Icons.privacy_tip_outlined,
-                  Icons.arrow_forward_ios,
-                                     () {
-                     Navigator.push(
-                       context,
-                       MaterialPageRoute(
-                         builder: (context) => const PrivacySettingsPage(),
-                       ),
-                     ).then((_) => setState(() {}));
-                   },
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 16),
-            
-            _buildSettingsSection(
-              context,
-              'Support & About',
-              [
-                _buildSettingsTile(
-                  context,
-                  'Help & Support',
-                  Icons.help_outline,
-                  Icons.arrow_forward_ios,
-                  () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => HelpSupportPage(),
-                      ),
-                    );
-                  },
-                ),
-                _buildSettingsTile(
-                  context,
-                  'About Lenden',
-                  Icons.info_outline,
-                  Icons.arrow_forward_ios,
-                  () {
-                    // TODO: Implement about page
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('About page coming soon!')),
-                    );
-                  },
-                ),
-                _buildSettingsTile(
-                  context,
-                  'Terms of Service',
-                  Icons.description_outlined,
-                  Icons.arrow_forward_ios,
-                  () {
-                    // TODO: Implement terms of service
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Terms of Service coming soon!')),
-                    );
-                  },
-                ),
-                _buildSettingsTile(
-                  context,
-                  'Privacy Policy',
-                  Icons.security_outlined,
-                  Icons.arrow_forward_ios,
-                  () {
-                    // TODO: Implement privacy policy
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Privacy Policy coming soon!')),
-                    );
-                  },
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 24),
-            
-            // Logout Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  _showLogoutDialog(context);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(
-                  'Logout',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildSettingsSection(BuildContext context, String title, List<Widget> children) {
+  Widget _buildSettingsSection(
+      BuildContext context, String title, List<Widget> children, int index) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
@@ -361,22 +441,29 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF00B4D8),
+      padding: const EdgeInsets.all(2),
+      child: Container(
+        decoration: BoxDecoration(
+          color: _getNoteColor(index),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF00B4D8),
+                ),
               ),
             ),
-          ),
-          ...children,
-        ],
+            ...children,
+          ],
+        ),
       ),
     );
   }
@@ -470,7 +557,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             ElevatedButton(
               onPressed: () {
-                final session = Provider.of<SessionProvider>(context, listen: false);
+                final session =
+                    Provider.of<SessionProvider>(context, listen: false);
                 session.logout();
                 Navigator.of(context).pop();
                 Navigator.of(context).pushReplacementNamed('/');
@@ -491,4 +579,24 @@ class _SettingsPageState extends State<SettingsPage> {
       },
     );
   }
-} 
+}
+
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.lineTo(0, size.height * 0.35); // reduced from 0.7
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height * 0.5, // reduced from 1.0
+        size.width * 0.5, size.height * 0.35); // reduced from 0.7
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.2, // reduced from 0.4
+        size.width, size.height * 0.35); // reduced from 0.7
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}

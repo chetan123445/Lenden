@@ -35,6 +35,18 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
     _markNotificationsAsRead();
   }
 
+  Color _getNoteColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6), // Cream
+      Color(0xFFE8F5E9), // Light green
+      Color(0xFFFCE4EC), // Light pink
+      Color(0xFFE3F2FD), // Light blue
+      Color(0xFFFFF9C4), // Light yellow
+      Color(0xFFF3E5F5), // Light purple
+    ];
+    return colors[index % colors.length];
+  }
+
   void _calculateUnreadCount() {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final userId = session.user!['_id'];
@@ -604,11 +616,27 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      TextField(
-                        controller: _messageController,
-                        decoration: const InputDecoration(
-                          labelText: 'Message',
-                          border: OutlineInputBorder(),
+                      Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                          ),
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: TextField(
+                            controller: _messageController,
+                            decoration: const InputDecoration(
+                              labelText: 'Message',
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 8.0),
@@ -701,57 +729,70 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                   Provider.of<SessionProvider>(context, listen: false);
               final userId = session.user!['_id'];
               final bool isRead = notification['readBy'].contains(userId);
-              return Card(
-                color: isRead ? Colors.white : Colors.blue.shade50,
-                margin:
-                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16.0),
-                  side: BorderSide(
-                    color: const Color(0xFF00B4D8).withOpacity(0.5),
-                    width: 1,
+              return Container(
+                margin: const EdgeInsets.symmetric(
+                    vertical: 8.0, horizontal: 16.0),
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: const LinearGradient(
+                    colors: [Colors.orange, Colors.white, Colors.green],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(notification['message']),
-                      ),
-                      Consumer<SessionProvider>(
-                        builder: (context, session, child) {
-                          final currentAdminId = session.user!['_id'];
-                          final notificationSenderId = notification['sender'];
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _getNoteColor(index),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ListTile(
+                    title: Text(notification['message']),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!isRead)
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        Consumer<SessionProvider>(
+                          builder: (context, session, child) {
+                            final currentAdminId = session.user!['_id'];
+                            final notificationSenderId = notification['sender'];
 
-                          if (currentAdminId == notificationSenderId) {
-                            return PopupMenuButton<String>(
-                              onSelected: (String result) {
-                                if (result == 'edit') {
-                                  _editNotification(notification);
-                                } else if (result == 'delete') {
-                                  _deleteNotification(notification['_id']);
-                                }
-                              },
-                              itemBuilder: (BuildContext context) =>
-                                  <PopupMenuEntry<String>>[
-                                const PopupMenuItem<String>(
-                                  value: 'edit',
-                                  child: Text('Edit'),
-                                ),
-                                const PopupMenuItem<String>(
-                                  value: 'delete',
-                                  child: Text('Delete'),
-                                ),
-                              ],
-                            );
-                          } else {
-                            return const SizedBox.shrink();
-                          }
-                        },
-                      ),
-                    ],
+                            if (currentAdminId == notificationSenderId) {
+                              return PopupMenuButton<String>(
+                                onSelected: (String result) {
+                                  if (result == 'edit') {
+                                    _editNotification(notification);
+                                  } else if (result == 'delete') {
+                                    _deleteNotification(notification['_id']);
+                                  }
+                                },
+                                itemBuilder: (BuildContext context) =>
+                                    <PopupMenuEntry<String>>[
+                                  const PopupMenuItem<String>(
+                                    value: 'edit',
+                                    child: Text('Edit'),
+                                  ),
+                                  const PopupMenuItem<String>(
+                                    value: 'delete',
+                                    child: Text('Delete'),
+                                  ),
+                                ],
+                              );
+                            } else {
+                              return const SizedBox.shrink();
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -827,45 +868,45 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
             itemCount: _sentNotifications.length,
             itemBuilder: (context, index) {
               final notification = _sentNotifications[index];
-              return Card(
-                margin:
-                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16.0),
-                  side: BorderSide(
-                    color: const Color(0xFF00B4D8).withOpacity(0.5),
-                    width: 1,
+              return Container(
+                margin: const EdgeInsets.symmetric(
+                    vertical: 8.0, horizontal: 16.0),
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: const LinearGradient(
+                    colors: [Colors.orange, Colors.white, Colors.green],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
-                elevation: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(notification['message']),
-                      ),
-                      PopupMenuButton<String>(
-                        onSelected: (String result) {
-                          if (result == 'edit') {
-                            _editNotification(notification);
-                          } else if (result == 'delete') {
-                            _deleteNotification(notification['_id']);
-                          }
-                        },
-                        itemBuilder: (BuildContext context) =>
-                            <PopupMenuEntry<String>>[
-                          const PopupMenuItem<String>(
-                            value: 'edit',
-                            child: Text('Edit'),
-                          ),
-                          const PopupMenuItem<String>(
-                            value: 'delete',
-                            child: Text('Delete'),
-                          ),
-                        ],
-                      ),
-                    ],
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _getNoteColor(index),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: ListTile(
+                    title: Text(notification['message']),
+                    trailing: PopupMenuButton<String>(
+                      onSelected: (String result) {
+                        if (result == 'edit') {
+                          _editNotification(notification);
+                        } else if (result == 'delete') {
+                          _deleteNotification(notification['_id']);
+                        }
+                      },
+                      itemBuilder: (BuildContext context) =>
+                          <PopupMenuEntry<String>>[
+                        const PopupMenuItem<String>(
+                          value: 'edit',
+                          child: Text('Edit'),
+                        ),
+                        const PopupMenuItem<String>(
+                          value: 'delete',
+                          child: Text('Delete'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );

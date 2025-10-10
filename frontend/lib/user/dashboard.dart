@@ -655,7 +655,6 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     final session = Provider.of<SessionProvider>(context, listen: false);
@@ -854,6 +853,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 color: _carouselItems[0]['color'] as Color,
                                 onTap: () => _handleCarouselAction(
                                     _carouselItems[0]['action'] as String),
+                                index: 0,
                               ),
                               _buildQuickActionItem(
                                 icon: _carouselItems[1]['icon'] as IconData,
@@ -861,6 +861,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 color: _carouselItems[1]['color'] as Color,
                                 onTap: () => _handleCarouselAction(
                                     _carouselItems[1]['action'] as String),
+                                index: 1,
                               ),
                               _buildQuickActionItem(
                                 icon: _carouselItems[2]['icon'] as IconData,
@@ -868,6 +869,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 color: _carouselItems[2]['color'] as Color,
                                 onTap: () => _handleCarouselAction(
                                     _carouselItems[2]['action'] as String),
+                                index: 2,
                               ),
                             ],
                           ),
@@ -881,6 +883,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 color: _carouselItems[3]['color'] as Color,
                                 onTap: () => _handleCarouselAction(
                                     _carouselItems[3]['action'] as String),
+                                index: 3,
                               ),
                               _buildQuickActionItem(
                                 icon: _carouselItems[4]['icon'] as IconData,
@@ -888,6 +891,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 color: _carouselItems[4]['color'] as Color,
                                 onTap: () => _handleCarouselAction(
                                     _carouselItems[4]['action'] as String),
+                                index: 4,
                               ),
                               _buildQuickActionItem(
                                 icon: _carouselItems[5]['icon'] as IconData,
@@ -895,6 +899,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 color: _carouselItems[5]['color'] as Color,
                                 onTap: () => _handleCarouselAction(
                                     _carouselItems[5]['action'] as String),
+                                index: 5,
                               ),
                             ],
                           ),
@@ -908,6 +913,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 color: _carouselItems[6]['color'] as Color,
                                 onTap: () => _handleCarouselAction(
                                     _carouselItems[6]['action'] as String),
+                                index: 6,
                               ),
                               _buildQuickActionItem(
                                 icon: _carouselItems[7]['icon'] as IconData,
@@ -915,6 +921,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 color: _carouselItems[7]['color'] as Color,
                                 onTap: () => _handleCarouselAction(
                                     _carouselItems[7]['action'] as String),
+                                index: 7,
                               ),
                               _buildQuickActionItem(
                                 icon: _carouselItems[8]['icon'] as IconData,
@@ -922,6 +929,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 color: _carouselItems[8]['color'] as Color,
                                 onTap: () => _handleCarouselAction(
                                     _carouselItems[8]['action'] as String),
+                                index: 8,
                               ),
                             ],
                           ),
@@ -1383,40 +1391,53 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                           Row(
                             children: [
                               NotificationIcon(),
-                              GestureDetector(
-                                onTap: () async {
-                                  try {
-                                    await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (context) =>
-                                              const ProfilePage()),
-                                    );
-                                    final session =
-                                        Provider.of<SessionProvider>(context,
-                                            listen: false);
-                                    await session.forceRefreshProfile();
-                                    setState(() {
-                                      _imageRefreshKey++;
-                                    });
-                                  } catch (e) {
-                                    print('Error navigating to profile: $e');
-                                  }
-                                },
-                                child: CircleAvatar(
-                                  key: ValueKey(_imageRefreshKey),
-                                  radius: 16,
-                                  backgroundColor: Colors.white,
-                                  backgroundImage: _getUserAvatar(),
-                                  onBackgroundImageError:
-                                      (exception, stackTrace) {},
-                                  child: _getUserAvatar() is AssetImage
-                                      ? Icon(
-                                          Icons.person,
-                                          color: Colors.grey[400],
-                                          size: 20,
-                                        )
-                                      : null,
+                              Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Colors.orange,
+                                      Colors.white,
+                                      Colors.green
+                                    ],
+                                  ),
+                                ),
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    try {
+                                      await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (context) =>
+                                                const ProfilePage()),
+                                      );
+                                      final session =
+                                          Provider.of<SessionProvider>(context,
+                                              listen: false);
+                                      await session.forceRefreshProfile();
+                                      setState(() {
+                                        _imageRefreshKey++;
+                                      });
+                                    } catch (e) {
+                                      print('Error navigating to profile: $e');
+                                    }
+                                  },
+                                  child: CircleAvatar(
+                                    key: ValueKey(_imageRefreshKey),
+                                    radius: 16,
+                                    backgroundColor: Colors.white,
+                                    backgroundImage: _getUserAvatar(),
+                                    onBackgroundImageError:
+                                        (exception, stackTrace) {},
+                                    child: _getUserAvatar() is AssetImage
+                                        ? Icon(
+                                            Icons.person,
+                                            color: Colors.grey[400],
+                                            size: 20,
+                                          )
+                                        : null,
+                                  ),
                                 ),
                               ),
                               IconButton(
@@ -1445,6 +1466,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     required String label,
     required Color color,
     required VoidCallback onTap,
+    required int index,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -1452,13 +1474,21 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(2), // Border width
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
               shape: BoxShape.circle,
-              border: Border.all(color: color.withOpacity(0.4), width: 2),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+              ),
             ),
-            child: Icon(icon, color: color, size: 24),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _getBoxColor(index),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -1718,7 +1748,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                               ),
                               SizedBox(height: 32),
                               Row(
-                                mainAxisAlignment:
+                                mainAxisAlignment: 
                                     MainAxisAlignment.spaceEvenly,
                                 children: [
                                   Expanded(
@@ -1741,7 +1771,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                           elevation: 0,
                                         ),
                                         child: Row(
-                                          mainAxisAlignment:
+                                          mainAxisAlignment: 
                                               MainAxisAlignment.center,
                                           children: [
                                             Icon(Icons.close, size: 20),
@@ -1788,7 +1818,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                               .withOpacity(0.3),
                                         ),
                                         child: Row(
-                                          mainAxisAlignment:
+                                          mainAxisAlignment: 
                                               MainAxisAlignment.center,
                                           children: [
                                             Icon(Icons.logout, size: 20),
