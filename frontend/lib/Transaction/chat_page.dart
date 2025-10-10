@@ -287,32 +287,30 @@ class _ChatPageState extends State<ChatPage> {
       builder: (BuildContext bc) {
         return SafeArea(
           child: Container(
-            height: 250,
-            child: EmojiPicker(
-              onEmojiSelected: (category, emoji) {
-                Navigator.of(context).pop();
-                _addReaction(messageId, emoji.emoji);
-              },
+            height: 300,
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    icon: Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ),
+                Expanded(
+                  child: EmojiPicker(
+                    onEmojiSelected: (category, emoji) {
+                      Navigator.of(context).pop();
+                      _addReaction(messageId, emoji.emoji);
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         );
       },
     );
-  }
-
-  ImageProvider _getProfileImage() {
-    if (_otherUser != null && _otherUser!['profileImage'] != null) {
-      return NetworkImage('${ApiConfig.baseUrl}/api/users/${_otherUser!['_id']}/profile-image');
-    } else {
-      final gender = _otherUser?['gender'] ?? 'Other';
-      if (gender == 'Male') {
-        return AssetImage('assets/Male.png');
-      } else if (gender == 'Female') {
-        return AssetImage('assets/Female.png');
-      } else {
-        return AssetImage('assets/Other.png');
-      }
-    }
   }
 
   @override
@@ -329,32 +327,57 @@ class _ChatPageState extends State<ChatPage> {
       },
       child: Scaffold(
         appBar: AppBar(
+          flexibleSpace: ClipPath(
+            clipper: WaveClipper(),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                    colors: [Colors.blue.shade400, Colors.blue.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight),
+              ),
+            ),
+          ),
           title: _otherUser == null
               ? Text('Chat')
               : Row(
                   children: [
                     CircleAvatar(
-                      backgroundImage: _getProfileImage(),
-                      child: _otherUser!['profileImage'] == null
-                          ? null
-                          : ClipOval(
-                              child: Image.network(
-                                '${ApiConfig.baseUrl}/api/users/${_otherUser!['_id']}/profile-image',
-                                errorBuilder: (context, error, stackTrace) {
-                                  final gender = _otherUser?['gender'] ?? 'Other';
-                                  if (gender == 'Male') {
-                                    return Image.asset('assets/Male.png');
-                                  } else if (gender == 'Female') {
-                                    return Image.asset('assets/Female.png');
-                                  } else {
-                                    return Image.asset('assets/Other.png');
-                                  }
-                                },
-                              ),
+                      backgroundColor: Colors.white,
+                      child: ClipOval(
+                        child: (_otherUser!['profileImage'] != null)
+                          ? Image.network(
+                              '${ApiConfig.baseUrl}/api/users/${_otherUser!['_id']}/profile-image',
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                final gender = _otherUser?['gender'] ?? 'Other';
+                                if (gender == 'Male') {
+                                  return Image.asset('assets/Male.png');
+                                } else if (gender == 'Female') {
+                                  return Image.asset('assets/Female.png');
+                                } else {
+                                  return Image.asset('assets/Other.png');
+                                }
+                              },
+                            )
+                          : Image.asset(
+                              'assets/${_otherUser?['gender'] == 'Male' ? 'Male' : _otherUser?['gender'] == 'Female' ? 'Female' : 'Other'}.png',
                             ),
+                      ),
                     ),
                     SizedBox(width: 10),
-                    Text(_otherUser!['name'] ?? _otherUser!['email']),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(_otherUser!['name'] ?? 'User'),
+                        Text(
+                          _otherUser!['email'] ?? '',
+                          style: TextStyle(fontSize: 12, color: Colors.white70),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
         ),
@@ -368,7 +391,8 @@ class _ChatPageState extends State<ChatPage> {
                       itemCount: _messages.length,
                       itemBuilder: (context, index) {
                         final message = _messages.reversed.toList()[index];
-                        final isMe = message['senderId']['_id'] == _currentUserId;
+                        final sender = message['senderId'];
+                        final isMe = sender is Map && sender['_id'] == _currentUserId;
                         return _buildMessageBubble(message, isMe);
                       },
                     ),
@@ -384,6 +408,9 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildMessageBubble(dynamic message, bool isMe) {
+    if (message['createdAt'] == null) {
+      return const SizedBox.shrink();
+    }
     final createdAt = DateTime.parse(message['createdAt']).toLocal();
     final formattedTime = DateFormat.jm().format(createdAt);
     final hasReactions = message['reactions'] != null && message['reactions'].isNotEmpty;
@@ -556,35 +583,9 @@ class _ChatPageState extends State<ChatPage> {
         _messageController.text += emoji.emoji;
       },
       onBackspacePressed: () {
-        _messageController.text = _messageController.text.characters.skipLast(1).toString();
+        _messageController.text =
+            _messageController.text.characters.skipLast(1).toString();
       },
-       config: Config(
-        columns: 7,
-        emojiSizeMax: 32 * (Theme.of(context).platform == TargetPlatform.iOS ? 1.30 : 1.0),
-        verticalSpacing: 0,
-        horizontalSpacing: 0,
-        gridPadding: EdgeInsets.zero,
-        initCategory: Category.RECENT,
-        bgColor: Color(0xFFF2F2F2),
-        indicatorColor: Colors.blue,
-        iconColor: Colors.grey,
-        iconColorSelected: Colors.blue,
-        backspaceColor: Colors.blue,
-        skinToneDialogBgColor: Colors.white,
-        skinToneIndicatorColor: Colors.grey,
-        enableSkinTones: true,
-        recentTabBehavior: RecentTabBehavior.RECENT,
-        recentsLimit: 28,
-        noRecents: const Text(
-          'No Recents',
-          style: TextStyle(fontSize: 20, color: Colors.black26),
-          textAlign: TextAlign.center,
-        ), // Needs to be const Widget
-        loadingIndicator: const SizedBox.shrink(), // Needs to be const Widget
-        tabIndicatorAnimDuration: kTabScrollDuration,
-        categoryIcons: const CategoryIcons(),
-        buttonMode: ButtonMode.MATERIAL,
-      ),
     );
   }
 
@@ -644,4 +645,30 @@ class _ChatPageState extends State<ChatPage> {
       ),
     );
   }
+}
+
+class WaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    var path = Path();
+    path.lineTo(0, size.height - 50);
+    var firstControlPoint = Offset(size.width / 4, size.height);
+    var firstEndPoint = Offset(size.width / 2.2, size.height - 30.0);
+    path.quadraticBezierTo(firstControlPoint.dx, firstControlPoint.dy,
+        firstEndPoint.dx, firstEndPoint.dy);
+
+    var secondControlPoint =
+        Offset(size.width - (size.width / 3.25), size.height - 65);
+    var secondEndPoint = Offset(size.width, size.height - 40);
+    path.quadraticBezierTo(secondControlPoint.dx, secondControlPoint.dy,
+        secondEndPoint.dx, secondEndPoint.dy);
+
+    path.lineTo(size.width, size.height - 40);
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
