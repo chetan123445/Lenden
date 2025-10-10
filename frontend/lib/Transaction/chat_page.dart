@@ -326,60 +326,63 @@ class _ChatPageState extends State<ChatPage> {
         return true;
       },
       child: Scaffold(
-        appBar: AppBar(
-          flexibleSpace: ClipPath(
-            clipper: WaveClipper(),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                    colors: [Colors.blue.shade400, Colors.blue.shade600],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight),
+        appBar: PreferredSize(
+          preferredSize: Size.fromHeight(120.0),
+          child: AppBar(
+            flexibleSpace: ClipPath(
+              clipper: WaveClipper(),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                      colors: [Colors.blue.shade400, Colors.blue.shade600],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight),
+                ),
               ),
             ),
-          ),
-          title: _otherUser == null
-              ? Text('Chat')
-              : Row(
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: Colors.white,
-                      child: ClipOval(
-                        child: (_otherUser!['profileImage'] != null)
-                          ? Image.network(
-                              '${ApiConfig.baseUrl}/api/users/${_otherUser!['_id']}/profile-image',
-                              width: 40,
-                              height: 40,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                final gender = _otherUser?['gender'] ?? 'Other';
-                                if (gender == 'Male') {
-                                  return Image.asset('assets/Male.png');
-                                } else if (gender == 'Female') {
-                                  return Image.asset('assets/Female.png');
-                                } else {
-                                  return Image.asset('assets/Other.png');
-                                }
-                              },
-                            )
-                          : Image.asset(
-                              'assets/${_otherUser?['gender'] == 'Male' ? 'Male' : _otherUser?['gender'] == 'Female' ? 'Female' : 'Other'}.png',
-                            ),
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_otherUser!['name'] ?? 'User'),
-                        Text(
-                          _otherUser!['email'] ?? '',
-                          style: TextStyle(fontSize: 12, color: Colors.white70),
+            title: _otherUser == null
+                ? Text('Chat')
+                : Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Colors.white,
+                        child: ClipOval(
+                          child: (_otherUser!['profileImage'] != null)
+                              ? Image.network(
+                                  '${ApiConfig.baseUrl}/api/users/${_otherUser!['_id']}/profile-image',
+                                  width: 40,
+                                  height: 40,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    final gender = _otherUser?['gender'] ?? 'Other';
+                                    if (gender == 'Male') {
+                                      return Image.asset('assets/Male.png');
+                                    } else if (gender == 'Female') {
+                                      return Image.asset('assets/Female.png');
+                                    } else {
+                                      return Image.asset('assets/Other.png');
+                                    }
+                                  },
+                                )
+                              : Image.asset(
+                                  'assets/${_otherUser?['gender'] == 'Male' ? 'Male' : _otherUser?['gender'] == 'Female' ? 'Female' : 'Other'}.png',
+                                ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                      SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_otherUser!['name'] ?? 'User'),
+                          Text(
+                            _otherUser!['email'] ?? '',
+                            style: TextStyle(fontSize: 12, color: Colors.white70),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+          ),
         ),
         body: Column(
           children: [
@@ -650,20 +653,12 @@ class _ChatPageState extends State<ChatPage> {
 class WaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
-    var path = Path();
-    path.lineTo(0, size.height - 50);
-    var firstControlPoint = Offset(size.width / 4, size.height);
-    var firstEndPoint = Offset(size.width / 2.2, size.height - 30.0);
-    path.quadraticBezierTo(firstControlPoint.dx, firstControlPoint.dy,
-        firstEndPoint.dx, firstEndPoint.dy);
-
-    var secondControlPoint =
-        Offset(size.width - (size.width / 3.25), size.height - 65);
-    var secondEndPoint = Offset(size.width, size.height - 40);
-    path.quadraticBezierTo(secondControlPoint.dx, secondControlPoint.dy,
-        secondEndPoint.dx, secondEndPoint.dy);
-
-    path.lineTo(size.width, size.height - 40);
+    Path path = Path();
+    path.lineTo(0, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
     path.lineTo(size.width, 0);
     path.close();
     return path;
