@@ -76,6 +76,9 @@ module.exports = (io) => {
                 let chat = await Chat.findById(messageId);
                 if (!chat || chat.senderId.toString() !== userId) return;
 
+                const senderIdStr = chat.senderId.toString();
+                const receiverIdStr = chat.receiverId.toString();
+
                 const now = new Date();
                 const messageTime = new Date(chat.createdAt);
                 const diffInMinutes = (now.getTime() - messageTime.getTime()) / 60000;
@@ -88,7 +91,7 @@ module.exports = (io) => {
                 chat.message = message;
                 chat.isEdited = true;
                 await chat.save();
-                chat = await Chat.findById(chat._id)
+                let populatedChat = await Chat.findById(chat._id)
                     .populate('senderId', 'name')
                     .populate('receiverId', 'name')
                     .populate({
@@ -99,7 +102,7 @@ module.exports = (io) => {
                         }
                     });
 
-                io.to(chat.senderId.toString()).to(chat.receiverId.toString()).emit('messageUpdated', chat);
+                io.to(senderIdStr).to(receiverIdStr).emit('messageUpdated', populatedChat);
             } catch (error) {
                 console.error('Error in editMessage socket handler:', error);
             }
@@ -133,6 +136,9 @@ module.exports = (io) => {
                 let chat = await Chat.findById(messageId);
                 if (!chat) return;
 
+                const senderIdStr = chat.senderId.toString();
+                const receiverIdStr = chat.receiverId.toString();
+
                 const existingReactionIndex = chat.reactions.findIndex(r => r.userId.toString() === userId);
 
                 if (existingReactionIndex > -1) {
@@ -146,7 +152,7 @@ module.exports = (io) => {
                 }
 
                 await chat.save();
-                chat = await Chat.findById(chat._id)
+                let populatedChat = await Chat.findById(chat._id)
                     .populate('senderId', 'name')
                     .populate('receiverId', 'name')
                     .populate({
@@ -157,7 +163,7 @@ module.exports = (io) => {
                         }
                     });
 
-                io.to(chat.senderId.toString()).to(chat.receiverId.toString()).emit('messageUpdated', chat);
+                io.to(senderIdStr).to(receiverIdStr).emit('messageUpdated', populatedChat);
             } catch (error) {
                 console.error('Error in addReaction socket handler:', error);
             }
