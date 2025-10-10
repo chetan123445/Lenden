@@ -32,7 +32,7 @@ exports.getAdminProfile = async (req, res) => {
 exports.getUserProfileImage = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select('profileImage');
-    if (!user || !user.profileImage) return res.status(404).send('Not found');
+    if (!user || !user.profileImage || user.profileImage.length === 0) return res.status(404).send('Not found');
     res.set('Content-Type', 'image/jpeg'); // You may want to store the type in DB for flexibility
     res.send(user.profileImage);
   } catch (err) {

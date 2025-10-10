@@ -49,6 +49,9 @@ module.exports = (io) => {
 
                 await chat.save();
 
+                // Increment message count on the transaction
+                await Transaction.findByIdAndUpdate(transactionId, { $inc: { messageCount: 1 } });
+
                 chat = await Chat.findById(chat._id)
                     .populate('senderId', 'name')
                     .populate('receiverId', 'name')
@@ -72,6 +75,15 @@ module.exports = (io) => {
                 const { messageId, userId, message } = data;
                 let chat = await Chat.findById(messageId);
                 if (!chat || chat.senderId.toString() !== userId) return;
+
+                const now = new Date();
+                const messageTime = new Date(chat.createdAt);
+                const diffInMinutes = (now.getTime() - messageTime.getTime()) / 60000;
+
+                if (diffInMinutes > 2) {
+                    socket.emit('editMessageError', { messageId, error: 'You can no longer edit this message.' });
+                    return;
+                }
 
                 chat.message = message;
                 chat.isEdited = true;

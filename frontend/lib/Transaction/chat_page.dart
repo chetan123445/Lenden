@@ -224,7 +224,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
             child: Wrap(
               children: <Widget>[
-                if (isMe)
+                if (isMe && DateTime.now().difference(DateTime.parse(message['createdAt'])).inMinutes < 2)
                   ListTile(
                     leading: Icon(Icons.edit, color: Colors.blueAccent),
                     title: Text('Edit'),

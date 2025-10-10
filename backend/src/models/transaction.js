@@ -112,6 +112,10 @@ const transactionSchema = new mongoose.Schema({
   favourite: {
     type: [String],
     default: []
+  },
+  messageCount: {
+    type: Number,
+    default: 0
   }
 }, { timestamps: true });
 
