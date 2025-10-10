@@ -55,6 +55,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   final TextEditingController _amountController = TextEditingController();
   bool showAllTransactions = false;
   bool showFavouritesOnly = false;
+  String? _favouritingTransactionId;
+  String? _chattingTransactionId;
 
   @override
   void initState() {
@@ -107,15 +109,28 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     }
   }
 
-  Future<void> _toggleFavourite(String transactionId) async {
+  Future<void> _toggleFavourite(Map<String, dynamic> t) async {
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     final email = user?['email'];
+    final transactionId = t['transactionId'];
+
     if (email == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('User email not found.')),
+        const SnackBar(content: Text('User email not found.')),
       );
       return;
     }
+
+    final isFavourited = (t['favourite'] as List<dynamic>).contains(email);
+
+    setState(() {
+      _favouritingTransactionId = transactionId;
+      if (isFavourited) {
+        (t['favourite'] as List<dynamic>).remove(email);
+      } else {
+        (t['favourite'] as List<dynamic>).add(email);
+      }
+    });
 
     try {
       final response = await http.put(
@@ -129,9 +144,15 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         body: jsonEncode({'email': email}),
       );
 
-      if (response.statusCode == 200) {
-        await fetchTransactions();
-      } else {
+      if (response.statusCode != 200) {
+        // Revert on failure
+        setState(() {
+          if (isFavourited) {
+            (t['favourite'] as List<dynamic>).add(email);
+          } else {
+            (t['favourite'] as List<dynamic>).remove(email);
+          }
+        });
         final data = jsonDecode(response.body);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -141,12 +162,26 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         );
       }
     } catch (e) {
+      // Revert on failure
+      setState(() {
+        if (isFavourited) {
+          (t['favourite'] as List<dynamic>).add(email);
+        } else {
+          (t['favourite'] as List<dynamic>).remove(email);
+        }
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Network error: ${e.toString()}'),
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _favouritingTransactionId = null;
+        });
+      }
     }
   }
 
@@ -844,25 +879,70 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                           children: [
                             Row(
                               children: [
-                                IconButton(
-                                  icon: Icon(
-                                    isFavourited
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: isFavourited
-                                        ? Colors.red
-                                        : Colors.grey,
+                                // Favourite button with loading indicator
+                                if (_favouritingTransactionId == t['transactionId'])
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          (t['favourite'] as List<dynamic>).contains(email)
+                                            ? 'Adding to favourites...'
+                                            : 'Removing from favourites...'
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                else
+                                  IconButton(
+                                    icon: Icon(
+                                      isFavourited
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: isFavourited ? Colors.red : Colors.grey,
+                                    ),
+                                    onPressed: () {
+                                      _toggleFavourite(Map<String, dynamic>.from(t));
+                                    },
                                   ),
-                                  onPressed: () {
-                                    _toggleFavourite(t['transactionId']);
-                                  },
-                                ),
-                                IconButton(
-                                  icon: Icon(Icons.chat, color: Colors.blue),
-                                  onPressed: () {
-                                    _navigateToChat(Map<String, dynamic>.from(t));
-                                  },
-                                ),
+
+                                // Chat button with loading indicator
+                                if (_chattingTransactionId == t['transactionId'])
+                                  Padding(
+                                    padding: const EdgeInsets.all(8.0),
+                                    child: Row(
+                                      children: [
+                                        SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text('Opening chat...'),
+                                      ],
+                                    ),
+                                  )
+                                else
+                                  IconButton(
+                                    icon: Icon(Icons.chat, color: Colors.blue),
+                                    onPressed: () async {
+                                      setState(() {
+                                        _chattingTransactionId = t['transactionId'];
+                                      });
+                                      await _navigateToChat(Map<String, dynamic>.from(t));
+                                      if (mounted) {
+                                        setState(() {
+                                          _chattingTransactionId = null;
+                                        });
+                                      }
+                                    },
+                                  ),
                               ],
                             ),
                             Row(
