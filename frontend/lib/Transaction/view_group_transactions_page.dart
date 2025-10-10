@@ -1337,6 +1337,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                         Text('Creator: ${creator?['email'] ?? 'Unknown'}'),
                                         Text('Members: ${members.length}'),
                                         Text('Expenses: ${expenses.length}'),
+                                        Text('Messages: ${group['messageCount'] ?? 0}'),
                                       ],
                                     ),
                                     children: [

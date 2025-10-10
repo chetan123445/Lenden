@@ -37,6 +37,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
   late IO.Socket socket;
   Map<String, Color> _userColors = {};
   final Random _random = Random();
+  bool _isActiveMember = true;
 
   @override
   void initState() {
@@ -52,6 +53,22 @@ class _GroupChatPageState extends State<GroupChatPage> {
       _userColors[userId] = Color((_random.nextDouble() * 0xFFFFFF).toInt()).withOpacity(1.0);
     }
     return _userColors[userId]!;
+  }
+
+  Color _getNoteColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6), // Cream
+      Color(0xFFE8F5E9), // Light green
+      Color(0xFFFCE4EC), // Light pink
+      Color(0xFFE3F2FD), // Light blue
+      Color(0xFFFFF9C4), // Light yellow
+      Color(0xFFF3E5F5), // Light purple
+      Color(0xFFE0F2F1), // Light teal
+      Color(0xFFFFF3E0), // Light orange
+      Color(0xFFF1F8E9), // Light lime
+      Color(0xFFE8EAF6), // Light indigo
+    ];
+    return colors[index % colors.length];
   }
 
   void _initSocket() {
@@ -98,6 +115,57 @@ class _GroupChatPageState extends State<GroupChatPage> {
         }
       }
     });
+
+    // Handle error events
+    socket.on('createGroupMessageError', (data) {
+      if (data['groupTransactionId'] == widget.groupTransactionId) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data['error'] ?? 'Failed to send message'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    });
+
+    socket.on('editGroupMessageError', (data) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['error'] ?? 'Failed to edit message'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    });
+
+    socket.on('deleteGroupMessageError', (data) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['error'] ?? 'Failed to delete message'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    });
+
+    socket.on('addGroupReactionError', (data) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(data['error'] ?? 'Failed to add reaction'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    });
   }
 
   @override
@@ -121,7 +189,22 @@ class _GroupChatPageState extends State<GroupChatPage> {
           setState(() {
             _messages = jsonDecode(response.body);
             _isLoading = false;
+            _isActiveMember = true;
           });
+        }
+      } else if (response.statusCode == 403) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _isActiveMember = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('You are no longer an active member of this group. Chat is disabled.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
         }
       } else {
         if (mounted) setState(() => _isLoading = false);
@@ -134,11 +217,21 @@ class _GroupChatPageState extends State<GroupChatPage> {
   void _sendMessage() {
     if (_messageController.text.trim().isEmpty) return;
 
-    // Modify for editing
-    // if (_editingMessage != null) {
-    //   _editMessage();
-    //   return;
-    // }
+    if (!_isActiveMember) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('You are no longer an active member of this group. Chat is disabled.'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
+    if (_editingMessage != null) {
+      _editMessage();
+      return;
+    }
 
     socket.emit('createGroupMessage', {
       'groupTransactionId': widget.groupTransactionId,
@@ -153,77 +246,205 @@ class _GroupChatPageState extends State<GroupChatPage> {
     });
   }
 
+  void _editMessage() {
+    if (_messageController.text.trim().isEmpty) return;
+    final message = {
+      'messageId': _editingMessage['_id'],
+      'userId': _currentUserId,
+      'message': _messageController.text.trim(),
+    };
+
+    socket.emit('editGroupMessage', message);
+
+    _messageController.clear();
+    setState(() {
+      _editingMessage = null;
+    });
+  }
+
   void _showMembersDialog() {
     showDialog(
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           elevation: 0,
           backgroundColor: Colors.transparent,
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: Color(0xFFFCE4EC), // Light pink
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppBar(
-                  title: Text('Group Members'),
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  automaticallyImplyLeading: false,
-                  actions: [
-                    IconButton(
-                      icon: Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(),
-                    )
-                  ],
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Text(
-                    'Members',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                SizedBox(
-                  height: 300,
-                  child: ListView.builder(
-                    itemCount: widget.members.length,
-                    itemBuilder: (context, index) {
-                      final member = widget.members[index];
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(15),
-                          gradient: LinearGradient(
-                            colors: [Colors.orange, Colors.white, Colors.green],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: Container(
-                          margin: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(13),
-                          ),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              // You need to implement a way to get profile images
-                              // For now, we'll use a placeholder
-                              child: Text(member['email'][0].toUpperCase()),
-                            ),
-                            title: Text(member['email']),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+              borderRadius: BorderRadius.circular(24),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
                 ),
               ],
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: _getNoteColor(0), // Use notes page background color
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header with tricolor border
+                  Container(
+                    padding: const EdgeInsets.all(20.0),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Colors.orange, Colors.white, Colors.green],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(22),
+                        topRight: Radius.circular(22),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.group, color: Colors.black87, size: 28),
+                        SizedBox(width: 12),
+                        Text(
+                          'Group Members',
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        Spacer(),
+                        IconButton(
+                          icon: Container(
+                            padding: EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(Icons.close, color: Colors.black87, size: 20),
+                          ),
+                          onPressed: () => Navigator.of(context).pop(),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  // Members list with tricolor borders
+                  Container(
+                    constraints: BoxConstraints(maxHeight: 400),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: widget.members.length,
+                      itemBuilder: (context, index) {
+                        final member = widget.members[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: const LinearGradient(
+                              colors: [Colors.orange, Colors.white, Colors.green],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Container(
+                            margin: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: _getNoteColor(index + 1), // Unique color for each member
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              leading: CircleAvatar(
+                                backgroundColor: _getUserColor(member['_id'] ?? member['email']).withOpacity(0.8),
+                                child: Text(
+                                  (member['email'] ?? 'U')[0].toUpperCase(),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                member['email'] ?? 'Unknown',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                              subtitle: Text(
+                                'Member',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                              trailing: member['leftAt'] != null 
+                                ? Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      'Left',
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  )
+                                : Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      'Active',
+                                      style: TextStyle(
+                                        color: Colors.green,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  
+                  // Footer
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      '${widget.members.length} members',
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -512,7 +733,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       child: Container(
                         padding: EdgeInsets.fromLTRB(12, 10, 12, hasReactions ? 25 : 10),
                         decoration: BoxDecoration(
-                          color: isMe ? Color(0xFFE8F5E9) : userColor.withAlpha(50),
+                          color: isMe ? Color(0xFFE8F5E9) : userColor.withOpacity(0.3),
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: Column(
@@ -597,15 +818,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
         child: Row(
           children: [
             IconButton(
-              icon: Icon(_showEmojiPicker ? Icons.close : Icons.emoji_emotions_outlined, color: Colors.grey),
-              onPressed: _onEmojiIconPressed,
+              icon: Icon(_showEmojiPicker ? Icons.close : Icons.emoji_emotions_outlined, color: _isActiveMember ? Colors.grey : Colors.grey.withOpacity(0.3)),
+              onPressed: _isActiveMember ? _onEmojiIconPressed : null,
             ),
             Expanded(
               child: TextField(
                 focusNode: _messageFocusNode,
                 controller: _messageController,
+                enabled: _isActiveMember,
                 decoration: InputDecoration(
-                  hintText: 'Type a message',
+                  hintText: _isActiveMember ? 'Type a message' : 'Chat disabled - You left the group',
                   border: InputBorder.none,
                 ),
                 onTap: () {
@@ -614,12 +836,21 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       _showEmojiPicker = false;
                     });
                   }
+                  if (!_isActiveMember) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('You are no longer an active member of this group. Chat is disabled.'),
+                        backgroundColor: Colors.red,
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  }
                 },
               ),
             ),
             IconButton(
-              icon: Icon(Icons.send, color: Colors.blue),
-              onPressed: _sendMessage,
+              icon: Icon(Icons.send, color: _isActiveMember ? Colors.blue : Colors.grey.withOpacity(0.3)),
+              onPressed: _isActiveMember ? _sendMessage : null,
             ),
           ],
         ),
@@ -710,25 +941,40 @@ class _GroupChatPageState extends State<GroupChatPage> {
             ),
             child: Wrap(
               children: <Widget>[
-                ListTile(
-                  leading: Icon(Icons.reply, color: Colors.greenAccent),
-                  title: Text('Reply'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    setState(() {
-                      _replyingTo = message;
-                      _messageFocusNode.requestFocus();
-                    });
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.emoji_emotions_outlined, color: Colors.orangeAccent),
-                  title: Text('React'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    _showReactionPicker(message['_id']);
-                  },
-                ),
+                if (isMe && _isActiveMember && DateTime.now().difference(DateTime.parse(message['createdAt'])).inMinutes < 2)
+                  ListTile(
+                    leading: Icon(Icons.edit, color: Colors.blueAccent),
+                    title: Text('Edit'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      setState(() {
+                        _editingMessage = message;
+                        _messageController.text = message['message'];
+                        _messageFocusNode.requestFocus();
+                      });
+                    },
+                  ),
+                if (_isActiveMember)
+                  ListTile(
+                    leading: Icon(Icons.reply, color: Colors.greenAccent),
+                    title: Text('Reply'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      setState(() {
+                        _replyingTo = message;
+                        _messageFocusNode.requestFocus();
+                      });
+                    },
+                  ),
+                if (_isActiveMember)
+                  ListTile(
+                    leading: Icon(Icons.emoji_emotions_outlined, color: Colors.orangeAccent),
+                    title: Text('React'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _showReactionPicker(message['_id']);
+                    },
+                  ),
                 ListTile(
                   leading: Icon(Icons.info_outline, color: Colors.grey),
                   title: Text('Info'),
@@ -737,15 +983,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     _showMessageInfo(message);
                   },
                 ),
-                ListTile(
-                  leading: Icon(Icons.delete_outline, color: Colors.redAccent),
-                  title: Text('Delete for me'),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    _deleteMessage(message['_id'], false);
-                  },
-                ),
-                if (isMe)
+                if (_isActiveMember)
+                  ListTile(
+                    leading: Icon(Icons.delete_outline, color: Colors.redAccent),
+                    title: Text('Delete for me'),
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _deleteMessage(message['_id'], false);
+                    },
+                  ),
+                if (isMe && _isActiveMember)
                   ListTile(
                     leading: Icon(Icons.delete_forever_outlined, color: Colors.red),
                     title: Text('Delete for everyone'),

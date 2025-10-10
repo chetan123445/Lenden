@@ -530,6 +530,7 @@ exports.getUserGroups = async (req, res) => {
         balances: obj.balances || [],
         color: obj.color,
         favourite: obj.favourite || [],
+        messageCount: obj.messageCount || 0,
         createdAt: obj.createdAt,
         updatedAt: obj.updatedAt
       };

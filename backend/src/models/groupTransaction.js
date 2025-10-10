@@ -28,7 +28,8 @@ const groupTransactionSchema = new mongoose.Schema({
     balance: { type: Number, default: 0 },
   }],
   isActive: { type: Boolean, default: true },
-  favourite: [{ type: String }] // Array of user emails
+  favourite: [{ type: String }], // Array of user emails
+  messageCount: { type: Number, default: 0 } // Total message count for the group
 }, { timestamps: true });
 
 groupTransactionSchema.index({ title: 1 });
