@@ -838,6 +838,51 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // New top row with Favourite, Chat, Date, and Time
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: Icon(
+                                    isFavourited
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: isFavourited
+                                        ? Colors.red
+                                        : Colors.grey,
+                                  ),
+                                  onPressed: () {
+                                    _toggleFavourite(t['transactionId']);
+                                  },
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.chat, color: Colors.blue),
+                                  onPressed: () {
+                                    _navigateToChat(Map<String, dynamic>.from(t));
+                                  },
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                Icon(Icons.calendar_today,
+                                    color: Colors.blue, size: 18),
+                                SizedBox(width: 6),
+                                Text('Date: $dateStr',
+                                    style: TextStyle(fontSize: 14)),
+                                SizedBox(width: 10),
+                                Icon(Icons.access_time,
+                                    color: Colors.deepPurple, size: 18),
+                                SizedBox(width: 6),
+                                Text('Time: $timeStr',
+                                    style: TextStyle(fontSize: 14)),
+                              ],
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 10),
                         // Header with expand/collapse arrow
                         Row(
                           children: [
@@ -927,20 +972,6 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                         : Colors.orange,
                                     fontSize: 16),
                               ),
-                            ),
-                            IconButton(
-                              icon: Icon(Icons.chat_bubble_outline),
-                              onPressed: () => _navigateToChat(Map<String, dynamic>.from(t)),
-                            ),
-                            IconButton(
-                              icon: Icon(
-                                isFavourited
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                color: isFavourited ? Colors.red : Colors.grey,
-                              ),
-                              onPressed: () =>
-                                  _toggleFavourite(t['transactionId']),
                             ),
                             // Expand/collapse arrow
                             GestureDetector(
@@ -1094,16 +1125,6 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                           ],
                         ),
                         SizedBox(height: 6),
-                        // Date (always visible)
-                        Row(
-                          children: [
-                            Icon(Icons.calendar_today,
-                                color: Colors.blue, size: 18),
-                            SizedBox(width: 6),
-                            Text('Date: $dateStr',
-                                style: TextStyle(fontSize: 14)),
-                          ],
-                        ),
                         // Status indicator (always visible)
                         SizedBox(height: 8),
                         Container(
@@ -1179,17 +1200,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                     thickness: 1),
                                 SizedBox(height: 12),
 
-                                // Time
-                                Row(
-                                  children: [
-                                    Icon(Icons.access_time,
-                                        color: Colors.deepPurple, size: 18),
-                                    SizedBox(width: 6),
-                                    Text('Time: $timeStr',
-                                        style: TextStyle(fontSize: 14)),
-                                  ],
-                                ),
-                                SizedBox(height: 6),
+
 
                                 // Place
                                 Row(
