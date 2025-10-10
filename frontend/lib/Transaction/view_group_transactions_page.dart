@@ -7,6 +7,7 @@ import '../user/session.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import '../chats/group_chat_page.dart';
 
 class ViewGroupTransactionsPage extends StatefulWidget {
   const ViewGroupTransactionsPage({super.key});
@@ -25,6 +26,8 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
   final TextEditingController _searchController = TextEditingController();
   String selectedGroupFilter = 'All Groups'; // 'All Groups', 'Joined Groups', 'Left Groups'
   bool _showFavouritesOnly = false;
+  String? _favouritingGroupId;
+  String? _chattingGroupId;
 
   @override
   void initState() {
@@ -49,6 +52,22 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
       return;
     }
 
+    // Optimistic update
+    final groupIndex = userGroups.indexWhere((g) => g['_id'] == groupId);
+    if (groupIndex == -1) return;
+
+    final group = userGroups[groupIndex];
+    final isFavourited = (group['favourite'] as List? ?? []).contains(email);
+
+    setState(() {
+      if (isFavourited) {
+        (group['favourite'] as List).remove(email);
+      } else {
+        (group['favourite'] as List).add(email);
+      }
+      _filterGroups();
+    });
+
     try {
       final response = await http.put(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/$groupId/favourite'),
@@ -59,13 +78,27 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
         body: jsonEncode({'email': email}),
       );
 
-      if (response.statusCode == 200) {
-        _fetchUserGroups();
-      } else {
-        // Handle error
+      if (response.statusCode != 200) {
+        // Revert on failure
+        setState(() {
+          if (isFavourited) {
+            (group['favourite'] as List).add(email);
+          } else {
+            (group['favourite'] as List).remove(email);
+          }
+          _filterGroups();
+        });
       }
     } catch (e) {
-      // Handle error
+      // Revert on failure
+      setState(() {
+        if (isFavourited) {
+          (group['favourite'] as List).add(email);
+        } else {
+          (group['favourite'] as List).remove(email);
+        }
+        _filterGroups();
+      });
     }
   }
 
@@ -1280,6 +1313,21 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                             color: isFavourite ? Colors.amber : Colors.grey,
                                           ),
                                           onPressed: () => _toggleFavourite(group['_id']),
+                                        ),
+                                        IconButton(
+                                          icon: Icon(Icons.chat, color: Colors.blue),
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => GroupChatPage(
+                                                  groupTransactionId: group['_id'],
+                                                  groupTitle: group['title'] ?? 'Group Chat',
+                                                  members: group['members'] ?? [],
+                                                ),
+                                              ),
+                                            );
+                                          },
                                         ),
                                       ],
                                     ),

@@ -27,6 +27,7 @@ module.exports = (io) => {
   const ratingController = require('../controllers/ratingController');
   const notificationController = require('../controllers/notificationController');
   const chatController = require('../controllers/chatController')(io);
+  const groupChatController = require('../controllers/groupChatController')(io);
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -298,6 +299,9 @@ module.exports = (io) => {
 
   // Chat routes
   router.get('/chat/messages/:transactionId', auth, chatController.getMessages);
+
+  // Group Chat routes
+  router.get('/group-chat/messages/:groupTransactionId', auth, groupChatController.getGroupMessages);
 
   return router;
 };
