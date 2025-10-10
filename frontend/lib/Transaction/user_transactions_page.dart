@@ -14,7 +14,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:string_similarity/string_similarity.dart';
 import '../otp_input.dart';
-import './chat_page.dart';
+import '../chats/chat_page.dart';
 
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -1790,7 +1790,6 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     bool isPartiallyClearedMySide(t) {
       final user = Provider.of<SessionProvider>(context, listen: false).user;
       final email = user?['email'];
-      // If user is userEmail, check userCleared; if user is counterpartyEmail, check counterpartyCleared
       if (t['userEmail'] == email) {
         return t['userCleared'] == true && t['counterpartyCleared'] != true;
       } else if (t['counterpartyEmail'] == email) {
@@ -1802,7 +1801,6 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     bool isPartiallyClearedOtherSide(t) {
       final user = Provider.of<SessionProvider>(context, listen: false).user;
       final email = user?['email'];
-      // If user is userEmail, check counterpartyCleared; if user is counterpartyEmail, check userCleared
       if (t['userEmail'] == email) {
         return t['counterpartyCleared'] == true && t['userCleared'] != true;
       } else if (t['counterpartyEmail'] == email) {
@@ -1811,7 +1809,6 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       return false;
     }
 
-    // Apply clearance filter before other filters
     List lendingFiltered = lending;
     List borrowingFiltered = borrowing;
     if (clearanceFilter == 'Totally Cleared') {
@@ -1840,7 +1837,6 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           .toList();
     }
 
-    // --- Apply search filters ---
     bool matchesSearch(t) {
       bool fuzzyMatch(String a, String b) {
         if (a.isEmpty || b.isEmpty) return false;
@@ -1865,7 +1861,6 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                 (t['amount'] as num).toDouble().toString().contains(q)) ||
             (isLending && 'lending'.contains(q)) ||
             (isBorrowing && 'borrowing'.contains(q))) {
-          // pass
         } else {
           return false;
         }
@@ -1873,7 +1868,6 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       return true;
     }
 
-    // --- Sorting ---
     int sortCompare(a, b) {
       if (_sortBy == 'Date') {
         final da = a['date'] != null ? DateTime.tryParse(a['date']) : null;
@@ -1908,17 +1902,29 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       return 0;
     }
 
+    var allTransactions = <Map>[];
     if (filter == 'All' || filter == 'Lending') {
-      var filteredLending = lendingFiltered
+      allTransactions.addAll(lendingFiltered
           .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
-          .toList();
-      filteredLending.sort(sortCompare);
-      if (!showAllTransactions &&
-          limit != null &&
-          filteredLending.length > limit) {
-        filteredLending = filteredLending.take(limit).toList();
-      }
-      if (filteredLending.isNotEmpty) {
+          .map((t) => {'type': 'lending', 'data': t}));
+    }
+    if (filter == 'All' || filter == 'Borrowing') {
+      allTransactions.addAll(borrowingFiltered
+          .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
+          .map((t) => {'type': 'borrowing', 'data': t}));
+    }
+
+    allTransactions.sort((a, b) => sortCompare(a['data'], b['data']));
+
+    List limitedTransactions = allTransactions;
+    if (limit != null && allTransactions.length > limit) {
+      limitedTransactions = allTransactions.take(limit).toList();
+    }
+
+    var finalLending = limitedTransactions.where((t) => t['type'] == 'lending').map((t) => t['data']).toList();
+    var finalBorrowing = limitedTransactions.where((t) => t['type'] == 'borrowing').map((t) => t['data']).toList();
+
+    if (finalLending.isNotEmpty) {
         widgets.add(Text('Lending Amount',
             style: TextStyle(
                 fontWeight: FontWeight.bold,
@@ -1926,21 +1932,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                 color: Colors.green)));
         widgets.add(SizedBox(height: 8));
         widgets
-            .addAll(filteredLending.map((t) => _buildTransactionCard(t, true)));
+            .addAll(finalLending.map((t) => _buildTransactionCard(t, true)));
         widgets.add(SizedBox(height: 20));
-      }
     }
-    if (filter == 'All' || filter == 'Borrowing') {
-      var filteredBorrowing = borrowingFiltered
-          .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
-          .toList();
-      filteredBorrowing.sort(sortCompare);
-      if (!showAllTransactions &&
-          limit != null &&
-          filteredBorrowing.length > limit) {
-        filteredBorrowing = filteredBorrowing.take(limit).toList();
-      }
-      if (filteredBorrowing.isNotEmpty) {
+
+    if (finalBorrowing.isNotEmpty) {
         widgets.add(Text('Borrowing Amount',
             style: TextStyle(
                 fontWeight: FontWeight.bold,
@@ -1948,9 +1944,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                 color: Colors.orange)));
         widgets.add(SizedBox(height: 8));
         widgets.addAll(
-            filteredBorrowing.map((t) => _buildTransactionCard(t, false)));
-      }
+            finalBorrowing.map((t) => _buildTransactionCard(t, false)));
     }
+
     if (widgets.isEmpty) {
       widgets.add(Center(
           child: Text('No transactions found.',
@@ -1961,6 +1957,109 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    final email = user?['email'];
+
+    bool isTotallyCleared(t) =>
+        (t['userCleared'] == true && t['counterpartyCleared'] == true);
+    bool isTotallyUncleared(t) =>
+        (t['userCleared'] != true && t['counterpartyCleared'] != true);
+    bool isPartiallyClearedMySide(t) {
+      final user = Provider.of<SessionProvider>(context, listen: false).user;
+      final email = user?['email'];
+      if (t['userEmail'] == email) {
+        return t['userCleared'] == true && t['counterpartyCleared'] != true;
+      } else if (t['counterpartyEmail'] == email) {
+        return t['counterpartyCleared'] == true && t['userCleared'] != true;
+      }
+      return false;
+    }
+
+    bool isPartiallyClearedOtherSide(t) {
+      final user = Provider.of<SessionProvider>(context, listen: false).user;
+      final email = user?['email'];
+      if (t['userEmail'] == email) {
+        return t['counterpartyCleared'] == true && t['userCleared'] != true;
+      } else if (t['counterpartyEmail'] == email) {
+        return t['userCleared'] == true && t['counterpartyCleared'] != true;
+      }
+      return false;
+    }
+
+    List lendingFiltered = lending;
+    List borrowingFiltered = borrowing;
+    if (clearanceFilter == 'Totally Cleared') {
+      lendingFiltered = lending.where(isTotallyCleared).toList();
+      borrowingFiltered = borrowing.where(isTotallyCleared).toList();
+    } else if (clearanceFilter == 'Totally Uncleared') {
+      lendingFiltered = lending.where(isTotallyUncleared).toList();
+      borrowingFiltered = borrowing.where(isTotallyUncleared).toList();
+    } else if (clearanceFilter == 'Partially Cleared') {
+      if (partialClearedType == 'my') {
+        lendingFiltered = lending.where(isPartiallyClearedMySide).toList();
+        borrowingFiltered = borrowing.where(isPartiallyClearedMySide).toList();
+      } else {
+        lendingFiltered = lending.where(isPartiallyClearedOtherSide).toList();
+        borrowingFiltered =
+            borrowing.where(isPartiallyClearedOtherSide).toList();
+      }
+    }
+
+    if (showFavouritesOnly) {
+      lendingFiltered = lendingFiltered
+          .where((t) => (t['favourite'] as List<dynamic>).contains(email))
+          .toList();
+      borrowingFiltered = borrowingFiltered
+          .where((t) => (t['favourite'] as List<dynamic>).contains(email))
+          .toList();
+    }
+
+    bool matchesSearch(t) {
+      bool fuzzyMatch(String a, String b) {
+        if (a.isEmpty || b.isEmpty) return false;
+        a = a.toLowerCase();
+        b = b.toLowerCase();
+        if (a.contains(b) || b.contains(a)) return true;
+        return StringSimilarity.compareTwoStrings(a, b) > 0.6;
+      }
+
+      if (globalSearch.isNotEmpty) {
+        final q = globalSearch.toLowerCase();
+        bool match(String? s) => s != null && s.toLowerCase().contains(q);
+        final user = Provider.of<SessionProvider>(context, listen: false).user;
+        final userEmail = user?['email'];
+        final isLending = userEmail == t['userEmail'];
+        final isBorrowing = userEmail == t['counterpartyEmail'];
+        if (fuzzyMatch((t['counterpartyEmail']?.toString() ?? ''), q) ||
+            fuzzyMatch((t['place']?.toString() ?? ''), q) ||
+            fuzzyMatch((t['interestType']?.toString() ?? ''), q) ||
+            fuzzyMatch((t['transactionId']?.toString() ?? ''), q) ||
+            (t['amount'] is num &&
+                (t['amount'] as num).toDouble().toString().contains(q)) ||
+            (isLending && 'lending'.contains(q)) ||
+            (isBorrowing && 'borrowing'.contains(q))) {
+        } else {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    var filteredLending = lendingFiltered
+        .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
+        .toList();
+    var filteredBorrowing = borrowingFiltered
+        .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
+        .toList();
+
+    int totalCount = 0;
+    if (filter == 'All' || filter == 'Lending') {
+      totalCount += filteredLending.length;
+    }
+    if (filter == 'All' || filter == 'Borrowing') {
+      totalCount += filteredBorrowing.length;
+    }
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Color(0xFF00B4D8),
@@ -2021,9 +2120,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     Expanded(
                       child: ListView(
                         children: [
-                          if (showAllTransactions)
-                            ..._buildFilteredTransactionCards(),
-                          if (!showAllTransactions)
+                          ..._buildFilteredTransactionCards(limit: showAllTransactions ? null : 3),
+                          if (!showAllTransactions && totalCount > 3)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               child: Center(
@@ -2044,7 +2142,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                 ),
                               ),
                             ),
-                          if (showAllTransactions)
+                          if (showAllTransactions && totalCount > 3)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               child: Center(
@@ -2059,7 +2157,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                     padding: EdgeInsets.symmetric(
                                         horizontal: 32, vertical: 12),
                                   ),
-                                  child: Text('Close',
+                                  child: Text('Show Less',
                                       style: TextStyle(
                                           color: Color(0xFF00B4D8),
                                           fontSize: 16)),
