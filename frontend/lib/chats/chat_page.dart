@@ -257,6 +257,14 @@ class _ChatPageState extends State<ChatPage> {
                   },
                 ),
                 ListTile(
+                  leading: Icon(Icons.info_outline, color: Colors.grey),
+                  title: Text('Info'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _showMessageInfo(message);
+                  },
+                ),
+                ListTile(
                   leading: Icon(Icons.delete_outline, color: Colors.redAccent),
                   title: Text('Delete for me'),
                   onTap: () {
@@ -278,6 +286,88 @@ class _ChatPageState extends State<ChatPage> {
           ),
         );
       },
+    );
+  }
+
+  void _showMessageInfo(dynamic message) {
+    final createdAt = DateTime.parse(message['createdAt']).toLocal();
+    final formattedDate = DateFormat.yMMMMd().format(createdAt);
+    final formattedTime = DateFormat.jm().format(createdAt);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade200, Colors.blue.shade400],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Icon(Icons.info_outline, color: Colors.white, size: 40),
+                ),
+                Text(
+                  'Message Details',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                  child: Column(
+                    children: [
+                      _buildInfoRow(Icons.calendar_today, 'Date', formattedDate),
+                      SizedBox(height: 8),
+                      _buildInfoRow(Icons.access_time, 'Time', formattedTime),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 24),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('CLOSE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+                SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.white70, size: 20),
+        SizedBox(width: 16),
+        Text(
+          '$label:',
+          style: TextStyle(color: Colors.white70, fontSize: 16),
+        ),
+        SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.end,
+          ),
+        ),
+      ],
     );
   }
 
@@ -415,7 +505,15 @@ class _ChatPageState extends State<ChatPage> {
       return const SizedBox.shrink();
     }
     final createdAt = DateTime.parse(message['createdAt']).toLocal();
-    final formattedTime = DateFormat.jm().format(createdAt);
+    final now = DateTime.now();
+    final isToday = createdAt.day == now.day && createdAt.month == now.month && createdAt.year == now.year;
+
+    String formattedTimestamp;
+    if (isToday) {
+      formattedTimestamp = DateFormat.jm().format(createdAt);
+    } else {
+      formattedTimestamp = DateFormat('MMM d, yyyy, h:mm a').format(createdAt);
+    }
     final hasReactions = message['reactions'] != null && message['reactions'].isNotEmpty;
 
     return Container(
@@ -479,7 +577,7 @@ class _ChatPageState extends State<ChatPage> {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(formattedTime, style: TextStyle(fontSize: 10, color: Colors.black54)),
+                                Text(formattedTimestamp, style: TextStyle(fontSize: 10, color: Colors.black54)),
                                 if (message['isEdited'] == true)
                                   Text(' (edited)', style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.black54)),
                               ],
@@ -654,11 +752,13 @@ class WaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     Path path = Path();
-    path.lineTo(0, size.height * 0.7);
+    path.lineTo(0, size.height * 0.525); // 0.7 * 0.75
     path.quadraticBezierTo(
-        size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
+        size.width * 0.25, size.height * 0.75, // 1.0 * 0.75
+        size.width * 0.5, size.height * 0.525); // 0.7 * 0.75
     path.quadraticBezierTo(
-        size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
+        size.width * 0.75, size.height * 0.3, // 0.4 * 0.75
+        size.width, size.height * 0.525); // 0.7 * 0.75
     path.lineTo(size.width, 0);
     path.close();
     return path;

@@ -303,17 +303,28 @@ class HomePage extends StatelessWidget {
                                   },
                                   child: Container(
                                     margin: const EdgeInsets.only(right: 4),
-                                    child: profileImage != null
-                                        ? CircleAvatar(
-                                            backgroundImage: profileImage,
-                                            radius: 18,
-                                          )
-                                        : const CircleAvatar(
-                                            backgroundColor: Color(0xFF00B4D8),
-                                            radius: 18,
-                                            child: Icon(Icons.person,
-                                                color: Colors.white),
-                                          ),
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Colors.orange,
+                                          Colors.white,
+                                          Colors.green
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                    ),
+                                    child: CircleAvatar(
+                                      radius: 18,
+                                      backgroundColor: const Color(0xFF00B4D8),
+                                      backgroundImage: profileImage,
+                                      child: profileImage == null
+                                          ? const Icon(Icons.person,
+                                              color: Colors.white)
+                                          : null,
+                                    ),
                                   ),
                                 );
                               },
@@ -412,7 +423,8 @@ class HomePage extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF00B4D8),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(21.5), // 24 - 2.5
+                            borderRadius:
+                                BorderRadius.circular(21.5), // 24 - 2.5
                           ),
                           elevation: 0,
                           shadowColor: Colors.transparent,
@@ -477,7 +489,6 @@ class HomePage extends StatelessWidget {
     );
   }
 }
-
 
 class _FeatureCard extends StatelessWidget {
   final IconData icon;
