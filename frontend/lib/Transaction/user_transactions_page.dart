@@ -27,6 +27,7 @@ class UserTransactionsPage extends StatefulWidget {
 class _UserTransactionsPageState extends State<UserTransactionsPage> {
   List<dynamic> lending = [];
   List<dynamic> borrowing = [];
+  int totalTransactions = 0;
   bool loading = true;
   String? error;
   String filter = 'All'; // 'All', 'Lending', 'Borrowing'
@@ -99,6 +100,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       setState(() {
         lending = data['lending'] ?? [];
         borrowing = data['borrowing'] ?? [];
+        totalTransactions = data['totalTransactions'] ?? 0;
         loading = false;
       });
     } else {
@@ -2155,7 +2157,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       appBar: AppBar(
         backgroundColor: Color(0xFF00B4D8),
         elevation: 0,
-        title: Text('Your Transactions', style: TextStyle(color: Colors.black)),
+        title: Text('Your Transactions ($totalTransactions)', style: TextStyle(color: Colors.black)),
       ),
       body: loading
           ? Center(child: CircularProgressIndicator())

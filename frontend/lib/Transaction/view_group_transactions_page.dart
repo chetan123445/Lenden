@@ -28,6 +28,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
   bool _showFavouritesOnly = false;
   String? _favouritingGroupId;
   String? _chattingGroupId;
+  int createdGroupsCount = 0; // Track groups created by user
 
   @override
   void initState() {
@@ -121,6 +122,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final allGroups = List<Map<String, dynamic>>.from(data['groups'] ?? []);
+        final createdCount = data['createdGroupsCount'] ?? 0;
         
         // Categorize groups into joined and left groups
         List<Map<String, dynamic>> joined = [];
@@ -150,6 +152,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
           userGroups = allGroups;
           joinedGroups = joined;
           leftGroups = left;
+          createdGroupsCount = createdCount; // ADD THIS LINE
           _filterGroups(); // Apply initial filter
           loading = false;
         });
@@ -1168,70 +1171,106 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                 ),
                                 SizedBox(height: 12),
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Groups',
-                                          style: TextStyle(
-                                            color: Colors.white.withOpacity(0.8),
-                                            fontSize: 12,
-                                          ),
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      // Total Groups
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              'Total Groups',
+                                              style: TextStyle(
+                                                color: Colors.white.withOpacity(0.8),
+                                                fontSize: 11,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            Text(
+                                              '${filteredGroups.length}',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        Text(
-                                          '${filteredGroups.length}',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                      ),
+                                      // Created Groups
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              'Created',
+                                              style: TextStyle(
+                                                color: Colors.white.withOpacity(0.8),
+                                                fontSize: 11,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            Text(
+                                              '$createdGroupsCount',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          'Total Expenses',
-                                          style: TextStyle(
-                                            color: Colors.white.withOpacity(0.8),
-                                            fontSize: 12,
-                                          ),
+                                      ),
+                                      // Total Expenses
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              'Expenses',
+                                              style: TextStyle(
+                                                color: Colors.white.withOpacity(0.8),
+                                                fontSize: 11,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            Text(
+                                              '${_calculateTotalExpenses()}',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        Text(
-                                          '${_calculateTotalExpenses()}',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                      ),
+                                      // Total Pending
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            Text(
+                                              'Pending',
+                                              style: TextStyle(
+                                                color: Colors.white.withOpacity(0.8),
+                                                fontSize: 11,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            Text(
+                                              '\$${_calculateTotalPendingBalance().toStringAsFixed(2)}',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ],
-                                    ),
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          'Total Pending',
-                                          style: TextStyle(
-                                            color: Colors.white.withOpacity(0.8),
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                        Text(
-                                          '\$${_calculateTotalPendingBalance().toStringAsFixed(2)}',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                                      ),
+                                    ],
+                                  ),
                               ],
                             ),
                           ),

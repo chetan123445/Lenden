@@ -509,6 +509,8 @@ exports.getUserGroups = async (req, res) => {
       .populate('creator', 'email')
       .sort({ createdAt: -1 });
     
+    const createdGroupsCount = groups.filter(g => g.creator && g.creator._id.toString() === userId.toString()).length;
+
     // Map to summary format
     const groupSummaries = await Promise.all(groups.map(async g => {
       const obj = g.toObject();
@@ -536,7 +538,7 @@ exports.getUserGroups = async (req, res) => {
       };
     }));
     
-    res.json({ groups: groupSummaries });
+    res.json({ groups: groupSummaries, totalGroups: groupSummaries.length, createdGroupsCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

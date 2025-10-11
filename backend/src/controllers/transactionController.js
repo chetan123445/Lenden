@@ -491,7 +491,7 @@ exports.getUserTransactions = async (req, res) => {
     // Group into lending and borrowing for both userEmail and counterpartyEmail
     const lending = transactions.filter(t => (t.role === 'lender' && t.userEmail === email) || (t.role === 'borrower' && t.counterpartyEmail === email));
     const borrowing = transactions.filter(t => (t.role === 'borrower' && t.userEmail === email) || (t.role === 'lender' && t.counterpartyEmail === email));
-    res.json({ lending, borrowing });
+    res.json({ lending, borrowing, totalTransactions: transactions.length });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch transactions', details: err.message });
   }
