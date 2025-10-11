@@ -273,11 +273,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24),
-              gradient: const LinearGradient(
-                colors: [Colors.orange, Colors.white, Colors.green],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: const Color(0xFFFAF9F6),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.1),
@@ -288,7 +284,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
             ),
             child: Container(
               decoration: BoxDecoration(
-                color: _getNoteColor(0), // Use notes page background color
+                color: const Color(0xFFFAF9F6),
                 borderRadius: BorderRadius.circular(22),
               ),
               child: Column(
@@ -610,56 +606,113 @@ class _GroupChatPageState extends State<GroupChatPage> {
         return true;
       },
       child: Scaffold(
-        appBar: PreferredSize(
-          preferredSize: Size.fromHeight(120.0),
-          child: AppBar(
-            flexibleSpace: ClipPath(
-              clipper: WaveClipper(),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                      colors: [Colors.blue.shade400, Colors.blue.shade600],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight),
+        extendBodyBehindAppBar: true,
+        backgroundColor: const Color(0xFFFAF9F6),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          title: Text(widget.groupTitle, style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          actions: [
+            IconButton(
+              icon: Icon(Icons.more_vert, color: Colors.black),
+              onPressed: _showMembersDialog,
+            )
+          ],
+        ),
+        body: Stack(
+          children: [
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ClipPath(
+                clipper: TopWaveClipper(),
+                child: Container(
+                  height: 120,
+                  color: const Color(0xFF00B4D8),
                 ),
               ),
             ),
-            title: Text(widget.groupTitle),
-            actions: [
-              IconButton(
-                icon: Icon(Icons.more_vert),
-                onPressed: _showMembersDialog,
-              )
-            ],
-          ),
-        ),
-        body: Column(
-          children: [
-            Expanded(
-              child: _isLoading
-                  ? Center(child: CircularProgressIndicator())
-                  : ListView.builder(
-                      reverse: true,
-                      itemCount: _messages.length,
-                      itemBuilder: (context, index) {
-                        final message = _messages.reversed.toList()[index];
-                        final sender = message['senderId'];
-                        final isMe = sender is Map && sender['_id'] == _currentUserId;
-                        return _buildMessageBubble(message, isMe);
-                      },
-                    ),
+            Column(
+              children: [
+                SizedBox(height: 120),
+                Expanded(
+                  child: _isLoading
+                      ? Center(child: CircularProgressIndicator())
+                      : _isActiveMember
+                          ? ListView.builder(
+                              reverse: true,
+                              itemCount: _messages.length,
+                              itemBuilder: (context, index) {
+                                final message = _messages.reversed.toList()[index];
+                                final sender = message['senderId'];
+                                final isMe = sender is Map && sender['_id'] == _currentUserId;
+                                return _buildMessageBubble(message, isMe, index);
+                              },
+                            )
+                          : _buildInactiveMemberWidget(),
+                ),
+                if (_isActiveMember)
+                  if (_replyingTo != null) _buildReplyingToBanner(),
+                if (_isActiveMember)
+                  if (_editingMessage != null) _buildEditingBanner(),
+                if (_isActiveMember) _buildMessageInput(),
+                if (_isActiveMember)
+                  if (_showEmojiPicker) _buildEmojiPicker(),
+              ],
             ),
-            if (_replyingTo != null) _buildReplyingToBanner(),
-            if (_editingMessage != null) _buildEditingBanner(),
-            _buildMessageInput(),
-            if (_showEmojiPicker) _buildEmojiPicker(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMessageBubble(dynamic message, bool isMe) {
+  Widget _buildInactiveMemberWidget() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        margin: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.no_accounts, size: 60, color: Colors.red.withOpacity(0.8)),
+            const SizedBox(height: 20),
+            Text(
+              'You are no longer a member of this group.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Chat is disabled.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(dynamic message, bool isMe, int index) {
     if (message['createdAt'] == null) {
       return const SizedBox.shrink();
     }
@@ -676,7 +729,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
     final hasReactions = message['reactions'] != null && message['reactions'].isNotEmpty;
     final senderName = message['senderId']?['name'] ?? 'Unknown';
     final senderId = message['senderId']?['_id'] ?? 'unknown';
-    final userColor = _getUserColor(senderId);
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
@@ -733,7 +785,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       child: Container(
                         padding: EdgeInsets.fromLTRB(12, 10, 12, hasReactions ? 25 : 10),
                         decoration: BoxDecoration(
-                          color: isMe ? Color(0xFFE8F5E9) : userColor.withOpacity(0.3),
+                          color: isMe ? const Color(0xFFE8F5E9) : _getNoteColor(index),
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: Column(
@@ -1010,17 +1062,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 }
 
-class WaveClipper extends CustomClipper<Path> {
+class TopWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     Path path = Path();
-    path.lineTo(0, size.height * 0.525); // 0.7 * 0.75
+    path.lineTo(0, size.height * 0.7);
     path.quadraticBezierTo(
-        size.width * 0.25, size.height * 0.75, // 1.0 * 0.75
-        size.width * 0.5, size.height * 0.525); // 0.7 * 0.75
+        size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
     path.quadraticBezierTo(
-        size.width * 0.75, size.height * 0.3, // 0.4 * 0.75
-        size.width, size.height * 0.525); // 0.7 * 0.75
+        size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
     path.lineTo(size.width, 0);
     path.close();
     return path;
