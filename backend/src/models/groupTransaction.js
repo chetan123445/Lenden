@@ -29,7 +29,10 @@ const groupTransactionSchema = new mongoose.Schema({
   }],
   isActive: { type: Boolean, default: true },
   favourite: [{ type: String }], // Array of user emails
-  messageCount: { type: Number, default: 0 } // Total message count for the group
+  messageCounts: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    count: { type: Number, default: 0 },
+  }],
 }, { timestamps: true });
 
 groupTransactionSchema.index({ title: 1 });
@@ -41,4 +44,4 @@ groupTransactionSchema.methods.canRemoveMember = function(userId) {
   return !bal || bal.balance === 0;
 };
 
-module.exports = mongoose.model('GroupTransaction', groupTransactionSchema); 
+module.exports = mongoose.model('GroupTransaction', groupTransactionSchema);

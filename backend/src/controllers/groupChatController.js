@@ -50,8 +50,20 @@ module.exports = (io) => {
 
                 await chat.save();
 
-                // Increment message count on the group transaction
-                await GroupTransaction.findByIdAndUpdate(groupTransactionId, { $inc: { messageCount: 1 } });
+                // Increment message count for the user
+                const userMessageCount = groupTransaction.messageCounts.find(mc => mc.user.toString() === senderId);
+
+                if (userMessageCount) {
+                    await GroupTransaction.updateOne(
+                        { _id: groupTransactionId, 'messageCounts.user': senderId },
+                        { $inc: { 'messageCounts.$.count': 1 } }
+                    );
+                } else {
+                    await GroupTransaction.updateOne(
+                        { _id: groupTransactionId },
+                        { $push: { messageCounts: { user: senderId, count: 1 } } }
+                    );
+                }
 
                 chat = await GroupChat.findById(chat._id)
                     .populate('senderId', 'name')
@@ -63,7 +75,9 @@ module.exports = (io) => {
                         }
                     });
 
-                io.to(groupTransactionId).emit('newGroupMessage', chat);
+                const updatedGroupTransaction = await GroupTransaction.findById(groupTransactionId).populate('messageCounts.user', 'name');
+
+                io.to(groupTransactionId).emit('newGroupMessage', {chat, messageCounts: updatedGroupTransaction.messageCounts});
             } catch (error) {
                 console.error('Error in createGroupMessage socket handler:', error);
                 socket.emit('createGroupMessageError', { ...data, error: 'An error occurred while sending the message.' });
@@ -246,7 +260,7 @@ module.exports = (io) => {
             const { userId } = req.query;
 
             // First check if the user is still an active member
-            const groupTransaction = await GroupTransaction.findById(groupTransactionId);
+            const groupTransaction = await GroupTransaction.findById(groupTransactionId).populate('messageCounts.user', 'name');
             if (!groupTransaction) {
                 return res.status(404).json({ message: 'Group transaction not found' });
             }
@@ -281,7 +295,7 @@ module.exports = (io) => {
             })
             .sort({ createdAt: 'asc' });
 
-            res.status(200).json(messages);
+            res.status(200).json({messages, messageCounts: groupTransaction.messageCounts});
         } catch (error) {
             res.status(500).json({ message: 'Error fetching group messages', error });
         }

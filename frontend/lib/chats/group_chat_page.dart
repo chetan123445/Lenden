@@ -27,6 +27,7 @@ class GroupChatPage extends StatefulWidget {
 
 class _GroupChatPageState extends State<GroupChatPage> {
   List<dynamic> _messages = [];
+  Map<String, int> _messageCounts = {};
   bool _isLoading = true;
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
@@ -91,11 +92,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
     });
 
     socket.on('newGroupMessage', (data) {
-      if (data['groupTransactionId'] == widget.groupTransactionId) {
-        if (!_messages.any((m) => m['_id'] == data['_id'])) {
+      final chat = data['chat'];
+      final messageCounts = data['messageCounts'];
+      if (chat['groupTransactionId'] == widget.groupTransactionId) {
+        if (!_messages.any((m) => m['_id'] == chat['_id'])) {
           if (mounted) {
             setState(() {
-              _messages.add(data);
+              _messages.add(chat);
+              if (messageCounts != null) {
+                for (var item in messageCounts) {
+                  _messageCounts[item['user']['_id']] = item['count'];
+                }
+              }
             });
           }
         }
@@ -195,8 +203,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
       );
       if (response.statusCode == 200) {
         if (mounted) {
+          final body = jsonDecode(response.body);
           setState(() {
-            _messages = jsonDecode(response.body);
+            _messages = body['messages'];
+            final messageCounts = body['messageCounts'];
+            if (messageCounts != null) {
+              for (var item in messageCounts) {
+                _messageCounts[item['user']['_id']] = item['count'];
+              }
+            }
             _isLoading = false;
             _isActiveMember = true;
           });
@@ -342,6 +357,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       itemCount: widget.members.length,
                       itemBuilder: (context, index) {
                         final member = widget.members[index];
+                        final memberId = member is Map ? member['_id'] : member;
+                        final messageCount = _messageCounts[memberId] ?? 0;
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(
@@ -368,7 +385,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                             child: ListTile(
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               leading: CircleAvatar(
-                                backgroundColor: _getUserColor(member['_id'] ?? member['email']).withOpacity(0.8),
+                                backgroundColor: _getUserColor(memberId ?? member['email']).withOpacity(0.8),
                                 child: Text(
                                   (member['email'] ?? 'U')[0].toUpperCase(),
                                   style: TextStyle(
@@ -385,7 +402,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 ),
                               ),
                               subtitle: Text(
-                                'Member',
+                                'Messages: $messageCount',
                                 style: TextStyle(
                                   color: Colors.grey[600],
                                   fontSize: 12,
