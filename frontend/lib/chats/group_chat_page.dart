@@ -44,13 +44,22 @@ class _GroupChatPageState extends State<GroupChatPage> {
     super.initState();
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     _currentUserId = user?['_id'];
+
+    for (var i = 0; i < widget.members.length; i++) {
+      final member = widget.members[i];
+      final memberId = member is Map ? member['_id'] : member;
+      if (memberId != null && !_userColors.containsKey(memberId)) {
+        _userColors[memberId] = _getNoteColor(i);
+      }
+    }
+
     _fetchMessages();
     _initSocket();
   }
 
   Color _getUserColor(String userId) {
     if (!_userColors.containsKey(userId)) {
-      _userColors[userId] = Color((_random.nextDouble() * 0xFFFFFF).toInt()).withOpacity(1.0);
+      _userColors[userId] = _getNoteColor(_userColors.length);
     }
     return _userColors[userId]!;
   }
@@ -198,13 +207,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
             _isLoading = false;
             _isActiveMember = false;
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('You are no longer an active member of this group. Chat is disabled.'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 5),
-            ),
-          );
         }
       } else {
         if (mounted) setState(() => _isLoading = false);
@@ -785,7 +787,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       child: Container(
                         padding: EdgeInsets.fromLTRB(12, 10, 12, hasReactions ? 25 : 10),
                         decoration: BoxDecoration(
-                          color: isMe ? const Color(0xFFE8F5E9) : _getNoteColor(index),
+                          color: isMe ? const Color(0xFFE8F5E9) : _getUserColor(senderId),
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: Column(
