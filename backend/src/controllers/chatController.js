@@ -49,8 +49,20 @@ module.exports = (io) => {
 
                 await chat.save();
 
-                // Increment message count on the transaction
-                await Transaction.findByIdAndUpdate(transactionId, { $inc: { messageCount: 1 } });
+                // Increment message count for the user
+                const userMessageCount = transaction.messageCounts.find(mc => mc.user.toString() === senderId);
+
+                if (userMessageCount) {
+                    await Transaction.updateOne(
+                        { _id: transactionId, 'messageCounts.user': senderId },
+                        { $inc: { 'messageCounts.$.count': 1 } }
+                    );
+                } else {
+                    await Transaction.updateOne(
+                        { _id: transactionId },
+                        { $push: { messageCounts: { user: senderId, count: 1 } } }
+                    );
+                }
 
                 chat = await Chat.findById(chat._id)
                     .populate('senderId', 'name')
@@ -62,8 +74,10 @@ module.exports = (io) => {
                             select: 'name'
                         }
                     });
+                
+                const updatedTransaction = await Transaction.findById(transactionId).populate('messageCounts.user', 'name');
 
-                io.to(senderId).to(receiverId).emit('newMessage', chat);
+                io.to(senderId).to(receiverId).emit('newMessage', {chat, messageCounts: updatedTransaction.messageCounts});
             } catch (error) {
                 console.error('Error in createMessage socket handler:', error);
                 socket.emit('createMessageError', { ...data, error: 'An error occurred while sending the message.' });
@@ -177,6 +191,8 @@ module.exports = (io) => {
             const { transactionId } = req.params;
             const { userId } = req.query;
 
+            const transaction = await Transaction.findById(transactionId).populate('messageCounts.user', 'name');
+
             const messages = await Chat.find({
                 transactionId,
                 deletedFor: { $ne: userId }
@@ -192,7 +208,7 @@ module.exports = (io) => {
             })
             .sort({ createdAt: 'asc' });
 
-            res.status(200).json(messages);
+            res.status(200).json({messages, messageCounts: transaction.messageCounts});
         } catch (error) {
             res.status(500).json({ message: 'Error fetching messages', error });
         }

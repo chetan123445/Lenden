@@ -113,10 +113,10 @@ const transactionSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
-  messageCount: {
-    type: Number,
-    default: 0
-  }
+  messageCounts: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    count: { type: Number, default: 0 },
+  }]
 }, { timestamps: true });
 
 transactionSchema.index({ transactionId: 1 });
@@ -125,4 +125,4 @@ transactionSchema.index({ counterpartyEmail: 1 });
 transactionSchema.index({ date: -1 });
 transactionSchema.index({ role: 1 });
 
-module.exports = mongoose.model('Transaction', transactionSchema); 
+module.exports = mongoose.model('Transaction', transactionSchema);

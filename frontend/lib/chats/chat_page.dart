@@ -24,6 +24,7 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   List<dynamic> _messages = [];
+  Map<String, int> _messageCounts = {};
   bool _isLoading = true;
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
@@ -75,11 +76,18 @@ class _ChatPageState extends State<ChatPage> {
     });
 
     socket.on('newMessage', (data) {
-      if (data['transactionId'] == widget.transactionId) {
-        if (!_messages.any((m) => m['_id'] == data['_id'])) {
+      final chat = data['chat'];
+      final messageCounts = data['messageCounts'];
+      if (chat['transactionId'] == widget.transactionId) {
+        if (!_messages.any((m) => m['_id'] == chat['_id'])) {
           if (mounted) {
             setState(() {
-              _messages.add(data);
+              _messages.add(chat);
+              if (messageCounts != null) {
+                for (var item in messageCounts) {
+                  _messageCounts[item['user']['_id']] = item['count'];
+                }
+              }
             });
           }
         }
@@ -128,8 +136,15 @@ class _ChatPageState extends State<ChatPage> {
       );
       if (response.statusCode == 200) {
         if (mounted) {
+          final body = jsonDecode(response.body);
           setState(() {
-            _messages = jsonDecode(response.body);
+            _messages = body['messages'];
+            final messageCounts = body['messageCounts'];
+            if (messageCounts != null) {
+              for (var item in messageCounts) {
+                _messageCounts[item['user']['_id']] = item['count'];
+              }
+            }
             _isLoading = false;
           });
         }
@@ -403,6 +418,95 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  void _showMessageCounts() {
+    final currentUserMessageCount = _messageCounts[_currentUserId] ?? 0;
+    final otherUserMessageCount = _messageCounts[widget.otherUserId] ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Container(
+              margin: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Message Counts',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFCE4EC),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('You:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text('$currentUserMessageCount', style: TextStyle(fontSize: 16)),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFCE4EC),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('${_otherUser!['name']}:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text('$otherUserMessageCount', style: TextStyle(fontSize: 16)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Close'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -472,6 +576,21 @@ class _ChatPageState extends State<ChatPage> {
                       ),
                     ],
                   ),
+            actions: [
+              PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'message_count') {
+                    _showMessageCounts();
+                  }
+                },
+                itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                  const PopupMenuItem<String>(
+                    value: 'message_count',
+                    child: Text('Message Count'),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
         body: Column(
