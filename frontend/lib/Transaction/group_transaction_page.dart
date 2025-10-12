@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../user/session.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
-
 class GroupTransactionPage extends StatefulWidget {
   const GroupTransactionPage({Key? key}) : super(key: key);
   @override
@@ -30,11 +29,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   // Expense state
   final TextEditingController _expenseDescController = TextEditingController();
-  final TextEditingController _expenseAmountController = TextEditingController();
+  final TextEditingController _expenseAmountController =
+      TextEditingController();
   String splitType = 'equal';
   List<Map<String, dynamic>> customSplits = [];
   List<String> selectedMembers = []; // New: selected members for expense
-  Map<String, double> customSplitAmounts = {}; // New: track custom split amounts for each member
+  Map<String, double> customSplitAmounts =
+      {}; // New: track custom split amounts for each member
   bool addingExpense = false;
   String? expenseError;
 
@@ -44,7 +45,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   bool showCreateGroupForm = false;
   String groupSearchQuery = '';
   String groupFilter = 'all'; // all, created, member
-  String groupSort = 'newest'; // newest, oldest, name_az, name_za, members_high, members_low
+  String groupSort =
+      'newest'; // newest, oldest, name_az, name_za, members_high, members_low
   String memberCountFilter = 'all'; // all, 2-5, 6-10, 10+
   String dateFilter = 'all'; // all, 7days, 30days, custom
   DateTime? customStartDate;
@@ -70,7 +72,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
     try {
       final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/$groupId/favourite'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/$groupId/favourite'),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
@@ -115,40 +118,45 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   Future<void> _addMemberEmail() async {
     final email = _memberEmailController.text.trim();
     if (email.isEmpty) return;
-    
-    setState(() { memberAddError = null; });
-    
+
+    setState(() {
+      memberAddError = null;
+    });
+
     // Get current user's email
-    final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
-    
+    final currentUserEmail =
+        Provider.of<SessionProvider>(context, listen: false).user?['email'];
+
     // Debug: Print both emails to see what's happening
     print('Trying to add email: $email');
     print('Current user email: $currentUserEmail');
-    
+
     // Check if trying to add the group creator (current user)
     if (email.toLowerCase() == (currentUserEmail ?? '').toLowerCase()) {
-      setState(() { 
-        memberAddError = 'You (group creator) are already added by default.'; 
+      setState(() {
+        memberAddError = 'You (group creator) are already added by default.';
         _memberEmailController.clear();
       });
       return;
     }
-    
+
     // Check if email already exists in the list
     if (memberEmails.contains(email)) {
-      setState(() { 
-        memberAddError = 'This user is already added to the group.'; 
+      setState(() {
+        memberAddError = 'This user is already added to the group.';
         _memberEmailController.clear();
       });
       return;
     }
-    
+
     final exists = await _checkUserExists(email);
     if (!exists) {
-      setState(() { memberAddError = 'This user does not exist, can\'t add.'; });
+      setState(() {
+        memberAddError = 'This user does not exist, can\'t add.';
+      });
       return;
     }
-    
+
     setState(() {
       memberEmails.add(email);
       _memberEmailController.clear();
@@ -184,18 +192,19 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   // Get remaining amount for custom split
   double get _remainingCustomSplitAmount {
-    final totalExpenseAmount = double.tryParse(_expenseAmountController.text.trim()) ?? 0.0;
+    final totalExpenseAmount =
+        double.tryParse(_expenseAmountController.text.trim()) ?? 0.0;
     return totalExpenseAmount - _totalCustomSplitAmount;
   }
 
   // Calculate member's total split amount from all expenses in the group (excluding settled amounts)
   double _getMemberBalance(String memberEmail) {
     if (group == null) return 0.0;
-    
+
     double total = 0.0;
     final expenses = (group!['expenses'] ?? []) as List<dynamic>;
     final members = (group!['members'] ?? []) as List<dynamic>;
-    
+
     // Find the member with this email to get their ID
     String? userMemberId;
     for (var member in members) {
@@ -204,40 +213,44 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         break;
       }
     }
-    
+
     if (userMemberId == null) {
       print('User member ID not found for email: $memberEmail');
       return 0.0;
     }
-    
-    print('Calculating total split for member: $memberEmail (ID: $userMemberId)');
+
+    print(
+        'Calculating total split for member: $memberEmail (ID: $userMemberId)');
     print('Total expenses in group: ${expenses.length}');
-    
+
     for (var expense in expenses) {
       final split = (expense['split'] ?? []) as List<dynamic>;
       print('Expense: ${expense['description']}, Split items: ${split.length}');
-      
+
       for (var splitItem in split) {
         // Check if this split item belongs to the current user and is not settled
         String splitUserId = splitItem['user'].toString();
-        double splitAmount = double.parse((splitItem['amount'] ?? 0).toString());
+        double splitAmount =
+            double.parse((splitItem['amount'] ?? 0).toString());
         bool isSettled = splitItem['settled'] == true;
-        print('Split item - User ID: $splitUserId, Amount: $splitAmount, Settled: $isSettled');
+        print(
+            'Split item - User ID: $splitUserId, Amount: $splitAmount, Settled: $isSettled');
         print('  - Raw settled value: ${splitItem['settled']}');
         print('  - Type of settled: ${splitItem['settled'].runtimeType}');
-        
+
         if (splitUserId == userMemberId) {
           print('  - This split belongs to current user');
           if (!isSettled) {
             total += splitAmount;
-            print('  - NOT SETTLED: Adding $splitAmount to total. New total: $total');
+            print(
+                '  - NOT SETTLED: Adding $splitAmount to total. New total: $total');
           } else {
             print('  - SETTLED: Skipping $splitAmount (already settled)');
           }
         }
       }
     }
-    
+
     print('Final total split amount for $memberEmail: $total');
     return total;
   }
@@ -245,10 +258,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   // Calculate current user's total split amount from all expenses in the group
   double _getCurrentUserBalance() {
     if (group == null) return 0.0;
-    
-    final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
+
+    final currentUserEmail =
+        Provider.of<SessionProvider>(context, listen: false).user?['email'];
     if (currentUserEmail == null) return 0.0;
-    
+
     return _getMemberBalance(currentUserEmail);
   }
 
@@ -261,7 +275,10 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   Future<void> _createGroup() async {
-    setState(() { creatingGroup = true; error = null; });
+    setState(() {
+      creatingGroup = true;
+      error = null;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.post(
@@ -269,8 +286,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         headers: headers,
         body: jsonEncode({
           'title': _titleController.text.trim(),
-          'memberEmails': memberEmails, // Backend expects emails for group creation
-          'color': selectedGroupColor != null ? '#${selectedGroupColor!.value.toRadixString(16).substring(2).toUpperCase()}' : null,
+          'memberEmails':
+              memberEmails, // Backend expects emails for group creation
+          'color': selectedGroupColor != null
+              ? '#${selectedGroupColor!.value.toRadixString(16).substring(2).toUpperCase()}'
+              : null,
         }),
       );
       final data = json.decode(res.body);
@@ -280,12 +300,18 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           isCreator = true;
         });
       } else {
-        setState(() { error = data['error'] ?? 'Failed to create group'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to create group';
+        });
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
     } finally {
-      setState(() { creatingGroup = false; });
+      setState(() {
+        creatingGroup = false;
+      });
     }
   }
 
@@ -293,7 +319,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     // Auto-dismiss error after 5 seconds
     Future.delayed(Duration(seconds: 5), () {
       if (memberAddError != null) {
-        setDialogState(() { memberAddError = null; });
+        setDialogState(() {
+          memberAddError = null;
+        });
       }
     });
 
@@ -328,7 +356,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            setDialogState(() { memberAddError = null; });
+            setDialogState(() {
+              memberAddError = null;
+            });
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
@@ -349,7 +379,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                 ),
                 SizedBox(width: 12),
-                
+
                 // Error message
                 Expanded(
                   child: Column(
@@ -392,7 +422,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     ],
                   ),
                 ),
-                
+
                 // Close button
                 Container(
                   padding: EdgeInsets.all(4),
@@ -416,44 +446,53 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   Future<void> _addMemberWithDialog(Function setDialogState) async {
     if (_memberEmailController.text.trim().isEmpty) return;
-    
+
     final email = _memberEmailController.text.trim();
-    
+
     // Check if user exists before adding
     final exists = await _checkUserExists(email);
     if (!exists) {
-      setDialogState(() { 
-        memberAddError = 'User with email "$email" does not exist in our database. Please check the email address.'; 
+      setDialogState(() {
+        memberAddError =
+            'User with email "$email" does not exist in our database. Please check the email address.';
       });
       return;
     }
-    
+
     // Check if trying to add the group creator (current user)
-    final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
+    final currentUserEmail =
+        Provider.of<SessionProvider>(context, listen: false).user?['email'];
     if (email.toLowerCase() == (currentUserEmail ?? '').toLowerCase()) {
-      setDialogState(() { 
-        memberAddError = 'You (group creator) are already a member of this group.'; 
+      setDialogState(() {
+        memberAddError =
+            'You (group creator) are already a member of this group.';
       });
       return;
     }
-    
+
     // Check if user is already a member
     final members = (group?['members'] ?? []) as List<dynamic>;
-    final isAlreadyMember = members.any((member) => 
-        (member['email'] ?? '').toString().toLowerCase() == email.toLowerCase() && member['leftAt'] == null);
-    
+    final isAlreadyMember = members.any((member) =>
+        (member['email'] ?? '').toString().toLowerCase() ==
+            email.toLowerCase() &&
+        member['leftAt'] == null);
+
     if (isAlreadyMember) {
-      setDialogState(() { 
-        memberAddError = 'User "$email" is already a member of this group.'; 
+      setDialogState(() {
+        memberAddError = 'User "$email" is already a member of this group.';
       });
       return;
     }
-    
-    setDialogState(() { loading = true; memberAddError = null; });
+
+    setDialogState(() {
+      loading = true;
+      memberAddError = null;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
         headers: headers,
         body: jsonEncode({'email': email}),
       );
@@ -463,75 +502,91 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           group = data['group'];
           _memberEmailController.clear();
         });
-        
+
         // Close dialog and show success message
         Navigator.of(context).pop();
-        
+
         // Show stylish success popup
         _showMemberAddedSuccessDialog(email);
       } else {
-        final errorMessage = data['error'] ?? 'Failed to add member. Please try again.';
+        final errorMessage =
+            data['error'] ?? 'Failed to add member. Please try again.';
         // Check if it's a permission error and show stylish dialog
-        if (errorMessage.toLowerCase().contains('only creator can add members') || 
+        if (errorMessage
+                .toLowerCase()
+                .contains('only creator can add members') ||
             errorMessage.toLowerCase().contains('only creator can add')) {
           Navigator.of(context).pop(); // Close the add member dialog
           _showAddMemberPermissionDeniedDialog();
         } else {
-          setDialogState(() { memberAddError = errorMessage; });
+          setDialogState(() {
+            memberAddError = errorMessage;
+          });
         }
       }
     } catch (e) {
-      setDialogState(() { 
-        memberAddError = 'Network error. Please check your connection and try again.'; 
+      setDialogState(() {
+        memberAddError =
+            'Network error. Please check your connection and try again.';
       });
     } finally {
-      setDialogState(() { loading = false; });
+      setDialogState(() {
+        loading = false;
+      });
     }
   }
 
   Future<void> _addMember() async {
     if (_memberEmailController.text.trim().isEmpty) return;
-    
+
     final email = _memberEmailController.text.trim();
-    
+
     // Check if user exists before adding
     final exists = await _checkUserExists(email);
     if (!exists) {
-      setState(() { 
-        memberAddError = 'User with email "$email" does not exist in our database. Please check the email address.'; 
+      setState(() {
+        memberAddError =
+            'User with email "$email" does not exist in our database. Please check the email address.';
         _memberEmailController.clear();
       });
       return;
     }
-    
+
     // Check if trying to add the group creator (current user)
-    final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
+    final currentUserEmail =
+        Provider.of<SessionProvider>(context, listen: false).user?['email'];
     if (email.toLowerCase() == (currentUserEmail ?? '').toLowerCase()) {
-      setState(() { 
-        memberAddError = 'You (group creator) are already a member of this group.'; 
+      setState(() {
+        memberAddError =
+            'You (group creator) are already a member of this group.';
         _memberEmailController.clear();
       });
       return;
     }
-    
+
     // Check if user is already a member
     final members = (group?['members'] ?? []) as List<dynamic>;
-    final isAlreadyMember = members.any((member) => 
-        (member['email'] ?? '').toString().toLowerCase() == email.toLowerCase());
-    
+    final isAlreadyMember = members.any((member) =>
+        (member['email'] ?? '').toString().toLowerCase() ==
+        email.toLowerCase());
+
     if (isAlreadyMember) {
-      setState(() { 
-        memberAddError = 'User "$email" is already a member of this group.'; 
+      setState(() {
+        memberAddError = 'User "$email" is already a member of this group.';
         _memberEmailController.clear();
       });
       return;
     }
-    
-    setState(() { loading = true; memberAddError = null; });
+
+    setState(() {
+      loading = true;
+      memberAddError = null;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
         headers: headers,
         body: jsonEncode({'email': email}),
       );
@@ -549,44 +604,60 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ),
         );
       } else {
-        final errorMessage = data['error'] ?? 'Failed to add member. Please try again.';
+        final errorMessage =
+            data['error'] ?? 'Failed to add member. Please try again.';
         // Check if it's a permission error and show stylish dialog
-        if (errorMessage.toLowerCase().contains('only creator can add members') || 
+        if (errorMessage
+                .toLowerCase()
+                .contains('only creator can add members') ||
             errorMessage.toLowerCase().contains('only creator can add')) {
           Navigator.of(context).pop(); // Close the add member dialog
           _showAddMemberPermissionDeniedDialog();
         } else {
-          setState(() { memberAddError = errorMessage; });
+          setState(() {
+            memberAddError = errorMessage;
+          });
         }
       }
     } catch (e) {
-      setState(() { memberAddError = 'Network error. Please check your connection and try again.'; });
+      setState(() {
+        memberAddError =
+            'Network error. Please check your connection and try again.';
+      });
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
   Future<void> _addExpense() async {
     // Validation is now handled in the dialog, so we don't need to check here
-    
-    setState(() { addingExpense = true; });
+
+    setState(() {
+      addingExpense = true;
+    });
     try {
       final headers = await _authHeaders(context);
-      
+
       // Prepare split data based on split type
       List<Map<String, dynamic>> splitData = [];
       if (splitType == 'equal') {
         // For equal split, send selected members with null amounts (backend will calculate)
-        splitData = selectedMembers.map((memberEmail) => {
-          'user': memberEmail,
-          'amount': null, // Backend will calculate equal amounts
-        }).toList();
+        splitData = selectedMembers
+            .map((memberEmail) => {
+                  'user': memberEmail,
+                  'amount': null, // Backend will calculate equal amounts
+                })
+            .toList();
       } else if (splitType == 'custom') {
         // For custom split, send the amounts for each member
-        splitData = selectedMembers.map((memberEmail) => {
-          'user': memberEmail,
-          'amount': customSplitAmounts[memberEmail] ?? 0.0,
-        }).toList();
+        splitData = selectedMembers
+            .map((memberEmail) => {
+                  'user': memberEmail,
+                  'amount': customSplitAmounts[memberEmail] ?? 0.0,
+                })
+            .toList();
       }
 
       // Debug: Print request data
@@ -600,14 +671,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       print('Adding expense with data: ${json.encode(requestData)}');
 
       final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-expense'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-expense'),
         headers: headers,
         body: jsonEncode(requestData),
       );
-      
+
       print('Response status: ${res.statusCode}');
       print('Response body: ${res.body}');
-      
+
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
         setState(() {
@@ -635,33 +707,49 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       // Re-throw the exception so the dialog can handle it
       rethrow;
     } finally {
-      setState(() { addingExpense = false; });
+      setState(() {
+        addingExpense = false;
+      });
     }
   }
 
   Future<void> _requestLeave() async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/request-leave'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/request-leave'),
         headers: headers,
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
-        setState(() { group = data['group']; });
+        setState(() {
+          group = data['group'];
+        });
       } else {
-        setState(() { error = data['error'] ?? 'Failed to request leave'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to request leave';
+        });
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
   Future<void> _fetchUserGroups() async {
-    setState(() { groupsLoading = true; });
+    setState(() {
+      groupsLoading = true;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.get(
@@ -676,7 +764,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         });
       }
     } catch (_) {}
-    setState(() { groupsLoading = false; });
+    setState(() {
+      groupsLoading = false;
+    });
   }
 
   void _filterAndSearchGroups() {
@@ -689,30 +779,43 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       }
 
       final title = (g['title'] ?? '').toString().toLowerCase();
-      final creatorEmail = (g['creator']?['email'] ?? '').toString().toLowerCase();
+      final creatorEmail =
+          (g['creator']?['email'] ?? '').toString().toLowerCase();
       final matchesSearch = groupSearchQuery.isEmpty ||
-        title.contains(groupSearchQuery.toLowerCase()) ||
-        creatorEmail.contains(groupSearchQuery.toLowerCase());
+          title.contains(groupSearchQuery.toLowerCase()) ||
+          creatorEmail.contains(groupSearchQuery.toLowerCase());
       final isCreator = creatorEmail == myEmail.toLowerCase();
-      final isMember = (g['members'] as List).any((m) => (m['email'] ?? '').toLowerCase() == myEmail.toLowerCase());
+      final isMember = (g['members'] as List).any(
+          (m) => (m['email'] ?? '').toLowerCase() == myEmail.toLowerCase());
       if (groupFilter == 'created') return matchesSearch && isCreator;
-      if (groupFilter == 'member') return matchesSearch && !isCreator && isMember;
+      if (groupFilter == 'member')
+        return matchesSearch && !isCreator && isMember;
       // Advanced filters
       final memberCount = (g['members'] as List).length;
-      if (memberCountFilter == '2-5' && (memberCount < 2 || memberCount > 5)) return false;
-      if (memberCountFilter == '6-10' && (memberCount < 6 || memberCount > 10)) return false;
+      if (memberCountFilter == '2-5' && (memberCount < 2 || memberCount > 5))
+        return false;
+      if (memberCountFilter == '6-10' && (memberCount < 6 || memberCount > 10))
+        return false;
       if (memberCountFilter == '10+' && memberCount < 11) return false;
       if (dateFilter == '7days') {
-        final created = DateTime.tryParse(g['createdAt'] ?? '') ?? DateTime(2000);
-        if (created.isBefore(DateTime.now().subtract(Duration(days: 7)))) return false;
+        final created =
+            DateTime.tryParse(g['createdAt'] ?? '') ?? DateTime(2000);
+        if (created.isBefore(DateTime.now().subtract(Duration(days: 7))))
+          return false;
       }
       if (dateFilter == '30days') {
-        final created = DateTime.tryParse(g['createdAt'] ?? '') ?? DateTime(2000);
-        if (created.isBefore(DateTime.now().subtract(Duration(days: 30)))) return false;
+        final created =
+            DateTime.tryParse(g['createdAt'] ?? '') ?? DateTime(2000);
+        if (created.isBefore(DateTime.now().subtract(Duration(days: 30))))
+          return false;
       }
-      if (dateFilter == 'custom' && customStartDate != null && customEndDate != null) {
-        final created = DateTime.tryParse(g['createdAt'] ?? '') ?? DateTime(2000);
-        if (created.isBefore(customStartDate!) || created.isAfter(customEndDate!)) return false;
+      if (dateFilter == 'custom' &&
+          customStartDate != null &&
+          customEndDate != null) {
+        final created =
+            DateTime.tryParse(g['createdAt'] ?? '') ?? DateTime(2000);
+        if (created.isBefore(customStartDate!) ||
+            created.isAfter(customEndDate!)) return false;
       }
       return matchesSearch;
     }).toList();
@@ -722,13 +825,21 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         case 'oldest':
           return (a['createdAt'] ?? '').compareTo(b['createdAt'] ?? '');
         case 'name_az':
-          return (a['title'] ?? '').toLowerCase().compareTo((b['title'] ?? '').toLowerCase());
+          return (a['title'] ?? '')
+              .toLowerCase()
+              .compareTo((b['title'] ?? '').toLowerCase());
         case 'name_za':
-          return (b['title'] ?? '').toLowerCase().compareTo((a['title'] ?? '').toLowerCase());
+          return (b['title'] ?? '')
+              .toLowerCase()
+              .compareTo((a['title'] ?? '').toLowerCase());
         case 'members_high':
-          return (b['members'] as List).length.compareTo((a['members'] as List).length);
+          return (b['members'] as List)
+              .length
+              .compareTo((a['members'] as List).length);
         case 'members_low':
-          return (a['members'] as List).length.compareTo((b['members'] as List).length);
+          return (a['members'] as List)
+              .length
+              .compareTo((b['members'] as List).length);
         case 'newest':
         default:
           return (b['createdAt'] ?? '').compareTo(a['createdAt'] ?? '');
@@ -749,21 +860,31 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             CircleAvatar(
-              backgroundColor: Colors.primaries[(member['email'] ?? '').toString().hashCode % Colors.primaries.length].shade300,
+              backgroundColor: Colors
+                  .primaries[(member['email'] ?? '').toString().hashCode %
+                      Colors.primaries.length]
+                  .shade300,
               radius: 32,
-              child: Text(() {
-                final email = (member['email'] ?? '').toString();
-                return email.isNotEmpty ? email[0].toUpperCase() : '?';
-              }(),
-                style: TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold),
+              child: Text(
+                () {
+                  final email = (member['email'] ?? '').toString();
+                  return email.isNotEmpty ? email[0].toUpperCase() : '?';
+                }(),
+                style: TextStyle(
+                    fontSize: 32,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold),
               ),
             ),
             SizedBox(height: 16),
-            Text((member['email'] ?? '').toString(), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text((member['email'] ?? '').toString(),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             if (member['joinedAt'] != null)
-              Text('Joined: ${member['joinedAt'].toString().substring(0, 10)}', style: TextStyle(fontSize: 14, color: Colors.grey)),
+              Text('Joined: ${member['joinedAt'].toString().substring(0, 10)}',
+                  style: TextStyle(fontSize: 14, color: Colors.grey)),
             if (member['leftAt'] != null)
-              Text('Left: ${member['leftAt'].toString().substring(0, 10)}', style: TextStyle(fontSize: 14, color: Colors.red)),
+              Text('Left: ${member['leftAt'].toString().substring(0, 10)}',
+                  style: TextStyle(fontSize: 14, color: Colors.red)),
           ],
         ),
       ),
@@ -773,7 +894,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   void _showGroupDetails(Map<String, dynamic> g) {
     setState(() {
       group = g;
-      isCreator = g['creator']?['email'] == Provider.of<SessionProvider>(context, listen: false).user?['email'];
+      isCreator = g['creator']?['email'] ==
+          Provider.of<SessionProvider>(context, listen: false).user?['email'];
     });
   }
 
@@ -796,13 +918,19 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   Future<void> _updateGroupColor(Color newColor) async {
     if (group == null) return;
-    setState(() { loading = true; });
+    setState(() {
+      loading = true;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/color'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/color'),
         headers: headers,
-        body: jsonEncode({'color': '#${newColor.value.toRadixString(16).substring(2).toUpperCase()}'}),
+        body: jsonEncode({
+          'color':
+              '#${newColor.value.toRadixString(16).substring(2).toUpperCase()}'
+        }),
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -812,10 +940,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         _fetchUserGroups();
       }
     } catch (_) {}
-    setState(() { loading = false; });
+    setState(() {
+      loading = false;
+    });
   }
 
-  void _showMembersDialog(List<dynamic> members, Map<String, dynamic>? creator) {
+  void _showMembersDialog(
+      List<dynamic> members, Map<String, dynamic>? creator) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -858,11 +989,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   decoration: BoxDecoration(
                     color: Color(0xFF1E3A8A).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                    border:
+                        Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                      Icon(Icons.info_outline,
+                          color: Color(0xFF1E3A8A), size: 20),
                       SizedBox(width: 8),
                       Text(
                         'Total Members: ${members.length}',
@@ -882,7 +1015,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     decoration: BoxDecoration(
                       color: Color(0xFF059669).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Color(0xFF059669).withOpacity(0.3)),
+                      border:
+                          Border.all(color: Color(0xFF059669).withOpacity(0.3)),
                     ),
                     child: Row(
                       children: [
@@ -901,26 +1035,33 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                 SizedBox(height: 16),
                 ...members.map<Widget>((member) {
-                  final isMemberCreator = creator != null && (member['email'] ?? '').toString() == (creator['email'] ?? '').toString();
-                  final isCurrentUserCreator = creator != null && (creator['email'] ?? '').toString() == (Provider.of<SessionProvider>(context, listen: false).user?['email'] ?? '').toString();
+                  final isMemberCreator = creator != null &&
+                      (member['email'] ?? '').toString() ==
+                          (creator['email'] ?? '').toString();
+                  final isCurrentUserCreator = creator != null &&
+                      (creator['email'] ?? '').toString() ==
+                          (Provider.of<SessionProvider>(context, listen: false)
+                                      .user?['email'] ??
+                                  '')
+                              .toString();
                   final hasLeft = member['leftAt'] != null;
                   final memberEmail = (member['email'] ?? '').toString();
-                  
+
                   return Container(
                     margin: EdgeInsets.only(bottom: 8),
                     decoration: BoxDecoration(
-                      color: isMemberCreator 
-                        ? Color(0xFF059669).withOpacity(0.1) 
-                        : hasLeft 
-                          ? Colors.grey[100]
-                          : Colors.white,
+                      color: isMemberCreator
+                          ? Color(0xFF059669).withOpacity(0.1)
+                          : hasLeft
+                              ? Colors.grey[100]
+                              : Colors.white,
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: isMemberCreator 
-                          ? Color(0xFF059669).withOpacity(0.3) 
-                          : hasLeft 
-                            ? Colors.grey[300]!
-                            : Color(0xFF1E3A8A).withOpacity(0.2),
+                        color: isMemberCreator
+                            ? Color(0xFF059669).withOpacity(0.3)
+                            : hasLeft
+                                ? Colors.grey[300]!
+                                : Color(0xFF1E3A8A).withOpacity(0.2),
                         width: 1.5,
                       ),
                       boxShadow: [
@@ -932,18 +1073,21 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       ],
                     ),
                     child: ListTile(
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: CircleAvatar(
                         radius: 20,
-                        backgroundColor: isMemberCreator 
-                          ? Color(0xFF059669)
-                          : hasLeft 
-                            ? Colors.grey[400]!
-                            : Color(0xFF1E3A8A),
+                        backgroundColor: isMemberCreator
+                            ? Color(0xFF059669)
+                            : hasLeft
+                                ? Colors.grey[400]!
+                                : Color(0xFF1E3A8A),
                         child: Text(
                           () {
                             final email = memberEmail;
-                            return email.isNotEmpty ? email[0].toUpperCase() : '?';
+                            return email.isNotEmpty
+                                ? email[0].toUpperCase()
+                                : '?';
                           }(),
                           style: TextStyle(
                             fontSize: 14,
@@ -960,90 +1104,100 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         ),
                       ),
                       subtitle: Text(
-                        isMemberCreator 
-                          ? 'Group Creator' 
-                          : hasLeft 
-                            ? (isCurrentUserCreator ? 'Removed by Creator: ${member['leftAt'] != null ? member['leftAt'].toString().substring(0, 10) : ''}' : 'Left Group: ${member['leftAt'] != null ? member['leftAt'].toString().substring(0, 10) : ''}')
-                            : 'Joined: ${member['joinedAt'] != null ? member['joinedAt'].toString().substring(0, 10) : ''}',
+                        isMemberCreator
+                            ? 'Group Creator'
+                            : hasLeft
+                                ? (isCurrentUserCreator
+                                    ? 'Removed by Creator: ${member['leftAt'] != null ? member['leftAt'].toString().substring(0, 10) : ''}'
+                                    : 'Left Group: ${member['leftAt'] != null ? member['leftAt'].toString().substring(0, 10) : ''}')
+                                : 'Joined: ${member['joinedAt'] != null ? member['joinedAt'].toString().substring(0, 10) : ''}',
                         style: TextStyle(
-                          color: isMemberCreator 
-                            ? Color(0xFF059669) 
-                            : hasLeft 
-                              ? (isCurrentUserCreator ? Colors.red[500] : Colors.orange[500])
-                              : Colors.grey[600],
+                          color: isMemberCreator
+                              ? Color(0xFF059669)
+                              : hasLeft
+                                  ? (isCurrentUserCreator
+                                      ? Colors.red[500]
+                                      : Colors.orange[500])
+                                  : Colors.grey[600],
                           fontSize: 12,
                         ),
                       ),
-                      trailing: isMemberCreator 
-                        ? Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Color(0xFF059669),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'CREATOR',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+                      trailing: isMemberCreator
+                          ? Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Color(0xFF059669),
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            ),
-                          )
-                        : hasLeft 
-                          ? isCurrentUserCreator 
-                            ? Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red[400],
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      'REMOVED',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
+                              child: Text(
+                                'CREATOR',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            )
+                          : hasLeft
+                              ? isCurrentUserCreator
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.red[400],
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            'REMOVED',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        SizedBox(width: 8),
+                                        IconButton(
+                                          icon: Icon(Icons.person_add,
+                                              color: Color(0xFF059669)),
+                                          onPressed: () {
+                                            Navigator.of(context).pop();
+                                            _showReAddMemberDialog(memberEmail);
+                                          },
+                                        ),
+                                      ],
+                                    )
+                                  : Container(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange[400],
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  IconButton(
-                                    icon: Icon(Icons.person_add, color: Color(0xFF059669)),
-                                    onPressed: () {
-                                      Navigator.of(context).pop();
-                                      _showReAddMemberDialog(memberEmail);
-                                    },
-                                  ),
-                                ],
-                              )
-                            : Container(
-                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange[400],
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  'LEFT',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              )
-                          : isCurrentUserCreator 
-                            ? IconButton(
-                                icon: Icon(Icons.person_remove, color: Color(0xFFDC2626)),
-                                onPressed: () {
-                                  Navigator.of(context).pop();
-                                  _showRemoveMemberDialog(memberEmail);
-                                },
-                              )
-                            : null,
+                                      child: Text(
+                                        'LEFT',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    )
+                              : isCurrentUserCreator
+                                  ? IconButton(
+                                      icon: Icon(Icons.person_remove,
+                                          color: Color(0xFFDC2626)),
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                        _showRemoveMemberDialog(memberEmail);
+                                      },
+                                    )
+                                  : null,
                     ),
                   );
                 }).toList(),
@@ -1059,7 +1213,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF1E3A8A),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 padding: EdgeInsets.symmetric(vertical: 12),
               ),
               child: Text(
@@ -1079,8 +1234,10 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   void _showAddMemberDialog() {
     // Clear any previous errors when opening dialog
-    setState(() { memberAddError = null; });
-    
+    setState(() {
+      memberAddError = null;
+    });
+
     showDialog(
       context: context,
       barrierDismissible: false, // Prevent closing by tapping outside
@@ -1089,7 +1246,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           return Stack(
             children: [
               AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24)),
                 backgroundColor: Colors.white,
                 title: Container(
                   padding: EdgeInsets.all(16),
@@ -1121,7 +1279,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           color: Colors.white.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(Icons.person_add, color: Colors.white, size: 28),
+                        child: Icon(Icons.person_add,
+                            color: Colors.white, size: 28),
                       ),
                       SizedBox(width: 12),
                       Expanded(
@@ -1195,12 +1354,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(
-                                Icons.email, 
+                                Icons.email,
                                 color: Color(0xFF1E40AF),
                                 size: 20,
                               ),
                             ),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            contentPadding: EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 16),
                             hintText: 'Enter member\'s email address',
                             hintStyle: TextStyle(
                               color: Color(0xFF6B7280),
@@ -1210,7 +1370,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           onChanged: (value) {
                             // Clear error when user starts typing
                             if (memberAddError != null) {
-                              setDialogState(() { memberAddError = null; });
+                              setDialogState(() {
+                                memberAddError = null;
+                              });
                             }
                           },
                           onSubmitted: (value) async {
@@ -1222,7 +1384,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         ),
                       ),
                       SizedBox(height: 24),
-                      
+
                       // Add Member button with wavy blue design
                       Container(
                         width: double.infinity,
@@ -1247,53 +1409,59 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           ],
                         ),
                         child: ElevatedButton(
-                          onPressed: loading ? null : () async {
-                            await _addMemberWithDialog(setDialogState);
-                          },
+                          onPressed: loading
+                              ? null
+                              : () async {
+                                  await _addMemberWithDialog(setDialogState);
+                                },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
                             shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20)),
                             padding: EdgeInsets.symmetric(vertical: 16),
                           ),
-                          child: loading 
-                            ? SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          child: loading
+                              ? SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(Icons.person_add,
+                                          color: Colors.white, size: 20),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Add Member',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        shadows: [
+                                          Shadow(
+                                            color:
+                                                Colors.black.withOpacity(0.2),
+                                            offset: Offset(0, 1),
+                                            blurRadius: 2,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              )
-                            : Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.all(4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Icon(Icons.person_add, color: Colors.white, size: 20),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Add Member',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      shadows: [
-                                        Shadow(
-                                          color: Colors.black.withOpacity(0.2),
-                                          offset: Offset(0, 1),
-                                          blurRadius: 2,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
                         ),
                       ),
                     ],
@@ -1301,12 +1469,17 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
                 actions: [
                   TextButton(
-                    onPressed: loading ? null : () {
-                      Navigator.of(context).pop();
-                      setState(() { memberAddError = null; });
-                    },
+                    onPressed: loading
+                        ? null
+                        : () {
+                            Navigator.of(context).pop();
+                            setState(() {
+                              memberAddError = null;
+                            });
+                          },
                     style: TextButton.styleFrom(
-                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                         side: BorderSide(color: Color(0xFF6B7280)),
@@ -1329,7 +1502,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   top: 20,
                   left: 20,
                   right: 20,
-                  child: _buildFloatingErrorCard(memberAddError!, setDialogState),
+                  child:
+                      _buildFloatingErrorCard(memberAddError!, setDialogState),
                 ),
             ],
           );
@@ -1339,40 +1513,58 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   Future<void> _deleteGroup() async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}'),
         headers: headers,
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
-        setState(() { group = null; });
+        setState(() {
+          group = null;
+        });
         _fetchUserGroups();
         // Show stylish success dialog
         _showGroupDeletedSuccessDialog();
       } else {
-        setState(() { error = data['error'] ?? 'Failed to delete group'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to delete group';
+        });
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
   Future<void> _leaveGroup() async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/leave'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/leave'),
         headers: headers,
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
-        setState(() { group = null; });
+        setState(() {
+          group = null;
+        });
         _fetchUserGroups();
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1383,78 +1575,113 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ),
         );
       } else {
-        setState(() { error = data['error'] ?? 'Failed to leave group'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to leave group';
+        });
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
   Future<void> _sendLeaveRequest() async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/send-leave-request'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/send-leave-request'),
         headers: headers,
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Leave request sent to group creator successfully!'),
+            content:
+                Text('✅ Leave request sent to group creator successfully!'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 4),
           ),
         );
       } else {
-        setState(() { error = data['error'] ?? 'Failed to send leave request'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to send leave request';
+        });
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
   Future<void> _removeMember(String email) async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
         headers: headers,
         body: jsonEncode({'email': email}),
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
-        setState(() { group = data['group']; });
+        setState(() {
+          group = data['group'];
+        });
         // Show stylish success dialog
         _showMemberRemovedSuccessDialog(email);
       } else {
-        setState(() { error = data['error'] ?? 'Failed to remove member'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to remove member';
+        });
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
   Future<void> _reAddMember(String email) async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
         headers: headers,
         body: jsonEncode({'email': email}),
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
-        setState(() { group = data['group']; });
+        setState(() {
+          group = data['group'];
+        });
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1464,102 +1691,143 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ),
         );
       } else {
-        setState(() { error = data['error'] ?? 'Failed to re-add member'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to re-add member';
+        });
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
   Future<void> _settleAndRemoveMember(String email) async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final headers = await _authHeaders(context);
-      
+
       // First, settle all expenses for this member (set their split amounts to 0)
       final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/settle-member-expenses'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/settle-member-expenses'),
         headers: headers,
         body: jsonEncode({'email': email}),
       );
-      
+
       if (res.statusCode != 200) {
         final data = json.decode(res.body);
-        setState(() { error = data['error'] ?? 'Failed to settle member expenses'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to settle member expenses';
+        });
         return;
       }
-      
+
       // Then remove the member
       final removeRes = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
         headers: headers,
         body: jsonEncode({'email': email}),
       );
-      
+
       final removeData = json.decode(removeRes.body);
       if (removeRes.statusCode == 200) {
-        setState(() { group = removeData['group']; });
+        setState(() {
+          group = removeData['group'];
+        });
         // Show stylish success dialog
         _showMemberSettledAndRemovedSuccessDialog(email);
       } else {
-        setState(() { error = removeData['error'] ?? 'Failed to remove member'; });
+        setState(() {
+          error = removeData['error'] ?? 'Failed to remove member';
+        });
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
   Future<void> _deleteExpense(String expenseId) async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final headers = await _authHeaders(context);
       final res = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId'),
         headers: headers,
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
-        setState(() { group = data['group']; });
+        setState(() {
+          group = data['group'];
+        });
         // Show stylish success dialog
         _showExpenseDeletedSuccessDialog();
       } else {
-        setState(() { error = data['error'] ?? 'Failed to delete expense'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to delete expense';
+        });
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
-  Future<void> _editExpense(String expenseId, Map<String, dynamic> expenseData) async {
-    setState(() { loading = true; error = null; });
+  Future<void> _editExpense(
+      String expenseId, Map<String, dynamic> expenseData) async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final headers = await _authHeaders(context);
-      
+
       // Debug: Print the expense data being sent
       print('Sending edit expense request:');
       print('Expense ID: $expenseId');
       print('Expense Data: $expenseData');
-      print('Current user email: ${Provider.of<SessionProvider>(context, listen: false).user?['email']}');
-      
+      print(
+          'Current user email: ${Provider.of<SessionProvider>(context, listen: false).user?['email']}');
+
       final res = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId'),
         headers: headers,
         body: jsonEncode(expenseData),
       );
       final data = json.decode(res.body);
-      
+
       // Debug: Print the response
       print('Response status: ${res.statusCode}');
       print('Response data: $data');
-      
+
       if (res.statusCode == 200) {
-        setState(() { group = data['group']; });
+        setState(() {
+          group = data['group'];
+        });
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1569,45 +1837,61 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ),
         );
       } else {
-        setState(() { error = data['error'] ?? 'Failed to update expense'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to update expense';
+        });
         // Show debug info if available
         if (data['debug'] != null) {
           print('Debug info: ${data['debug']}');
         }
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
-  Future<void> _settleExpenseSplits(String expenseId, List<String> memberEmails) async {
-    setState(() { loading = true; error = null; });
+  Future<void> _settleExpenseSplits(
+      String expenseId, List<String> memberEmails) async {
+    setState(() {
+      loading = true;
+      error = null;
+    });
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
-      final headers = {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'};
-      
+      final headers = {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json'
+      };
+
       final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId/settle'),
+        Uri.parse(
+            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId/settle'),
         headers: headers,
         body: jsonEncode({'memberEmails': memberEmails}),
       );
       final data = json.decode(res.body);
-      
+
       if (res.statusCode == 200) {
-        setState(() { group = data['group']; });
+        setState(() {
+          group = data['group'];
+        });
         // Show success message with details about already settled members
         String message = '✅ ${data['message']}';
         Color backgroundColor = Colors.green;
         int duration = 4;
-        
+
         if (data['alreadySettledCount'] > 0) {
           backgroundColor = Colors.orange;
           duration = 5;
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
@@ -1616,7 +1900,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ),
         );
       } else {
-        setState(() { error = data['error'] ?? 'Failed to settle expense splits'; });
+        setState(() {
+          error = data['error'] ?? 'Failed to settle expense splits';
+        });
         // Show error message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1627,7 +1913,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         );
       }
     } catch (e) {
-      setState(() { error = e.toString(); });
+      setState(() {
+        error = e.toString();
+      });
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1637,7 +1925,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         ),
       );
     } finally {
-      setState(() { loading = false; });
+      setState(() {
+        loading = false;
+      });
     }
   }
 
@@ -2028,7 +2318,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
               ),
               SizedBox(height: 20),
-              
+
               // Error message
               Text(
                 'Only Group Creator Can Remove Members',
@@ -2049,7 +2339,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 20),
-              
+
               // Info box
               Container(
                 padding: EdgeInsets.all(16),
@@ -2060,7 +2350,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Color(0xFF856404), size: 24),
+                    Icon(Icons.info_outline,
+                        color: Color(0xFF856404), size: 24),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -2085,7 +2376,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFFDC2626),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 padding: EdgeInsets.symmetric(vertical: 12),
               ),
               child: Text(
@@ -2157,7 +2449,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
               ),
               SizedBox(height: 20),
-              
+
               // Error message
               Text(
                 'Only Group Creator Can Add Members',
@@ -2178,7 +2470,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 20),
-              
+
               // Info box
               Container(
                 padding: EdgeInsets.all(16),
@@ -2189,7 +2481,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Color(0xFF856404), size: 24),
+                    Icon(Icons.info_outline,
+                        color: Color(0xFF856404), size: 24),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -2214,7 +2507,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFFDC2626),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 padding: EdgeInsets.symmetric(vertical: 12),
               ),
               child: Text(
@@ -2315,7 +2609,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
               ),
               SizedBox(height: 16),
-              
+
               // Success message
               Text(
                 'Member Added Successfully!',
@@ -2327,7 +2621,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 8),
-              
+
               // Member email
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -2348,7 +2642,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
               ),
               SizedBox(height: 16),
-              
+
               // Additional info
               Container(
                 padding: EdgeInsets.all(12),
@@ -2390,7 +2684,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF059669),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
                 padding: EdgeInsets.symmetric(vertical: 12),
                 elevation: 4,
                 shadowColor: Color(0xFF059669).withOpacity(0.3),
@@ -2502,7 +2797,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
               ),
               SizedBox(height: 16),
-              
+
               // Confirmation message
               Container(
                 padding: EdgeInsets.all(16),
@@ -2567,7 +2862,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFF059669),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                     padding: EdgeInsets.symmetric(vertical: 12),
                     elevation: 4,
                     shadowColor: Color(0xFF059669).withOpacity(0.3),
@@ -2752,7 +3048,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Color(0xFFDC2626), size: 24),
+                    Icon(Icons.info_outline,
+                        color: Color(0xFFDC2626), size: 24),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -2777,7 +3074,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+                    Icon(Icons.error_outline,
+                        color: Color(0xFFDC2626), size: 20),
                     SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -2826,7 +3124,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Color(0xFFDC2626),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                     padding: EdgeInsets.symmetric(vertical: 12),
                     elevation: 4,
                     shadowColor: Color(0xFFDC2626).withOpacity(0.3),
@@ -2859,14 +3158,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     // Check if user has pending balances
     final userBalance = _getCurrentUserBalance();
     final hasBalance = userBalance != 0;
-    
+
     // Debug: Print detailed balance information
     print('=== LEAVE GROUP DEBUG ===');
     print('User Balance: $userBalance');
     print('Has Balance: $hasBalance');
-    print('Current User Email: ${Provider.of<SessionProvider>(context, listen: false).user?['email']}');
+    print(
+        'Current User Email: ${Provider.of<SessionProvider>(context, listen: false).user?['email']}');
     print('=======================');
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -2876,7 +3176,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           padding: EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: hasBalance ? [Color(0xFFDC2626), Color(0xFFEF4444)] : [Color(0xFFF59E0B), Color(0xFFF97316)],
+              colors: hasBalance
+                  ? [Color(0xFFDC2626), Color(0xFFEF4444)]
+                  : [Color(0xFFF59E0B), Color(0xFFF97316)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -2884,11 +3186,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ),
           child: Row(
             children: [
-              Icon(
-                hasBalance ? Icons.warning_amber_rounded : Icons.exit_to_app, 
-                color: Colors.white, 
-                size: 28
-              ),
+              Icon(hasBalance ? Icons.warning_amber_rounded : Icons.exit_to_app,
+                  color: Colors.white, size: 28),
               SizedBox(width: 12),
               Text(
                 hasBalance ? 'Cannot Leave Group' : 'Leave Group',
@@ -2910,28 +3209,39 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               Container(
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: hasBalance ? Color(0xFFDC2626).withOpacity(0.1) : Color(0xFFF59E0B).withOpacity(0.1),
+                  color: hasBalance
+                      ? Color(0xFFDC2626).withOpacity(0.1)
+                      : Color(0xFFF59E0B).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: hasBalance ? Color(0xFFDC2626).withOpacity(0.3) : Color(0xFFF59E0B).withOpacity(0.3)),
+                  border: Border.all(
+                      color: hasBalance
+                          ? Color(0xFFDC2626).withOpacity(0.3)
+                          : Color(0xFFF59E0B).withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
                     Icon(
-                      hasBalance ? Icons.account_balance_wallet : Icons.info_outline, 
-                      color: hasBalance ? Color(0xFFDC2626) : Color(0xFFF59E0B), 
-                      size: 24
-                    ),
+                        hasBalance
+                            ? Icons.account_balance_wallet
+                            : Icons.info_outline,
+                        color:
+                            hasBalance ? Color(0xFFDC2626) : Color(0xFFF59E0B),
+                        size: 24),
                     SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            hasBalance ? 'You have pending expenses!' : 'Leave Group Confirmation',
+                            hasBalance
+                                ? 'You have pending expenses!'
+                                : 'Leave Group Confirmation',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
-                              color: hasBalance ? Color(0xFFDC2626) : Color(0xFFF59E0B),
+                              color: hasBalance
+                                  ? Color(0xFFDC2626)
+                                  : Color(0xFFF59E0B),
                             ),
                           ),
                           if (hasBalance) ...[
@@ -2952,7 +3262,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
               ),
               SizedBox(height: 16),
-              
+
               // Balance warning if user has balance
               if (hasBalance) ...[
                 Container(
@@ -2964,7 +3274,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Color(0xFF856404), size: 24),
+                      Icon(Icons.warning_amber_rounded,
+                          color: Color(0xFF856404), size: 24),
                       SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -3003,7 +3314,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_outlined, color: Color(0xFFF59E0B), size: 20),
+                      Icon(Icons.warning_amber_outlined,
+                          color: Color(0xFFF59E0B), size: 20),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -3019,14 +3331,19 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
                 SizedBox(height: 16),
               ],
-              
+
               // Confirmation message
               Container(
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: hasBalance ? Color(0xFFFEF2F2) : Color(0xFFF59E0B).withOpacity(0.1),
+                  color: hasBalance
+                      ? Color(0xFFFEF2F2)
+                      : Color(0xFFF59E0B).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: hasBalance ? Color(0xFFFECACA) : Color(0xFFF59E0B).withOpacity(0.3)),
+                  border: Border.all(
+                      color: hasBalance
+                          ? Color(0xFFFECACA)
+                          : Color(0xFFF59E0B).withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
@@ -3038,13 +3355,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        hasBalance 
-                          ? 'Click "Send Request" to notify the group creator about your leave request.'
-                          : 'Are you sure you want to leave this group? This action cannot be undone.',
+                        hasBalance
+                            ? 'Click "Send Request" to notify the group creator about your leave request.'
+                            : 'Are you sure you want to leave this group? This action cannot be undone.',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: hasBalance ? Color(0xFFDC2626) : Color(0xFFF59E0B),
+                          color: hasBalance
+                              ? Color(0xFFDC2626)
+                              : Color(0xFFF59E0B),
                         ),
                       ),
                     ),
@@ -3087,7 +3406,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color(0xFFF59E0B),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       padding: EdgeInsets.symmetric(vertical: 12),
                       elevation: 4,
                       shadowColor: Color(0xFFF59E0B).withOpacity(0.3),
@@ -3119,7 +3439,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color(0xFFDC2626),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       padding: EdgeInsets.symmetric(vertical: 12),
                       elevation: 4,
                       shadowColor: Color(0xFFDC2626).withOpacity(0.3),
@@ -3127,7 +3448,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.email_outlined, color: Colors.white, size: 20),
+                        Icon(Icons.email_outlined,
+                            color: Colors.white, size: 20),
                         SizedBox(width: 8),
                         Text(
                           'Send Request',
@@ -3153,7 +3475,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     // First check if member has any balance
     final memberBalance = _getMemberBalance(email);
     final hasBalance = memberBalance != 0;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -3228,7 +3550,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             'Total Split Amount: \$${memberBalance.toStringAsFixed(2)}',
                             style: TextStyle(
                               fontSize: 14,
-                              color: memberBalance > 0 ? Colors.orange[700] : Colors.grey[600],
+                              color: memberBalance > 0
+                                  ? Colors.orange[700]
+                                  : Colors.grey[600],
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -3239,7 +3563,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
               ),
               SizedBox(height: 16),
-              
+
               // Balance warning if member has balance
               if (hasBalance) ...[
                 Container(
@@ -3251,7 +3575,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Color(0xFF856404), size: 24),
+                      Icon(Icons.warning_amber_rounded,
+                          color: Color(0xFF856404), size: 24),
                       SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -3281,14 +3606,19 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
                 SizedBox(height: 16),
               ],
-              
+
               // Confirmation message
               Container(
                 padding: EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: hasBalance ? Color(0xFFFEF2F2) : Color(0xFFDC2626).withOpacity(0.1),
+                  color: hasBalance
+                      ? Color(0xFFFEF2F2)
+                      : Color(0xFFDC2626).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: hasBalance ? Color(0xFFFECACA) : Color(0xFFDC2626).withOpacity(0.3)),
+                  border: Border.all(
+                      color: hasBalance
+                          ? Color(0xFFFECACA)
+                          : Color(0xFFDC2626).withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
@@ -3299,16 +3629,18 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     ),
                     SizedBox(width: 12),
                     Expanded(
-                      child:                         Text(
-                          hasBalance 
+                      child: Text(
+                        hasBalance
                             ? 'Click "Settle & Remove" to mark all their split amounts as settled and remove them.'
                             : 'Are you sure you want to remove this member? This action cannot be undone.',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: hasBalance ? Color(0xFFDC2626) : Color(0xFFDC2626),
-                          ),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: hasBalance
+                              ? Color(0xFFDC2626)
+                              : Color(0xFFDC2626),
                         ),
+                      ),
                     ),
                   ],
                 ),
@@ -3349,7 +3681,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color(0xFFDC2626),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       padding: EdgeInsets.symmetric(vertical: 12),
                       elevation: 4,
                       shadowColor: Color(0xFFDC2626).withOpacity(0.3),
@@ -3357,7 +3690,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.person_remove, color: Colors.white, size: 20),
+                        Icon(Icons.person_remove,
+                            color: Colors.white, size: 20),
                         SizedBox(width: 8),
                         Text(
                           'Remove',
@@ -3381,7 +3715,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color(0xFFDC2626),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       padding: EdgeInsets.symmetric(vertical: 12),
                       elevation: 4,
                       shadowColor: Color(0xFFDC2626).withOpacity(0.3),
@@ -3389,7 +3724,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.account_balance_wallet, color: Colors.white, size: 20),
+                        Icon(Icons.account_balance_wallet,
+                            color: Colors.white, size: 20),
                         SizedBox(width: 8),
                         Text(
                           'Mark Settled & Remove',
@@ -3414,7 +3750,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   void _showExpensesDialog(List<dynamic> expenses) {
     // Get members from the current group
     final members = (group?['members'] ?? []) as List<dynamic>;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -3457,11 +3793,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   decoration: BoxDecoration(
                     color: Color(0xFF1E3A8A).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                    border:
+                        Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                      Icon(Icons.info_outline,
+                          color: Color(0xFF1E3A8A), size: 20),
                       SizedBox(width: 8),
                       Text(
                         'Total Expenses: ${expenses.length}',
@@ -3485,7 +3823,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     child: Center(
                       child: Column(
                         children: [
-                          Icon(Icons.receipt_long, color: Colors.grey, size: 48),
+                          Icon(Icons.receipt_long,
+                              color: Colors.grey, size: 48),
                           SizedBox(height: 8),
                           Text(
                             'No expenses yet',
@@ -3526,7 +3865,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         ],
                       ),
                       child: ListTile(
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         leading: CircleAvatar(
                           radius: 20,
                           backgroundColor: Color(0xFF1E3A8A),
@@ -3560,10 +3900,12 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 fontSize: 12,
                               ),
                             ),
-                            if (expense['createdAt'] != null || expense['date'] != null)
+                            if (expense['createdAt'] != null ||
+                                expense['date'] != null)
                               Row(
                                 children: [
-                                  Icon(Icons.access_time, color: Colors.grey[500], size: 12),
+                                  Icon(Icons.access_time,
+                                      color: Colors.grey[500], size: 12),
                                   SizedBox(width: 4),
                                   Text(
                                     'Created: ${_formatDateTime(expense['createdAt'] ?? expense['date'])}',
@@ -3575,21 +3917,25 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 ],
                               ),
                             // Show split details
-                            if (expense['split'] != null && expense['split'].isNotEmpty)
+                            if (expense['split'] != null &&
+                                expense['split'].isNotEmpty)
                               Container(
                                 margin: EdgeInsets.only(top: 8),
                                 padding: EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: Color(0xFF1E3A8A).withOpacity(0.05),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                                  border: Border.all(
+                                      color:
+                                          Color(0xFF1E3A8A).withOpacity(0.2)),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
                                       children: [
-                                        Icon(Icons.people_outline, color: Color(0xFF1E3A8A), size: 16),
+                                        Icon(Icons.people_outline,
+                                            color: Color(0xFF1E3A8A), size: 16),
                                         SizedBox(width: 4),
                                         Text(
                                           'Split Details:',
@@ -3603,18 +3949,25 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                     ),
                                     SizedBox(height: 4),
                                     Container(
-                                      constraints: BoxConstraints(maxHeight: 120),
+                                      constraints:
+                                          BoxConstraints(maxHeight: 120),
                                       child: SingleChildScrollView(
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: (expense['split'] as List).map<Widget>((splitItem) {
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: (expense['split'] as List)
+                                              .map<Widget>((splitItem) {
                                             final member = members.firstWhere(
-                                              (m) => m['_id'] == splitItem['user'],
-                                              orElse: () => {'email': 'Unknown User'},
+                                              (m) =>
+                                                  m['_id'] == splitItem['user'],
+                                              orElse: () =>
+                                                  {'email': 'Unknown User'},
                                             );
-                                            final isSettled = splitItem['settled'] == true;
+                                            final isSettled =
+                                                splitItem['settled'] == true;
                                             return Padding(
-                                              padding: EdgeInsets.only(bottom: 2),
+                                              padding:
+                                                  EdgeInsets.only(bottom: 2),
                                               child: Row(
                                                 children: [
                                                   Text(
@@ -3628,9 +3981,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                                     '\$${splitItem['amount'].toStringAsFixed(2)}',
                                                     style: TextStyle(
                                                       fontSize: 11,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: isSettled ? Colors.grey[500] : Colors.green[700],
-                                                      decoration: isSettled ? TextDecoration.lineThrough : null,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: isSettled
+                                                          ? Colors.grey[500]
+                                                          : Colors.green[700],
+                                                      decoration: isSettled
+                                                          ? TextDecoration
+                                                              .lineThrough
+                                                          : null,
                                                     ),
                                                   ),
                                                   if (isSettled)
@@ -3639,7 +3998,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                                       style: TextStyle(
                                                         fontSize: 10,
                                                         color: Colors.grey[500],
-                                                        fontStyle: FontStyle.italic,
+                                                        fontStyle:
+                                                            FontStyle.italic,
                                                       ),
                                                     ),
                                                 ],
@@ -3660,19 +4020,24 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             // Edit button - only for expense creator
                             Builder(
                               builder: (context) {
-                                final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
+                                final currentUserEmail =
+                                    Provider.of<SessionProvider>(context,
+                                            listen: false)
+                                        .user?['email'];
                                 final expenseAddedBy = expense['addedBy'];
-                                final shouldShowEdit = expenseAddedBy == currentUserEmail;
-                                
+                                final shouldShowEdit =
+                                    expenseAddedBy == currentUserEmail;
+
                                 // Debug: Print the comparison
                                 print('Edit button check:');
                                 print('Current user email: $currentUserEmail');
                                 print('Expense addedBy: $expenseAddedBy');
                                 print('Should show edit: $shouldShowEdit');
-                                
+
                                 return shouldShowEdit
                                     ? IconButton(
-                                        icon: Icon(Icons.edit, color: Color(0xFF1E3A8A)),
+                                        icon: Icon(Icons.edit,
+                                            color: Color(0xFF1E3A8A)),
                                         onPressed: () {
                                           Navigator.of(context).pop();
                                           _showEditExpenseDialog(expense);
@@ -3684,7 +4049,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             // Settle button - only for group creator
                             if (isCreator)
                               IconButton(
-                                icon: Icon(Icons.check_circle_outline, color: Colors.green),
+                                icon: Icon(Icons.check_circle_outline,
+                                    color: Colors.green),
                                 onPressed: () {
                                   Navigator.of(context).pop();
                                   _showSettleExpenseDialog(expense);
@@ -3719,7 +4085,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               onPressed: () => Navigator.of(context).pop(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF1E3A8A),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
                 padding: EdgeInsets.symmetric(vertical: 12),
               ),
               child: Text(
@@ -3768,7 +4135,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (group == null) 
+                if (group == null)
                   Text(
                     'Group Transactions',
                     style: TextStyle(
@@ -3779,7 +4146,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
                     ),
                   )
-                else 
+                else
                   Text(
                     'Group: ${group?['title'] ?? ''}',
                     style: TextStyle(
@@ -3807,429 +4174,644 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             ),
           ),
           Padding(
-            padding: EdgeInsets.only(top: 180), // Add top padding to move content below the wavy header
+            padding: EdgeInsets.only(
+                top:
+                    180), // Add top padding to move content below the wavy header
             child: SingleChildScrollView(
               padding: EdgeInsets.all(16),
               child: groupsLoading
-                ? Center(child: CircularProgressIndicator())
-                : group != null
-                  ? _buildGroupDetailsCard()
-                  : userGroups.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Card(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                              elevation: 4,
-                              child: Padding(
-                                padding: const EdgeInsets.all(32.0),
-                                child: Column(
-                                  children: [
-                                    Icon(Icons.group_off, color: Colors.grey, size: 60),
-                                    SizedBox(height: 16),
-                                    Text('No groups found.', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                                    SizedBox(height: 8),
-                                    Text('Create your first group to get started!', style: TextStyle(fontSize: 16)),
+                  ? Center(child: CircularProgressIndicator())
+                  : group != null
+                      ? _buildGroupDetailsCard()
+                      : userGroups.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Card(
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(18)),
+                                    elevation: 4,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(32.0),
+                                      child: Column(
+                                        children: [
+                                          Icon(Icons.group_off,
+                                              color: Colors.grey, size: 60),
+                                          SizedBox(height: 16),
+                                          Text('No groups found.',
+                                              style: TextStyle(
+                                                  fontSize: 20,
+                                                  fontWeight: FontWeight.bold)),
+                                          SizedBox(height: 8),
+                                          Text(
+                                              'Create your first group to get started!',
+                                              style: TextStyle(fontSize: 16)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: 24),
+                                  if (!showCreateGroupForm)
+                                    ElevatedButton.icon(
+                                      onPressed: _showCreateGroup,
+                                      icon: Icon(Icons.add),
+                                      label: Text('Create Group'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Color(0xFF00B4D8),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12)),
+                                      ),
+                                    ),
+                                  if (showCreateGroupForm) ...[
+                                    _buildCreateGroupCard(),
+                                    SizedBox(height: 12),
+                                    TextButton(
+                                      onPressed: _hideCreateGroup,
+                                      child: Text('Cancel',
+                                          style: TextStyle(color: Colors.red)),
+                                    ),
                                   ],
-                                ),
+                                ],
                               ),
-                            ),
-                            SizedBox(height: 24),
-                            if (!showCreateGroupForm)
-                              ElevatedButton.icon(
-                                onPressed: _showCreateGroup,
-                                icon: Icon(Icons.add),
-                                label: Text('Create Group'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Color(0xFF00B4D8),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                              ),
-                            if (showCreateGroupForm) ...[
-                              _buildCreateGroupCard(),
-                              SizedBox(height: 12),
-                              TextButton(
-                                onPressed: _hideCreateGroup,
-                                child: Text('Cancel', style: TextStyle(color: Colors.red)),
-                              ),
-                            ],
-                          ],
-                        ),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Search bar at the top
-                          Container(
-                            padding: const EdgeInsets.all(2), // border width
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Colors.orange, Colors.white, Colors.green],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: TextField(
-                              decoration: InputDecoration(
-                                hintText: 'Search by group name or creator email...', 
-                                prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
-                                filled: true,
-                                fillColor: Colors.white,
-                                contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                              onChanged: (val) {
-                                groupSearchQuery = val;
-                                _filterAndSearchGroups();
-                              },
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          
-                          // Filters in a scrollable row below search bar
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
+                                // Search bar at the top
                                 Container(
+                                  padding:
+                                      const EdgeInsets.all(2), // border width
                                   decoration: BoxDecoration(
                                     gradient: const LinearGradient(
-                                      colors: [Colors.orange, Colors.white, Colors.green],
+                                      colors: [
+                                        Colors.orange,
+                                        Colors.white,
+                                        Colors.green
+                                      ],
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
                                     ),
                                     borderRadius: BorderRadius.circular(18),
                                   ),
-                                  padding: const EdgeInsets.all(2),
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
+                                  child: TextField(
+                                    decoration: InputDecoration(
+                                      hintText:
+                                          'Search by group name or creator email...',
+                                      prefixIcon: Icon(Icons.search,
+                                          color: Color(0xFF00B4D8)),
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      contentPadding: EdgeInsets.symmetric(
+                                          vertical: 0, horizontal: 16),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide.none,
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        borderSide: BorderSide.none,
+                                      ),
                                     ),
-                                    child: DropdownButton<String>(
-                                      value: groupFilter,
-                                      borderRadius: BorderRadius.circular(16),
-                                      style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                      underline: Container(),
-                                      items: const [
-                                        DropdownMenuItem(value: 'all', child: Text('All')),
-                                        DropdownMenuItem(value: 'created', child: Text('Created by Me')),
-                                        DropdownMenuItem(value: 'member', child: Text('Member')),
-                                      ],
-                                      onChanged: (val) {
-                                        if (val != null) {
-                                          setState(() {
-                                            groupFilter = val;
-                                          });
-                                          _filterAndSearchGroups();
-                                        }
-                                      },
-                                    ),
+                                    onChanged: (val) {
+                                      groupSearchQuery = val;
+                                      _filterAndSearchGroups();
+                                    },
                                   ),
                                 ),
-                                SizedBox(width: 12),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [Colors.orange, Colors.white, Colors.green],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  padding: const EdgeInsets.all(2),
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: DropdownButton<String>(
-                                      value: groupSort,
-                                      borderRadius: BorderRadius.circular(16),
-                                      style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                      underline: Container(),
-                                      items: const [
-                                        DropdownMenuItem(value: 'newest', child: Text('Newest')),
-                                        DropdownMenuItem(value: 'oldest', child: Text('Oldest')),
-                                        DropdownMenuItem(value: 'name_az', child: Text('Name A-Z')),
-                                        DropdownMenuItem(value: 'name_za', child: Text('Name Z-A')),
-                                        DropdownMenuItem(value: 'members_high', child: Text('Members High-Low')),
-                                        DropdownMenuItem(value: 'members_low', child: Text('Members Low-High')),
-                                      ],
-                                      onChanged: (val) {
-                                        if (val != null) {
-                                          setState(() {
-                                            groupSort = val;
-                                          });
-                                          _filterAndSearchGroups();
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [Colors.orange, Colors.white, Colors.green],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  padding: const EdgeInsets.all(2),
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: DropdownButton<String>(
-                                      value: memberCountFilter,
-                                      borderRadius: BorderRadius.circular(16),
-                                      style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                      underline: Container(),
-                                      items: const [
-                                        DropdownMenuItem(value: 'all', child: Text('All Members')),
-                                        DropdownMenuItem(value: '2-5', child: Text('2-5')),
-                                        DropdownMenuItem(value: '6-10', child: Text('6-10')),
-                                        DropdownMenuItem(value: '10+', child: Text('10+'))
-                                      ],
-                                      onChanged: (val) {
-                                        if (val != null) {
-                                          setState(() {
-                                            memberCountFilter = val;
-                                          });
-                                          _filterAndSearchGroups();
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [Colors.orange, Colors.white, Colors.green],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  padding: const EdgeInsets.all(2),
-                                  child: Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                    child: DropdownButton<String>(
-                                      value: dateFilter,
-                                      borderRadius: BorderRadius.circular(16),
-                                      style: const TextStyle(color: Color(0xFF00B4D8), fontWeight: FontWeight.bold),
-                                      underline: Container(),
-                                      items: const [
-                                        DropdownMenuItem(value: 'all', child: Text('All Dates'))
-                                        ,
-                                        DropdownMenuItem(value: '7days', child: Text('Last 7 Days'))
-                                        ,
-                                        DropdownMenuItem(value: '30days', child: Text('Last 30 Days'))
-                                        ,
-                                        DropdownMenuItem(value: 'custom', child: Text('Custom'))
-                                      ],
-                                      onChanged: (val) async {
-                                        if (val != null) {
-                                          setState(() {
-                                            dateFilter = val;
-                                          });
-                                          if (val == 'custom') {
-                                            final picked = await showDateRangePicker(
-                                              context: context,
-                                              firstDate: DateTime(2020),
-                                              lastDate: DateTime.now(),
-                                            );
-                                            if (picked != null) {
-                                              setState(() {
-                                                customStartDate = picked.start;
-                                                customEndDate = picked.end;
-                                              });
-                                            }
-                                          }
-                                          _filterAndSearchGroups();
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          if (!showCreateGroupForm)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                ElevatedButton.icon(
-                                  onPressed: _showCreateGroup,
-                                  icon: Icon(Icons.add),
-                                  label: Text('Create Group'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Color(0xFF00B4D8),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          if (showCreateGroupForm) ...[
-                            _buildCreateGroupCard(),
-                            SizedBox(height: 12),
-                            TextButton(
-                              onPressed: _hideCreateGroup,
-                              child: Text('Cancel', style: TextStyle(color: Colors.red)),
-                            ),
-                          ],
-                          ...filteredGroups.map((g) {
-                            final groupColor = g['color'] != null
-                                ? Color(int.parse(g['color'].toString().replaceFirst('#', '0xff')))
-                                : Colors.blue.shade300;
-                            final avatarText = () {
-                              final title = g['title'] ?? '';
-                              return title.isNotEmpty ? title[0].toUpperCase() : '?';
-                            }() ;
-                            return Card(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                              elevation: 6,
-                              margin: EdgeInsets.only(bottom: 18),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: groupColor,
-                                    width: 2,
-                                  ),
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        CircleAvatar(
-                                          backgroundColor: groupColor,
-                                          radius: 22,
-                                          child: Text(avatarText, style: TextStyle(fontSize: 22, color: Colors.white, fontWeight: FontWeight.bold)),
-                                        ),
-                                        SizedBox(width: 14),
-                                        Expanded(
-                                          child: Text(
-                                            g['title'] ?? '',
-                                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF00B4D8)),
-                                          ),
-                                        ),
-                                        // Group color indicator
-                                        Container(
-                                          width: 18,
-                                          height: 18,
-                                          decoration: BoxDecoration(
-                                            color: groupColor,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.white, width: 2),
-                                          ),
-                                        ),
-                                        SizedBox(width: 10),
-                                        IconButton(
-                                          icon: Icon(
-                                            (g['favourite'] as List? ?? []).contains(Provider.of<SessionProvider>(context, listen: false).user?['email']) ? Icons.star : Icons.star_border,
-                                            color: (g['favourite'] as List? ?? []).contains(Provider.of<SessionProvider>(context, listen: false).user?['email']) ? Colors.amber : Colors.grey,
-                                          ),
-                                          onPressed: () => _toggleFavourite(g['_id']),
-                                        ),
-                                        ElevatedButton(
-                                          onPressed: () => _showGroupDetails(g),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Color(0xFF48CAE4),
-                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                            elevation: 0,
-                                          ),
-                                          child: Text('View Details', style: TextStyle(color: Colors.white)),
-                                        ),
-                                        SizedBox(width: 8),
+                                SizedBox(height: 16),
 
-                                      ],
-                                    ),
-                                    SizedBox(height: 10),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.person, size: 18, color: Colors.grey),
-                                        SizedBox(width: 4),
-                                        Text('Creator: ${g['creator']?['email'] ?? ''}', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
-                                        SizedBox(width: 16),
-                                        Icon(Icons.people, size: 18, color: Colors.grey),
-                                        SizedBox(width: 4),
-                                        Text('Members: ${(g['members'] as List).length}', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
-                                        SizedBox(width: 12),
-                                        // Member avatars
-                                        ...((g['members'] as List).take(5).map((m) => GestureDetector(
-                                              onTap: () => _showMemberDetails(m),
-                                              child: Padding(
-                                                padding: const EdgeInsets.symmetric(horizontal: 2),
-                                                child: CircleAvatar(
-                                                  radius: 12,
-                                                  backgroundColor: Colors.primaries[(m['email'] ?? '').toString().hashCode % Colors.primaries.length].shade200,
-                                                  child: Text(() {
-                                                    final email = (m['email'] ?? '').toString();
-                                                    return email.isNotEmpty ? email[0].toUpperCase() : '?';
-                                                  }(),
-                                                    style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold),
-                                                  ),
-                                                ),
-                                              ),
-                                            ))),
-                                        if ((g['members'] as List).length > 5)
-                                          Padding(
-                                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                                            child: CircleAvatar(
-                                              radius: 12,
-                                              backgroundColor: Colors.grey[400],
-                                              child: Text('+${(g['members'] as List).length - 5}', style: TextStyle(fontSize: 12, color: Colors.white)),
-                                            ),
+                                // Filters in a scrollable row below search bar
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Colors.orange,
+                                              Colors.white,
+                                              Colors.green
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
                                           ),
-                                      ],
-                                    ),
-                                    SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.calendar_today, size: 16, color: Colors.grey),
-                                        SizedBox(width: 4),
-                                        Text('Created: ${g['createdAt'] != null ? g['createdAt'].toString().substring(0, 10) : ''}', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                                      ],
-                                    ),
-                                  ],
+                                          borderRadius:
+                                              BorderRadius.circular(18),
+                                        ),
+                                        padding: const EdgeInsets.all(2),
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                          ),
+                                          child: DropdownButton<String>(
+                                            value: groupFilter,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            style: const TextStyle(
+                                                color: Color(0xFF00B4D8),
+                                                fontWeight: FontWeight.bold),
+                                            underline: Container(),
+                                            items: const [
+                                              DropdownMenuItem(
+                                                  value: 'all',
+                                                  child: Text('All')),
+                                              DropdownMenuItem(
+                                                  value: 'created',
+                                                  child: Text('Created by Me')),
+                                              DropdownMenuItem(
+                                                  value: 'member',
+                                                  child: Text('Member')),
+                                            ],
+                                            onChanged: (val) {
+                                              if (val != null) {
+                                                setState(() {
+                                                  groupFilter = val;
+                                                });
+                                                _filterAndSearchGroups();
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 12),
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Colors.orange,
+                                              Colors.white,
+                                              Colors.green
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(18),
+                                        ),
+                                        padding: const EdgeInsets.all(2),
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                          ),
+                                          child: DropdownButton<String>(
+                                            value: groupSort,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            style: const TextStyle(
+                                                color: Color(0xFF00B4D8),
+                                                fontWeight: FontWeight.bold),
+                                            underline: Container(),
+                                            items: const [
+                                              DropdownMenuItem(
+                                                  value: 'newest',
+                                                  child: Text('Newest')),
+                                              DropdownMenuItem(
+                                                  value: 'oldest',
+                                                  child: Text('Oldest')),
+                                              DropdownMenuItem(
+                                                  value: 'name_az',
+                                                  child: Text('Name A-Z')),
+                                              DropdownMenuItem(
+                                                  value: 'name_za',
+                                                  child: Text('Name Z-A')),
+                                              DropdownMenuItem(
+                                                  value: 'members_high',
+                                                  child:
+                                                      Text('Members High-Low')),
+                                              DropdownMenuItem(
+                                                  value: 'members_low',
+                                                  child:
+                                                      Text('Members Low-High')),
+                                            ],
+                                            onChanged: (val) {
+                                              if (val != null) {
+                                                setState(() {
+                                                  groupSort = val;
+                                                });
+                                                _filterAndSearchGroups();
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 12),
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Colors.orange,
+                                              Colors.white,
+                                              Colors.green
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(18),
+                                        ),
+                                        padding: const EdgeInsets.all(2),
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                          ),
+                                          child: DropdownButton<String>(
+                                            value: memberCountFilter,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            style: const TextStyle(
+                                                color: Color(0xFF00B4D8),
+                                                fontWeight: FontWeight.bold),
+                                            underline: Container(),
+                                            items: const [
+                                              DropdownMenuItem(
+                                                  value: 'all',
+                                                  child: Text('All Members')),
+                                              DropdownMenuItem(
+                                                  value: '2-5',
+                                                  child: Text('2-5')),
+                                              DropdownMenuItem(
+                                                  value: '6-10',
+                                                  child: Text('6-10')),
+                                              DropdownMenuItem(
+                                                  value: '10+',
+                                                  child: Text('10+'))
+                                            ],
+                                            onChanged: (val) {
+                                              if (val != null) {
+                                                setState(() {
+                                                  memberCountFilter = val;
+                                                });
+                                                _filterAndSearchGroups();
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 12),
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Colors.orange,
+                                              Colors.white,
+                                              Colors.green
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(18),
+                                        ),
+                                        padding: const EdgeInsets.all(2),
+                                        child: Container(
+                                          padding: EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                          ),
+                                          child: DropdownButton<String>(
+                                            value: dateFilter,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            style: const TextStyle(
+                                                color: Color(0xFF00B4D8),
+                                                fontWeight: FontWeight.bold),
+                                            underline: Container(),
+                                            items: const [
+                                              DropdownMenuItem(
+                                                  value: 'all',
+                                                  child: Text('All Dates')),
+                                              DropdownMenuItem(
+                                                  value: '7days',
+                                                  child: Text('Last 7 Days')),
+                                              DropdownMenuItem(
+                                                  value: '30days',
+                                                  child: Text('Last 30 Days')),
+                                              DropdownMenuItem(
+                                                  value: 'custom',
+                                                  child: Text('Custom'))
+                                            ],
+                                            onChanged: (val) async {
+                                              if (val != null) {
+                                                setState(() {
+                                                  dateFilter = val;
+                                                });
+                                                if (val == 'custom') {
+                                                  final picked =
+                                                      await showDateRangePicker(
+                                                    context: context,
+                                                    firstDate: DateTime(2020),
+                                                    lastDate: DateTime.now(),
+                                                  );
+                                                  if (picked != null) {
+                                                    setState(() {
+                                                      customStartDate =
+                                                          picked.start;
+                                                      customEndDate =
+                                                          picked.end;
+                                                    });
+                                                  }
+                                                }
+                                                _filterAndSearchGroups();
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                ),
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
+                                SizedBox(height: 16),
+                                if (!showCreateGroupForm)
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      ElevatedButton.icon(
+                                        onPressed: _showCreateGroup,
+                                        icon: Icon(Icons.add),
+                                        label: Text('Create Group'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Color(0xFF00B4D8),
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                if (showCreateGroupForm) ...[
+                                  _buildCreateGroupCard(),
+                                  SizedBox(height: 12),
+                                  TextButton(
+                                    onPressed: _hideCreateGroup,
+                                    child: Text('Cancel',
+                                        style: TextStyle(color: Colors.red)),
+                                  ),
+                                ],
+                                ...filteredGroups.map((g) {
+                                  final groupColor = g['color'] != null
+                                      ? Color(int.parse(g['color']
+                                          .toString()
+                                          .replaceFirst('#', '0xff')))
+                                      : Colors.blue.shade300;
+                                  final avatarText = () {
+                                    final title = g['title'] ?? '';
+                                    return title.isNotEmpty
+                                        ? title[0].toUpperCase()
+                                        : '?';
+                                  }();
+                                  return Card(
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(18)),
+                                    elevation: 6,
+                                    margin: EdgeInsets.only(bottom: 18),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: groupColor,
+                                          width: 2,
+                                        ),
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 18, horizontal: 18),
+                                        child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  // New row for Favourites and View Details buttons
+                                                  Row(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment.end,
+                                                    children: [
+                                                      IconButton(
+                                                        icon: Icon(
+                                                          (g['favourite'] as List? ??
+                                                                      [])
+                                                                  .contains(Provider.of<
+                                                                              SessionProvider>(
+                                                                          context,
+                                                                          listen:
+                                                                              false)
+                                                                      .user?['email'])
+                                                              ? Icons.star
+                                                              : Icons.star_border,
+                                                          color: (g['favourite']
+                                                                          as List? ??
+                                                                      [])
+                                                                  .contains(Provider.of<
+                                                                              SessionProvider>(
+                                                                          context,
+                                                                          listen:
+                                                                              false)
+                                                                      .user?['email'])
+                                                              ? Colors.amber
+                                                              : Colors.grey,
+                                                        ),
+                                                        onPressed: () =>
+                                                            _toggleFavourite(
+                                                                g['_id']),
+                                                      ),
+                                                      ElevatedButton(
+                                                        onPressed: () =>
+                                                            _showGroupDetails(
+                                                                g),
+                                                        style: ElevatedButton
+                                                            .styleFrom(
+                                                          backgroundColor:
+                                                              Color(0xFF48CAE4),
+                                                          shape: RoundedRectangleBorder(
+                                                              borderRadius:
+                                                                  BorderRadius
+                                                                      .circular(
+                                                                          12)),
+                                                          elevation: 0,
+                                                        ),
+                                                        child: Text(
+                                                            'View Details',
+                                                            style: TextStyle(
+                                                                color: Colors
+                                                                    .white)),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  SizedBox(height: 10),
+                                                  // Existing row with avatar, title, and color indicator
+                                                  Row(
+                                                    children: [
+                                                      CircleAvatar(
+                                                        backgroundColor:
+                                                            groupColor,
+                                                        radius: 22,
+                                                        child: Text(avatarText,
+                                                            style: TextStyle(
+                                                                fontSize: 22,
+                                                                color: Colors
+                                                                    .white,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold)),
+                                                      ),
+                                                      SizedBox(width: 14),
+                                                      Expanded(
+                                                        child: Text(
+                                                          g['title'] ?? '',
+                                                          style: TextStyle(
+                                                              fontSize: 20,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                              color: Color(
+                                                                  0xFF00B4D8)),
+                                                        ),
+                                                      ),
+                                                      // Group color indicator
+                                                      Container(
+                                                        width: 18,
+                                                        height: 18,
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: groupColor,
+                                                          shape:
+                                                              BoxShape.circle,
+                                                          border: Border.all(
+                                                              color:
+                                                                  Colors.white,
+                                                              width: 2),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  SizedBox(height: 10),
+                                                  Row(
+                                                    children: [
+                                                      Icon(Icons.person, size: 18, color: Colors.grey),
+                                                      SizedBox(width: 4),
+                                                      Text('Creator: ${g['creator']?['email'] ?? ''}', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                                                    ],
+                                                  ),
+                                                  SizedBox(height: 6),
+                                                  Row(
+                                                    children: [
+                                                      Icon(Icons.people, size: 18, color: Colors.grey),
+                                                      SizedBox(width: 4),
+                                                      Text('Members: ${(g['members'] as List).length}', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                                                      SizedBox(width: 12),
+                                                      // Member avatars
+                                                      ...((g['members'] as List).take(5).map((m) => GestureDetector(
+                                                                onTap: () =>
+                                                                    _showMemberDetails(
+                                                                        m),
+                                                                child: Padding(
+                                                                  padding: const EdgeInsets
+                                                                      .symmetric(
+                                                                      horizontal:
+                                                                          2),
+                                                                  child:
+                                                                      CircleAvatar(
+                                                                    radius: 12,
+                                                                    backgroundColor: Colors
+                                                                        .primaries[(m['email'] ?? '').toString().hashCode %
+                                                                            Colors.primaries.length]
+                                                                        .shade200,
+                                                                    child: Text(
+                                                                      () {
+                                                                        final email =
+                                                                            (m['email'] ?? '').toString();
+                                                                        return email.isNotEmpty
+                                                                            ? email[0].toUpperCase()
+                                                                            : '?';
+                                                                      }(),
+                                                                      style: TextStyle(
+                                                                          fontSize:
+                                                                              12,
+                                                                          color: Colors
+                                                                              .white,
+                                                                          fontWeight:
+                                                                              FontWeight.bold),
+                                                                    ),
+                                                                  ),
+                                                                ),
+                                                              ))),
+                                                      if ((g['members'] as List)
+                                                              .length >
+                                                          5)
+                                                        Padding(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .symmetric(
+                                                                  horizontal:
+                                                                      2),
+                                                          child: CircleAvatar(
+                                                            radius: 12,
+                                                            backgroundColor:
+                                                                Colors
+                                                                    .grey[400],
+                                                            child: Text(
+                                                                '+${(g['members'] as List).length - 5}',
+                                                                style: TextStyle(
+                                                                    fontSize:
+                                                                        12,
+                                                                    color: Colors
+                                                                        .white)),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                  SizedBox(height: 6),
+                                                  Row(
+                                                    children: [
+                                                      Icon(Icons.calendar_today,
+                                                          size: 16,
+                                                          color: Colors.grey),
+                                                      SizedBox(width: 4),
+                                                      Text(
+                                                          'Created: ${g['createdAt'] != null ? g['createdAt'].toString().substring(0, 10) : ''}',
+                                                          style: TextStyle(
+                                                              fontSize: 13,
+                                                              color: Colors
+                                                                  .grey[600])),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ]),
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
             ),
           ),
           Positioned(
@@ -4238,7 +4820,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             child: SafeArea(
               child: IconButton(
                 icon: Icon(Icons.arrow_back, color: Colors.black),
-                onPressed: () => Navigator.pushReplacementNamed(context, '/user/dashboard'),
+                onPressed: () =>
+                    Navigator.pushReplacementNamed(context, '/user/dashboard'),
               ),
             ),
           ),
@@ -4260,7 +4843,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               children: [
                 Icon(Icons.group, color: Colors.deepPurple, size: 40),
                 SizedBox(width: 16),
-                Text('Create Group', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                Text('Create Group',
+                    style:
+                        TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               ],
             ),
             if (error != null) ...[
@@ -4279,7 +4864,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             // Color picker
             Row(
               children: [
-                Text('Group Color:', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('Group Color:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
                 SizedBox(width: 12),
                 GestureDetector(
                   onTap: () async {
@@ -4327,7 +4913,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                 ),
                 SizedBox(width: 8),
-                Text(selectedGroupColor != null ? '#${selectedGroupColor!.value.toRadixString(16).substring(2).toUpperCase()}' : 'Default'),
+                Text(selectedGroupColor != null
+                    ? '#${selectedGroupColor!.value.toRadixString(16).substring(2).toUpperCase()}'
+                    : 'Default'),
               ],
             ),
             SizedBox(height: 20),
@@ -4342,7 +4930,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                  Icon(Icons.info_outline,
+                      color: Colors.blue.shade700, size: 20),
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -4362,7 +4951,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 Expanded(
                   child: TextField(
                     controller: _memberEmailController,
-                    decoration: InputDecoration(hintText: 'Enter email', border: OutlineInputBorder()),
+                    decoration: InputDecoration(
+                        hintText: 'Enter email', border: OutlineInputBorder()),
                     onSubmitted: (_) => _addMemberEmail(),
                   ),
                 ),
@@ -4372,10 +4962,12 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   style: TextButton.styleFrom(
                     backgroundColor: Colors.deepPurple,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
                     padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   ),
-                  child: Text('Add', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text('Add',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -4385,7 +4977,10 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             ],
             Wrap(
               spacing: 8,
-              children: memberEmails.map((e) => Chip(label: Text(e), onDeleted: () => _removeMemberEmail(e))).toList(),
+              children: memberEmails
+                  .map((e) => Chip(
+                      label: Text(e), onDeleted: () => _removeMemberEmail(e)))
+                  .toList(),
             ),
             SizedBox(height: 28),
             SizedBox(
@@ -4394,10 +4989,14 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 onPressed: creatingGroup ? null : _createGroup,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Color(0xFF00B4D8),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
                   padding: EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: creatingGroup ? CircularProgressIndicator() : Text('Create Group', style: TextStyle(fontSize: 18, color: Colors.white)),
+                child: creatingGroup
+                    ? CircularProgressIndicator()
+                    : Text('Create Group',
+                        style: TextStyle(fontSize: 18, color: Colors.white)),
               ),
             ),
           ],
@@ -4425,451 +5024,501 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           borderRadius: BorderRadius.circular(18),
         ),
         child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Align(
-              alignment: Alignment.topRight,
-              child: IconButton(
-                icon: Icon(Icons.close, color: Colors.red),
-                tooltip: 'Close',
-                onPressed: () => setState(() => group = null),
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.topRight,
+                child: IconButton(
+                  icon: Icon(Icons.close, color: Colors.red),
+                  tooltip: 'Close',
+                  onPressed: () => setState(() => group = null),
+                ),
               ),
-            ),
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: groupColor,
-                  radius: 28,
-                  child: Text(() {
-                    final title = group?['title'] ?? '';
-                    return title.isNotEmpty ? title[0].toUpperCase() : '?';
-                  }(),
-                      style: TextStyle(fontSize: 28, color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Text('Group Details', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                ),
-                if (isCreator)
-                  GestureDetector(
-                    onTap: () async {
-                      Color picked = groupColor;
-                      await showDialog(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: Text('Change Group Color'),
-                          content: SingleChildScrollView(
-                            child: ColorPicker(
-                              pickerColor: picked,
-                              onColorChanged: (color) {
-                                picked = color;
-                              },
-                              showLabel: false,
-                              pickerAreaHeightPercent: 0.7,
-                            ),
-                          ),
-                          actions: [
-                            TextButton(
-                              child: Text('Cancel'),
-                              onPressed: () => Navigator.of(context).pop(),
-                            ),
-                            TextButton(
-                              child: Text('Update'),
-                              onPressed: () {
-                                _updateGroupColor(picked);
-                                Navigator.of(context).pop();
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: groupColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.grey, width: 2),
-                      ),
-                      child: Icon(Icons.edit, color: Colors.white, size: 18),
-                    ),
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: groupColor,
+                    radius: 28,
+                    child: Text(() {
+                      final title = group?['title'] ?? '';
+                      return title.isNotEmpty ? title[0].toUpperCase() : '?';
+                    }(),
+                        style: TextStyle(
+                            fontSize: 28,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold)),
                   ),
-                if (isCreator)
-                  SizedBox(width: 8),
-                if (isCreator)
-                  GestureDetector(
-                    onTap: loading ? null : _showDeleteGroupDialog,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Color(0xFFDC2626),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Color(0xFFDC2626).withOpacity(0.3),
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Icon(Icons.delete, color: Colors.white, size: 18),
-                    ),
-                  ),
-              ],
-            ),
-            SizedBox(height: 16),
-            Text('Members:', style: TextStyle(fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showMembersDialog(members, creator),
-                    icon: Icon(Icons.people, color: Colors.white),
-                    label: Text('View Members (${members.length})', style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 12),
-                if (isCreator)
+                  SizedBox(width: 16),
                   Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showAddMemberDialog(),
-                      icon: Icon(Icons.person_add, color: Colors.white),
-                      label: Text('Add Member', style: TextStyle(color: Colors.white)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            SizedBox(height: 24),
-            Row(
-              children: [
-                Text('Expenses:', style: TextStyle(fontWeight: FontWeight.bold)),
-                Spacer(),
-                ElevatedButton.icon(
-                  onPressed: () => _showExpensesDialog(expenses),
-                  icon: Icon(Icons.receipt_long, color: Colors.white, size: 18),
-                  label: Text('View All (${expenses.length})', style: TextStyle(color: Colors.white)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Color(0xFF1E3A8A),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 24),
-
-            SizedBox(height: 8),
-            if (expenses.isEmpty)
-              Container(
-                padding: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Column(
-                    children: [
-                      Icon(Icons.receipt_long, color: Colors.grey, size: 48),
-                      SizedBox(height: 8),
-                      Text(
-                        'No expenses yet',
+                    child: Text('Group Details',
                         style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[600],
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      Text(
-                        'Add your first expense to get started',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[500],
-                        ),
-                      ),
-                    ],
+                            fontSize: 22, fontWeight: FontWeight.bold)),
                   ),
-                ),
-              )
-            else
-              ...expenses.take(3).map<Widget>((expense) {
-                return Container(
-                  margin: EdgeInsets.only(bottom: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Color(0xFF1E3A8A).withOpacity(0.2),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: ListTile(
-                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    leading: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Color(0xFF1E3A8A),
-                      child: Icon(
-                        Icons.receipt,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    title: Text(
-                      expense['description'] ?? 'No description',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1E3A8A),
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
-                          style: TextStyle(
-                            color: Colors.green[700],
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Added by: ${expense['addedBy'] ?? 'Unknown'}',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 12,
-                          ),
-                        ),
-                        if (expense['createdAt'] != null || expense['date'] != null)
-                          Row(
-                            children: [
-                              Icon(Icons.access_time, color: Colors.grey[500], size: 12),
-                              SizedBox(width: 4),
-                              Text(
-                                'Created: ${_formatDateTime(expense['createdAt'] ?? expense['date'])}',
-                                style: TextStyle(
-                                  color: Colors.grey[500],
-                                  fontSize: 11,
-                                ),
+                  if (isCreator)
+                    GestureDetector(
+                      onTap: () async {
+                        Color picked = groupColor;
+                        await showDialog(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: Text('Change Group Color'),
+                            content: SingleChildScrollView(
+                              child: ColorPicker(
+                                pickerColor: picked,
+                                onColorChanged: (color) {
+                                  picked = color;
+                                },
+                                showLabel: false,
+                                pickerAreaHeightPercent: 0.7,
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                child: Text('Cancel'),
+                                onPressed: () => Navigator.of(context).pop(),
+                              ),
+                              TextButton(
+                                child: Text('Update'),
+                                onPressed: () {
+                                  _updateGroupColor(picked);
+                                  Navigator.of(context).pop();
+                                },
                               ),
                             ],
                           ),
-                        // Show split details
-                        if (expense['split'] != null && expense['split'].isNotEmpty)
-                          Container(
-                            margin: EdgeInsets.only(top: 8),
-                            padding: EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Color(0xFF1E3A8A).withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                        );
+                      },
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: groupColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.grey, width: 2),
+                        ),
+                        child: Icon(Icons.edit, color: Colors.white, size: 18),
+                      ),
+                    ),
+                  if (isCreator) SizedBox(width: 8),
+                  if (isCreator)
+                    GestureDetector(
+                      onTap: loading ? null : _showDeleteGroupDialog,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Color(0xFFDC2626),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0xFFDC2626).withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          ],
+                        ),
+                        child:
+                            Icon(Icons.delete, color: Colors.white, size: 18),
+                      ),
+                    ),
+                ],
+              ),
+              SizedBox(height: 16),
+              Text('Members:', style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showMembersDialog(members, creator),
+                      icon: Icon(Icons.people, color: Colors.white),
+                      label: Text('View Members (${members.length})',
+                          style: TextStyle(color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 12),
+                  if (isCreator)
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showAddMemberDialog(),
+                        icon: Icon(Icons.person_add, color: Colors.white),
+                        label: Text('Add Member',
+                            style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              SizedBox(height: 24),
+              Row(
+                children: [
+                  Text('Expenses:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Spacer(),
+                  ElevatedButton.icon(
+                    onPressed: () => _showExpensesDialog(expenses),
+                    icon:
+                        Icon(Icons.receipt_long, color: Colors.white, size: 18),
+                    label: Text('View All (${expenses.length})',
+                        style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF1E3A8A),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 24),
+              SizedBox(height: 8),
+              if (expenses.isEmpty)
+                Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.receipt_long, color: Colors.grey, size: 48),
+                        SizedBox(height: 8),
+                        Text(
+                          'No expenses yet',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          'Add your first expense to get started',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ...expenses.take(3).map<Widget>((expense) {
+                  return Container(
+                    margin: EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Color(0xFF1E3A8A).withOpacity(0.2),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 8,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ListTile(
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Color(0xFF1E3A8A),
+                        child: Icon(
+                          Icons.receipt,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      title: Text(
+                        expense['description'] ?? 'No description',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E3A8A),
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: Colors.green[700],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            'Added by: ${expense['addedBy'] ?? 'Unknown'}',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                          if (expense['createdAt'] != null ||
+                              expense['date'] != null)
+                            Row(
                               children: [
-                                Row(
-                                  children: [
-                                    Icon(Icons.people_outline, color: Color(0xFF1E3A8A), size: 16),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'Split Details:',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF1E3A8A),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 4),
-                                Container(
-                                  constraints: BoxConstraints(maxHeight: 120),
-                                  child: SingleChildScrollView(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: (expense['split'] as List).map<Widget>((splitItem) {
-                                        final member = members.firstWhere(
-                                          (m) => m['_id'] == splitItem['user'],
-                                          orElse: () => {'email': 'Unknown User'},
-                                        );
-                                        final isSettled = splitItem['settled'] == true;
-                                        return Padding(
-                                          padding: EdgeInsets.only(bottom: 2),
-                                          child: Row(
-                                            children: [
-                                              Text(
-                                                '• ${(member['email'] ?? '').toString()}: ',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                              Text(
-                                                '\$${splitItem['amount'].toStringAsFixed(2)}',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w600,
-                                                  color: isSettled ? Colors.grey[500] : Colors.green[700],
-                                                  decoration: isSettled ? TextDecoration.lineThrough : null,
-                                                ),
-                                              ),
-                                              if (isSettled)
-                                                Text(
-                                                  ' (Settled)',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    color: Colors.grey[500],
-                                                    fontStyle: FontStyle.italic,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
+                                Icon(Icons.access_time,
+                                    color: Colors.grey[500], size: 12),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Created: ${_formatDateTime(expense['createdAt'] ?? expense['date'])}',
+                                  style: TextStyle(
+                                    color: Colors.grey[500],
+                                    fontSize: 11,
                                   ),
                                 ),
                               ],
                             ),
-                          ),
-                      ],
+                          // Show split details
+                          if (expense['split'] != null &&
+                              expense['split'].isNotEmpty)
+                            Container(
+                              margin: EdgeInsets.only(top: 8),
+                              padding: EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Color(0xFF1E3A8A).withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.people_outline,
+                                          color: Color(0xFF1E3A8A), size: 16),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Split Details:',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF1E3A8A),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 4),
+                                  Container(
+                                    constraints: BoxConstraints(maxHeight: 120),
+                                    child: SingleChildScrollView(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: (expense['split'] as List)
+                                            .map<Widget>((splitItem) {
+                                          final member = members.firstWhere(
+                                            (m) =>
+                                                m['_id'] == splitItem['user'],
+                                            orElse: () =>
+                                                {'email': 'Unknown User'},
+                                          );
+                                          final isSettled =
+                                              splitItem['settled'] == true;
+                                          return Padding(
+                                            padding: EdgeInsets.only(bottom: 2),
+                                            child: Row(
+                                              children: [
+                                                Text(
+                                                  '• ${(member['email'] ?? '').toString()}: ',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                ),
+                                                Text(
+                                                  '\$${splitItem['amount'].toStringAsFixed(2)}',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: isSettled
+                                                        ? Colors.grey[500]
+                                                        : Colors.green[700],
+                                                    decoration: isSettled
+                                                        ? TextDecoration
+                                                            .lineThrough
+                                                        : null,
+                                                  ),
+                                                ),
+                                                if (isSettled)
+                                                  Text(
+                                                    ' (Settled)',
+                                                    style: TextStyle(
+                                                      fontSize: 10,
+                                                      color: Colors.grey[500],
+                                                      fontStyle:
+                                                          FontStyle.italic,
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      trailing: null,
                     ),
-                    trailing: null,
-                  ),
-                );
-              }).toList(),
-            if (expenses.length > 3)
-              Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Text(
-                  '... and ${expenses.length - 3} more expenses',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
+                  );
+                }).toList(),
+              if (expenses.length > 3)
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    '... and ${expenses.length - 3} more expenses',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ),
+              SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: addingExpense
+                    ? null
+                    : () {
+                        _showAddExpenseDialog();
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFF00B4D8),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                ),
+                child: Text('Add Expense',
+                    style: TextStyle(fontSize: 18, color: Colors.white)),
               ),
-            SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: addingExpense ? null : () {
-                _showAddExpenseDialog();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFF00B4D8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                padding: EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: Text('Add Expense', style: TextStyle(fontSize: 18, color: Colors.white)),
-            ),
-            SizedBox(height: 24),
-            if (!isCreator) ...[
-              // Check if current user is still an active member
-              Builder(
-                builder: (context) {
-                  final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user?['email'];
-                  final isActiveMember = (group?['members'] ?? []).any((member) => 
-                    member['email'] == currentUserEmail && member['leftAt'] == null);
-                  
-                  if (isActiveMember) {
-                    // User is still an active member - show Leave Group button
-                    return ElevatedButton(
-                      onPressed: loading ? null : _showLeaveGroupDialog,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFFF59E0B),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        elevation: 4,
-                        shadowColor: Color(0xFFF59E0B).withOpacity(0.3),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.exit_to_app, color: Colors.white, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Leave Group',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+              SizedBox(height: 24),
+              if (!isCreator) ...[
+                // Check if current user is still an active member
+                Builder(
+                  builder: (context) {
+                    final currentUserEmail =
+                        Provider.of<SessionProvider>(context, listen: false)
+                            .user?['email'];
+                    final isActiveMember = (group?['members'] ?? []).any(
+                        (member) =>
+                            member['email'] == currentUserEmail &&
+                            member['leftAt'] == null);
+
+                    if (isActiveMember) {
+                      // User is still an active member - show Leave Group button
+                      return ElevatedButton(
+                        onPressed: loading ? null : _showLeaveGroupDialog,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFFF59E0B),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          elevation: 4,
+                          shadowColor: Color(0xFFF59E0B).withOpacity(0.3),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.exit_to_app,
+                                color: Colors.white, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'Leave Group',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  } else {
-                    // User is no longer an active member - show disabled button
-                    return ElevatedButton(
-                      onPressed: null, // Disabled
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[400],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        elevation: 0,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.person_off, color: Colors.white, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'No longer a member of this group',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                          ],
+                        ),
+                      );
+                    } else {
+                      // User is no longer an active member - show disabled button
+                      return ElevatedButton(
+                        onPressed: null, // Disabled
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[400],
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          elevation: 0,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.person_off,
+                                color: Colors.white, size: 20),
+                            SizedBox(width: 8),
+                            Text(
+                              'No longer a member of this group',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                },
-              ),
+                          ],
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(error!, style: TextStyle(color: Colors.red)),
+                ),
             ],
-            if (error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(error!, style: TextStyle(color: Colors.red)),
-              ),
-          ],
-        ),
+          ),
         ),
       ),
     );
   }
 
   void _showEditExpenseDialog(Map<String, dynamic> expense) {
-    final TextEditingController editDescController = TextEditingController(text: expense['description'] ?? '');
-    final TextEditingController editAmountController = TextEditingController(text: (expense['amount'] ?? 0).toString());
+    final TextEditingController editDescController =
+        TextEditingController(text: expense['description'] ?? '');
+    final TextEditingController editAmountController =
+        TextEditingController(text: (expense['amount'] ?? 0).toString());
     String editSplitType = 'equal';
-    
+
     // Filter out members who have left the group from selected members
-    List<String> editSelectedMembers = List<String>.from(expense['selectedMembers'] ?? []);
-    final activeMembers = (group?['members'] ?? []).where((member) => member['leftAt'] == null).map((m) => m['email']).toList();
-    editSelectedMembers = editSelectedMembers.where((email) => activeMembers.contains(email)).toList();
-    
+    List<String> editSelectedMembers =
+        List<String>.from(expense['selectedMembers'] ?? []);
+    final activeMembers = (group?['members'] ?? [])
+        .where((member) => member['leftAt'] == null)
+        .map((m) => m['email'])
+        .toList();
+    editSelectedMembers = editSelectedMembers
+        .where((email) => activeMembers.contains(email))
+        .toList();
+
     Map<String, double> editCustomSplitAmounts = {};
     String? validationError;
-    
+
     // Initialize custom split amounts from existing split data
     if (expense['split'] != null) {
       for (var splitItem in expense['split']) {
@@ -4878,16 +5527,18 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           orElse: () => null,
         );
         if (member != null) {
-          editCustomSplitAmounts[member['email']] = (splitItem['amount'] ?? 0).toDouble();
+          editCustomSplitAmounts[member['email']] =
+              (splitItem['amount'] ?? 0).toDouble();
         }
       }
     }
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           backgroundColor: Colors.white,
           title: Container(
             padding: EdgeInsets.all(16),
@@ -4940,12 +5591,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                        borderSide:
+                            BorderSide(color: Color(0xFF1E3A8A), width: 2),
                       ),
                     ),
                   ),
                   SizedBox(height: 16),
-                  
+
                   // Amount
                   Text(
                     'Amount',
@@ -4967,12 +5619,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                        borderSide:
+                            BorderSide(color: Color(0xFF1E3A8A), width: 2),
                       ),
                     ),
                   ),
                   SizedBox(height: 16),
-                  
+
                   // Member Selection
                   Text(
                     'Select Members',
@@ -4987,10 +5640,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     constraints: BoxConstraints(maxHeight: 150),
                     child: SingleChildScrollView(
                       child: Column(
-                        children: (group?['members'] ?? []).where((member) => member['leftAt'] == null).map<Widget>((member) {
+                        children: (group?['members'] ?? [])
+                            .where((member) => member['leftAt'] == null)
+                            .map<Widget>((member) {
                           final memberEmail = member['email'] ?? '';
-                          final isSelected = editSelectedMembers.contains(memberEmail);
-                          
+                          final isSelected =
+                              editSelectedMembers.contains(memberEmail);
+
                           return CheckboxListTile(
                             title: Text(memberEmail),
                             value: isSelected,
@@ -5000,8 +5656,12 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                   editSelectedMembers.add(memberEmail);
                                   // Initialize custom split amount for new member
                                   if (editSplitType == 'custom') {
-                                    final amount = double.tryParse(editAmountController.text) ?? 0;
-                                    editCustomSplitAmounts[memberEmail] = amount / (editSelectedMembers.length + 1);
+                                    final amount = double.tryParse(
+                                            editAmountController.text) ??
+                                        0;
+                                    editCustomSplitAmounts[memberEmail] =
+                                        amount /
+                                            (editSelectedMembers.length + 1);
                                   }
                                 } else {
                                   editSelectedMembers.remove(memberEmail);
@@ -5017,7 +5677,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     ),
                   ),
                   SizedBox(height: 16),
-                  
+
                   // Split Type
                   Text(
                     'Split Type',
@@ -5031,16 +5691,21 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   DropdownButtonFormField<String>(
                     value: editSplitType,
                     items: [
-                      DropdownMenuItem(value: 'equal', child: Text('Equal Split')),
-                      DropdownMenuItem(value: 'custom', child: Text('Custom Split'))
+                      DropdownMenuItem(
+                          value: 'equal', child: Text('Equal Split')),
+                      DropdownMenuItem(
+                          value: 'custom', child: Text('Custom Split'))
                     ],
                     onChanged: (value) {
                       setDialogState(() {
                         editSplitType = value!;
                         // Recalculate custom split amounts when switching to custom
-                        if (value == 'custom' && editSelectedMembers.isNotEmpty) {
-                          final amount = double.tryParse(editAmountController.text) ?? 0;
-                          final splitAmount = amount / editSelectedMembers.length;
+                        if (value == 'custom' &&
+                            editSelectedMembers.isNotEmpty) {
+                          final amount =
+                              double.tryParse(editAmountController.text) ?? 0;
+                          final splitAmount =
+                              amount / editSelectedMembers.length;
                           for (var memberEmail in editSelectedMembers) {
                             editCustomSplitAmounts[memberEmail] = splitAmount;
                           }
@@ -5056,23 +5721,27 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       prefixIcon: Icon(Icons.share, color: Color(0xFF1E3A8A)),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        borderSide: BorderSide(
+                            color: Color(0xFF1E3A8A).withOpacity(0.3)),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        borderSide: BorderSide(
+                            color: Color(0xFF1E3A8A).withOpacity(0.3)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                        borderSide:
+                            BorderSide(color: Color(0xFF1E3A8A), width: 2),
                       ),
                       filled: true,
                       fillColor: Colors.grey[50],
                     ),
                   ),
-                  
+
                   // Custom Split Amounts (only show for custom split)
-                  if (editSplitType == 'custom' && editSelectedMembers.isNotEmpty) ...[
+                  if (editSplitType == 'custom' &&
+                      editSelectedMembers.isNotEmpty) ...[
                     SizedBox(height: 16),
                     Text(
                       'Custom Split Amounts',
@@ -5083,14 +5752,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       ),
                     ),
                     SizedBox(height: 8),
-                    
+
                     // Total Split and Remaining Amount Display
                     Container(
                       padding: EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        border: Border.all(
+                            color: Color(0xFF1E3A8A).withOpacity(0.3)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -5108,7 +5778,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: editSelectedMembers.fold<double>(0, (sum, email) => sum + (editCustomSplitAmounts[email] ?? 0)) > 0 ? Colors.green[700] : Colors.grey[600],
+                              color: editSelectedMembers.fold<double>(
+                                          0,
+                                          (sum, email) =>
+                                              sum +
+                                              (editCustomSplitAmounts[email] ??
+                                                  0)) >
+                                      0
+                                  ? Colors.green[700]
+                                  : Colors.grey[600],
                             ),
                           ),
                         ],
@@ -5120,7 +5798,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        border: Border.all(
+                            color: Color(0xFF1E3A8A).withOpacity(0.3)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -5138,15 +5817,36 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: ((double.tryParse(editAmountController.text) ?? 0) - editSelectedMembers.fold<double>(0, (sum, email) => sum + (editCustomSplitAmounts[email] ?? 0))) > 0 ? Colors.orange[700] : 
-                                     ((double.tryParse(editAmountController.text) ?? 0) - editSelectedMembers.fold<double>(0, (sum, email) => sum + (editCustomSplitAmounts[email] ?? 0))) < 0 ? Colors.red[700] : Colors.grey[600],
+                              color: ((double.tryParse(
+                                                  editAmountController.text) ??
+                                              0) -
+                                          editSelectedMembers.fold<double>(
+                                              0,
+                                              (sum, email) =>
+                                                  sum +
+                                                  (editCustomSplitAmounts[email] ??
+                                                      0))) >
+                                      0
+                                  ? Colors.orange[700]
+                                  : ((double.tryParse(editAmountController.text) ??
+                                                  0) -
+                                              editSelectedMembers.fold<double>(
+                                                  0,
+                                                  (sum, email) =>
+                                                      sum +
+                                                      (editCustomSplitAmounts[
+                                                              email] ??
+                                                          0))) <
+                                          0
+                                      ? Colors.red[700]
+                                      : Colors.grey[600],
                             ),
                           ),
                         ],
                       ),
                     ),
                     SizedBox(height: 8),
-                    
+
                     // Validation error display
                     if (validationError != null) ...[
                       Container(
@@ -5158,7 +5858,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.error_outline, color: Colors.red, size: 20),
+                            Icon(Icons.error_outline,
+                                color: Colors.red, size: 20),
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -5174,82 +5875,95 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       ),
                       SizedBox(height: 8),
                     ],
-                                          ...editSelectedMembers.map<Widget>((memberEmail) => Container(
-                        margin: EdgeInsets.only(bottom: 12),
-                        padding: EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 16,
-                              backgroundColor: Color(0xFF1E3A8A),
-                              child: Text(
-                                memberEmail[0].toUpperCase(),
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                    ...editSelectedMembers
+                        .map<Widget>((memberEmail) => Container(
+                              margin: EdgeInsets.only(bottom: 12),
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Color(0xFF1E3A8A).withOpacity(0.2)),
                               ),
-                            ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              child: Row(
                                 children: [
-                                  Text(
-                                    memberEmail,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF1E3A8A),
+                                  CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor: Color(0xFF1E3A8A),
+                                    child: Text(
+                                      memberEmail[0].toUpperCase(),
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
-                                  Text(
-                                    'Amount: \$${(editCustomSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2)}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          memberEmail,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF1E3A8A),
+                                          ),
+                                        ),
+                                        Text(
+                                          'Amount: \$${(editCustomSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextField(
+                                      keyboardType: TextInputType.number,
+                                      decoration: InputDecoration(
+                                        hintText: 'Amount',
+                                        prefixText: '\$',
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        contentPadding: EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                      ),
+                                      controller: TextEditingController(
+                                        text:
+                                            editCustomSplitAmounts[memberEmail]
+                                                    ?.toStringAsFixed(2) ??
+                                                '0.00',
+                                      ),
+                                      onChanged: (value) {
+                                        final amount =
+                                            double.tryParse(value) ?? 0;
+                                        editCustomSplitAmounts[memberEmail] =
+                                            amount;
+                                        // Update dialog state to refresh the display
+                                        setDialogState(() {
+                                          // Clear validation error when user starts typing
+                                          if (validationError != null &&
+                                              validationError!.contains(
+                                                  'Custom split amounts')) {
+                                            validationError = null;
+                                          }
+                                        });
+                                      },
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: TextField(
-                                keyboardType: TextInputType.number,
-                                decoration: InputDecoration(
-                                  hintText: 'Amount',
-                                  prefixText: '\$',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                ),
-                                controller: TextEditingController(
-                                  text: editCustomSplitAmounts[memberEmail]?.toStringAsFixed(2) ?? '0.00',
-                                ),
-                                onChanged: (value) {
-                                  final amount = double.tryParse(value) ?? 0;
-                                  editCustomSplitAmounts[memberEmail] = amount;
-                                  // Update dialog state to refresh the display
-                                  setDialogState(() {
-                                    // Clear validation error when user starts typing
-                                    if (validationError != null && validationError!.contains('Custom split amounts')) {
-                                      validationError = null;
-                                    }
-                                  });
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      )).toList(),
+                            ))
+                        .toList(),
                   ],
                 ],
               ),
@@ -5265,7 +5979,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       onPressed: () => Navigator.of(context).pop(),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[300],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: Text(
@@ -5287,59 +6002,66 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         setDialogState(() {
                           validationError = null; // Clear previous errors
                         });
-                        
+
                         if (editDescController.text.trim().isEmpty) {
                           setDialogState(() {
                             validationError = 'Please enter a description';
                           });
                           return;
                         }
-                        
-                        final amount = double.tryParse(editAmountController.text);
+
+                        final amount =
+                            double.tryParse(editAmountController.text);
                         if (amount == null || amount <= 0) {
                           setDialogState(() {
                             validationError = 'Please enter a valid amount';
                           });
                           return;
                         }
-                        
+
                         if (editSelectedMembers.isEmpty) {
                           setDialogState(() {
-                            validationError = 'Please select at least one member';
+                            validationError =
+                                'Please select at least one member';
                           });
                           return;
                         }
-                        
+
                         // Validate custom split amounts
                         if (editSplitType == 'custom') {
                           double totalCustomAmount = 0;
                           for (var memberEmail in editSelectedMembers) {
-                            totalCustomAmount += editCustomSplitAmounts[memberEmail] ?? 0;
+                            totalCustomAmount +=
+                                editCustomSplitAmounts[memberEmail] ?? 0;
                           }
-                          
+
                           if ((totalCustomAmount - amount).abs() > 0.01) {
                             setDialogState(() {
-                              validationError = 'Custom split amounts must equal the total amount (\$${amount.toStringAsFixed(2)}). Current total: \$${totalCustomAmount.toStringAsFixed(2)}';
+                              validationError =
+                                  'Custom split amounts must equal the total amount (\$${amount.toStringAsFixed(2)}). Current total: \$${totalCustomAmount.toStringAsFixed(2)}';
                             });
                             return;
                           }
                         }
-                        
+
                         Navigator.of(context).pop();
-                        
+
                         final expenseData = {
                           'description': editDescController.text.trim(),
                           'amount': amount,
                           'selectedMembers': editSelectedMembers,
                           'splitType': editSplitType,
-                          'customSplitAmounts': editSplitType == 'custom' ? editCustomSplitAmounts : null,
+                          'customSplitAmounts': editSplitType == 'custom'
+                              ? editCustomSplitAmounts
+                              : null,
                         };
-                        
+
                         await _editExpense(expense['_id'], expenseData);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(0xFF1E3A8A),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: Text(
@@ -5406,7 +6128,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 24),
+                    Icon(Icons.warning_amber_rounded,
+                        color: Color(0xFFDC2626), size: 24),
                     SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -5451,7 +6174,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     onPressed: () => Navigator.of(context).pop(),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.grey[300],
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       padding: EdgeInsets.symmetric(vertical: 12),
                     ),
                     child: Text(
@@ -5475,7 +6199,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color(0xFFDC2626),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       padding: EdgeInsets.symmetric(vertical: 12),
                     ),
                     child: Text(
@@ -5499,7 +6224,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   void _showSettleExpenseDialog(Map<String, dynamic> expense) {
     final members = group?['members'] ?? [];
     final expenseSplit = expense['split'] ?? [];
-    
+
     // Get member emails that are in this expense and not already settled
     List<String> availableMembers = [];
     List<String> settledMembers = [];
@@ -5516,7 +6241,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         }
       }
     }
-    
+
     if (availableMembers.isEmpty) {
       String message = 'All splits in this expense are already settled!';
       if (settledMembers.isNotEmpty) {
@@ -5531,15 +6256,16 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       );
       return;
     }
-    
+
     Set<String> selectedMembers = {};
     bool selectAll = false;
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           backgroundColor: Colors.white,
           title: Container(
             padding: EdgeInsets.all(16),
@@ -5577,11 +6303,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     decoration: BoxDecoration(
                       color: Color(0xFF00B4D8).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Color(0xFF00B4D8).withOpacity(0.3)),
+                      border:
+                          Border.all(color: Color(0xFF00B4D8).withOpacity(0.3)),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline, color: Color(0xFF00B4D8), size: 20),
+                        Icon(Icons.info_outline,
+                            color: Color(0xFF00B4D8), size: 20),
                         SizedBox(width: 8),
                         Text(
                           'Select members to settle their split amounts:',
@@ -5620,7 +6348,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Color(0xFF00B4D8).withOpacity(0.2)),
+                      border:
+                          Border.all(color: Color(0xFF00B4D8).withOpacity(0.2)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.05),
@@ -5697,7 +6426,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           },
                           orElse: () => null,
                         );
-                        
+
                         return CheckboxListTile(
                           title: Text(
                             memberEmail,
@@ -5721,7 +6450,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                               } else {
                                 selectedMembers.remove(memberEmail);
                               }
-                              selectAll = selectedMembers.length == availableMembers.length;
+                              selectAll = selectedMembers.length ==
+                                  availableMembers.length;
                             });
                           },
                           activeColor: Color(0xFF00B4D8),
@@ -5750,11 +6480,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ? null
                   : () async {
                       Navigator.of(context).pop();
-                      await _settleExpenseSplits(expense['_id'], selectedMembers.toList());
+                      await _settleExpenseSplits(
+                          expense['_id'], selectedMembers.toList());
                     },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFF00B4D8),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
                 padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
               child: Text(
@@ -5775,16 +6507,17 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   void _showAddExpenseDialog() {
     // Initialize selected members with all active members
     _initializeSelectedMembers();
-    
+
     // Local error state for the dialog
     String? dialogError;
     bool dialogAddingExpense = false;
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           backgroundColor: Colors.white,
           title: Container(
             padding: EdgeInsets.all(16),
@@ -5822,11 +6555,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     decoration: BoxDecoration(
                       color: Color(0xFF1E3A8A).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      border:
+                          Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                        Icon(Icons.info_outline,
+                            color: Color(0xFF1E3A8A), size: 20),
                         SizedBox(width: 8),
                         Text(
                           'Add expense details and choose split type',
@@ -5844,7 +6579,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                      border:
+                          Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.05),
@@ -5861,18 +6597,22 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           color: Color(0xFF1E3A8A),
                           fontWeight: FontWeight.w500,
                         ),
-                        prefixIcon: Icon(Icons.description, color: Color(0xFF1E3A8A)),
+                        prefixIcon:
+                            Icon(Icons.description, color: Color(0xFF1E3A8A)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          borderSide: BorderSide(
+                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          borderSide: BorderSide(
+                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                          borderSide:
+                              BorderSide(color: Color(0xFF1E3A8A), width: 2),
                         ),
                         filled: true,
                         fillColor: Colors.grey[50],
@@ -5884,7 +6624,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                      border:
+                          Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.05),
@@ -5895,25 +6636,30 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     ),
                     child: TextField(
                       controller: _expenseAmountController,
-                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                      keyboardType:
+                          TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(
                         labelText: 'Amount (\$)',
                         labelStyle: TextStyle(
                           color: Color(0xFF1E3A8A),
                           fontWeight: FontWeight.w500,
                         ),
-                        prefixIcon: Icon(Icons.attach_money, color: Color(0xFF1E3A8A)),
+                        prefixIcon:
+                            Icon(Icons.attach_money, color: Color(0xFF1E3A8A)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          borderSide: BorderSide(
+                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          borderSide: BorderSide(
+                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                          borderSide:
+                              BorderSide(color: Color(0xFF1E3A8A), width: 2),
                         ),
                         filled: true,
                         fillColor: Colors.grey[50],
@@ -5926,7 +6672,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                      border:
+                          Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.05),
@@ -5939,7 +6686,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       onTap: () => _showMemberSelectionDialog(),
                       borderRadius: BorderRadius.circular(16),
                       child: Container(
-                        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                         child: Row(
                           children: [
                             Icon(Icons.people, color: Color(0xFF1E3A8A)),
@@ -5959,8 +6707,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                   SizedBox(height: 4),
                                   Text(
                                     selectedMembers.isEmpty
-                                      ? 'Select members to include in this expense'
-                                      : "${selectedMembers.length} member${selectedMembers.length == 1 ? '' : 's'} selected",
+                                        ? 'Select members to include in this expense'
+                                        : "${selectedMembers.length} member${selectedMembers.length == 1 ? '' : 's'} selected",
                                     style: TextStyle(
                                       color: Colors.grey[600],
                                       fontSize: 14,
@@ -5969,7 +6717,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 ],
                               ),
                             ),
-                            Icon(Icons.arrow_drop_down, color: Color(0xFF1E3A8A)),
+                            Icon(Icons.arrow_drop_down,
+                                color: Color(0xFF1E3A8A)),
                           ],
                         ),
                       ),
@@ -5980,7 +6729,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                      border:
+                          Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.05),
@@ -6006,7 +6756,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           value: 'custom',
                           child: Row(
                             children: [
-                              Icon(Icons.person_outline, color: Color(0xFF1E3A8A)),
+                              Icon(Icons.person_outline,
+                                  color: Color(0xFF1E3A8A)),
                               SizedBox(width: 8),
                               Text('Custom Split'),
                             ],
@@ -6030,15 +6781,18 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         prefixIcon: Icon(Icons.share, color: Color(0xFF1E3A8A)),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          borderSide: BorderSide(
+                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          borderSide: BorderSide(
+                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                          borderSide:
+                              BorderSide(color: Color(0xFF1E3A8A), width: 2),
                         ),
                         filled: true,
                         fillColor: Colors.grey[50],
@@ -6052,14 +6806,16 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       decoration: BoxDecoration(
                         color: Color(0xFF1E3A8A).withOpacity(0.05),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                        border: Border.all(
+                            color: Color(0xFF1E3A8A).withOpacity(0.2)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                              Icon(Icons.info_outline,
+                                  color: Color(0xFF1E3A8A), size: 20),
                               SizedBox(width: 8),
                               Expanded(
                                 child: Text(
@@ -6088,7 +6844,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                              border: Border.all(
+                                  color: Color(0xFF1E3A8A).withOpacity(0.3)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -6106,7 +6863,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: _totalCustomSplitAmount > 0 ? Colors.green[700] : Colors.grey[600],
+                                    color: _totalCustomSplitAmount > 0
+                                        ? Colors.green[700]
+                                        : Colors.grey[600],
                                   ),
                                 ),
                               ],
@@ -6118,7 +6877,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                              border: Border.all(
+                                  color: Color(0xFF1E3A8A).withOpacity(0.3)),
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -6136,8 +6896,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                   style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: _remainingCustomSplitAmount > 0 ? Colors.orange[700] : 
-                                           _remainingCustomSplitAmount < 0 ? Colors.red[700] : Colors.grey[600],
+                                    color: _remainingCustomSplitAmount > 0
+                                        ? Colors.orange[700]
+                                        : _remainingCustomSplitAmount < 0
+                                            ? Colors.red[700]
+                                            : Colors.grey[600],
                                   ),
                                 ),
                               ],
@@ -6145,85 +6908,107 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           ),
                           SizedBox(height: 16),
                           // Member amount inputs
-                          ...selectedMembers.map((memberEmail) => Container(
-                            margin: EdgeInsets.only(bottom: 12),
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                            ),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 16,
-                                  backgroundColor: Color(0xFF1E3A8A),
-                                  child: Text(
-                                    memberEmail[0].toUpperCase(),
-                                    style: TextStyle(
+                          ...selectedMembers
+                              .map((memberEmail) => Container(
+                                    margin: EdgeInsets.only(bottom: 12),
+                                    padding: EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
                                       color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color: Color(0xFF1E3A8A)
+                                              .withOpacity(0.2)),
                                     ),
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        memberEmail,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF1E3A8A),
+                                    child: Row(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 16,
+                                          backgroundColor: Color(0xFF1E3A8A),
+                                          child: Text(
+                                            memberEmail[0].toUpperCase(),
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        'Amount: \$${(customSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2)}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[600],
+                                        SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                memberEmail,
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Color(0xFF1E3A8A),
+                                                ),
+                                              ),
+                                              Text(
+                                                'Amount: \$${(customSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2)}',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Container(
-                                  width: 100,
-                                  child: TextField(
-                                    keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                    decoration: InputDecoration(
-                                      hintText: '0.00',
-                                      prefixText: '\$',
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                        borderSide: BorderSide(color: Color(0xFF1E3A8A), width: 2),
-                                      ),
-                                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                        SizedBox(width: 12),
+                                        Container(
+                                          width: 100,
+                                          child: TextField(
+                                            keyboardType:
+                                                TextInputType.numberWithOptions(
+                                                    decimal: true),
+                                            decoration: InputDecoration(
+                                              hintText: '0.00',
+                                              prefixText: '\$',
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                borderSide: BorderSide(
+                                                    color: Color(0xFF1E3A8A)
+                                                        .withOpacity(0.3)),
+                                              ),
+                                              enabledBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                borderSide: BorderSide(
+                                                    color: Color(0xFF1E3A8A)
+                                                        .withOpacity(0.3)),
+                                              ),
+                                              focusedBorder: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                borderSide: BorderSide(
+                                                    color: Color(0xFF1E3A8A),
+                                                    width: 2),
+                                              ),
+                                              contentPadding:
+                                                  EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 8),
+                                            ),
+                                            style: TextStyle(fontSize: 14),
+                                            onChanged: (value) {
+                                              setDialogState(() {
+                                                final amount =
+                                                    double.tryParse(value) ??
+                                                        0.0;
+                                                customSplitAmounts[
+                                                    memberEmail] = amount;
+                                              });
+                                            },
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    style: TextStyle(fontSize: 14),
-                                    onChanged: (value) {
-                                      setDialogState(() {
-                                        final amount = double.tryParse(value) ?? 0.0;
-                                        customSplitAmounts[memberEmail] = amount;
-                                      });
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )).toList(),
+                                  ))
+                              .toList(),
                         ],
                       ),
                     ),
@@ -6238,7 +7023,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.error_outline, color: Colors.red, size: 20),
+                          Icon(Icons.error_outline,
+                              color: Colors.red, size: 20),
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -6266,7 +7052,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       onPressed: () => Navigator.of(context).pop(),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[300],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: Text(
@@ -6284,43 +7071,60 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   child: Container(
                     margin: EdgeInsets.only(left: 8, right: 16),
                     child: ElevatedButton(
-                      onPressed: dialogAddingExpense ? null : () async {
-                        // Clear previous error
-                        setDialogState(() { dialogError = null; });
-                        
-                        // Validate that at least one member is selected
-                        if (selectedMembers.isEmpty) {
-                          setDialogState(() { 
-                            dialogError = 'Please select at least one member for this expense'; 
-                          });
-                          return;
-                        }
+                      onPressed: dialogAddingExpense
+                          ? null
+                          : () async {
+                              // Clear previous error
+                              setDialogState(() {
+                                dialogError = null;
+                              });
 
-                        // Validate custom split amounts if split type is custom
-                        if (splitType == 'custom') {
-                          final totalExpenseAmount = double.tryParse(_expenseAmountController.text.trim()) ?? 0.0;
-                          final totalSplitAmount = _totalCustomSplitAmount;
-                          
-                          if (totalSplitAmount != totalExpenseAmount) {
-                            setDialogState(() { 
-                              dialogError = 'Total split amount (\$${totalSplitAmount.toStringAsFixed(2)}) must equal expense amount (\$${totalExpenseAmount.toStringAsFixed(2)})'; 
-                            });
-                            return;
-                          }
-                        }
+                              // Validate that at least one member is selected
+                              if (selectedMembers.isEmpty) {
+                                setDialogState(() {
+                                  dialogError =
+                                      'Please select at least one member for this expense';
+                                });
+                                return;
+                              }
 
-                        setDialogState(() { dialogAddingExpense = true; });
-                        try {
-                          await _addExpense();
-                          setDialogState(() { dialogAddingExpense = false; });
-                          Navigator.of(context).pop();
-                        } catch (e) {
-                          setDialogState(() { dialogAddingExpense = false; dialogError = e.toString(); });
-                        }
-                      },
+                              // Validate custom split amounts if split type is custom
+                              if (splitType == 'custom') {
+                                final totalExpenseAmount = double.tryParse(
+                                        _expenseAmountController.text.trim()) ??
+                                    0.0;
+                                final totalSplitAmount =
+                                    _totalCustomSplitAmount;
+
+                                if (totalSplitAmount != totalExpenseAmount) {
+                                  setDialogState(() {
+                                    dialogError =
+                                        'Total split amount (\$${totalSplitAmount.toStringAsFixed(2)}) must equal expense amount (\$${totalExpenseAmount.toStringAsFixed(2)})';
+                                  });
+                                  return;
+                                }
+                              }
+
+                              setDialogState(() {
+                                dialogAddingExpense = true;
+                              });
+                              try {
+                                await _addExpense();
+                                setDialogState(() {
+                                  dialogAddingExpense = false;
+                                });
+                                Navigator.of(context).pop();
+                              } catch (e) {
+                                setDialogState(() {
+                                  dialogAddingExpense = false;
+                                  dialogError = e.toString();
+                                });
+                              }
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(0xFF1E3A8A),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: dialogAddingExpense
@@ -6329,7 +7133,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             )
                           : Text(
@@ -6354,21 +7159,24 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   // Member Selection Dialog
   void _showMemberSelectionDialog() {
     if (group == null) return;
-    
+
     final members = (group!['members'] ?? []) as List<dynamic>;
-    final activeMembers = members.where((member) => member['leftAt'] == null).toList();
-    
+    final activeMembers =
+        members.where((member) => member['leftAt'] == null).toList();
+
     // Sort members alphabetically by email
-    activeMembers.sort((a, b) => (a['email'] ?? '').toString().compareTo((b['email'] ?? '').toString()));
-    
+    activeMembers.sort((a, b) =>
+        (a['email'] ?? '').toString().compareTo((b['email'] ?? '').toString()));
+
     // Create a temporary list for the dialog
     List<String> tempSelectedMembers = List.from(selectedMembers);
-    
+
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           backgroundColor: Colors.white,
           title: Container(
             padding: EdgeInsets.all(16),
@@ -6405,11 +7213,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   decoration: BoxDecoration(
                     color: Color(0xFF1E3A8A).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                    border:
+                        Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: Color(0xFF1E3A8A), size: 20),
+                      Icon(Icons.info_outline,
+                          color: Color(0xFF1E3A8A), size: 20),
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -6433,9 +7243,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         onPressed: () {
                           setDialogState(() {
                             tempSelectedMembers.clear();
-                            tempSelectedMembers.addAll(
-                              activeMembers.map((member) => member['email'].toString())
-                            );
+                            tempSelectedMembers.addAll(activeMembers
+                                .map((member) => member['email'].toString()));
                           });
                         },
                         icon: Icon(Icons.select_all, size: 18),
@@ -6443,7 +7252,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFF1E3A8A),
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                           padding: EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
@@ -6461,7 +7271,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.grey[300],
                           foregroundColor: Colors.black87,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                           padding: EdgeInsets.symmetric(vertical: 8),
                         ),
                       ),
@@ -6475,16 +7286,21 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     itemCount: activeMembers.length,
                     itemBuilder: (context, index) {
                       final member = activeMembers[index];
-                      final email = member['email'].toString(); // Convert to string safely
+                      final email = member['email']
+                          .toString(); // Convert to string safely
                       final isSelected = tempSelectedMembers.contains(email);
-                      
+
                       return Container(
                         margin: EdgeInsets.only(bottom: 8),
                         decoration: BoxDecoration(
-                          color: isSelected ? Color(0xFF1E3A8A).withOpacity(0.1) : Colors.grey[50],
+                          color: isSelected
+                              ? Color(0xFF1E3A8A).withOpacity(0.1)
+                              : Colors.grey[50],
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isSelected ? Color(0xFF1E3A8A) : Colors.grey[300]!,
+                            color: isSelected
+                                ? Color(0xFF1E3A8A)
+                                : Colors.grey[300]!,
                             width: isSelected ? 2 : 1,
                           ),
                         ),
@@ -6505,19 +7321,24 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             email,
                             style: TextStyle(
                               fontWeight: FontWeight.w500,
-                              color: isSelected ? Color(0xFF1E3A8A) : Colors.black87,
+                              color: isSelected
+                                  ? Color(0xFF1E3A8A)
+                                  : Colors.black87,
                             ),
                           ),
                           subtitle: Text(
                             isSelected ? 'Included in expense' : 'Not included',
                             style: TextStyle(
                               fontSize: 12,
-                              color: isSelected ? Color(0xFF1E3A8A) : Colors.grey[600],
+                              color: isSelected
+                                  ? Color(0xFF1E3A8A)
+                                  : Colors.grey[600],
                             ),
                           ),
                           activeColor: Color(0xFF1E3A8A),
                           checkColor: Colors.white,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          contentPadding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         ),
                       );
                     },
@@ -6541,7 +7362,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[300],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: Text(
@@ -6573,7 +7395,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Color(0xFF1E3A8A),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         padding: EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: Text(
@@ -6598,7 +7421,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   // Helper function to format date and time
   String _formatDateTime(dynamic dateTime) {
     if (dateTime == null) return 'Unknown';
-    
+
     try {
       DateTime date;
       if (dateTime is String) {
@@ -6608,26 +7431,37 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       } else {
         return 'Invalid date';
       }
-      
+
       // Format: "Dec 15, 2023 at 2:30 PM"
       String month = _getMonthName(date.month);
       String day = date.day.toString();
       String year = date.year.toString();
-      String hour = date.hour > 12 ? (date.hour - 12).toString() : date.hour.toString();
+      String hour =
+          date.hour > 12 ? (date.hour - 12).toString() : date.hour.toString();
       if (hour == '0') hour = '12';
       String minute = date.minute.toString().padLeft(2, '0');
       String period = date.hour >= 12 ? 'PM' : 'AM';
-      
+
       return '$month $day, $year at $hour:$minute $period';
     } catch (e) {
       return 'Invalid date';
     }
   }
-  
+
   String _getMonthName(int month) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
     ];
     return months[month - 1];
   }
@@ -6639,17 +7473,22 @@ class TopWaveClipper extends CustomClipper<Path> {
     final path = Path();
     path.lineTo(0, size.height * 0.8);
     path.quadraticBezierTo(
-      size.width * 0.25, size.height,
-      size.width * 0.5, size.height * 0.8,
+      size.width * 0.25,
+      size.height,
+      size.width * 0.5,
+      size.height * 0.8,
     );
     path.quadraticBezierTo(
-      size.width * 0.75, size.height * 0.6,
-      size.width, size.height * 0.8,
+      size.width * 0.75,
+      size.height * 0.6,
+      size.width,
+      size.height * 0.8,
     );
     path.lineTo(size.width, 0);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -6659,13 +7498,15 @@ class BottomWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6, size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
+        size.width * 0.5, size.height * 0.4);
     path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
     return path;
   }
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
@@ -6676,18 +7517,22 @@ class SettleWaveClipper extends CustomClipper<Path> {
     final path = Path();
     path.lineTo(0, size.height * 0.7);
     path.quadraticBezierTo(
-      size.width * 0.25, size.height,
-      size.width * 0.5, size.height * 0.7,
+      size.width * 0.25,
+      size.height,
+      size.width * 0.5,
+      size.height * 0.7,
     );
     path.quadraticBezierTo(
-      size.width * 0.75, size.height * 0.4,
-      size.width, size.height * 0.7,
+      size.width * 0.75,
+      size.height * 0.4,
+      size.width,
+      size.height * 0.7,
     );
     path.lineTo(size.width, 0);
     path.close();
     return path;
   }
-  
+
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
