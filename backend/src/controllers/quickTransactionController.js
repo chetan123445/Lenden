@@ -7,6 +7,15 @@ exports.createQuickTransaction = async (req, res) => {
     const { amount, currency, date, time, description, counterpartyEmail, role } = req.body;
     const userEmail = req.user.email;
 
+    const user = await User.findOne({ email: userEmail });
+    if (!user) {
+        return res.status(404).json({ error: 'User not found.' });
+    }
+
+    if (user.subscription === 'free' && user.quickTransactionCount >= 10) {
+        return res.status(403).json({ error: 'You have reached the maximum number of quick transactions for a free account. Please subscribe for unlimited quick transactions.' });
+    }
+
     if (userEmail === counterpartyEmail) {
       return res.status(400).json({ error: 'User and counterparty email cannot be the same.' });
     }
@@ -27,6 +36,10 @@ exports.createQuickTransaction = async (req, res) => {
     });
 
     await quickTransaction.save();
+
+    user.quickTransactionCount += 1;
+    await user.save();
+
     await logQuickTransactionActivity(req.user._id, 'quick_transaction_created', quickTransaction, { counterpartyEmail });
     res.status(201).json({ quickTransaction });
   } catch (error) {

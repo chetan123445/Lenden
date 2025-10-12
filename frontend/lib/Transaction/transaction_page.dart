@@ -471,6 +471,29 @@ class _TransactionPageState extends State<TransactionPage> {
           ),
         ),
       );
+    } else if (streamed.statusCode == 403) {
+      final resp = await streamed.stream.bytesToString();
+      final data = jsonDecode(resp);
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Subscription Limit Reached'),
+          content: Text(data['error'] ?? 'You have reached the maximum number of transactions for a free account.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.pushNamed(context, '/subscription');
+              },
+              child: const Text('Subscribe'),
+            ),
+          ],
+        ),
+      );
     } else {
       final resp = await streamed.stream.bytesToString();
       String errorMsg = 'Failed to create transaction';

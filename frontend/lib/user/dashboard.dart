@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
@@ -23,7 +24,7 @@ import 'help_support_page.dart';
 import 'feedback.dart';
 import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
-import 'subscriptions_page.dart';
+import '../Digitise/subscription_page.dart';
 import '../Transaction/quick_transactions_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
@@ -524,8 +525,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
             context, MaterialPageRoute(builder: (_) => const RatingsPage()));
         break;
       case 'subscriptions':
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const SubscriptionsPage()));
+        Navigator.pushNamed(context, '/subscription');
         break;
       case 'credits':
         ScaffoldMessenger.of(context).showSnackBar(
@@ -823,7 +823,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                             ),
                             if (_searchController.text.isNotEmpty)
                               IconButton(
-                                icon: Icon(Icons.clear,
+                                icon: Icon(Icons.clear, 
                                     color: Colors.grey[600], size: 20),
                                 onPressed: () {
                                   setState(() {
@@ -980,7 +980,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                   ],
                                 ),
                                 IconButton(
-                                  icon: Icon(Icons.refresh,
+                                  icon: Icon(Icons.refresh, 
                                       color: Color(0xFF00B4D8)),
                                   onPressed: () =>
                                       _fetchCounterparties(forceRefresh: true),
@@ -1367,7 +1367,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                           Row(
                             children: [
                               IconButton(
-                                icon: const Icon(Icons.arrow_back,
+                                icon: const Icon(Icons.arrow_back, 
                                     color: Colors.black),
                                 onPressed: () async {
                                   final popped =
@@ -1380,7 +1380,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                               ),
                               Builder(
                                 builder: (context) => IconButton(
-                                  icon: const Icon(Icons.menu,
+                                  icon: const Icon(Icons.menu, 
                                       color: Colors.black),
                                   onPressed: () =>
                                       Scaffold.of(context).openDrawer(),
@@ -1441,7 +1441,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.logout,
+                                icon: const Icon(Icons.logout, 
                                     color: Colors.black, size: 28),
                                 tooltip: 'Logout',
                                 onPressed: () => _confirmLogout(context),

@@ -39,6 +39,10 @@ exports.createGroup = async (req, res) => {
     if (!creatorUser) {
       return res.status(400).json({ error: 'Creator not found' });
     }
+
+    if (creatorUser.subscription === 'free' && creatorUser.groupCount >= 3) {
+        return res.status(403).json({ error: 'You have reached the maximum number of groups for a free account. Please subscribe for unlimited groups.' });
+    }
     
     // Filter out creator's email from memberEmails (they're added automatically)
     const filteredMemberEmails = memberEmails.filter(email => email !== creatorUser.email);
@@ -55,6 +59,11 @@ exports.createGroup = async (req, res) => {
     
     const members = memberIds.map(id => ({ user: id }));
     const group = await GroupTransaction.create({ title, creator, members, color });
+
+    // Increment group count for the user
+    creatorUser.groupCount += 1;
+    await creatorUser.save();
+
     // Populate members and creator for response
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')

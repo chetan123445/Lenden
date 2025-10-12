@@ -28,6 +28,7 @@ module.exports = (io) => {
   const notificationController = require('../controllers/notificationController');
   const chatController = require('../controllers/chatController')(io);
   const groupChatController = require('../controllers/groupChatController')(io);
+  const subscriptionController = require('../controllers/subscriptionController');
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -68,6 +69,9 @@ module.exports = (io) => {
   router.get('/users/devices', auth, sessionTimeout, userController.listDevices);
   router.post('/users/logout-device', auth, sessionTimeout, userController.logoutDevice);
   router.get('/users/:id', auth, userController.getUserById);
+
+  // Subscription route
+  router.put('/users/subscription', auth, subscriptionController.updateSubscription);
 
   // Quick Transaction routes
   router.get('/quick-transactions', auth, quickTransactionController.getQuickTransactions);

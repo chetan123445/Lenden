@@ -108,22 +108,26 @@ exports.getMyRatings = async (req, res) => {
     }
     user.avgRating = avg;
     await user.save();
+    
+    const isSubscribed = user.subscription === 'premium';
+
     // Ratings received
     const received = await Rating.find({ ratee: userId }).populate('rater', 'username name');
     // Ratings given
     const given = await Rating.find({ rater: userId }).populate('ratee', 'username name');
+    
     res.json({
       avgRating: user.avgRating || 0,
       ratingsReceived: received.map(r => ({
         rater: r.rater._id,
-        raterName: r.rater.name || r.rater.username,
+        raterName: isSubscribed ? (r.rater.name || r.rater.username) : 'A user',
         rating: r.rating,
         comment: r.comment,
         createdAt: r.createdAt
       })),
       ratingsGiven: given.map(r => ({
         ratee: r.ratee._id,
-        rateeName: r.ratee.name || r.ratee.username,
+        rateeName: isSubscribed ? (r.ratee.name || r.ratee.username) : 'A user',
         rating: r.rating,
         comment: r.comment,
         createdAt: r.createdAt

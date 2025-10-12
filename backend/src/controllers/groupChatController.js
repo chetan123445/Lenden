@@ -28,6 +28,12 @@ module.exports = (io) => {
                     return;
                 }
 
+                const userMessageCount = groupTransaction.messageCounts.find(mc => mc.user.toString() === senderId);
+                if (sender.subscription === 'free' && userMessageCount && userMessageCount.count >= 10) {
+                    socket.emit('createGroupMessageError', { ...data, error: 'You have reached the maximum number of messages for a free account. Please subscribe for unlimited messages.' });
+                    return;
+                }
+
                 // Check if user is still an active member of the group
                 const isActiveMember = groupTransaction.members.some(member => 
                     member.user.toString() === senderId && !member.leftAt
@@ -51,8 +57,6 @@ module.exports = (io) => {
                 await chat.save();
 
                 // Increment message count for the user
-                const userMessageCount = groupTransaction.messageCounts.find(mc => mc.user.toString() === senderId);
-
                 if (userMessageCount) {
                     await GroupTransaction.updateOne(
                         { _id: groupTransactionId, 'messageCounts.user': senderId },

@@ -283,6 +283,14 @@ class SessionProvider extends ChangeNotifier {
     clearCounterparties();
   }
 
+  void updateSubscription(bool isSubscribed) {
+    if (_user != null) {
+      _user!['subscription'] = isSubscribed ? 'premium' : 'free';
+      _saveUserData(_user!);
+      notifyListeners();
+    }
+  }
+
   void updateNotificationSettings(Map<String, dynamic> settings) {
     if (_user != null) {
       _user!['notificationSettings'] = settings;
