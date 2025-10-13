@@ -84,23 +84,6 @@ const userSchema = new mongoose.Schema({
       createdAt: { type: Date, default: Date.now }
     }
   ],
-  subscription: {
-    type: String,
-    enum: ['free', 'premium'],
-    default: 'free'
-  },
-  transactionCount: {
-    type: Number,
-    default: 0
-  },
-  groupCount: {
-    type: Number,
-    default: 0
-  },
-  quickTransactionCount: {
-    type: Number,
-    default: 0
-  }
 }, { timestamps: true });
 
 userSchema.index({ email: 1 });

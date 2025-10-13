@@ -24,7 +24,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'api_config.dart';
 import 'widgets/notification_icon.dart';
-import 'Digitise/subscription_page.dart';
 
 void main() {
   runApp(
@@ -74,7 +73,6 @@ class AppInitializer extends StatelessWidget {
         '/feedback': (context) => const FeedbackPage(),
         '/admin/ratings': (context) => const AdminRatingsPage(),
         '/admin/feedbacks': (context) => const AdminFeedbacksPage(),
-        '/subscription': (context) => const SubscriptionPage(),
       },
     );
   }

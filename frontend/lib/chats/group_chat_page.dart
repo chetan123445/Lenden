@@ -135,28 +135,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
     // Handle error events
     socket.on('createGroupMessageError', (data) {
-      if (data['error'] != null && data['error'].contains('subscribe')) {
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Subscription Limit Reached'),
-            content: Text(data['error']),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.pushNamed(context, '/subscription');
-                },
-                child: const Text('Subscribe'),
-              ),
-            ],
-          ),
-        );
-      } else if (data['groupTransactionId'] == widget.groupTransactionId) {
+      if (data['groupTransactionId'] == widget.groupTransactionId) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

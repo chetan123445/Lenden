@@ -132,33 +132,6 @@ class _RatingsPageState extends State<RatingsPage> {
   List<dynamic> ratingActivities = [];
   // Search user rating by username/email
   Future<void> _searchUserRating() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final user = session.user;
-
-    if (user != null && user['subscription'] == 'free') {
-      showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Subscription Required'),
-          content: const Text('You need to be a subscribed user to see other users\' ratings.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.pushNamed(context, '/subscription');
-              },
-              child: const Text('Subscribe'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
     final input = _searchController.text.trim();
     if (input.isEmpty) {
       setState(() {

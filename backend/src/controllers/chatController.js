@@ -39,12 +39,6 @@ module.exports = (io) => {
                     return;
                 }
 
-                const userMessageCount = transaction.messageCounts.find(mc => mc.user.toString() === senderId);
-                if (sender.subscription === 'free' && userMessageCount && userMessageCount.count >= 10) {
-                    socket.emit('createMessageError', { ...data, error: 'You have reached the maximum number of messages for a free account. Please subscribe for unlimited messages.' });
-                    return;
-                }
-
                 let chat = new Chat({
                     transactionId,
                     senderId,
@@ -56,6 +50,8 @@ module.exports = (io) => {
                 await chat.save();
 
                 // Increment message count for the user
+                const userMessageCount = transaction.messageCounts.find(mc => mc.user.toString() === senderId);
+
                 if (userMessageCount) {
                     await Transaction.updateOne(
                         { _id: transactionId, 'messageCounts.user': senderId },

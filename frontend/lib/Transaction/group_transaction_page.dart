@@ -5,7 +5,6 @@ import '../api_config.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import '../Digitise/subscription_page.dart';
 
 class GroupTransactionPage extends StatefulWidget {
   const GroupTransactionPage({Key? key}) : super(key: key);
@@ -901,46 +900,14 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   void _showCreateGroup() {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final user = session.user;
-
-    if (user != null) {
-      final isSubscribed = user['isSubscribed'] ?? false;
-      final groupCount = user['groupCount'] ?? 0;
-
-      if (!isSubscribed && groupCount >= 3) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text('Upgrade to Premium'),
-            content: Text(
-                'You have reached the maximum number of groups (3) for free users. Please subscribe to create more groups.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.pushNamed(context, '/subscription');
-                },
-                child: Text('Subscribe'),
-              ),
-            ],
-          ),
-        );
-      } else {
-        setState(() {
-          group = null;
-          _titleController.clear();
-          memberEmails.clear();
-          error = null;
-          memberAddError = null;
-          showCreateGroupForm = true;
-        });
-      }
-    }
+    setState(() {
+      group = null;
+      _titleController.clear();
+      memberEmails.clear();
+      error = null;
+      memberAddError = null;
+      showCreateGroupForm = true;
+    });
   }
 
   void _hideCreateGroup() {

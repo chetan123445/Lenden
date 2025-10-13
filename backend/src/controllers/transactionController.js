@@ -348,10 +348,6 @@ exports.createTransaction = async (req, res) => {
     if (!counterparty) return res.status(400).json({ error: 'Counterparty email not registered' });
     if (!user) return res.status(400).json({ error: 'User email not registered' });
 
-    if (user.subscription === 'free' && user.transactionCount >= 5) {
-      return res.status(403).json({ error: 'You have reached the maximum number of transactions for a free account. Please subscribe for unlimited transactions.' });
-    }
-
     // Handle photos (images only)
     let photos = [];
     if (req.files && req.files.length > 0) {
@@ -416,10 +412,6 @@ exports.createTransaction = async (req, res) => {
       console.error('Failed to log transaction activity:', e);
     }
     
-    // Increment transaction count for the user
-    user.transactionCount += 1;
-    await user.save();
-
     res.json({ success: true, transactionId: transaction.transactionId, transaction });
 
     // Send receipt emails to both parties (fire and forget)

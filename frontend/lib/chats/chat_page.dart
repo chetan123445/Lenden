@@ -116,31 +116,6 @@ class _ChatPageState extends State<ChatPage> {
         }
       }
     });
-
-    socket.on('createMessageError', (data) {
-      if (data['error'] != null && data['error'].contains('subscribe')) {
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Subscription Limit Reached'),
-            content: Text(data['error']),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  Navigator.pushNamed(context, '/subscription');
-                },
-                child: const Text('Subscribe'),
-              ),
-            ],
-          ),
-        );
-      }
-    });
   }
 
   @override
