@@ -29,6 +29,7 @@ module.exports = (io) => {
   const chatController = require('../controllers/chatController')(io);
   const groupChatController = require('../controllers/groupChatController')(io);
   const subscriptionController = require('../controllers/subscriptionController');
+  const adminFeatureController = require('../controllers/adminFeatureController');
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -308,6 +309,30 @@ module.exports = (io) => {
   router.post('/subscription/update', auth, subscriptionController.updateSubscription);
   router.get('/subscription/status', auth, subscriptionController.getSubscriptionStatus);
   router.get('/subscription/history', auth, subscriptionController.getSubscriptionHistory);
+
+  // Public subscription routes
+  router.get('/subscription/plans', subscriptionController.getSubscriptionPlans);
+  router.get('/subscription/benefits', subscriptionController.getPremiumBenefits);
+  router.get('/subscription/faqs', subscriptionController.getFaqs);
+
+  // Admin feature routes
+  // Subscription Plans
+  router.post('/admin/subscription-plans', auth, isAdmin, adminFeatureController.createSubscriptionPlan);
+  router.get('/admin/subscription-plans', auth, isAdmin, adminFeatureController.getSubscriptionPlans);
+  router.put('/admin/subscription-plans/:id', auth, isAdmin, adminFeatureController.updateSubscriptionPlan);
+  router.delete('/admin/subscription-plans/:id', auth, isAdmin, adminFeatureController.deleteSubscriptionPlan);
+
+  // Premium Benefits
+  router.post('/admin/premium-benefits', auth, isAdmin, adminFeatureController.createPremiumBenefit);
+  router.get('/admin/premium-benefits', auth, isAdmin, adminFeatureController.getPremiumBenefits);
+  router.put('/admin/premium-benefits/:id', auth, isAdmin, adminFeatureController.updatePremiumBenefit);
+  router.delete('/admin/premium-benefits/:id', auth, isAdmin, adminFeatureController.deletePremiumBenefit);
+
+  // FAQs
+  router.post('/admin/faqs', auth, isAdmin, adminFeatureController.createFaq);
+  router.get('/admin/faqs', auth, isAdmin, adminFeatureController.getFaqs);
+  router.put('/admin/faqs/:id', auth, isAdmin, adminFeatureController.updateFaq);
+  router.delete('/admin/faqs/:id', auth, isAdmin, adminFeatureController.deleteFaq);
 
   return router;
 };

@@ -5,6 +5,59 @@ import 'package:provider/provider.dart';
 import '../api_config.dart';
 import '../user/session.dart';
 
+// Models
+class SubscriptionPlan {
+  final String id;
+  final String name;
+  final double price;
+  final int duration;
+  final List<String> features;
+  final bool isAvailable;
+
+  SubscriptionPlan({required this.id, required this.name, required this.price, required this.duration, required this.features, required this.isAvailable});
+
+  factory SubscriptionPlan.fromJson(Map<String, dynamic> json) {
+    return SubscriptionPlan(
+      id: json['_id'],
+      name: json['name'],
+      price: json['price'].toDouble(),
+      duration: json['duration'],
+      features: List<String>.from(json['features']),
+      isAvailable: json['isAvailable'],
+    );
+  }
+}
+
+class PremiumBenefit {
+  final String id;
+  final String text;
+
+  PremiumBenefit({required this.id, required this.text});
+
+  factory PremiumBenefit.fromJson(Map<String, dynamic> json) {
+    return PremiumBenefit(
+      id: json['_id'],
+      text: json['text'],
+    );
+  }
+}
+
+class Faq {
+  final String id;
+  final String question;
+  final String answer;
+
+  Faq({required this.id, required this.question, required this.answer});
+
+  factory Faq.fromJson(Map<String, dynamic> json) {
+    return Faq(
+      id: json['_id'],
+      question: json['question'],
+      answer: json['answer'],
+    );
+  }
+}
+
 class SubscriptionsPage extends StatefulWidget {
   const SubscriptionsPage({Key? key}) : super(key: key);
 
@@ -18,20 +71,64 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   String _filterOption = 'All'; // All, Active, Expired
   bool _showComparison = false;
   
-  final List<Map<String, dynamic>> _plans = [
-    {'name': '1 month', 'duration': 1, 'price': 99, 'pricePerMonth': 99, 'savings': 0},
-    {'name': '2 months', 'duration': 2, 'price': 189, 'pricePerMonth': 94.5, 'savings': 5},
-    {'name': '3 months', 'duration': 3, 'price': 267, 'pricePerMonth': 89, 'savings': 10},
-    {'name': '6 months', 'duration': 6, 'price': 474, 'pricePerMonth': 79, 'savings': 20, 'popular': true},
-    {'name': '1 year', 'duration': 12, 'price': 828, 'pricePerMonth': 69, 'savings': 30, 'bestValue': true},
-  ];
+  List<SubscriptionPlan> _plans = [];
+  List<PremiumBenefit> _benefits = [];
+  List<Faq> _faqs = [];
 
   final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchSubscriptionData();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchSubscriptionData() async {
+    await _fetchPlans();
+    await _fetchBenefits();
+    await _fetchFaqs();
+  }
+
+  Future<void> _fetchPlans() async {
+    final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/subscription/plans'));
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      setState(() {
+        _plans = data.map((item) => SubscriptionPlan.fromJson(item)).toList();
+      });
+    } else {
+      // Handle error
+    }
+  }
+
+  Future<void> _fetchBenefits() async {
+    final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/subscription/benefits'));
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      setState(() {
+        _benefits = data.map((item) => PremiumBenefit.fromJson(item)).toList();
+      });
+    } else {
+      // Handle error
+    }
+  }
+
+  Future<void> _fetchFaqs() async {
+    final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/subscription/faqs'));
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+      setState(() {
+        _faqs = data.map((item) => Faq.fromJson(item)).toList();
+      });
+    } else {
+      // Handle error
+    }
   }
 
   Future<void> _subscribe() async {
@@ -53,7 +150,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
       return;
     }
 
-    final plan = _plans.firstWhere((p) => p['name'] == _selectedPlan);
+    final plan = _plans.firstWhere((p) => p.name == _selectedPlan);
 
     try {
       final response = await http.post(
@@ -64,10 +161,10 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         },
         body: jsonEncode({
           'userId': user['_id'],
-          'subscriptionPlan': plan['name'],
-          'duration': plan['duration'],
-          'price': plan['price'],
-          'discount': plan['savings'],
+          'subscriptionPlan': plan.name,
+          'duration': plan.duration,
+          'price': plan.price,
+          'discount': 0, // Assuming no discount for now
         }),
       );
 
@@ -475,10 +572,11 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 10),
-                _buildBenefitItem(0, Icons.all_inclusive, 'Unlimited Transactions', ''),
-                _buildBenefitItem(1, Icons.group_add, 'Unlimited Groups', ''),
-                _buildBenefitItem(2, Icons.message, 'Unlimited Messaging', ''),
-                _buildBenefitItem(3, Icons.star, 'View User Ratings', ''),
+                ..._benefits.asMap().entries.map((entry) {
+                  int idx = entry.key;
+                  PremiumBenefit benefit = entry.value;
+                  return _buildBenefitItem(idx, Icons.check, benefit.text, '');
+                }).toList(),
               ],
             ),
           ),
@@ -540,10 +638,11 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 15),
-        _buildBenefitItem(0, Icons.all_inclusive, 'Unlimited Transactions', 'Create as many transactions as you need without any limits.'),
-        _buildBenefitItem(1, Icons.group_add, 'Unlimited Groups', 'Create and manage an unlimited number of groups for your transactions.'),
-        _buildBenefitItem(2, Icons.message, 'Unlimited Messaging', 'Enjoy unlimited messaging in both one-to-one and group chats.'),
-        _buildBenefitItem(3, Icons.star, 'View User Ratings', 'See the ratings of other users to build a trusted network.'),
+        ..._benefits.asMap().entries.map((entry) {
+          int idx = entry.key;
+          PremiumBenefit benefit = entry.value;
+          return _buildBenefitItem(idx, Icons.check, benefit.text, '');
+        }).toList(),
         
         const SizedBox(height: 30),
         
@@ -630,15 +729,13 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     );
   }
 
-  Widget _buildPlanCard(Map<String, dynamic> plan) {
-    final isSelected = _selectedPlan == plan['name'];
-    final bool isPopular = plan['popular'] ?? false;
-    final bool isBestValue = plan['bestValue'] ?? false;
+  Widget _buildPlanCard(SubscriptionPlan plan) {
+    final isSelected = _selectedPlan == plan.name;
     
     return GestureDetector(
       onTap: () {
         setState(() {
-          _selectedPlan = plan['name'];
+          _selectedPlan = plan.name;
         });
       },
       child: Container(
@@ -658,106 +755,78 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
             color: isSelected ? Colors.white : Colors.grey[50],
             borderRadius: BorderRadius.circular(18),
           ),
-          child: Stack(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Badge
-              if (isPopular || isBestValue)
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isBestValue 
-                            ? [Colors.purple, Colors.deepPurple]
-                            : [Colors.orange, Colors.deepOrange],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      isBestValue ? '⭐ BEST VALUE' : '🔥 POPULAR',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Radio<String>(
-                        value: plan['name'],
-                        groupValue: _selectedPlan,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedPlan = value;
-                          });
-                        },
-                        activeColor: Color(0xFF00B4D8),
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  Radio<String>(
+                    value: plan.name,
+                    groupValue: _selectedPlan,
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedPlan = value;
+                      });
+                    },
+                    activeColor: Color(0xFF00B4D8),
+                  ),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          plan.name,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Row(
                           children: [
                             Text(
-                              plan['name'],
+                              '\₹${plan.price}',
                               style: TextStyle(
-                                fontSize: 18,
+                                fontSize: 24,
                                 fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Text(
-                                  '₹${plan['price']}',
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF00B4D8),
-                                  ),
-                                ),
-                                SizedBox(width: 8),
-                                if (plan['savings'] > 0)
-                                  Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      'Save ${plan['savings']}%',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              '₹${plan['pricePerMonth'].toStringAsFixed(0)}/month',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
+                                color: Color(0xFF00B4D8),
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ],
+                        SizedBox(height: 4),
+                        Text(
+                          'for ${plan.duration} days',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
+              SizedBox(height: 10),
+              ...plan.features.map((feature) => Padding(
+                padding: const EdgeInsets.only(left: 50.0, bottom: 4.0),
+                child: Row(
+                  children: [
+                    Icon(Icons.check, color: Colors.green, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        feature,
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
             ],
           ),
         ),
@@ -770,14 +839,12 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: _plans.map((plan) {
-          final isSelected = _selectedPlan == plan['name'];
-          final bool isPopular = plan['popular'] ?? false;
-          final bool isBestValue = plan['bestValue'] ?? false;
+          final isSelected = _selectedPlan == plan.name;
           
           return GestureDetector(
             onTap: () {
               setState(() {
-                _selectedPlan = plan['name'];
+                _selectedPlan = plan.name;
               });
             },
             child: Container(
@@ -801,29 +868,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (isPopular || isBestValue)
-                      Container(
-                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: isBestValue 
-                                ? [Colors.purple, Colors.deepPurple]
-                                : [Colors.orange, Colors.deepOrange],
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          isBestValue ? '⭐ BEST' : '🔥 HOT',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
                     SizedBox(height: 12),
                     Text(
-                      plan['name'],
+                      plan.name,
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -831,7 +878,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      '₹${plan['price']}',
+                      '\₹${plan.price}',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -840,30 +887,12 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      '₹${plan['pricePerMonth'].toStringAsFixed(0)}/mo',
+                      'for ${plan.duration} days',
                       style: TextStyle(
                         color: Colors.grey[600],
                         fontSize: 12,
                       ),
                     ),
-                    if (plan['savings'] > 0) ...[
-                      SizedBox(height: 8),
-                      Container(
-                        padding: EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Save ${plan['savings']}%',
-                          style: TextStyle(
-                            color: Colors.green,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -960,26 +989,11 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
             ],
           ),
           SizedBox(height: 20),
-          _buildFAQItem(
-            'Can I subscribe anytime?',
-            'Yes, you can subscribe at any time(Only one active subscription is allowed at a time) and enjoy premium features immediately.',
-            0,
-          ),
-          _buildFAQItem(
-            'Do you offer refunds?',
-            'We offer a 7-day money-back guarantee if you\'re not satisfied with our premium features.',
-            1,
-          ),
-          _buildFAQItem(
-            'What payment methods do you accept?',
-            'We accept all major credit cards, debit cards, UPI, and net banking.',
-            2,
-          ),
-          _buildFAQItem(
-            'Will my subscription auto-renew?',
-            'Your subscription will expire at the end of the period. You can manually renew when needed.',
-            3,
-          ),
+          ..._faqs.asMap().entries.map((entry) {
+            int idx = entry.key;
+            Faq faq = entry.value;
+            return _buildFAQItem(faq.question, faq.answer, idx);
+          }).toList(),
         ],
       ),
     );

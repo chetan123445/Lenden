@@ -12,6 +12,7 @@ import 'admin_ratings_page.dart';
 import 'admin_feedbacks_page.dart';
 import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
+import 'admin_features_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -212,6 +213,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           context,
                           MaterialPageRoute(
                               builder: (_) => TrackUserActivityPage()));
+                    },
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.subscriptions,
+                    label: 'Manage Features',
+                    onTap: () {
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => AdminFeaturesPage()));
                     },
                   ),
                   _buildDashboardCard(

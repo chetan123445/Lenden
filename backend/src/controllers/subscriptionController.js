@@ -1,6 +1,9 @@
 const Subscription = require('../models/subscription');
 const User = require('../models/user');
 const mongoose = require('mongoose');
+const SubscriptionPlan = require('../models/subscriptionPlan');
+const PremiumBenefit = require('../models/premiumBenefit');
+const Faq = require('../models/faq');
 
 // Update or create a subscription
 exports.updateSubscription = async (req, res) => {
@@ -13,7 +16,7 @@ exports.updateSubscription = async (req, res) => {
 
         const subscribedDate = new Date();
         const endDate = new Date(subscribedDate);
-        endDate.setMonth(endDate.getMonth() + duration);
+        endDate.setDate(endDate.getDate() + duration);
 
         const actualPrice = price - (price * (discount / 100));
 
@@ -68,5 +71,35 @@ exports.getSubscriptionHistory = async (req, res) => {
         res.status(200).json(subscriptions);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching subscription history', error: error.message });
+    }
+};
+
+// Get all active subscription plans
+exports.getSubscriptionPlans = async (req, res) => {
+    try {
+        const plans = await SubscriptionPlan.find({ isAvailable: true });
+        res.status(200).json(plans);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching subscription plans', error: error.message });
+    }
+};
+
+// Get all premium benefits
+exports.getPremiumBenefits = async (req, res) => {
+    try {
+        const benefits = await PremiumBenefit.find();
+        res.status(200).json(benefits);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching premium benefits', error: error.message });
+    }
+};
+
+// Get all FAQs
+exports.getFaqs = async (req, res) => {
+    try {
+        const faqs = await Faq.find();
+        res.status(200).json(faqs);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching FAQs', error: error.message });
     }
 };
