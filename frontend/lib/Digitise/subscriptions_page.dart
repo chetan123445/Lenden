@@ -88,6 +88,18 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     }
   }
 
+  Color _getBenefitColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6), // Cream
+      Color(0xFFE8F5E9), // Light green
+      Color(0xFFFCE4EC), // Light pink
+      Color(0xFFE3F2FD), // Light blue
+      Color(0xFFFFF9C4), // Light yellow
+      Color(0xFFF3E5F5), // Light purple
+    ];
+    return colors[index % colors.length];
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -96,7 +108,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         title: const Text('Go Premium', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: Consumer<SessionProvider>(
         builder: (context, session, child) {
@@ -216,10 +228,10 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            _buildBenefitItem(Icons.all_inclusive, 'Unlimited Transactions', ''),
-            _buildBenefitItem(Icons.group_add, 'Unlimited Groups', ''),
-            _buildBenefitItem(Icons.message, 'Unlimited Messaging', ''),
-            _buildBenefitItem(Icons.star, 'View User Ratings', ''),
+            _buildBenefitItem(0, Icons.all_inclusive, 'Unlimited Transactions', ''),
+            _buildBenefitItem(1, Icons.group_add, 'Unlimited Groups', ''),
+            _buildBenefitItem(2, Icons.message, 'Unlimited Messaging', ''),
+            _buildBenefitItem(3, Icons.star, 'View User Ratings', ''),
           ],
         ),
       ),
@@ -241,10 +253,10 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 60),
-        _buildBenefitItem(Icons.all_inclusive, 'Unlimited Transactions', 'Create as many transactions as you need without any limits.'),
-        _buildBenefitItem(Icons.group_add, 'Unlimited Groups', 'Create and manage an unlimited number of groups for your transactions.'),
-        _buildBenefitItem(Icons.message, 'Unlimited Messaging', 'Enjoy unlimited messaging in both one-to-one and group chats.'),
-        _buildBenefitItem(Icons.star, 'View User Ratings', 'See the ratings of other users to build a trusted network.'),
+        _buildBenefitItem(0, Icons.all_inclusive, 'Unlimited Transactions', 'Create as many transactions as you need without any limits.'),
+        _buildBenefitItem(1, Icons.group_add, 'Unlimited Groups', 'Create and manage an unlimited number of groups for your transactions.'),
+        _buildBenefitItem(2, Icons.message, 'Unlimited Messaging', 'Enjoy unlimited messaging in both one-to-one and group chats.'),
+        _buildBenefitItem(3, Icons.star, 'View User Ratings', 'See the ratings of other users to build a trusted network.'),
         const SizedBox(height: 30),
         const Text(
           'Select a Plan',
@@ -275,7 +287,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
               ),
               child: const Text(
                 'Subscribe Now',
-                style: TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -284,7 +296,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     );
   }
 
-  Widget _buildBenefitItem(IconData icon, String title, String subtitle) {
+  Widget _buildBenefitItem(int index, IconData icon, String title, String subtitle) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(2),
@@ -298,7 +310,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFFFCE4EC),
+          color: _getBenefitColor(index),
           borderRadius: BorderRadius.circular(15),
         ),
         child: ListTile(

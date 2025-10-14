@@ -23,7 +23,7 @@ import 'help_support_page.dart';
 import 'feedback.dart';
 import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
-import 'subscriptions_page.dart';
+import '../Digitise/subscriptions_page.dart';
 import '../Transaction/quick_transactions_page.dart';
 
 class UserDashboardPage extends StatefulWidget {
