@@ -307,6 +307,7 @@ module.exports = (io) => {
   // Subscription routes
   router.post('/subscription/update', auth, subscriptionController.updateSubscription);
   router.get('/subscription/status', auth, subscriptionController.getSubscriptionStatus);
+  router.get('/subscription/history', auth, subscriptionController.getSubscriptionHistory);
 
   return router;
 };

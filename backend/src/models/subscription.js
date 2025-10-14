@@ -4,8 +4,12 @@ const subscriptionSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true,
-        unique: true
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ['active', 'expired'],
+        default: 'active'
     },
     subscribed: {
         type: Boolean,
@@ -13,8 +17,23 @@ const subscriptionSchema = new mongoose.Schema({
     },
     subscriptionPlan: {
         type: String,
-        enum: ['1 month', '2 months', '3 months', '6 months', '1 year', null],
         default: null
+    },
+    duration: {
+        type: Number,
+        default: 0
+    },
+    price: {
+        type: Number,
+        default: 0
+    },
+    discount: {
+        type: Number,
+        default: 0
+    },
+    actualPrice: {
+        type: Number,
+        default: 0
     },
     endDate: {
         type: Date
