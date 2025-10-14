@@ -326,9 +326,12 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     );
   }
 
+  bool _showAllHistory = false;
+
   Widget _buildSubscriptionHistory(List<Map<String, dynamic>> history) {
     final filteredHistory = _getFilteredHistory(history);
-    
+    final itemsToShow = _showAllHistory ? filteredHistory : filteredHistory.take(3).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -414,7 +417,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         const SizedBox(height: 15),
         
         // History List
-        if (filteredHistory.isEmpty)
+        if (itemsToShow.isEmpty)
           Center(
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -425,7 +428,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
             ),
           )
         else
-          ...filteredHistory.map((sub) {
+          ...itemsToShow.map((sub) {
             final endDate = DateTime.parse(sub['endDate']);
             final isActive = endDate.isAfter(DateTime.now());
             
@@ -478,6 +481,18 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
             );
           }),
         
+        if (filteredHistory.length > 3) 
+          Center(
+            child: TextButton(
+              onPressed: () {
+                setState(() {
+                  _showAllHistory = !_showAllHistory;
+                });
+              },
+              child: Text(_showAllHistory ? 'Show less' : 'View all'),
+            ),
+          ),
+
         const SizedBox(height: 20),
       ],
     );

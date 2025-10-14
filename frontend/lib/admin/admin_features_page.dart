@@ -28,23 +28,61 @@ class _AdminFeaturesPageState extends State<AdminFeaturesPage> with SingleTicker
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text('Manage Features'),
+        title: Text('Manage Features', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: IconThemeData(color: Colors.black),
         bottom: TabBar(
           controller: _tabController,
+          labelColor: Colors.black,
+          unselectedLabelColor: Colors.black54,
+          indicatorColor: Color(0xFF00B4D8),
+          indicatorWeight: 3,
           tabs: [
-            Tab(text: 'Plans'),
-            Tab(text: 'Benefits'),
-            Tab(text: 'FAQs'),
+            Tab(text: 'Plans', icon: Icon(Icons.card_membership)),
+            Tab(text: 'Benefits', icon: Icon(Icons.star)),
+            Tab(text: 'FAQs', icon: Icon(Icons.help_outline)),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Stack(
         children: [
-          SubscriptionPlansTab(),
-          PremiumBenefitsTab(),
-          FaqsTab(),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 150,
+                color: const Color(0xFF00B4D8),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: ClipPath(
+              clipper: BottomWaveClipper(),
+              child: Container(
+                height: MediaQuery.of(context).size.height * 0.13,
+                color: const Color(0xFF00B4D8),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                SubscriptionPlansTab(),
+                PremiumBenefitsTab(),
+                FaqsTab(),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -122,6 +160,18 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
     _fetchPlans();
   }
 
+  Color _getCardColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6),
+      Color(0xFFE8F5E9),
+      Color(0xFFFCE4EC),
+      Color(0xFFE3F2FD),
+      Color(0xFFFFF9C4),
+      Color(0xFFF3E5F5),
+    ];
+    return colors[index % colors.length];
+  }
+
   Future<void> _fetchPlans() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
@@ -190,44 +240,111 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: ListView.builder(
-        itemCount: _plans.length,
-        itemBuilder: (context, index) {
-          final plan = _plans[index];
-          return ListTile(
-            title: Text(plan.name),
-            subtitle: Text('\₹${plan.price} for ${plan.duration} days'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _isToggling[plan.id] ?? false
-                    ? SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Switch(
-                        value: plan.isAvailable,
-                        onChanged: (value) {
-                          _togglePlanAvailability(plan, value);
-                        },
+    backgroundColor: Colors.transparent,
+    body: _plans.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox, size: 80, color: Colors.grey[400]),
+                  SizedBox(height: 16),
+                  Text(
+                    'Nothing here',
+                    style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Add your first subscription plan',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: _plans.length,
+              itemBuilder: (context, index) {
+                final plan = _plans[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      colors: [Colors.orange, Colors.white, Colors.green],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: _getCardColor(index),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      plan.name,
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      '₹${plan.price} for ${plan.duration} days',
+                                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              _isToggling[plan.id] ?? false
+                                  ? SizedBox(
+                                      height: 24,
+                                      width: 24,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : Switch(
+                                      value: plan.isAvailable,
+                                      onChanged: (value) {
+                                        _togglePlanAvailability(plan, value);
+                                      },
+                                      activeColor: Colors.green,
+                                    ),
+                            ],
+                          ),
+                          SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                                onPressed: () => _showPlanDialog(plan: plan),
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _deletePlan(plan.id),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                IconButton(
-                  icon: Icon(Icons.edit),
-                  onPressed: () => _showPlanDialog(plan: plan),
-                ),
-                IconButton(
-                  icon: Icon(Icons.delete),
-                  onPressed: () => _deletePlan(plan.id),
-                ),
-              ],
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showPlanDialog(),
-        child: Icon(Icons.add),
+        icon: Icon(Icons.add),
+        label: Text('Add Plan'),
+        backgroundColor: Color(0xFF00B4D8),
       ),
     );
   }
@@ -245,15 +362,18 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Delete Plan'),
         content: Text('Are you sure you want to delete this plan?'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
-
     if (confirmed == true) {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
@@ -297,60 +417,141 @@ class _PlanDialogState extends State<PlanDialog> {
     _features = widget.plan?.features ?? [];
   }
 
+  Widget _buildStylishTextField({
+    required String label,
+    required String initialValue,
+    required FormFieldValidator<String> validator,
+    required FormFieldSetter<String> onSaved,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: TextFormField(
+          initialValue: initialValue,
+          decoration: InputDecoration(
+            labelText: label,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          validator: validator,
+          onSaved: onSaved,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.plan == null ? 'Add Plan' : 'Edit Plan'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                initialValue: _name,
-                decoration: InputDecoration(labelText: 'Name'),
-                validator: (value) => value!.isEmpty ? 'Please enter a name' : null,
-                onSaved: (value) => _name = value!,
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: EdgeInsets.all(2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Color(0xFFFCE4EC),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          padding: EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.plan == null ? 'Add Plan' : 'Edit Plan',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 20),
+                  _buildStylishTextField(
+                    label: 'Plan Name',
+                    initialValue: _name,
+                    validator: (value) => value!.isEmpty ? 'Please enter a name' : null,
+                    onSaved: (value) => _name = value!,
+                  ),
+                  _buildStylishTextField(
+                    label: 'Price (₹)',
+                    initialValue: _price.toString(),
+                    keyboardType: TextInputType.number,
+                    validator: (value) => value!.isEmpty ? 'Please enter a price' : null,
+                    onSaved: (value) => _price = double.parse(value!),
+                  ),
+                  _buildStylishTextField(
+                    label: 'Duration (days)',
+                    initialValue: _duration.toString(),
+                    keyboardType: TextInputType.number,
+                    validator: (value) => value!.isEmpty ? 'Please enter a duration' : null,
+                    onSaved: (value) => _duration = int.parse(value!),
+                  ),
+                  _buildStylishTextField(
+                    label: 'Features (comma separated)',
+                    initialValue: _features.join(', '),
+                    maxLines: 3,
+                    validator: (value) => null,
+                    onSaved: (value) => _features = value!.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+                  ),
+                  SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('Cancel'),
+                      ),
+                      SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _isSaving ? null : _savePlan,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF00B4D8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: _isSaving
+                            ? SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Text('Save', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              TextFormField(
-                initialValue: _price.toString(),
-                decoration: InputDecoration(labelText: 'Price'),
-                keyboardType: TextInputType.number,
-                validator: (value) => value!.isEmpty ? 'Please enter a price' : null,
-                onSaved: (value) => _price = double.parse(value!),
-              ),
-              TextFormField(
-                initialValue: _duration.toString(),
-                decoration: InputDecoration(labelText: 'Duration (days)'),
-                keyboardType: TextInputType.number,
-                validator: (value) => value!.isEmpty ? 'Please enter a duration' : null,
-                onSaved: (value) => _duration = int.parse(value!),
-              ),
-              TextFormField(
-                initialValue: _features.join(', '),
-                decoration: InputDecoration(labelText: 'Features (comma separated)'),
-                onSaved: (value) => _features = value!.split(', ').map((e) => e.trim()).toList(),
-              ),
-            ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Cancel')),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _savePlan,
-          child: _isSaving
-              ? SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                  ),
-                )
-              : Text('Save'),
-        ),
-      ],
     );
   }
 
@@ -420,6 +621,18 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
     _fetchBenefits();
   }
 
+  Color _getCardColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6),
+      Color(0xFFE8F5E9),
+      Color(0xFFFCE4EC),
+      Color(0xFFE3F2FD),
+      Color(0xFFFFF9C4),
+      Color(0xFFF3E5F5),
+    ];
+    return colors[index % colors.length];
+  }
+
   Future<void> _fetchBenefits() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
@@ -440,31 +653,73 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: ListView.builder(
-        itemCount: _benefits.length,
-        itemBuilder: (context, index) {
-          final benefit = _benefits[index];
-          return ListTile(
-            title: Text(benefit.text),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: Icon(Icons.edit),
-                  onPressed: () => _showBenefitDialog(benefit: benefit),
-                ),
-                IconButton(
-                  icon: Icon(Icons.delete),
-                  onPressed: () => _deleteBenefit(benefit.id),
-                ),
-              ],
+    backgroundColor: Colors.transparent,
+    body: _benefits.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox, size: 80, color: Colors.grey[400]),
+                  SizedBox(height: 16),
+                  Text(
+                    'Nothing here',
+                    style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Add your first premium benefit',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: _benefits.length,
+              itemBuilder: (context, index) {
+                final benefit = _benefits[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      colors: [Colors.orange, Colors.white, Colors.green],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: _getCardColor(index),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: ListTile(
+                      leading: Icon(Icons.check_circle, color: Color(0xFF00B4D8), size: 32),
+                      title: Text(benefit.text, style: TextStyle(fontWeight: FontWeight.w600)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                            onPressed: () => _showBenefitDialog(benefit: benefit),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteBenefit(benefit.id),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showBenefitDialog(),
-        child: Icon(Icons.add),
+        icon: Icon(Icons.add),
+        label: Text('Add Benefit'),
+        backgroundColor: Color(0xFF00B4D8),
       ),
     );
   }
@@ -482,11 +737,15 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Delete Benefit'),
         content: Text('Are you sure you want to delete this benefit?'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
@@ -530,32 +789,100 @@ class _BenefitDialogState extends State<BenefitDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.benefit == null ? 'Add Benefit' : 'Edit Benefit'),
-      content: Form(
-        key: _formKey,
-        child: TextFormField(
-          initialValue: _text,
-          decoration: InputDecoration(labelText: 'Text'),
-          validator: (value) => value!.isEmpty ? 'Please enter a text' : null,
-          onSaved: (value) => _text = value!,
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: EdgeInsets.all(2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          padding: EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.benefit == null ? 'Add Benefit' : 'Edit Benefit',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 20),
+                  Container(
+                    padding: EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                        colors: [Colors.orange, Colors.white, Colors.green],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: TextFormField(
+                        initialValue: _text,
+                        decoration: InputDecoration(
+                          labelText: 'Benefit Text',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        ),
+                        maxLines: 3,
+                        validator: (value) => value!.isEmpty ? 'Please enter benefit text' : null,
+                        onSaved: (value) => _text = value!,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('Cancel'),
+                      ),
+                      SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _isSaving ? null : _saveBenefit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF00B4D8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: _isSaving
+                            ? SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Text('Save', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Cancel')),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _saveBenefit,
-          child: _isSaving
-              ? SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                  ),
-                )
-              : Text('Save'),
-        ),
-      ],
     );
   }
 
@@ -620,6 +947,18 @@ class _FaqsTabState extends State<FaqsTab> {
     _fetchFaqs();
   }
 
+  Color _getCardColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6),
+      Color(0xFFE8F5E9),
+      Color(0xFFFCE4EC),
+      Color(0xFFE3F2FD),
+      Color(0xFFFFF9C4),
+      Color(0xFFF3E5F5),
+    ];
+    return colors[index % colors.length];
+  }
+
   Future<void> _fetchFaqs() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
@@ -640,37 +979,93 @@ class _FaqsTabState extends State<FaqsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: ListView.builder(
-        itemCount: _faqs.length,
-        itemBuilder: (context, index) {
-          final faq = _faqs[index];
-          return ExpansionTile(
-            title: Text(faq.question),
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(faq.answer),
-              )
-            ],
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: Icon(Icons.edit),
-                  onPressed: () => _showFaqDialog(faq: faq),
-                ),
-                IconButton(
-                  icon: Icon(Icons.delete),
-                  onPressed: () => _deleteFaq(faq.id),
-                ),
-              ],
+    backgroundColor: Colors.transparent,
+    body: _faqs.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inbox, size: 80, color: Colors.grey[400]),
+                  SizedBox(height: 16),
+                  Text(
+                    'Nothing here',
+                    style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Add your first FAQ',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              padding: EdgeInsets.all(16),
+              itemCount: _faqs.length,
+              itemBuilder: (context, index) {
+                final faq = _faqs[index];
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      colors: [Colors.orange, Colors.white, Colors.green],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: _getCardColor(index),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(
+                      children: [
+                        ExpansionTile(
+                          leading: Icon(Icons.help_outline, color: Color(0xFF00B4D8), size: 28),
+                          title: Text(
+                            faq.question,
+                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                          ),
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                              child: Text(
+                                faq.answer,
+                                style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                              ),
+                            ),
+                          ],
+                          tilePadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                                onPressed: () => _showFaqDialog(faq: faq),
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _deleteFaq(faq.id),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showFaqDialog(),
-        child: Icon(Icons.add),
+        icon: Icon(Icons.add),
+        label: Text('Add FAQ'),
+        backgroundColor: Color(0xFF00B4D8),
       ),
     );
   }
@@ -688,11 +1083,15 @@ class _FaqsTabState extends State<FaqsTab> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Delete FAQ'),
         content: Text('Are you sure you want to delete this FAQ?'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancel')),
-          TextButton(onPressed: () => Navigator.of(context).pop(true), child: Text('Delete')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
@@ -736,47 +1135,126 @@ class _FaqDialogState extends State<FaqDialog> {
     _answer = widget.faq?.answer ?? '';
   }
 
+  Widget _buildStylishTextField({
+    required String label,
+    required String initialValue,
+    required FormFieldValidator<String> validator,
+    required FormFieldSetter<String> onSaved,
+    int maxLines = 1,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: TextFormField(
+          initialValue: initialValue,
+          decoration: InputDecoration(
+            labelText: label,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          maxLines: maxLines,
+          validator: validator,
+          onSaved: onSaved,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.faq == null ? 'Add FAQ' : 'Edit FAQ'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                initialValue: _question,
-                decoration: InputDecoration(labelText: 'Question'),
-                validator: (value) => value!.isEmpty ? 'Please enter a question' : null,
-                onSaved: (value) => _question = value!,
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: EdgeInsets.all(2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Color(0xFFE3F2FD),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          padding: EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.faq == null ? 'Add FAQ' : 'Edit FAQ',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 20),
+                  _buildStylishTextField(
+                    label: 'Question',
+                    initialValue: _question,
+                    maxLines: 2,
+                    validator: (value) => value!.isEmpty ? 'Please enter a question' : null,
+                    onSaved: (value) => _question = value!,
+                  ),
+                  _buildStylishTextField(
+                    label: 'Answer',
+                    initialValue: _answer,
+                    maxLines: 4,
+                    validator: (value) => value!.isEmpty ? 'Please enter an answer' : null,
+                    onSaved: (value) => _answer = value!,
+                  ),
+                  SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('Cancel'),
+                      ),
+                      SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _isSaving ? null : _saveFaq,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF00B4D8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: _isSaving
+                            ? SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Text('Save', style: TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              TextFormField(
-                initialValue: _answer,
-                decoration: InputDecoration(labelText: 'Answer'),
-                validator: (value) => value!.isEmpty ? 'Please enter an answer' : null,
-                onSaved: (value) => _answer = value!,
-              ),
-            ],
+            ),
           ),
         ),
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Cancel')),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _saveFaq,
-          child: _isSaving
-              ? SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                  ),
-                )
-              : Text('Save'),
-        ),
-      ],
     );
   }
 
@@ -823,4 +1301,40 @@ class _FaqDialogState extends State<FaqDialog> {
       }
     }
   }
+}
+// Wave Clippers
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.lineTo(0, size.height * 0.35);
+    path.quadraticBezierTo(
+        size.width * 0.25, size.height * 0.5, size.width * 0.5, size.height * 0.35);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.2, size.width, size.height * 0.35);
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+class BottomWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    Path path = Path();
+    path.moveTo(0, 0);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
+        size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
