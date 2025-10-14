@@ -438,38 +438,47 @@ class _RatingsPageState extends State<RatingsPage> {
                                 );
                               } else {
                                 return Container(
-                                  padding: const EdgeInsets.all(16),
+                                  padding: const EdgeInsets.all(2),
                                   decoration: BoxDecoration(
-                                    color: Colors.grey[200],
-                                    borderRadius: BorderRadius.circular(18),
-                                    border: Border.all(
-                                        color: const Color(0xFF90E0EF), width: 1.2),
+                                    borderRadius: BorderRadius.circular(22),
+                                    gradient: const LinearGradient(
+                                      colors: [Colors.orange, Colors.white, Colors.green],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
                                   ),
-                                  child: Column(
-                                    children: [
-                                      Text(
-                                        'Subscribe to Search User Ratings',
-                                        style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF0077B6)),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        'Unlock the ability to search for other users\' ratings by subscribing to our premium plan.',
-                                        textAlign: TextAlign.center,
-                                      ),
-                                      const SizedBox(height: 10),
-                                      ElevatedButton(
-                                        onPressed: () {
-                                          showSubscriptionPrompt(context);
-                                        },
-                                        child: const Text('Subscribe Now'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF00B4D8),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFCE4EC),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Text(
+                                          'Subscribe to Search User Ratings',
+                                          style: const TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF0077B6)),
                                         ),
-                                      )
-                                    ],
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          'Unlock the ability to search for other users\' ratings by subscribing to our premium plan.',
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        const SizedBox(height: 10),
+                                        ElevatedButton(
+                                          onPressed: () {
+                                            showSubscriptionPrompt(context);
+                                          },
+                                          child: const Text('Subscribe Now'),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFF00B4D8),
+                                          ),
+                                        )
+                                      ],
+                                    ),
                                   ),
                                 );
                               }
@@ -676,8 +685,7 @@ class _RatingsPageState extends State<RatingsPage> {
                                         style: TextStyle(
                                             color: Color(0xFF0077B6))),
                                     trailing: activity['metadata'] != null &&
-                                            activity['metadata']['rating'] !=
-                                                null
+                                            activity['metadata']['rating'] != null
                                         ? Text(
                                             '${activity['metadata']['rating']} ★',
                                             style: TextStyle(

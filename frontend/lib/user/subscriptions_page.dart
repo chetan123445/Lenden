@@ -62,8 +62,19 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         final session = Provider.of<SessionProvider>(context, listen: false);
         await session.checkSubscriptionStatus();
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Subscription successful!')),
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: const Text('Subscription Successful!'),
+            content: const Text('You are now a premium member.'),
+            actions: [
+              TextButton(
+                child: const Text('OK'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -118,9 +129,15 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
               SafeArea(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20.0),
-                  child: session.isSubscribed
-                      ? _buildSubscribedView(session)
-                      : _buildSubscribeView(),
+                  child: Column(
+                    children: [
+                      if (session.subscriptionHistory != null && session.subscriptionHistory!.isNotEmpty)
+                        _buildSubscriptionHistory(session.subscriptionHistory!),
+                      session.isSubscribed
+                          ? _buildSubscribedView(session)
+                          : _buildSubscribeView(),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -130,11 +147,46 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     );
   }
 
+  Widget _buildSubscriptionHistory(List<Map<String, dynamic>> history) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Subscription History',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 10),
+        ...history.map((sub) => Container(
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFFCE4EC),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: ListTile(
+              title: Text(sub['subscriptionPlan'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('Expired on: ${DateTime.parse(sub['endDate']).toLocal().toString().substring(0, 10)}'),
+            ),
+          ),
+        )),
+      ],
+    );
+  }
+
   Widget _buildSubscribedView(SessionProvider session) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         gradient: const LinearGradient(
           colors: [Colors.orange, Colors.white, Colors.green],
           begin: Alignment.topLeft,
@@ -144,8 +196,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          color: const Color(0xFFFCE4EC),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,19 +285,27 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   }
 
   Widget _buildBenefitItem(IconData icon, String title, String subtitle) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15),
-        side: const BorderSide(
-          width: 2,
-          color: Color(0xFF00B4D8),
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(17),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
-      child: ListTile(
-        leading: Icon(icon, color: const Color(0xFF00B4D8), size: 40),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFFCE4EC),
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: ListTile(
+          leading: Icon(icon, color: const Color(0xFF00B4D8), size: 40),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text(subtitle),
+        ),
       ),
     );
   }
