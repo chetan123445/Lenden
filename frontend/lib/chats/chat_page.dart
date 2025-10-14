@@ -7,6 +7,7 @@ import '../api_config.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:intl/intl.dart';
+import '../widgets/subscription_prompt.dart';
 
 class ChatPage extends StatefulWidget {
   final String transactionId;
@@ -157,6 +158,15 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _sendMessage() {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (!session.isSubscribed) {
+      final messageCount = _messageCounts[_currentUserId] ?? 0;
+      if (messageCount >= 10) {
+        showSubscriptionPrompt(context);
+        return;
+      }
+    }
+
     if (_messageController.text.trim().isEmpty) return;
 
     if (_editingMessage != null) {

@@ -18,6 +18,7 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http_parser/http_parser.dart';
 import 'user_transactions_page.dart';
+import '../widgets/subscription_prompt.dart';
 
 class TopWaveClipper extends CustomClipper<Path> {
   @override
@@ -122,6 +123,31 @@ class _TransactionPageState extends State<TransactionPage> {
     _interestRateController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  Future<int> _getUserTransactionCount() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final userEmail = session.user?['email'];
+
+    if (token == null || userEmail == null) {
+      return 0;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/transactions/user?email=$userEmail'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final transactions = jsonDecode(response.body) as List;
+        return transactions.length;
+      }
+    } catch (e) {
+      print('Error fetching transaction count: $e');
+    }
+    return 0;
   }
 
   Future<void> _pickFiles() async {
@@ -316,6 +342,15 @@ class _TransactionPageState extends State<TransactionPage> {
   }
 
   Future<void> _submit() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (!session.isSubscribed) {
+      final transactionCount = await _getUserTransactionCount();
+      if (transactionCount >= 5) {
+        showSubscriptionPrompt(context);
+        return;
+      }
+    }
+
     setState(() => _sameEmailError = null);
 
     // Custom validation for expected return date when interest is selected

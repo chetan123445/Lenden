@@ -4,6 +4,7 @@ import '../user/session.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
+import '../widgets/subscription_prompt.dart';
 
 // Widget to display 5 stars with filled stars according to value
 class _StarDisplay extends StatelessWidget {
@@ -342,93 +343,138 @@ class _RatingsPageState extends State<RatingsPage> {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // --- Search Bar for Any User's Avg Rating ---
-                          Text('Search User Rating',
-                              style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF0077B6))),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _searchController,
-                                  decoration: InputDecoration(
-                                    hintText: 'Enter username or email',
-                                    prefixIcon: const Icon(Icons.search),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    filled: true,
-                                    fillColor: Colors.white,
-                                  ),
-                                  onSubmitted: (_) => _searchUserRating(),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              ElevatedButton(
-                                onPressed:
-                                    _searching ? null : _searchUserRating,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF00B4D8),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                      vertical: 14, horizontal: 16),
-                                ),
-                                child: _searching
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2))
-                                    : const Text('Search'),
-                              ),
-                            ],
-                          ),
-                          if (_searchError != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: _StylishPopup(
-                                message: _searchError!,
-                                color: Colors.red,
-                              ),
-                            ),
-                          if (_searchedAvgRating != null)
-                            Padding(
-                              padding:
-                                  const EdgeInsets.only(top: 12, bottom: 8),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    _searchedName != null &&
-                                            _searchedName!.isNotEmpty
-                                        ? '${_searchedName!} (@${_searchedUsername ?? ''})'
-                                        : _searchedUsername ?? '',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                        color: Color(0xFF023E8A)),
-                                  ),
-                                  if (_searchedEmail != null)
-                                    Text(_searchedEmail!,
+                          Consumer<SessionProvider>(
+                            builder: (context, session, child) {
+                              if (session.isSubscribed) {
+                                return Column(
+                                  children: [
+                                    Text('Search User Rating',
                                         style: const TextStyle(
-                                            fontSize: 13, color: Colors.grey)),
-                                  const SizedBox(height: 6),
-                                  _StarDisplay(value: _searchedAvgRating ?? 0),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _searchedAvgRating!.toStringAsFixed(2),
-                                    style: const TextStyle(
-                                        fontSize: 22,
-                                        color: Color(0xFF023E8A),
-                                        fontWeight: FontWeight.bold),
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF0077B6))),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextField(
+                                            controller: _searchController,
+                                            decoration: InputDecoration(
+                                              hintText: 'Enter username or email',
+                                              prefixIcon: const Icon(Icons.search),
+                                              border: OutlineInputBorder(
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              filled: true,
+                                              fillColor: Colors.white,
+                                            ),
+                                            onSubmitted: (_) => _searchUserRating(),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        ElevatedButton(
+                                          onPressed:
+                                              _searching ? null : _searchUserRating,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: const Color(0xFF00B4D8),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(10),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 14, horizontal: 16),
+                                          ),
+                                          child: _searching
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child: CircularProgressIndicator(
+                                                      strokeWidth: 2))
+                                              : const Text('Search'),
+                                        ),
+                                      ],
+                                    ),
+                                    if (_searchError != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: _StylishPopup(
+                                          message: _searchError!,
+                                          color: Colors.red,
+                                        ),
+                                      ),
+                                    if (_searchedAvgRating != null)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(top: 12, bottom: 8),
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              _searchedName != null &&
+                                                      _searchedName!.isNotEmpty
+                                                  ? '${_searchedName!} (@${_searchedUsername ?? ''})'
+                                                  : _searchedUsername ?? '',
+                                              style: const TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                  color: Color(0xFF023E8A)),
+                                            ),
+                                            if (_searchedEmail != null)
+                                              Text(_searchedEmail!,
+                                                  style: const TextStyle(
+                                                      fontSize: 13, color: Colors.grey)),
+                                            const SizedBox(height: 6),
+                                            _StarDisplay(value: _searchedAvgRating ?? 0),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              _searchedAvgRating!.toStringAsFixed(2),
+                                              style: const TextStyle(
+                                                  fontSize: 22,
+                                                  color: Color(0xFF023E8A),
+                                                  fontWeight: FontWeight.bold),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              } else {
+                                return Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                        color: const Color(0xFF90E0EF), width: 1.2),
                                   ),
-                                ],
-                              ),
-                            ),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        'Subscribe to Search User Ratings',
+                                        style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF0077B6)),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        'Unlock the ability to search for other users\' ratings by subscribing to our premium plan.',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          showSubscriptionPrompt(context);
+                                        },
+                                        child: const Text('Subscribe Now'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF00B4D8),
+                                        ),
+                                      )
+                                    ],
+                                  ),
+                                );
+                              }
+                            },
+                          ),
                           Divider(thickness: 1.2, color: Colors.blueGrey[100]),
                           const SizedBox(height: 10),
                           // Your Average Rating Section

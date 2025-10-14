@@ -220,12 +220,14 @@ class _UserLoginPageState extends State<UserLoginPage> {
             completeUserData['role'] = userType == 'admin' ? 'admin' : 'user';
             print('👤 Setting complete user data: $completeUserData');
             session.setUser(completeUserData);
+            await session.checkSubscriptionStatus();
             print('✅ Complete user data set in session');
           } else {
             // Fallback to OTP response data if profile fetch fails
             print('⚠️ Profile fetch failed, using OTP response data');
             print('👤 Setting user data from OTP response: $userData');
             session.setUser(userData);
+            await session.checkSubscriptionStatus();
             print('✅ User data set in session');
           }
 
@@ -247,6 +249,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
             }
             print('👤 Setting user data from profile: $profileRes');
             session.setUser(profileRes);
+            await session.checkSubscriptionStatus();
             print('✅ User data set in session');
           } else {
             print('❌ Failed to fetch user profile');

@@ -749,6 +749,15 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.subscriptions),
+                title: const Text('Subscriptions'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const SubscriptionsPage()));
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.logout),
                 title: const Text('Logout'),
                 onTap: () => _confirmLogout(context),

@@ -20,6 +20,16 @@ class SessionProvider extends ChangeNotifier {
   String? get role => _role;
   bool get isAdmin => _role == 'admin';
 
+  bool _isSubscribed = false;
+  String? _subscriptionPlan;
+  DateTime? _subscriptionEndDate;
+  List<Map<String, dynamic>>? _subscriptionHistory;
+
+  bool get isSubscribed => _isSubscribed;
+  String? get subscriptionPlan => _subscriptionPlan;
+  DateTime? get subscriptionEndDate => _subscriptionEndDate;
+  List<Map<String, dynamic>>? get subscriptionHistory => _subscriptionHistory;
+
   static const String _deviceIdKey = 'device_id';
 
   Future<void> loadToken() async {
@@ -85,6 +95,7 @@ class SessionProvider extends ChangeNotifier {
             }
             _user = user;
             _role = 'user';
+            await checkSubscriptionStatus();
             notifyListeners();
             return;
           }
@@ -114,6 +125,7 @@ class SessionProvider extends ChangeNotifier {
         }
       } else {
         // We already have user data, just notify listeners
+        await checkSubscriptionStatus();
         notifyListeners();
         return;
       }
@@ -152,6 +164,67 @@ class SessionProvider extends ChangeNotifier {
     print('   _role: $_role');
     print('   isAdmin: $isAdmin');
   }
+
+  Future<void> checkSubscriptionStatus() async {
+    if (_token == null) {
+      print('Subscription check: No token');
+      return;
+    }
+
+    print('Subscription check: Fetching status...');
+    try {
+        final response = await http.get(
+            Uri.parse('${ApiConfig.baseUrl}/api/subscription/status'),
+            headers: {'Authorization': 'Bearer $_token'},
+        );
+
+        if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            print('Subscription check: Data received: $data');
+            _isSubscribed = data['subscribed'] ?? false;
+            if (_isSubscribed) {
+                _subscriptionPlan = data['subscriptionPlan'];
+                _subscriptionEndDate = DateTime.parse(data['endDate']);
+            } else {
+                _subscriptionPlan = null;
+                _subscriptionEndDate = null;
+            }
+            await fetchSubscriptionHistory();
+            print('Subscription check: isSubscribed set to $_isSubscribed');
+            notifyListeners();
+        } else {
+            print('Subscription check: Failed with status ${response.statusCode}');
+        }
+    } catch (e) {
+        print('Error checking subscription status: $e');
+    }
+}
+
+Future<void> fetchSubscriptionHistory() async {
+    if (_token == null) {
+      print('Subscription history: No token');
+      return;
+    }
+
+    print('Subscription history: Fetching history...');
+    try {
+        final response = await http.get(
+            Uri.parse('${ApiConfig.baseUrl}/api/subscription/history'),
+            headers: {'Authorization': 'Bearer $_token'},
+        );
+
+        if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            print('Subscription history: Data received: $data');
+            _subscriptionHistory = List<Map<String, dynamic>>.from(data);
+            notifyListeners();
+        } else {
+            print('Subscription history: Failed with status ${response.statusCode}');
+        }
+    } catch (e) {
+        print('Error fetching subscription history: $e');
+    }
+}
 
   void setCounterparties(List<Map<String, dynamic>> counterparties) {
     _counterparties = counterparties;
@@ -262,6 +335,14 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearSubscription() {
+    _isSubscribed = false;
+    _subscriptionPlan = null;
+    _subscriptionEndDate = null;
+    _subscriptionHistory = null;
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     final deviceId = await getDeviceId();
     if (_token != null && deviceId != null) {
@@ -281,6 +362,7 @@ class SessionProvider extends ChangeNotifier {
     await clearToken();
     clearUser();
     clearCounterparties();
+    clearSubscription();
   }
 
   void updateNotificationSettings(Map<String, dynamic> settings) {

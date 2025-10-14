@@ -28,6 +28,7 @@ module.exports = (io) => {
   const notificationController = require('../controllers/notificationController');
   const chatController = require('../controllers/chatController')(io);
   const groupChatController = require('../controllers/groupChatController')(io);
+  const subscriptionController = require('../controllers/subscriptionController');
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -302,6 +303,10 @@ module.exports = (io) => {
 
   // Group Chat routes
   router.get('/group-chat/messages/:groupTransactionId', auth, groupChatController.getGroupMessages);
+
+  // Subscription routes
+  router.post('/subscription/update', auth, subscriptionController.updateSubscription);
+  router.get('/subscription/status', auth, subscriptionController.getSubscriptionStatus);
 
   return router;
 };

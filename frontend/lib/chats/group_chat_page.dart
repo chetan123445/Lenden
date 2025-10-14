@@ -8,6 +8,7 @@ import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:intl/intl.dart';
 import 'dart:math';
+import '../widgets/subscription_prompt.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String groupTransactionId;
@@ -232,6 +233,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   void _sendMessage() {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (!session.isSubscribed) {
+      final messageCount = _messageCounts[_currentUserId] ?? 0;
+      if (messageCount >= 10) {
+        showSubscriptionPrompt(context);
+        return;
+      }
+    }
+
     if (_messageController.text.trim().isEmpty) return;
 
     if (!_isActiveMember) {

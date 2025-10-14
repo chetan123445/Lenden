@@ -5,6 +5,7 @@ import 'dart:convert';
 import '../api_config.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
+import '../widgets/subscription_prompt.dart';
 
 class QuickTransactionsPage extends StatefulWidget {
   const QuickTransactionsPage({Key? key}) : super(key: key);
@@ -26,6 +27,31 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   void initState() {
     super.initState();
     fetchQuickTransactions();
+  }
+
+  Future<int> _getQuickTransactionCount() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+
+    if (token == null) {
+      return 0;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/quick-transactions'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final transactions = List<Map<String, dynamic>>.from(data['quickTransactions'] ?? []);
+        return transactions.length;
+      }
+    } catch (e) {
+      print('Error fetching quick transaction count: $e');
+    }
+    return 0;
   }
 
   void sortTransactions() {
@@ -117,6 +143,15 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   }
 
   Future<void> createOrEditQuickTransaction({Map<String, dynamic>? transaction}) async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (!session.isSubscribed && transaction == null) { // Only check for new transactions
+      final quickTransactionCount = await _getQuickTransactionCount();
+      if (quickTransactionCount >= 10) {
+        showSubscriptionPrompt(context);
+        return;
+      }
+    }
+
     final result = await showDialog(
       context: context,
       builder: (context) => _QuickTransactionDialog(transaction: transaction),

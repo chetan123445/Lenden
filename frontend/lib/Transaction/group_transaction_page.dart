@@ -5,6 +5,7 @@ import '../api_config.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import '../widgets/subscription_prompt.dart';
 
 class GroupTransactionPage extends StatefulWidget {
   const GroupTransactionPage({Key? key}) : super(key: key);
@@ -98,6 +99,34 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     _expenseDescController.dispose();
     _expenseAmountController.dispose();
     super.dispose();
+  }
+
+  Future<int> _getGroupCount() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    final userEmail = session.user?['email'];
+
+    if (token == null || userEmail == null) {
+      return 0;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/user-groups'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final groups = List<Map<String, dynamic>>.from(data['groups'] ?? []);
+        // Filter groups created by the current user
+        final createdGroups = groups.where((g) => g['creator']?['email'] == userEmail).toList();
+        return createdGroups.length;
+      }
+    } catch (e) {
+      print('Error fetching group count: $e');
+    }
+    return 0;
   }
 
   Future<bool> _checkUserExists(String email) async {
@@ -275,6 +304,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   Future<void> _createGroup() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (!session.isSubscribed) {
+      final groupCount = await _getGroupCount();
+      if (groupCount >= 3) {
+        showSubscriptionPrompt(context);
+        return;
+      }
+    }
+
     setState(() {
       creatingGroup = true;
       error = null;
