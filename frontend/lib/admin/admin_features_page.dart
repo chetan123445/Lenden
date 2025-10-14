@@ -144,6 +144,53 @@ class Faq {
   }
 }
 
+void showStylishSnackBar(BuildContext context, String message, {bool isError = false}) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Container(
+        padding: EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isError ? Color(0xFFFFEBEE) : Color(0xFFE8F5E9),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isError ? Icons.error_outline : Icons.check_circle,
+                color: isError ? Colors.red : Colors.green,
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  message,
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      behavior: SnackBarBehavior.floating,
+      duration: Duration(seconds: 3),
+    ),
+  );
+}
+
 // Subscription Plans Tab
 class SubscriptionPlansTab extends StatefulWidget {
   @override
@@ -220,14 +267,10 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
         );
       } else {
         final responseBody = response.body;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update plan availability: $responseBody')),
-        );
+        showStylishSnackBar(context, 'Plan availability updated successfully');
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred: $e')),
-      );
+      showStylishSnackBar(context, 'An error occurred: $e', isError: true);
     } finally {
       if (mounted) {
         setState(() {
@@ -340,12 +383,30 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showPlanDialog(),
-        icon: Icon(Icons.add),
-        label: Text('Add Plan'),
-        backgroundColor: Color(0xFF00B4D8),
-      ),
+      floatingActionButton: Container(
+  decoration: BoxDecoration(
+    borderRadius: BorderRadius.circular(30),
+    gradient: LinearGradient(
+      colors: [Colors.orange, Colors.white, Colors.green],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+  ),
+  padding: EdgeInsets.all(2),
+  child: Container(
+    decoration: BoxDecoration(
+      color: Color(0xFF00B4D8),
+      borderRadius: BorderRadius.circular(28),
+    ),
+    child: FloatingActionButton.extended(
+      onPressed: () => _showPlanDialog(),
+      icon: Icon(Icons.add),
+      label: Text('Add Plan'),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+    ),
+  ),
+),
     );
   }
 
@@ -361,17 +422,64 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
   Future<void> _deletePlan(String id) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Delete Plan'),
-        content: Text('Are you sure you want to delete this plan?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
-        ],
+          padding: EdgeInsets.all(2),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Color(0xFFFFEBEE),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.red, size: 50),
+                SizedBox(height: 16),
+                Text(
+                  'Delete Plan',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Are you sure you want to delete this plan?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
+                SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text('Cancel'),
+                    ),
+                    SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text('Delete', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
     if (confirmed == true) {
@@ -383,8 +491,9 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
       );
       if (response.statusCode == 200) {
         _fetchPlans();
+        showStylishSnackBar(context, 'Plan deleted successfully');
       } else {
-        // Handle error
+        showStylishSnackBar(context, 'Failed to delete plan', isError: true);
       }
     }
   }
@@ -581,19 +690,13 @@ class _PlanDialogState extends State<PlanDialog> {
         if (response.statusCode == 201 || response.statusCode == 200) {
           widget.onSave();
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Plan saved successfully')),
-          );
+          showStylishSnackBar(context, 'Plan saved successfully');
         } else {
           final responseBody = await response.stream.bytesToString();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to save plan: $responseBody')),
-          );
+          showStylishSnackBar(context, 'Failed to save plan: $responseBody', isError: true);
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('An error occurred: $e')),
-        );
+        showStylishSnackBar(context, 'An error occurred: $e', isError: true);
       } finally {
         if (mounted) {
           setState(() {
@@ -715,12 +818,30 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showBenefitDialog(),
-        icon: Icon(Icons.add),
-        label: Text('Add Benefit'),
-        backgroundColor: Color(0xFF00B4D8),
-      ),
+      floatingActionButton: Container(
+  decoration: BoxDecoration(
+    borderRadius: BorderRadius.circular(30),
+    gradient: LinearGradient(
+      colors: [Colors.orange, Colors.white, Colors.green],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+  ),
+  padding: EdgeInsets.all(2),
+  child: Container(
+    decoration: BoxDecoration(
+      color: Color(0xFF00B4D8),
+      borderRadius: BorderRadius.circular(28),
+    ),
+    child: FloatingActionButton.extended(
+      onPressed: () => _showBenefitDialog(),
+      icon: Icon(Icons.add),
+      label: Text('Add Benefit'),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+    ),
+  ),
+),
     );
   }
 
@@ -734,21 +855,68 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
   }
 
   Future<void> _deleteBenefit(String id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Delete Benefit'),
-        content: Text('Are you sure you want to delete this benefit?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
+        ),
+        padding: EdgeInsets.all(2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Color(0xFFFFEBEE),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red, size: 50),
+              SizedBox(height: 16),
+              Text(
+                'Delete Benefit',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Are you sure you want to delete this benefit?',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text('Cancel'),
+                  ),
+                  SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text('Delete', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
-    );
+    ),
+  );
 
     if (confirmed == true) {
       final session = Provider.of<SessionProvider>(context, listen: false);
@@ -758,10 +926,11 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200) {
-        _fetchBenefits();
-      } else {
-        // Handle error
-      }
+  _fetchBenefits();
+  showStylishSnackBar(context, 'Benefit deleted successfully');
+} else {
+  showStylishSnackBar(context, 'Failed to delete benefit', isError: true);
+}
     }
   }
 }
@@ -907,19 +1076,13 @@ class _BenefitDialogState extends State<BenefitDialog> {
         if (response.statusCode == 201 || response.statusCode == 200) {
           widget.onSave();
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Benefit saved successfully')),
-          );
+          showStylishSnackBar(context, 'Benefit saved successfully');
         } else {
           final responseBody = await response.stream.bytesToString();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to save benefit: $responseBody')),
-          );
+          showStylishSnackBar(context, 'Failed to save benefit: $responseBody', isError: true);
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('An error occurred: $e')),
-        );
+        showStylishSnackBar(context, 'An error occurred: $e', isError: true);
       } finally {
         if (mounted) {
           setState(() {
@@ -1061,12 +1224,30 @@ class _FaqsTabState extends State<FaqsTab> {
                 );
               },
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showFaqDialog(),
-        icon: Icon(Icons.add),
-        label: Text('Add FAQ'),
-        backgroundColor: Color(0xFF00B4D8),
-      ),
+      floatingActionButton: Container(
+  decoration: BoxDecoration(
+    borderRadius: BorderRadius.circular(30),
+    gradient: LinearGradient(
+      colors: [Colors.orange, Colors.white, Colors.green],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+  ),
+  padding: EdgeInsets.all(2),
+  child: Container(
+    decoration: BoxDecoration(
+      color: Color(0xFF00B4D8),
+      borderRadius: BorderRadius.circular(28),
+    ),
+    child: FloatingActionButton.extended(
+      onPressed: () => _showFaqDialog(),
+      icon: Icon(Icons.add),
+      label: Text('Add FAQ'),
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+    ),
+  ),
+),
     );
   }
 
@@ -1080,21 +1261,68 @@ class _FaqsTabState extends State<FaqsTab> {
   }
 
   Future<void> _deleteFaq(String id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Delete FAQ'),
-        content: Text('Are you sure you want to delete this FAQ?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
+        ),
+        padding: EdgeInsets.all(2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Color(0xFFFFEBEE),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.red, size: 50),
+              SizedBox(height: 16),
+              Text(
+                'Delete FAQ',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Are you sure you want to delete this FAQ?',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+              ),
+              SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text('Cancel'),
+                  ),
+                  SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: Text('Delete', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
-    );
+    ),
+  );
 
     if (confirmed == true) {
       final session = Provider.of<SessionProvider>(context, listen: false);
@@ -1104,10 +1332,11 @@ class _FaqsTabState extends State<FaqsTab> {
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode == 200) {
-        _fetchFaqs();
-      } else {
-        // Handle error
-      }
+  _fetchFaqs();
+  showStylishSnackBar(context, 'FAQ deleted successfully');
+} else {
+  showStylishSnackBar(context, 'Failed to delete FAQ', isError: true);
+}
     }
   }
 }
