@@ -82,7 +82,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Go Premium', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Go Premium', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -269,11 +269,12 @@ class TopWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     Path path = Path();
-    path.lineTo(0, size.height * 0.7);
+    // Reduce wave depth to roughly half
+    path.lineTo(0, size.height * 0.35);
     path.quadraticBezierTo(
-        size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
+        size.width * 0.25, size.height * 0.5, size.width * 0.5, size.height * 0.35);
     path.quadraticBezierTo(
-        size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
+        size.width * 0.75, size.height * 0.2, size.width, size.height * 0.35);
     path.lineTo(size.width, 0);
     path.close();
     return path;
