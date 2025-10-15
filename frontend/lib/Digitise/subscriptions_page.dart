@@ -516,48 +516,63 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
       children: [
         // Stats Dashboard
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(2),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF00B4D8), Color(0xFF0096C7)],
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Color(0xFF00B4D8).withOpacity(0.3),
-                blurRadius: 15,
-                offset: Offset(0, 5),
-              ),
-            ],
           ),
-          child: Column(
-            children: [
-              Text(
-                '🎉 Premium Member',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF00B4D8), Color(0xFF0096C7)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0xFF00B4D8).withOpacity(0.3),
+                  blurRadius: 15,
+                  offset: Offset(0, 5),
                 ),
-              ),
-              SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatCard(
-                      Icons.calendar_today,
-                      daysRemaining > 0
-                          ? '$daysRemaining'
-                          : (freeDaysRemaining > 0 ? '$freeDaysRemaining' : 'Expired'),
-                      daysRemaining > 0
-                          ? 'Days Left'
-                          : (freeDaysRemaining > 0 ? 'Free Days Left' : 'Status')),
-                  _buildStatCard(Icons.workspace_premium, session.subscriptionPlan?.split(' ')[0] ?? 'N/A', 'Plan'),
-                ],
-              ),
-            ],
+              ],
+            ),
+            child: Column(
+              children: [
+                Text(
+                  '🎉 Premium Member',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                SizedBox(height: 20),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildStatCard(
+                          Icons.calendar_today,
+                          daysRemaining > 0
+                              ? '$daysRemaining'
+                              : (freeDaysRemaining > 0 ? '$freeDaysRemaining' : 'Expired'),
+                          daysRemaining > 0
+                              ? 'Days Left'
+                              : (freeDaysRemaining > 0 ? 'Free Days Left' : 'Status')),
+                      SizedBox(width: 20),
+                      _buildStatCard(Icons.workspace_premium, session.subscriptionPlan?.split(' ')[0] ?? 'N/A', 'Plan'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
 

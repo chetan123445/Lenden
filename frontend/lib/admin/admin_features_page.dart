@@ -1888,6 +1888,20 @@ class _EditSubscriptionDialogState extends State<EditSubscriptionDialog> {
     _endDate = DateTime.parse(widget.subscription['endDate']);
   }
 
+  Future<void> _selectEndDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null && picked != _endDate) {
+      setState(() {
+        _endDate = picked;
+      });
+    }
+  }
+
   Widget _buildStylishTextField({
     required String label,
     required String initialValue,
@@ -1999,11 +2013,30 @@ class _EditSubscriptionDialogState extends State<EditSubscriptionDialog> {
                     validator: (value) => value!.isEmpty ? 'Please enter free days' : null,
                     onSaved: (value) => _free = int.parse(value!),
                   ),
-                  _buildStylishTextField(
-                    label: 'End Date',
-                    initialValue: _endDate.toIso8601String(),
-                    validator: (value) => null,
-                    onSaved: (value) => _endDate = DateTime.parse(value!),
+                  SizedBox(height: 16),
+                  Text('End Date', style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  Container(
+                    padding: EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: LinearGradient(
+                        colors: [Colors.orange, Colors.white, Colors.green],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: ListTile(
+                        title: Text('${_endDate.toLocal().toString().substring(0, 10)}'),
+                        trailing: Icon(Icons.calendar_today, color: Color(0xFF00B4D8)),
+                        onTap: () => _selectEndDate(context),
+                      ),
+                    ),
                   ),
                   SizedBox(height: 20),
                   Row(
