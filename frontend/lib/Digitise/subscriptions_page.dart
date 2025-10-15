@@ -702,7 +702,11 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         _showComparison
             ? _buildComparisonView()
             : Column(
-                children: _plans.map((plan) => _buildPlanCard(plan)).toList(),
+                children: _plans.asMap().entries.map((entry) {
+                  int idx = entry.key;
+                  SubscriptionPlan plan = entry.value;
+                  return _buildPlanCard(plan, idx);
+                }).toList(),
               ),
         
         const SizedBox(height: 30),
@@ -759,7 +763,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     );
   }
 
-  Widget _buildPlanCard(SubscriptionPlan plan) {
+  Widget _buildPlanCard(SubscriptionPlan plan, int index) {
     final isSelected = _selectedPlan == plan.name;
     final discountedPrice = plan.price * (1 - plan.discount / 100);
 
@@ -785,7 +789,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isSelected ? Colors.white : Colors.grey[50],
+                color: isSelected ? _getBenefitColor(index).withOpacity(0.5) : _getBenefitColor(index),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
@@ -921,7 +925,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
-        children: _plans.map((plan) {
+        children: _plans.asMap().entries.map((entry) {
+          int idx = entry.key;
+          SubscriptionPlan plan = entry.value;
           final isSelected = _selectedPlan == plan.name;
           
           return GestureDetector(
@@ -945,7 +951,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.white : Colors.grey[50],
+                  color: isSelected ? _getBenefitColor(idx).withOpacity(0.5) : _getBenefitColor(idx),
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Column(
