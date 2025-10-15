@@ -313,114 +313,152 @@ class _UserDashboardPageState extends State<UserDashboardPage>
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Container(
-            padding: EdgeInsets.all(24),
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(22),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
             ),
-            child: StatefulBuilder(
-              builder: (context, setState) {
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.star, color: Color(0xFF00B4D8), size: 48),
-                    SizedBox(height: 12),
-                    Text(
-                      'Rate Our App!',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF00B4D8),
+            child: Container(
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.star, color: Color(0xFF00B4D8), size: 48),
+                      SizedBox(height: 12),
+                      Text(
+                        'Rate Our App!',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF00B4D8),
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Your feedback helps us improve.\nHow would you rate your experience?',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                    ),
-                    SizedBox(height: 18),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(5, (i) {
-                        return IconButton(
-                          icon: Icon(
-                            Icons.star,
-                            color: i < _selectedStars
-                                ? Colors.amber
-                                : Colors.grey[300],
-                            size: 36,
+                      SizedBox(height: 8),
+                      Text(
+                        'Your feedback helps us improve.\nHow would you rate your experience?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                      ),
+                      SizedBox(height: 18),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(5, (i) {
+                          return IconButton(
+                            icon: Icon(
+                              Icons.star,
+                              color: i < _selectedStars
+                                  ? Colors.amber
+                                  : Colors.grey[300],
+                              size: 36,
+                            ),
+                            onPressed: () {
+                              setState(() => _selectedStars = i + 1);
+                            },
+                          );
+                        }),
+                      ),
+                      SizedBox(height: 18),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              gradient: const LinearGradient(
+                                colors: [Colors.orange, Colors.white, Colors.green],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              child: Text('Close',
+                                  style: TextStyle(
+                                      color: Colors.grey[700],
+                                      fontWeight: FontWeight.bold)),
+                            ),
                           ),
-                          onPressed: () {
-                            setState(() => _selectedStars = i + 1);
-                          },
-                        );
-                      }),
-                    ),
-                    SizedBox(height: 18),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(),
-                          child: Text('Close',
-                              style: TextStyle(
-                                  color: Colors.grey[700],
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                        ElevatedButton(
-                          onPressed: _selectedStars > 0
-                              ? () async {
-                                  final session = Provider.of<SessionProvider>(
-                                      context,
-                                      listen: false);
-                                  final token = session.token;
-                                  final baseUrl = ApiConfig.baseUrl;
-                                  final res = await http.post(
-                                    Uri.parse('$baseUrl/api/rating'),
-                                    headers: {
-                                      'Authorization': 'Bearer $token',
-                                      'Content-Type': 'application/json',
-                                    },
-                                    body:
-                                        json.encode({'rating': _selectedStars}),
-                                  );
-                                  if (res.statusCode == 200) {
-                                    setState(() {
-                                      _hasRatedApp = true;
-                                    });
-                                    Navigator.of(ctx).pop();
-                                    _showThankYouDialog();
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                          content:
-                                              Text('Failed to submit rating.')),
-                                    );
-                                  }
-                                }
-                              : null,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _selectedStars > 0
-                                ? Color(0xFF00B4D8)
-                                : Colors.grey[300],
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 24, vertical: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              gradient: _selectedStars > 0
+                                  ? const LinearGradient(
+                                      colors: [
+                                        Colors.orange,
+                                        Colors.white,
+                                        Colors.green
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    )
+                                  : null,
+                              color: _selectedStars > 0 ? null : Colors.grey[300],
+                            ),
+                            child: ElevatedButton(
+                              onPressed: _selectedStars > 0
+                                  ? () async {
+                                      final session = Provider.of<SessionProvider>(
+                                          context,
+                                          listen: false);
+                                      final token = session.token;
+                                      final baseUrl = ApiConfig.baseUrl;
+                                      final res = await http.post(
+                                        Uri.parse('$baseUrl/api/rating'),
+                                        headers: {
+                                          'Authorization': 'Bearer $token',
+                                          'Content-Type': 'application/json',
+                                        },
+                                        body: json
+                                            .encode({'rating': _selectedStars}),
+                                      );
+                                      if (res.statusCode == 200) {
+                                        setState(() {
+                                          _hasRatedApp = true;
+                                        });
+                                        Navigator.of(ctx).pop();
+                                        _showThankYouDialog();
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(
+                                              content: Text(
+                                                  'Failed to submit rating.')),
+                                        );
+                                      }
+                                    }
+                                  : null,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                                padding: EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 12),
+                              ),
+                              child: Text('Submit',
+                                  style: TextStyle(
+                                      color: _selectedStars > 0
+                                          ? Colors.black
+                                          : Colors.grey[600],
+                                      fontWeight: FontWeight.bold)),
+                            ),
                           ),
-                          child: Text('Submit',
-                              style: TextStyle(
-                                  color: _selectedStars > 0
-                                      ? Colors.white
-                                      : Colors.grey[600],
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              },
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         );

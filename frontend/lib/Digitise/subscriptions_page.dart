@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:provider/provider.dart';
 import '../api_config.dart';
 import '../user/session.dart';
@@ -677,6 +678,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 60),
+
+// Premium Illustration
+_buildPremiumIllustration(),
         
         // Benefits Section
         const Text(
@@ -778,6 +782,87 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
       ],
     );
   }
+
+  Widget _buildPremiumIllustration() {
+  return TweenAnimationBuilder<double>(
+    tween: Tween(begin: 0.0, end: 1.0),
+    duration: Duration(seconds: 2),
+    curve: Curves.easeInOut,
+    builder: (context, value, child) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 20),
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Container(
+          height: 280,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Color(0xFF87CEEB), // Sky blue
+                Color(0xFFE0F6FF), // Light sky
+                Color(0xFFFFF8DC), // Cream (horizon)
+                Color(0xFFC8E6C9), // Light green (ground)
+              ],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              stops: [0.0, 0.4, 0.7, 1.0],
+            ),
+            borderRadius: BorderRadius.circular(17),
+          ),
+          child: Stack(
+            children: [
+              // Animated clouds
+              Positioned(
+                left: 20 + (value * 10),
+                top: 20,
+                child: _buildCloud(30, 20),
+              ),
+              Positioned(
+                right: 30 - (value * 8),
+                top: 40,
+                child: _buildCloud(40, 25),
+              ),
+              Positioned(
+                left: MediaQuery.of(context).size.width * 0.3,
+                top: 15 + (value * 5),
+                child: _buildCloud(25, 15),
+              ),
+              
+              // Animated parachute
+              Transform.translate(
+                offset: Offset(0, -10 + (value * 10)),
+                child: Center(
+                  child: CustomPaint(
+                    size: Size(200, 280),
+                    painter: EnhancedParachutePainter(animationValue: value),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+Widget _buildCloud(double width, double height) {
+  return Container(
+    width: width,
+    height: height,
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.6),
+      borderRadius: BorderRadius.circular(20),
+    ),
+  );
+}
 
   Widget _buildPlanCard(SubscriptionPlan plan, int index) {
     final isSelected = _selectedPlan == plan.name;
@@ -1177,4 +1262,324 @@ class BottomWaveClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+class EnhancedParachutePainter extends CustomPainter {
+  final double animationValue;
+  
+  EnhancedParachutePainter({required this.animationValue});
+  
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()..style = PaintingStyle.fill;
+    
+    final double centerX = size.width / 2;
+    final double canopyTop = size.height * 0.1;
+    final double canopyRadius = size.width * 0.35;
+    
+    // Draw umbrella-style parachute canopy with curve
+    final int segments = 8;
+    final double segmentAngle = 3.14159 / segments;
+    
+    // Draw curved parachute segments
+    for (int i = 0; i < segments; i++) {
+      Path segmentPath = Path();
+      
+      // Colors alternate between orange and dark blue
+      if (i % 2 == 0) {
+        paint.color = Colors.orange;
+      } else {
+        paint.color = Color(0xFF1E3A5F);
+      }
+      
+      // Create curved segment
+      double startAngle = 3.14159 + (i * segmentAngle);
+      double endAngle = startAngle + segmentAngle;
+      
+      // Top arc
+      segmentPath.moveTo(centerX, canopyTop);
+      segmentPath.arcTo(
+        Rect.fromCircle(center: Offset(centerX, canopyTop), radius: canopyRadius),
+        startAngle,
+        segmentAngle,
+        false,
+      );
+      
+      // Curved bottom (umbrella effect)
+      double bottomCurveDepth = 15;
+      double midX = centerX + canopyRadius * math.cos((startAngle + endAngle) / 2 - 3.14159);
+      double midY = canopyTop + canopyRadius * math.sin((startAngle + endAngle) / 2 - 3.14159) + bottomCurveDepth;
+      
+      segmentPath.quadraticBezierTo(
+        midX, midY + 10,
+        centerX, canopyTop
+      );
+      
+      canvas.drawPath(segmentPath, paint);
+    }
+    
+    // Draw parachute outline with curve
+    Paint outlinePaint = Paint()
+      ..color = Color(0xFF1E3A5F)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+    
+    Path outlinePath = Path();
+    outlinePath.moveTo(centerX - canopyRadius, canopyTop);
+    
+    // Curved umbrella outline
+    for (int i = 0; i <= 20; i++) {
+      double t = i / 20;
+      double angle = 3.14159 + (t * 3.14159);
+      double x = centerX + canopyRadius * math.cos(angle);
+      double y = canopyTop + canopyRadius * math.sin(angle);
+      
+      // Add curve depth
+      y += 15 * (0.5 - (t - 0.5).abs() * 2).abs();
+      
+      outlinePath.lineTo(x, y);
+    }
+    
+    canvas.drawPath(outlinePath, outlinePaint);
+    
+    // Draw parachute strings
+    Paint stringPaint = Paint()
+      ..color = Colors.grey.shade600
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+    
+    double stringStartY = canopyTop + canopyRadius + 15;
+    double boxTopY = size.height * 0.52;
+    
+    // Multiple strings with slight sway
+    double sway = animationValue * 3;
+    
+    canvas.drawLine(
+      Offset(centerX - canopyRadius * 0.85, stringStartY),
+      Offset(centerX - size.width * 0.15 + sway, boxTopY),
+      stringPaint,
+    );
+    
+    canvas.drawLine(
+      Offset(centerX - canopyRadius * 0.5, stringStartY - 10),
+      Offset(centerX - size.width * 0.08 + sway, boxTopY),
+      stringPaint,
+    );
+    
+    canvas.drawLine(
+      Offset(centerX + canopyRadius * 0.5, stringStartY - 10),
+      Offset(centerX + size.width * 0.08 - sway, boxTopY),
+      stringPaint,
+    );
+    
+    canvas.drawLine(
+      Offset(centerX + canopyRadius * 0.85, stringStartY),
+      Offset(centerX + size.width * 0.15 - sway, boxTopY),
+      stringPaint,
+    );
+    
+    // Draw realistic gift box
+    double boxWidth = size.width * 0.32;
+    double boxHeight = size.height * 0.18;
+    
+    // Box shadow
+    paint.color = Colors.black.withOpacity(0.2);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(centerX - boxWidth / 2 + 3, boxTopY + 3, boxWidth, boxHeight),
+        Radius.circular(8),
+      ),
+      paint,
+    );
+    
+    // Main gift box (gradient effect)
+    Path boxPath = Path();
+    boxPath.addRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(centerX - boxWidth / 2, boxTopY, boxWidth, boxHeight),
+        Radius.circular(8),
+      ),
+    );
+    
+    paint.shader = LinearGradient(
+      colors: [Color(0xFFE53935), Color(0xFFC62828)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ).createShader(Rect.fromLTWH(centerX - boxWidth / 2, boxTopY, boxWidth, boxHeight));
+    
+    canvas.drawPath(boxPath, paint);
+    paint.shader = null;
+    
+    // Gold ribbon - vertical
+    paint.color = Color(0xFFFFD700);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(centerX - boxWidth * 0.08, boxTopY - 8, boxWidth * 0.16, boxHeight + 16),
+        Radius.circular(4),
+      ),
+      paint,
+    );
+    
+    // Gold ribbon - horizontal
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(centerX - boxWidth / 2 - 8, boxTopY + boxHeight * 0.4, boxWidth + 16, boxHeight * 0.2),
+        Radius.circular(4),
+      ),
+      paint,
+    );
+    
+    // Ribbon shine effect
+    paint.color = Color(0xFFFFF59D).withOpacity(0.5);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(centerX - boxWidth * 0.04, boxTopY - 8, boxWidth * 0.08, boxHeight + 16),
+        Radius.circular(2),
+      ),
+      paint,
+    );
+    
+    // Draw decorative bow on top
+    paint.color = Color(0xFFFFD700);
+    
+    // Left bow loop
+    Path leftBow = Path();
+    leftBow.moveTo(centerX - 8, boxTopY - 8);
+    leftBow.quadraticBezierTo(
+      centerX - 25, boxTopY - 25,
+      centerX - 18, boxTopY - 12,
+    );
+    leftBow.quadraticBezierTo(
+      centerX - 12, boxTopY - 8,
+      centerX - 8, boxTopY - 8,
+    );
+    canvas.drawPath(leftBow, paint);
+    
+    // Right bow loop
+    Path rightBow = Path();
+    rightBow.moveTo(centerX + 8, boxTopY - 8);
+    rightBow.quadraticBezierTo(
+      centerX + 25, boxTopY - 25,
+      centerX + 18, boxTopY - 12,
+    );
+    rightBow.quadraticBezierTo(
+      centerX + 12, boxTopY - 8,
+      centerX + 8, boxTopY - 8,
+    );
+    canvas.drawPath(rightBow, paint);
+    
+    // Bow center
+    canvas.drawCircle(Offset(centerX, boxTopY - 8), 5, paint);
+    
+    // Add sparkles on box
+    paint.color = Colors.white;
+    canvas.drawCircle(Offset(centerX - 15, boxTopY + 15), 2, paint);
+    canvas.drawCircle(Offset(centerX + 18, boxTopY + 25), 1.5, paint);
+    canvas.drawCircle(Offset(centerX - 10, boxTopY + boxHeight - 10), 1.8, paint);
+    
+    // Draw people on ground
+    double groundY = size.height * 0.85;
+    
+    // Person 1 (Male - left)
+    _drawPerson(canvas, centerX - 60, groundY, Color(0xFF2196F3), true);
+    
+    // Person 2 (Female - right)
+    _drawPerson(canvas, centerX + 50, groundY, Color(0xFFE91E63), false);
+    
+    // Draw ground line
+    paint.color = Color(0xFF8BC34A);
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 2;
+    canvas.drawLine(
+      Offset(0, groundY + 35),
+      Offset(size.width, groundY + 35),
+      paint,
+    );
+    
+    // Add small grass elements
+    for (int i = 0; i < 5; i++) {
+      double x = (size.width / 6) * (i + 1);
+      _drawGrass(canvas, x, groundY + 35);
+    }
+  }
+  
+  void _drawPerson(Canvas canvas, double x, double y, Color shirtColor, bool isMale) {
+    Paint paint = Paint()..style = PaintingStyle.fill;
+    
+    // Head
+    paint.color = Color(0xFFFFDBAC);
+    canvas.drawCircle(Offset(x, y), 8, paint);
+    
+    // Hair
+    paint.color = isMale ? Color(0xFF4A4A4A) : Color(0xFF8B4513);
+    if (isMale) {
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset(x, y), radius: 8),
+        3.14159,
+        3.14159,
+        true,
+        paint,
+      );
+    } else {
+      // Female with ponytail
+      canvas.drawCircle(Offset(x, y - 8), 5, paint);
+      canvas.drawCircle(Offset(x + 8, y - 6), 4, paint);
+    }
+    
+    // Body (shirt)
+    paint.color = shirtColor;
+    Path body = Path();
+    body.moveTo(x, y + 8);
+    body.lineTo(x - 10, y + 25);
+    body.lineTo(x + 10, y + 25);
+    body.close();
+    canvas.drawPath(body, paint);
+    
+    // Arms (waving)
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 3;
+    paint.strokeCap = StrokeCap.round;
+    
+    // Left arm
+    canvas.drawLine(Offset(x - 8, y + 12), Offset(x - 15, y + 5), paint);
+    
+    // Right arm
+    canvas.drawLine(Offset(x + 8, y + 12), Offset(x + 15, y + 5), paint);
+    
+    // Legs
+    paint.color = Color(0xFF424242);
+    canvas.drawLine(Offset(x - 5, y + 25), Offset(x - 5, y + 35), paint);
+    canvas.drawLine(Offset(x + 5, y + 25), Offset(x + 5, y + 35), paint);
+    
+    // Add excited expression
+    paint.style = PaintingStyle.fill;
+    paint.color = Colors.black;
+    canvas.drawCircle(Offset(x - 3, y - 2), 1.5, paint);
+    canvas.drawCircle(Offset(x + 3, y - 2), 1.5, paint);
+    
+    // Smile
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = 1;
+    Path smile = Path();
+    smile.moveTo(x - 3, y + 3);
+    smile.quadraticBezierTo(x, y + 5, x + 3, y + 3);
+    canvas.drawPath(smile, paint);
+  }
+  
+  void _drawGrass(Canvas canvas, double x, double y) {
+    Paint paint = Paint()
+      ..color = Color(0xFF7CB342)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    
+    canvas.drawLine(Offset(x, y), Offset(x - 2, y - 5), paint);
+    canvas.drawLine(Offset(x, y), Offset(x, y - 6), paint);
+    canvas.drawLine(Offset(x, y), Offset(x + 2, y - 5), paint);
+  }
+  
+  @override
+  bool shouldRepaint(EnhancedParachutePainter oldDelegate) {
+    return oldDelegate.animationValue != animationValue;
+  }
 }
