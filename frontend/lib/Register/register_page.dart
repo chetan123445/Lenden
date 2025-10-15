@@ -408,21 +408,20 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 28.0, vertical: 24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 60),
-                    const Text('Register',
-                        style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black),
-                        textAlign: TextAlign.center),
-                    const SizedBox(height: 8),
-                    const Text('Hello Welcome :)',
-                        style: TextStyle(fontSize: 16, color: Colors.black),
-                        textAlign: TextAlign.center),
-                    const SizedBox(height: 32),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      const SizedBox(height: 20),
+                                      const Text('Register',
+                                          style: TextStyle(
+                                              fontSize: 32,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.black),
+                                          textAlign: TextAlign.center),
+                                      const SizedBox(height: 8),
+                                      const Text('Hello Welcome :)',
+                                        style: TextStyle(fontSize: 16, color: Colors.black),
+                                        textAlign: TextAlign.center),                    const SizedBox(height: 32),
                     const LoginIllustration(height: 180),
                     const SizedBox(height: 24),
                     TricolorBorderTextField(
