@@ -24,11 +24,13 @@ class SessionProvider extends ChangeNotifier {
   String? _subscriptionPlan;
   DateTime? _subscriptionEndDate;
   List<Map<String, dynamic>>? _subscriptionHistory;
+  int? _free;
 
   bool get isSubscribed => _isSubscribed;
   String? get subscriptionPlan => _subscriptionPlan;
   DateTime? get subscriptionEndDate => _subscriptionEndDate;
   List<Map<String, dynamic>>? get subscriptionHistory => _subscriptionHistory;
+  int? get free => _free;
 
   static const String _deviceIdKey = 'device_id';
 
@@ -185,9 +187,11 @@ class SessionProvider extends ChangeNotifier {
             if (_isSubscribed) {
                 _subscriptionPlan = data['subscriptionPlan'];
                 _subscriptionEndDate = DateTime.parse(data['endDate']);
+                _free = data['free'];
             } else {
                 _subscriptionPlan = null;
                 _subscriptionEndDate = null;
+                _free = null;
             }
             await fetchSubscriptionHistory();
             print('Subscription check: isSubscribed set to $_isSubscribed');
@@ -340,6 +344,7 @@ Future<void> fetchSubscriptionHistory() async {
     _subscriptionPlan = null;
     _subscriptionEndDate = null;
     _subscriptionHistory = null;
+    _free = null;
     notifyListeners();
   }
 

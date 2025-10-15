@@ -98,8 +98,10 @@ class SubscriptionPlan {
   final List<String> features;
   final bool isAvailable;
   final String? offer;
+  final int discount;
+  final int free;
 
-  SubscriptionPlan({required this.id, required this.name, required this.price, required this.duration, required this.features, required this.isAvailable, this.offer});
+  SubscriptionPlan({required this.id, required this.name, required this.price, required this.duration, required this.features, required this.isAvailable, this.offer, required this.discount, required this.free});
 
   factory SubscriptionPlan.fromJson(Map<String, dynamic> json) {
     return SubscriptionPlan(
@@ -110,6 +112,8 @@ class SubscriptionPlan {
       features: List<String>.from(json['features']),
       isAvailable: json['isAvailable'],
       offer: json['offer'],
+      discount: json['discount'] ?? 0,
+      free: json['free'] ?? 0,
     );
   }
 }
@@ -515,6 +519,8 @@ class _PlanDialogState extends State<PlanDialog> {
   late double _price;
   late int _duration;
   late List<String> _features;
+  late int _discount;
+  late int _free;
   bool _isSaving = false;
 
   @override
@@ -524,6 +530,8 @@ class _PlanDialogState extends State<PlanDialog> {
     _price = widget.plan?.price ?? 0.0;
     _duration = widget.plan?.duration ?? 0;
     _features = widget.plan?.features ?? [];
+    _discount = widget.plan?.discount ?? 0;
+    _free = widget.plan?.free ?? 0;
   }
 
   Widget _buildStylishTextField({
@@ -624,6 +632,20 @@ class _PlanDialogState extends State<PlanDialog> {
                     onSaved: (value) => _duration = int.parse(value!),
                   ),
                   _buildStylishTextField(
+                    label: 'Discount (%)',
+                    initialValue: _discount.toString(),
+                    keyboardType: TextInputType.number,
+                    validator: (value) => value!.isEmpty ? 'Please enter a discount' : null,
+                    onSaved: (value) => _discount = int.parse(value!),
+                  ),
+                  _buildStylishTextField(
+                    label: 'Free Days',
+                    initialValue: _free.toString(),
+                    keyboardType: TextInputType.number,
+                    validator: (value) => value!.isEmpty ? 'Please enter free days' : null,
+                    onSaved: (value) => _free = int.parse(value!),
+                  ),
+                  _buildStylishTextField(
                     label: 'Features (comma separated)',
                     initialValue: _features.join(', '),
                     maxLines: 3,
@@ -685,6 +707,8 @@ class _PlanDialogState extends State<PlanDialog> {
             'price': _price,
             'duration': _duration,
             'features': _features,
+            'discount': _discount,
+            'free': _free,
           }));
 
         if (response.statusCode == 201 || response.statusCode == 200) {

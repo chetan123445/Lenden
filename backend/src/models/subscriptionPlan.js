@@ -18,6 +18,14 @@ const subscriptionPlanSchema = new mongoose.Schema({
         type: [String],
         required: true
     },
+    discount: {
+        type: Number,
+        default: 0
+    },
+    free: {
+        type: Number, // Free days
+        default: 0
+    },
     isAvailable: {
         type: Boolean,
         default: true

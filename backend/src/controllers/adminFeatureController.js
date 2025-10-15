@@ -5,8 +5,8 @@ const Faq = require('../models/faq');
 // Subscription Plan Controllers
 exports.createSubscriptionPlan = async (req, res) => {
     try {
-        const { name, price, duration, features, offer } = req.body;
-        const newPlan = new SubscriptionPlan({ name, price, duration, features, offer });
+        const { name, price, duration, features, offer, discount, free } = req.body;
+        const newPlan = new SubscriptionPlan({ name, price, duration, features, offer, discount, free });
         await newPlan.save();
         res.status(201).json({ message: 'Subscription plan created successfully', plan: newPlan });
     } catch (error) {
@@ -26,8 +26,8 @@ exports.getSubscriptionPlans = async (req, res) => {
 exports.updateSubscriptionPlan = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, price, duration, features, isAvailable, offer } = req.body;
-        const updatedPlan = await SubscriptionPlan.findByIdAndUpdate(id, { name, price, duration, features, isAvailable, offer }, { new: true });
+        const { name, price, duration, features, isAvailable, offer, discount, free } = req.body;
+        const updatedPlan = await SubscriptionPlan.findByIdAndUpdate(id, { name, price, duration, features, isAvailable, offer, discount, free }, { new: true });
         if (!updatedPlan) {
             return res.status(404).json({ message: 'Subscription plan not found' });
         }

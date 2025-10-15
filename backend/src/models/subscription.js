@@ -35,6 +35,10 @@ const subscriptionSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    free: {
+        type: Number,
+        default: 0
+    },
     endDate: {
         type: Date
     },

@@ -7,7 +7,7 @@ const Faq = require('../models/faq');
 
 // Update or create a subscription
 exports.updateSubscription = async (req, res) => {
-    const { subscriptionPlan, duration, price, discount } = req.body; // duration in months
+    const { subscriptionPlan, duration, price, discount, free } = req.body; // duration in months
     const userId = req.user._id;
 
     try {
@@ -16,7 +16,7 @@ exports.updateSubscription = async (req, res) => {
 
         const subscribedDate = new Date();
         const endDate = new Date(subscribedDate);
-        endDate.setDate(endDate.getDate() + duration);
+        endDate.setDate(endDate.getDate() + duration + free);
 
         const actualPrice = price - (price * (discount / 100));
 
@@ -29,6 +29,7 @@ exports.updateSubscription = async (req, res) => {
             price,
             discount,
             actualPrice,
+            free,
             subscribedDate,
             endDate,
             status: 'active'
@@ -53,7 +54,8 @@ exports.getSubscriptionStatus = async (req, res) => {
                 subscribed: true,
                 subscriptionPlan: subscription.subscriptionPlan,
                 subscribedDate: subscription.subscribedDate,
-                endDate: subscription.endDate
+                endDate: subscription.endDate,
+                free: subscription.free
             });
         } else {
             res.status(200).json({ subscribed: false });

@@ -13,8 +13,10 @@ class SubscriptionPlan {
   final int duration;
   final List<String> features;
   final bool isAvailable;
+  final int discount;
+  final int free;
 
-  SubscriptionPlan({required this.id, required this.name, required this.price, required this.duration, required this.features, required this.isAvailable});
+  SubscriptionPlan({required this.id, required this.name, required this.price, required this.duration, required this.features, required this.isAvailable, required this.discount, required this.free});
 
   factory SubscriptionPlan.fromJson(Map<String, dynamic> json) {
     return SubscriptionPlan(
@@ -24,6 +26,8 @@ class SubscriptionPlan {
       duration: json['duration'],
       features: List<String>.from(json['features']),
       isAvailable: json['isAvailable'],
+      discount: json['discount'] ?? 0,
+      free: json['free'] ?? 0,
     );
   }
 }
@@ -164,7 +168,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
           'subscriptionPlan': plan.name,
           'duration': plan.duration,
           'price': plan.price,
-          'discount': 0, // Assuming no discount for now
+          'discount': plan.discount,
+          'free': plan.free,
         }),
       );
 
@@ -502,7 +507,10 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     final daysRemaining = session.subscriptionEndDate != null
         ? session.subscriptionEndDate!.difference(DateTime.now()).inDays
         : 0;
-    
+    final freeDaysRemaining = session.free != null && session.subscriptionEndDate != null
+        ? session.free! - (DateTime.now().difference(session.subscriptionEndDate!).inDays)
+        : 0;
+
     return Column(
       children: [
         // Stats Dashboard
@@ -537,16 +545,23 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildStatCard(Icons.calendar_today, '$daysRemaining', 'Days Left'),
+                  _buildStatCard(
+                      Icons.calendar_today,
+                      daysRemaining > 0
+                          ? '$daysRemaining'
+                          : (freeDaysRemaining > 0 ? '$freeDaysRemaining' : 'Expired'),
+                      daysRemaining > 0
+                          ? 'Days Left'
+                          : (freeDaysRemaining > 0 ? 'Free Days Left' : 'Status')),
                   _buildStatCard(Icons.workspace_premium, session.subscriptionPlan?.split(' ')[0] ?? 'N/A', 'Plan'),
                 ],
               ),
             ],
           ),
         ),
-        
+
         const SizedBox(height: 20),
-        
+
         // Active Subscription Details
         Container(
           padding: const EdgeInsets.all(2),
@@ -746,105 +761,158 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
 
   Widget _buildPlanCard(SubscriptionPlan plan) {
     final isSelected = _selectedPlan == plan.name;
-    
+    final discountedPrice = plan.price * (1 - plan.discount / 100);
+
     return GestureDetector(
       onTap: () {
         setState(() {
           _selectedPlan = plan.name;
         });
       },
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(
-                  colors: [Colors.orange, Colors.white, Colors.green],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.grey[50],
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: Stack(
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white : Colors.grey[50],
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Radio<String>(
-                    value: plan.name,
-                    groupValue: _selectedPlan,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedPlan = value;
-                      });
-                    },
-                    activeColor: Color(0xFF00B4D8),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          plan.name,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Row(
+                  Row(
+                    children: [
+                      Radio<String>(
+                        value: plan.name,
+                        groupValue: _selectedPlan,
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedPlan = value;
+                          });
+                        },
+                        activeColor: Color(0xFF00B4D8),
+                      ),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '\₹${plan.price}',
+                              plan.name,
                               style: TextStyle(
-                                fontSize: 24,
+                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF00B4D8),
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Row(
+                              children: [
+                                if (plan.discount > 0)
+                                  Text(
+                                    '\₹${plan.price}',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                      decoration: TextDecoration.lineThrough,
+                                    ),
+                                  ),
+                                SizedBox(width: 8),
+                                Text(
+                                  '\₹${discountedPrice.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF00B4D8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'for ${plan.duration} days',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                            if (plan.free > 0)
+                              Row(
+                                children: [
+                                  Icon(Icons.star, color: Colors.orange, size: 16),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    '${plan.free} free days',
+                                    style: TextStyle(
+                                      color: Colors.orange,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 10),
+                  ...plan.features.map((feature) => Padding(
+                        padding: const EdgeInsets.only(left: 50.0, bottom: 4.0),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check, color: Colors.green, size: 16),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                feature,
+                                style: TextStyle(
+                                  color: Colors.grey[700],
+                                  fontSize: 12,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        SizedBox(height: 4),
-                        Text(
-                          'for ${plan.duration} days',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                      )),
                 ],
               ),
-              SizedBox(height: 10),
-              ...plan.features.map((feature) => Padding(
-                padding: const EdgeInsets.only(left: 50.0, bottom: 4.0),
-                child: Row(
-                  children: [
-                    Icon(Icons.check, color: Colors.green, size: 16),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        feature,
-                        style: TextStyle(
-                          color: Colors.grey[700],
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-            ],
+            ),
           ),
-        ),
+          if (plan.discount > 0)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.only(
+                    topRight: Radius.circular(20),
+                    bottomLeft: Radius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  '${plan.discount}% OFF',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
