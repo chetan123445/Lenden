@@ -322,6 +322,11 @@ module.exports = (io) => {
   router.put('/admin/subscription-plans/:id', auth, isAdmin, adminFeatureController.updateSubscriptionPlan);
   router.delete('/admin/subscription-plans/:id', auth, isAdmin, adminFeatureController.deleteSubscriptionPlan);
 
+  // Manage Subscriptions
+  router.get('/admin/subscriptions', auth, isAdmin, adminFeatureController.getAllSubscriptions);
+  router.put('/admin/subscriptions/:id', auth, isAdmin, adminFeatureController.updateUserSubscription);
+  router.put('/admin/subscriptions/:id/deactivate', auth, isAdmin, adminFeatureController.deactivateUserSubscription);
+
   // Premium Benefits
   router.post('/admin/premium-benefits', auth, isAdmin, adminFeatureController.createPremiumBenefit);
   router.get('/admin/premium-benefits', auth, isAdmin, adminFeatureController.getPremiumBenefits);

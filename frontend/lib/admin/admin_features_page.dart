@@ -16,7 +16,7 @@ class _AdminFeaturesPageState extends State<AdminFeaturesPage> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -44,6 +44,7 @@ class _AdminFeaturesPageState extends State<AdminFeaturesPage> with SingleTicker
             Tab(text: 'Plans', icon: Icon(Icons.card_membership)),
             Tab(text: 'Benefits', icon: Icon(Icons.star)),
             Tab(text: 'FAQs', icon: Icon(Icons.help_outline)),
+            Tab(text: 'Subscriptions', icon: Icon(Icons.subscriptions)),
           ],
         ),
       ),
@@ -80,6 +81,7 @@ class _AdminFeaturesPageState extends State<AdminFeaturesPage> with SingleTicker
                 SubscriptionPlansTab(),
                 PremiumBenefitsTab(),
                 FaqsTab(),
+                ManageSubscriptionsTab(),
               ],
             ),
           ),
@@ -1590,4 +1592,469 @@ class BottomWaveClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+class ManageSubscriptionsTab extends StatefulWidget {
+  @override
+  _ManageSubscriptionsTabState createState() => _ManageSubscriptionsTabState();
+}
+
+class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
+  List<dynamic> _subscriptions = [];
+  bool _searched = false;
+  TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  void _fetchSubscriptions({String? searchQuery}) async {
+    setState(() {
+      _searched = true;
+    });
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final token = session.token;
+    String url = '${ApiConfig.baseUrl}/api/admin/subscriptions';
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      url += '?search=$searchQuery';
+    }
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 200) {
+      setState(() {
+        _subscriptions = json.decode(response.body);
+      });
+    } else if (response.statusCode == 404) {
+      final responseBody = json.decode(response.body);
+      showStylishSnackBar(context, responseBody['message'], isError: true);
+      setState(() {
+        _subscriptions = [];
+      });
+    } else {
+      // Handle other errors
+    }
+  }
+
+  void _showEditSubscriptionDialog(dynamic subscription) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return EditSubscriptionDialog(subscription: subscription, onSave: () => _fetchSubscriptions(searchQuery: _searchController.text));
+      },
+    );
+  }
+
+  Future<void> _deactivateSubscription(String subscriptionId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          padding: EdgeInsets.all(2),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Color(0xFFFFEBEE),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.red, size: 50),
+                SizedBox(height: 16),
+                Text(
+                  'Deactivate Subscription',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Are you sure you want to deactivate this subscription?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
+                SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text('Cancel'),
+                    ),
+                    SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child: Text('Deactivate', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      final token = session.token;
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/subscriptions/$subscriptionId/deactivate'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        _fetchSubscriptions(searchQuery: _searchController.text);
+      } else {
+        // Handle error
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: const LinearGradient(
+                      colors: [Colors.orange, Colors.white, Colors.green],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search by name or email',
+                        border: InputBorder.none,
+                        prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
+                      ),
+                      onSubmitted: (value) {
+                        _fetchSubscriptions(searchQuery: value);
+                      },
+                    ),
+                  ),
+                ),
+                SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    _searchController.clear();
+                    _fetchSubscriptions();
+                  },
+                  child: Text('View All Active Subscriptions'),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: !_searched
+                ? Center(
+                    child: Text('Search for a subscription to begin.'),
+                  )
+                : _subscriptions.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.inbox, size: 80, color: Colors.grey[400]),
+                            SizedBox(height: 16),
+                            Text(
+                              'No subscriptions found',
+                              style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _subscriptions.length,
+                        itemBuilder: (context, index) {
+                          final sub = _subscriptions[index];
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              gradient: LinearGradient(
+                                colors: [Colors.orange, Colors.white, Colors.green],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: _getCardColor(index),
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: ListTile(
+                                title: Text(sub['user']?['name'] ?? 'No name', style: TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text(sub['user']?['email'] ?? 'No email'),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                                      onPressed: () {
+                                        _showEditSubscriptionDialog(sub);
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.cancel, color: Colors.red),
+                                      onPressed: () {
+                                        _deactivateSubscription(sub['_id']);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getCardColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6),
+      Color(0xFFE8F5E9),
+      Color(0xFFFCE4EC),
+      Color(0xFFE3F2FD),
+      Color(0xFFFFF9C4),
+      Color(0xFFF3E5F5),
+    ];
+    return colors[index % colors.length];
+  }
+}
+
+class EditSubscriptionDialog extends StatefulWidget {
+  final dynamic subscription;
+  final VoidCallback onSave;
+
+  EditSubscriptionDialog({required this.subscription, required this.onSave});
+
+  @override
+  _EditSubscriptionDialogState createState() => _EditSubscriptionDialogState();
+}
+
+class _EditSubscriptionDialogState extends State<EditSubscriptionDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late String _subscriptionPlan;
+  late int _duration;
+  late double _price;
+  late int _discount;
+  late int _free;
+  late DateTime _endDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscriptionPlan = widget.subscription['subscriptionPlan'];
+    _duration = widget.subscription['duration'];
+    _price = widget.subscription['price'].toDouble();
+    _discount = widget.subscription['discount'];
+    _free = widget.subscription['free'];
+    _endDate = DateTime.parse(widget.subscription['endDate']);
+  }
+
+  Widget _buildStylishTextField({
+    required String label,
+    required String initialValue,
+    required FormFieldValidator<String> validator,
+    required FormFieldSetter<String> onSaved,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 16),
+      padding: EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: TextFormField(
+          initialValue: initialValue,
+          decoration: InputDecoration(
+            labelText: label,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide.none,
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          validator: validator,
+          onSaved: onSaved,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: EdgeInsets.all(2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Color(0xFFFCE4EC),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          padding: EdgeInsets.all(20),
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Edit Subscription',
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 20),
+                  _buildStylishTextField(
+                    label: 'Subscription Plan',
+                    initialValue: _subscriptionPlan,
+                    validator: (value) => value!.isEmpty ? 'Please enter a plan name' : null,
+                    onSaved: (value) => _subscriptionPlan = value!,
+                  ),
+                  _buildStylishTextField(
+                    label: 'Duration (days)',
+                    initialValue: _duration.toString(),
+                    keyboardType: TextInputType.number,
+                    validator: (value) => value!.isEmpty ? 'Please enter a duration' : null,
+                    onSaved: (value) => _duration = int.parse(value!),
+                  ),
+                  _buildStylishTextField(
+                    label: 'Price',
+                    initialValue: _price.toString(),
+                    keyboardType: TextInputType.number,
+                    validator: (value) => value!.isEmpty ? 'Please enter a price' : null,
+                    onSaved: (value) => _price = double.parse(value!),
+                  ),
+                  _buildStylishTextField(
+                    label: 'Discount (%)',
+                    initialValue: _discount.toString(),
+                    keyboardType: TextInputType.number,
+                    validator: (value) => value!.isEmpty ? 'Please enter a discount' : null,
+                    onSaved: (value) => _discount = int.parse(value!),
+                  ),
+                  _buildStylishTextField(
+                    label: 'Free Days',
+                    initialValue: _free.toString(),
+                    keyboardType: TextInputType.number,
+                    validator: (value) => value!.isEmpty ? 'Please enter free days' : null,
+                    onSaved: (value) => _free = int.parse(value!),
+                  ),
+                  _buildStylishTextField(
+                    label: 'End Date',
+                    initialValue: _endDate.toIso8601String(),
+                    validator: (value) => null,
+                    onSaved: (value) => _endDate = DateTime.parse(value!),
+                  ),
+                  SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('Cancel'),
+                      ),
+                      SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: _saveSubscription,
+                        child: Text('Save'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _saveSubscription() async {
+    if (_formKey.currentState!.validate()) {
+      _formKey.currentState!.save();
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      final token = session.token;
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/api/admin/subscriptions/${widget.subscription['_id']}'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'subscriptionPlan': _subscriptionPlan,
+          'duration': _duration,
+          'price': _price,
+          'discount': _discount,
+          'free': _free,
+          'endDate': _endDate.toIso8601String(),
+        }),
+      );
+      if (response.statusCode == 200) {
+        widget.onSave();
+        Navigator.of(context).pop();
+      } else {
+        // Handle error
+      }
+    }
+  }
 }

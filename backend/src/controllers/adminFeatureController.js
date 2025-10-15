@@ -1,6 +1,8 @@
 const SubscriptionPlan = require('../models/subscriptionPlan');
 const PremiumBenefit = require('../models/premiumBenefit');
 const Faq = require('../models/faq');
+const Subscription = require('../models/subscription');
+const User = require('../models/user');
 
 // Subscription Plan Controllers
 exports.createSubscriptionPlan = async (req, res) => {
@@ -143,5 +145,67 @@ exports.deleteFaq = async (req, res) => {
         res.status(200).json({ message: 'FAQ deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting FAQ', error: error.message });
+    }
+};
+
+// Manage Subscriptions
+exports.getAllSubscriptions = async (req, res) => {
+    try {
+        const { search } = req.query;
+        let subscriptions;
+
+        if (search) {
+            const users = await User.find({
+                $or: [
+                    { name: { $regex: search, $options: 'i' } },
+                    { email: { $regex: search, $options: 'i' } },
+                ],
+            });
+
+            if (users.length === 0) {
+                return res.status(404).json({ message: 'User not found' });
+            }
+
+            const userIds = users.map(user => user._id);
+
+            subscriptions = await Subscription.find({ user: { $in: userIds }, status: 'active' }).populate('user', 'name email');
+
+            if (subscriptions.length === 0) {
+                return res.status(404).json({ message: 'No active subscription found for this user' });
+            }
+        } else {
+            subscriptions = await Subscription.find({ status: 'active' }).populate('user', 'name email');
+        }
+
+        res.status(200).json(subscriptions);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching subscriptions', error: error.message });
+    }
+};
+
+exports.updateUserSubscription = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { subscriptionPlan, duration, price, discount, free, endDate } = req.body;
+        const updatedSubscription = await Subscription.findByIdAndUpdate(id, { subscriptionPlan, duration, price, discount, free, endDate }, { new: true });
+        if (!updatedSubscription) {
+            return res.status(404).json({ message: 'Subscription not found' });
+        }
+        res.status(200).json({ message: 'Subscription updated successfully', subscription: updatedSubscription });
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating subscription', error: error.message });
+    }
+};
+
+exports.deactivateUserSubscription = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const updatedSubscription = await Subscription.findByIdAndUpdate(id, { status: 'expired' }, { new: true });
+        if (!updatedSubscription) {
+            return res.status(404).json({ message: 'Subscription not found' });
+        }
+        res.status(200).json({ message: 'Subscription deactivated successfully', subscription: updatedSubscription });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deactivating subscription', error: error.message });
     }
 };

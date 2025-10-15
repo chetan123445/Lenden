@@ -84,6 +84,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   @override
   void initState() {
     super.initState();
+    Provider.of<SessionProvider>(context, listen: false).checkSubscriptionStatus();
     _fetchSubscriptionData();
   }
 
@@ -260,10 +261,10 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
       bool matchesFilter = true;
       if (_filterOption == 'Active') {
         final endDate = DateTime.parse(sub['endDate']);
-        matchesFilter = endDate.isAfter(DateTime.now());
+        matchesFilter = sub['status'] == 'active' && endDate.isAfter(DateTime.now());
       } else if (_filterOption == 'Expired') {
         final endDate = DateTime.parse(sub['endDate']);
-        matchesFilter = endDate.isBefore(DateTime.now());
+        matchesFilter = sub['status'] == 'expired' || endDate.isBefore(DateTime.now());
       }
       
       return matchesSearch && matchesFilter;
@@ -435,7 +436,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         else
           ...itemsToShow.map((sub) {
             final endDate = DateTime.parse(sub['endDate']);
-            final isActive = endDate.isAfter(DateTime.now());
+            final isActive = sub['status'] == 'active' && endDate.isAfter(DateTime.now());
             
             return Container(
               margin: const EdgeInsets.symmetric(vertical: 8),
