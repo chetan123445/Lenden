@@ -10,6 +10,7 @@ import 'email_password_login.dart';
 import 'username_password_login.dart';
 import 'email_otp_login.dart';
 import 'package:uuid/uuid.dart';
+import '../widgets/tricolor_border_text_field.dart';
 
 class UserLoginPage extends StatefulWidget {
   const UserLoginPage({super.key});
@@ -452,52 +453,32 @@ class _UserLoginPageState extends State<UserLoginPage> {
                       const SizedBox(height: 32),
                       if (_isDeactivated) _buildDeactivatedAccountWidget(),
                       // Dropdown for login method
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: DropdownButton<String>(
-                          value: _loginMethod,
-                          isExpanded: true,
-                          underline: const SizedBox(),
-                          items: _loginMethods.map((method) {
-                            return DropdownMenuItem<String>(
-                              value: method,
-                              child: Text(method),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            setState(() {
-                              _loginMethod = value!;
-                            });
-                          },
+                      TricolorBorderTextField(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 4),
+                          child: DropdownButton<String>(
+                            value: _loginMethod,
+                            isExpanded: true,
+                            underline: const SizedBox(),
+                            items: _loginMethods.map((method) {
+                              return DropdownMenuItem<String>(
+                                value: method,
+                                child: Text(method),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _loginMethod = value!;
+                              });
+                            },
+                          ),
                         ),
                       ),
                       const SizedBox(height: 18),
                       // Dynamic input fields based on login method
                       if (_loginMethod == 'Email + Password') ...[
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
+                        TricolorBorderTextField(
                           child: TextField(
                             controller: _emailController,
                             decoration: InputDecoration(
@@ -510,18 +491,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
+                        TricolorBorderTextField(
                           child: TextField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
@@ -542,18 +512,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
                           ),
                         ),
                       ] else if (_loginMethod == 'Username + Password') ...[
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
+                        TricolorBorderTextField(
                           child: TextField(
                             controller: _usernameController,
                             decoration: InputDecoration(
@@ -566,18 +525,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
+                        TricolorBorderTextField(
                           child: TextField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
@@ -598,18 +546,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
                           ),
                         ),
                       ] else if (_loginMethod == 'Email + OTP') ...[
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
+                        TricolorBorderTextField(
                           child: TextField(
                             controller: _emailController,
                             enabled: !_otpSent,
@@ -740,30 +677,50 @@ class _UserLoginPageState extends State<UserLoginPage> {
                                   ? () => _recoverAccountAndLogin(_recoverInfo!)
                                   : _login),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00B4D8),
+                            backgroundColor: Colors.transparent,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(24)),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: EdgeInsets.zero,
                           ),
-                          child: _isLoading
-                              ? Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              gradient: const LinearGradient(
+                                colors: [Colors.orange, Colors.white, Colors.green],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00B4D8),
+                                borderRadius: BorderRadius.circular(22),
+                              ),
+                              child: _isLoading
+                                  ? Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          height: 20,
+                                          width: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text(
+                                          _isDeactivated ? 'Recovering...' : 'Logging in...',
+                                          style: TextStyle(fontSize: 18, color: Colors.white),
+                                        ),
+                                      ],
+                                    )
+                                  : Center(
+                                      child: Text(_isDeactivated ? 'Recover & Login' : 'Login',
+                                          style: TextStyle(
+                                              fontSize: 18, color: Colors.white)),
                                     ),
-                                    SizedBox(width: 10),
-                                    Text(
-                                      _isDeactivated ? 'Recovering...' : 'Logging in...',
-                                      style: TextStyle(fontSize: 18, color: Colors.white),
-                                    ),
-                                  ],
-                                )
-                              : Text(_isDeactivated ? 'Recover & Login' : 'Login',
-                                  style: TextStyle(
-                                      fontSize: 18, color: Colors.white)),
+                            ),
+                          ),
                         ),
                       ),
                       Row(

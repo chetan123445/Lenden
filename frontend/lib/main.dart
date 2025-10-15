@@ -445,30 +445,49 @@ class HomePage extends StatelessWidget {
                     Consumer<SessionProvider>(
                       builder: (context, session, _) {
                         if (session.token == null || session.user == null) {
-                          return OutlinedButton.icon(
+                          return ElevatedButton(
                             onPressed: () =>
                                 Navigator.pushNamed(context, '/register'),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                  color: Color(0xFF00B4D8), width: 2.5),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                  vertical: 16, horizontal: 32),
-                              backgroundColor: Colors.white,
+                                  borderRadius: BorderRadius.circular(24)),
+                              padding: EdgeInsets.zero,
                               elevation: 4,
-                              shadowColor:
-                                  const Color(0xFF00B4D8).withOpacity(0.2),
+                              shadowColor: const Color(0xFF00B4D8).withOpacity(0.2),
                             ),
-                            icon: const Icon(Icons.arrow_forward,
-                                color: Color(0xFF00B4D8)),
-                            label: const Text('Register',
-                                style: TextStyle(
-                                    fontSize: 18,
-                                    color: Color(0xFF00B4D8),
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.2)),
+                            child: Container(
+                              padding: const EdgeInsets.all(2.5),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(24),
+                                gradient: const LinearGradient(
+                                  colors: [Colors.orange, Colors.white, Colors.green],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 13.5, horizontal: 29.5),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(21.5),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.arrow_forward,
+                                        color: Color(0xFF00B4D8)),
+                                    const SizedBox(width: 8),
+                                    const Text('Register',
+                                        style: TextStyle(
+                                            fontSize: 18,
+                                            color: Color(0xFF00B4D8),
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1.2)),
+                                  ],
+                                ),
+                              ),
+                            ),
                           );
                         } else {
                           return const SizedBox.shrink();

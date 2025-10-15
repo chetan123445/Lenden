@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
 import '../otp_input.dart';
+import '../widgets/tricolor_border_text_field.dart';
 
 class UserRegisterPage extends StatefulWidget {
   const UserRegisterPage({super.key});
@@ -421,18 +422,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                         style: TextStyle(fontSize: 16, color: Colors.grey),
                         textAlign: TextAlign.center),
                     const SizedBox(height: 32),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
+                    TricolorBorderTextField(
                       child: TextField(
                         controller: _nameController,
                         decoration: InputDecoration(
@@ -445,18 +435,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                       ),
                     ),
                     const SizedBox(height: 18),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
+                    TricolorBorderTextField(
                       child: TextField(
                         controller: _usernameController,
                         onChanged: (val) {
@@ -487,18 +466,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                             style: TextStyle(color: Colors.red, fontSize: 13)),
                       ),
                     const SizedBox(height: 18),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
+                    TricolorBorderTextField(
                       child: DropdownButtonFormField<String>(
                         value: _selectedGender,
                         decoration: const InputDecoration(
@@ -523,18 +491,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                     const SizedBox(height: 18),
                     // Rating field removed
                     const SizedBox(height: 18),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
+                    TricolorBorderTextField(
                       child: TextField(
                         controller: _emailController,
                         onChanged: (val) {
@@ -565,18 +522,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                             style: TextStyle(color: Colors.red, fontSize: 13)),
                       ),
                     const SizedBox(height: 18),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
+                    TricolorBorderTextField(
                       child: TextField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
@@ -600,18 +546,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                     const SizedBox(height: 8),
                     ..._buildPasswordRules(),
                     const SizedBox(height: 18),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
+                    TricolorBorderTextField(
                       child: TextField(
                         controller: _confirmPasswordController,
                         obscureText: _obscureConfirmPassword,
@@ -645,30 +580,50 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                         child: ElevatedButton(
                           onPressed: _isLoading ? null : _register,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF00B4D8),
+                            backgroundColor: Colors.transparent,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(24)),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: EdgeInsets.zero,
                           ),
-                          child: _isLoading
-                              ? Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: const [
-                                    SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white)),
-                                    SizedBox(width: 12),
-                                    Text('Sending OTP...',
-                                        style: TextStyle(
-                                            fontSize: 18, color: Colors.white)),
-                                  ],
-                                )
-                              : const Text('Register',
-                                  style: TextStyle(
-                                      fontSize: 18, color: Colors.white)),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              gradient: const LinearGradient(
+                                colors: [Colors.orange, Colors.white, Colors.green],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF00B4D8),
+                                borderRadius: BorderRadius.circular(22),
+                              ),
+                              child: _isLoading
+                                  ? Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: const [
+                                        SizedBox(
+                                            height: 20,
+                                            width: 20,
+                                            child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: Colors.white)),
+                                        SizedBox(width: 12),
+                                        Text('Sending OTP...',
+                                            style: TextStyle(
+                                                fontSize: 18, color: Colors.white)),
+                                      ],
+                                    )
+                                  : const Center(
+                                      child: Text('Register',
+                                          style: TextStyle(
+                                              fontSize: 18, color: Colors.white)),
+                                    ),
+                            ),
+                          ),
                         ),
                       ),
                     ] else ...[
