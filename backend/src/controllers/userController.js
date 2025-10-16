@@ -31,11 +31,16 @@ exports.register = async (req, res) => {
     
   // Rating validation removed
     
-    // Check if user/email/username exists in users or admins
-    const userExists = await User.findOne({ $or: [{ username }, { email }] });
-    const adminExists = await Admin.findOne({ $or: [{ username }, { email }] });
-    if (userExists || adminExists) {
-      return res.status(400).json({ error: 'Username or email already exists' });
+    // Check if email exists
+    const emailExists = await User.findOne({ email }) || await Admin.findOne({ email });
+    if (emailExists) {
+      return res.status(409).json({ error: 'Email already registered. Please login.' });
+    }
+
+    // Check if username exists
+    const usernameExists = await User.findOne({ username }) || await Admin.findOne({ username });
+    if (usernameExists) {
+      return res.status(409).json({ error: 'Username already exists' });
     }
     // Password constraints
     if (!isPasswordValid(password)) {

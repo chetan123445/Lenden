@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async';
 import '../api_config.dart';
 import '../otp_input.dart';
 import '../widgets/tricolor_border_text_field.dart';
@@ -31,6 +32,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
   int _otpSecondsLeft = 0;
   String _registerOtp = '';
   String? _selectedGender;
+  bool _detailsLocked = false;
   // double _rating = 0.0; // Rating removed
 
   // Uniqueness check state
@@ -85,38 +87,37 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
   }
 
   void _register() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
     if (!_isPasswordValid) {
       setState(() {
         _errorMessage = 'Password does not meet all requirements.';
-        _isLoading = false;
       });
       return;
     }
     if (_passwordController.text != _confirmPasswordController.text) {
       setState(() {
         _errorMessage = 'Passwords do not match.';
-        _isLoading = false;
       });
       return;
     }
     if (!_isUsernameUnique) {
       setState(() {
         _errorMessage = 'Username already exists.';
-        _isLoading = false;
       });
       return;
     }
     if (!_isEmailUnique) {
       setState(() {
         _errorMessage = 'Email already exists.';
-        _isLoading = false;
       });
       return;
     }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+      _detailsLocked = true; // Lock fields before sending OTP
+    });
+
     // Send OTP
     final res = await _post('/api/users/register', {
       'name': _nameController.text,
@@ -126,6 +127,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
       'gender': _selectedGender,
       // 'rating': _rating, // Rating removed
     });
+
     if (res['status'] == 200) {
       setState(() {
         _otpSent = true;
@@ -138,6 +140,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
       setState(() {
         _errorMessage = res['data']['error'] ?? 'Failed to send OTP.';
         _isLoading = false;
+        _detailsLocked = false; // Unlock fields on failure
       });
     }
   }
@@ -175,6 +178,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
       setState(() {
         _errorMessage = res['data']['error'] ?? 'OTP verification failed.';
         _isVerifyingOtp = false;
+        _otpSecondsLeft = 0;
       });
     }
   }
@@ -198,6 +202,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
       setState(() {
         _errorMessage = res['data']['error'] ?? 'OTP verification failed.';
         _isVerifyingOtp = false;
+        _otpSecondsLeft = 0;
       });
     }
   }
@@ -216,7 +221,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
           'User-Agent': 'Lenden-Flutter-App/1.0',
         },
         body: jsonEncode(body),
-      );
+      ).timeout(const Duration(minutes: 2));
 
       print('📥 Response status: ${response.statusCode}');
       print('📥 Response headers: ${response.headers}');
@@ -240,6 +245,11 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
         final data = jsonDecode(response.body);
         return {'status': response.statusCode, 'data': data};
       }
+    } on TimeoutException catch (_) {
+        return {
+          'status': 408, // Request Timeout
+          'data': {'error': 'The request timed out. Please try again.'}
+        };
     } catch (e) {
       print('❌ API call error: $e');
       if (e.toString().contains('SocketException')) {
@@ -427,6 +437,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                     TricolorBorderTextField(
                       child: TextField(
                         controller: _nameController,
+                        enabled: !_detailsLocked,
                         decoration: InputDecoration(
                           labelText: 'Name',
                           labelStyle: const TextStyle(color: Colors.grey),
@@ -440,6 +451,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                     TricolorBorderTextField(
                       child: TextField(
                         controller: _usernameController,
+                        enabled: !_detailsLocked,
                         onChanged: (val) {
                           if (val.isNotEmpty) _checkUsernameUnique(val);
                         },
@@ -484,7 +496,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                           DropdownMenuItem(
                               value: 'Other', child: Text('Other')),
                         ],
-                        onChanged: (val) =>
+                        onChanged: _detailsLocked ? null : (val) =>
                             setState(() => _selectedGender = val),
                         validator: (val) =>
                             val == null ? 'Please select gender' : null,
@@ -496,6 +508,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                     TricolorBorderTextField(
                       child: TextField(
                         controller: _emailController,
+                        enabled: !_detailsLocked,
                         onChanged: (val) {
                           if (val.isNotEmpty) _checkEmailUnique(val);
                         },
@@ -527,6 +540,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                     TricolorBorderTextField(
                       child: TextField(
                         controller: _passwordController,
+                        enabled: !_detailsLocked,
                         obscureText: _obscurePassword,
                         onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
@@ -551,6 +565,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                     TricolorBorderTextField(
                       child: TextField(
                         controller: _confirmPasswordController,
+                        enabled: !_detailsLocked,
                         obscureText: _obscureConfirmPassword,
                         decoration: InputDecoration(
                           labelText: 'Confirm Password',
@@ -674,6 +689,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                                     _otpSent = false;
                                     _registerOtp = '';
                                     _errorMessage = null;
+                                    _detailsLocked = false;
                                   });
                                 },
                           child: const Text('Resend OTP'),
