@@ -80,6 +80,10 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   List<PremiumBenefit> _benefits = [];
   List<Faq> _faqs = [];
 
+  bool _isLoadingPlans = false;
+  bool _isLoadingBenefits = false;
+  bool _isLoadingFaqs = false;
+
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -102,6 +106,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   }
 
   Future<void> _fetchPlans() async {
+    setState(() {
+      _isLoadingPlans = true;
+    });
     final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/subscription/plans'));
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
@@ -111,9 +118,15 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     } else {
       // Handle error
     }
+    setState(() {
+      _isLoadingPlans = false;
+    });
   }
 
   Future<void> _fetchBenefits() async {
+    setState(() {
+      _isLoadingBenefits = true;
+    });
     final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/subscription/benefits'));
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
@@ -123,9 +136,15 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     } else {
       // Handle error
     }
+    setState(() {
+      _isLoadingBenefits = false;
+    });
   }
 
   Future<void> _fetchFaqs() async {
+    setState(() {
+      _isLoadingFaqs = true;
+    });
     final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/subscription/faqs'));
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
@@ -135,6 +154,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     } else {
       // Handle error
     }
+    setState(() {
+      _isLoadingFaqs = false;
+    });
   }
 
   Future<void> _subscribe() async {
@@ -688,11 +710,16 @@ _buildPremiumIllustration(),
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 15),
-        ..._benefits.asMap().entries.map((entry) {
-          int idx = entry.key;
-          PremiumBenefit benefit = entry.value;
-          return _buildBenefitItem(idx, Icons.check, benefit.text, '');
-        }).toList(),
+        if (_isLoadingBenefits)
+  const Center(child: CircularProgressIndicator())
+else if (_benefits.isEmpty)
+  const Center(child: Text('Loading benefits...'))
+else
+  ..._benefits.asMap().entries.map((entry) {
+    int idx = entry.key;
+    PremiumBenefit benefit = entry.value;
+    return _buildBenefitItem(idx, Icons.check, benefit.text, '');
+  }).toList(),
         
         const SizedBox(height: 30),
         
@@ -719,15 +746,19 @@ _buildPremiumIllustration(),
         const SizedBox(height: 15),
         
         // Plans Display
-        _showComparison
-            ? _buildComparisonView()
-            : Column(
-                children: _plans.asMap().entries.map((entry) {
-                  int idx = entry.key;
-                  SubscriptionPlan plan = entry.value;
-                  return _buildPlanCard(plan, idx);
-                }).toList(),
-              ),
+        _isLoadingPlans
+            ? const Center(child: CircularProgressIndicator())
+            : _plans.isEmpty
+                ? const Center(child: Text('Loading plans...'))
+                : _showComparison
+                    ? _buildComparisonView()
+                    : Column(
+                        children: _plans.asMap().entries.map((entry) {
+                          int idx = entry.key;
+                          SubscriptionPlan plan = entry.value;
+                          return _buildPlanCard(plan, idx);
+                        }).toList(),
+                      ),
         
         const SizedBox(height: 30),
         
@@ -1179,11 +1210,16 @@ Widget _buildCloud(double width, double height) {
             ],
           ),
           SizedBox(height: 20),
-          ..._faqs.asMap().entries.map((entry) {
-            int idx = entry.key;
-            Faq faq = entry.value;
-            return _buildFAQItem(faq.question, faq.answer, idx);
-          }).toList(),
+          if (_isLoadingFaqs)
+  const Center(child: CircularProgressIndicator())
+else if (_faqs.isEmpty)
+  const Center(child: Text('Loading FAQs...'))
+else
+  ..._faqs.asMap().entries.map((entry) {
+    int idx = entry.key;
+    Faq faq = entry.value;
+    return _buildFAQItem(faq.question, faq.answer, idx);
+  }).toList(),
         ],
       ),
     );
