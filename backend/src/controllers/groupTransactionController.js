@@ -522,12 +522,17 @@ exports.getUserGroups = async (req, res) => {
         _id: obj._id,
         title: obj.title,
         creator: obj.creator ? { _id: obj.creator._id, email: obj.creator.email } : null,
-        members: obj.members.map(m => ({
-          _id: m.user._id,
-          email: m.user.email,
-          joinedAt: m.joinedAt,
-          leftAt: m.leftAt
-        })),
+        members: (obj.members || []).map(m => {
+          if (m && m.user) {
+            return {
+              _id: m.user._id,
+              email: m.user.email,
+              joinedAt: m.joinedAt,
+              leftAt: m.leftAt
+            };
+          }
+          return null;
+        }).filter(m => m !== null),
         expenses: processedExpenses,
         balances: obj.balances || [],
         color: obj.color,

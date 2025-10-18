@@ -787,24 +787,46 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   Future<void> _fetchUserGroups() async {
     setState(() {
       groupsLoading = true;
+      error = null;
     });
     try {
-      final headers = await _authHeaders(context);
+      final token = Provider.of<SessionProvider>(context, listen: false).token;
+      if (token == null) {
+        setState(() {
+          error = 'Authentication token not found. Please log in again.';
+          groupsLoading = false;
+        });
+        return;
+      }
+
       final res = await http.get(
         Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/user-groups'),
-        headers: headers,
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
       );
+
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         setState(() {
           userGroups = List<Map<String, dynamic>>.from(data['groups'] ?? []);
           _filterAndSearchGroups();
         });
+      } else {
+        setState(() {
+          error =
+              'Failed to load groups. Status code: ${res.statusCode}\nBody: ${res.body}';
+        });
       }
-    } catch (_) {}
-    setState(() {
-      groupsLoading = false;
-    });
+    } catch (e) {
+      setState(() {
+        error = 'An error occurred: $e';
+      });
+    } finally {
+      setState(() {
+        groupsLoading = false;
+      });
+    }
   }
 
   void _filterAndSearchGroups() {

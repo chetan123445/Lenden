@@ -112,6 +112,14 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
+      if (token == null) {
+        setState(() {
+          error = 'Authentication token not found. Please log in again.';
+          loading = false;
+        });
+        return;
+      }
+      
       final headers = {'Authorization': 'Bearer $token'};
       
       final response = await http.get(
@@ -152,13 +160,13 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
           userGroups = allGroups;
           joinedGroups = joined;
           leftGroups = left;
-          createdGroupsCount = createdCount; // ADD THIS LINE
+          createdGroupsCount = createdCount;
           _filterGroups(); // Apply initial filter
           loading = false;
         });
       } else {
         setState(() {
-          error = 'Failed to load group transactions';
+          error = 'Failed to load group transactions. Status: ${response.statusCode}\nBody: ${response.body}';
           loading = false;
         });
       }
