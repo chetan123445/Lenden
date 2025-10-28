@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
+import '../utils/api_client.dart';
 import '../widgets/subscription_prompt.dart';
 
 // Widget to display 5 stars with filled stars according to value
@@ -153,9 +153,7 @@ class _RatingsPageState extends State<RatingsPage> {
       _searchedEmail = null;
     });
     try {
-      final baseUrl = ApiConfig.baseUrl;
-      final res = await http.get(
-          Uri.parse('$baseUrl/api/ratings/user-avg?usernameOrEmail=$input'));
+      final res = await ApiClient.get('/api/ratings/user-avg?usernameOrEmail=$input');
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         setState(() {
@@ -211,12 +209,7 @@ class _RatingsPageState extends State<RatingsPage> {
 
   Future<void> fetchRatingActivities() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final baseUrl = ApiConfig.baseUrl;
-    final res = await http.get(
-        Uri.parse(
-            '$baseUrl/api/activities?type=user_rated,user_rating_received&limit=10'),
-        headers: {'Authorization': 'Bearer $token'});
+    final res = await ApiClient.get('/api/activities?type=user_rated,user_rating_received&limit=10');
     if (res.statusCode == 200) {
       final data = json.decode(res.body);
       setState(() {
@@ -231,10 +224,7 @@ class _RatingsPageState extends State<RatingsPage> {
       error = null;
     });
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final baseUrl = ApiConfig.baseUrl;
-    final res = await http.get(Uri.parse('$baseUrl/api/ratings/me'),
-        headers: {'Authorization': 'Bearer $token'});
+    final res = await ApiClient.get('/api/ratings/me');
     if (res.statusCode == 200) {
       final data = json.decode(res.body);
       setState(() {
@@ -258,18 +248,12 @@ class _RatingsPageState extends State<RatingsPage> {
       _submitError = null;
     });
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final baseUrl = ApiConfig.baseUrl;
-    final res = await http.post(
-      Uri.parse('$baseUrl/api/ratings'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json'
-      },
-      body: json.encode({
+    final res = await ApiClient.post(
+      '/api/ratings',
+      body: {
         'usernameOrEmail': _usernameController.text.trim(),
         'rating': _selectedRating,
-      }),
+      },
     );
     if (res.statusCode == 201) {
       setState(() {

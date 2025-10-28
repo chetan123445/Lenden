@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math' as math;
 import 'package:provider/provider.dart';
-import '../api_config.dart';
 import '../user/session.dart';
+import '../utils/api_client.dart';
 
 // Models
 class SubscriptionPlan {
@@ -17,7 +16,15 @@ class SubscriptionPlan {
   final int discount;
   final int free;
 
-  SubscriptionPlan({required this.id, required this.name, required this.price, required this.duration, required this.features, required this.isAvailable, required this.discount, required this.free});
+  SubscriptionPlan(
+      {required this.id,
+      required this.name,
+      required this.price,
+      required this.duration,
+      required this.features,
+      required this.isAvailable,
+      required this.discount,
+      required this.free});
 
   factory SubscriptionPlan.fromJson(Map<String, dynamic> json) {
     return SubscriptionPlan(
@@ -75,7 +82,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   String _searchQuery = '';
   String _filterOption = 'All'; // All, Active, Expired
   bool _showComparison = false;
-  
+
   List<SubscriptionPlan> _plans = [];
   List<PremiumBenefit> _benefits = [];
   List<Faq> _faqs = [];
@@ -89,7 +96,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   @override
   void initState() {
     super.initState();
-    Provider.of<SessionProvider>(context, listen: false).checkSubscriptionStatus();
+    Provider.of<SessionProvider>(context, listen: false)
+        .checkSubscriptionStatus();
     _fetchSubscriptionData();
   }
 
@@ -109,7 +117,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     setState(() {
       _isLoadingPlans = true;
     });
-    final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/subscription/plans'));
+    final response = await ApiClient.get('/api/subscription/plans');
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       setState(() {
@@ -127,7 +135,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     setState(() {
       _isLoadingBenefits = true;
     });
-    final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/subscription/benefits'));
+    final response = await ApiClient.get('/api/subscription/benefits');
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       setState(() {
@@ -145,7 +153,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     setState(() {
       _isLoadingFaqs = true;
     });
-    final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/subscription/faqs'));
+    final response = await ApiClient.get('/api/subscription/faqs');
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       setState(() {
@@ -181,20 +189,16 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     final plan = _plans.firstWhere((p) => p.name == _selectedPlan);
 
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/subscription/update'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
+      final response = await ApiClient.post(
+        '/api/subscription/update',
+        body: {
           'userId': user['_id'],
           'subscriptionPlan': plan.name,
           'duration': plan.duration,
           'price': plan.price,
           'discount': plan.discount,
           'free': plan.free,
-        }),
+        },
       );
 
       if (response.statusCode == 200) {
@@ -204,7 +208,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         showDialog(
           context: context,
           builder: (context) => Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
@@ -227,15 +232,19 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                       padding: const EdgeInsets.all(20.0),
                       child: Row(
                         children: [
-                          Icon(Icons.check_circle, color: Colors.green, size: 30),
+                          Icon(Icons.check_circle,
+                              color: Colors.green, size: 30),
                           SizedBox(width: 10),
-                          Text('Success!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                          Text('Success!',
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                      child: const Text('You are now a premium member. Enjoy unlimited access!'),
+                      child: const Text(
+                          'You are now a premium member. Enjoy unlimited access!'),
                     ),
                     Padding(
                       padding: const EdgeInsets.all(8.0),
@@ -274,22 +283,28 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     return colors[index % colors.length];
   }
 
-  List<Map<String, dynamic>> _getFilteredHistory(List<Map<String, dynamic>> history) {
+  List<Map<String, dynamic>> _getFilteredHistory(
+      List<Map<String, dynamic>> history) {
     return history.where((sub) {
       // Search filter
       final matchesSearch = _searchQuery.isEmpty ||
-          sub['subscriptionPlan'].toString().toLowerCase().contains(_searchQuery.toLowerCase());
-      
+          sub['subscriptionPlan']
+              .toString()
+              .toLowerCase()
+              .contains(_searchQuery.toLowerCase());
+
       // Status filter
       bool matchesFilter = true;
       if (_filterOption == 'Active') {
         final endDate = DateTime.parse(sub['endDate']);
-        matchesFilter = sub['status'] == 'active' && endDate.isAfter(DateTime.now());
+        matchesFilter =
+            sub['status'] == 'active' && endDate.isAfter(DateTime.now());
       } else if (_filterOption == 'Expired') {
         final endDate = DateTime.parse(sub['endDate']);
-        matchesFilter = sub['status'] == 'expired' || endDate.isBefore(DateTime.now());
+        matchesFilter =
+            sub['status'] == 'expired' || endDate.isBefore(DateTime.now());
       }
-      
+
       return matchesSearch && matchesFilter;
     }).toList();
   }
@@ -299,7 +314,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Go Premium', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text('Go Premium',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
@@ -337,7 +353,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     children: [
-                      if (session.subscriptionHistory != null && session.subscriptionHistory!.isNotEmpty)
+                      if (session.subscriptionHistory != null &&
+                          session.subscriptionHistory!.isNotEmpty)
                         _buildSubscriptionHistory(session.subscriptionHistory!),
                       session.isSubscribed
                           ? _buildSubscribedView(session)
@@ -359,7 +376,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
 
   Widget _buildSubscriptionHistory(List<Map<String, dynamic>> history) {
     final filteredHistory = _getFilteredHistory(history);
-    final itemsToShow = _showAllHistory ? filteredHistory : filteredHistory.take(3).toList();
+    final itemsToShow =
+        _showAllHistory ? filteredHistory : filteredHistory.take(3).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,7 +387,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 15),
-        
+
         // Search Bar
         Container(
           padding: const EdgeInsets.all(2),
@@ -420,9 +438,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
             ),
           ),
         ),
-        
+
         const SizedBox(height: 15),
-        
+
         // Filter Chips
         Wrap(
           spacing: 8,
@@ -442,9 +460,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
             );
           }).toList(),
         ),
-        
+
         const SizedBox(height: 15),
-        
+
         // History List
         if (itemsToShow.isEmpty)
           Center(
@@ -459,15 +477,16 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         else
           ...itemsToShow.map((sub) {
             final endDate = DateTime.parse(sub['endDate']);
-            final isActive = sub['status'] == 'active' && endDate.isAfter(DateTime.now());
-            
+            final isActive =
+                sub['status'] == 'active' && endDate.isAfter(DateTime.now());
+
             return Container(
               margin: const EdgeInsets.symmetric(vertical: 8),
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(22),
                 gradient: LinearGradient(
-                  colors: isActive 
+                  colors: isActive
                       ? [Colors.green, Colors.white, Colors.green]
                       : [Colors.grey, Colors.white, Colors.grey],
                   begin: Alignment.topLeft,
@@ -490,7 +509,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   subtitle: Text(
-                    isActive 
+                    isActive
                         ? 'Active until: ${endDate.toLocal().toString().substring(0, 10)}'
                         : 'Expired on: ${endDate.toLocal().toString().substring(0, 10)}',
                   ),
@@ -509,8 +528,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
               ),
             );
           }),
-        
-        if (filteredHistory.length > 3) 
+
+        if (filteredHistory.length > 3)
           Center(
             child: TextButton(
               onPressed: () {
@@ -531,9 +550,11 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     final daysRemaining = session.subscriptionEndDate != null
         ? session.subscriptionEndDate!.difference(DateTime.now()).inDays
         : 0;
-    final freeDaysRemaining = session.free != null && session.subscriptionEndDate != null
-        ? session.free! - (DateTime.now().difference(session.subscriptionEndDate!).inDays)
-        : 0;
+    final freeDaysRemaining =
+        session.free != null && session.subscriptionEndDate != null
+            ? session.free! -
+                (DateTime.now().difference(session.subscriptionEndDate!).inDays)
+            : 0;
 
     return Column(
       children: [
@@ -585,12 +606,19 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                           Icons.calendar_today,
                           daysRemaining > 0
                               ? '$daysRemaining'
-                              : (freeDaysRemaining > 0 ? '$freeDaysRemaining' : 'Expired'),
+                              : (freeDaysRemaining > 0
+                                  ? '$freeDaysRemaining'
+                                  : 'Expired'),
                           daysRemaining > 0
                               ? 'Days Left'
-                              : (freeDaysRemaining > 0 ? 'Free Days Left' : 'Status')),
+                              : (freeDaysRemaining > 0
+                                  ? 'Free Days Left'
+                                  : 'Status')),
                       SizedBox(width: 20),
-                      _buildStatCard(Icons.workspace_premium, session.subscriptionPlan?.split(' ')[0] ?? 'N/A', 'Plan'),
+                      _buildStatCard(
+                          Icons.workspace_premium,
+                          session.subscriptionPlan?.split(' ')[0] ?? 'N/A',
+                          'Plan'),
                     ],
                   ),
                 ),
@@ -626,7 +654,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                   children: [
                     const Text(
                       'Subscription Details',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     Icon(Icons.edit, color: Color(0xFF00B4D8)),
                   ],
@@ -634,7 +663,13 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                 const SizedBox(height: 20),
                 _buildInfoRow('Plan:', session.subscriptionPlan ?? 'N/A'),
                 const SizedBox(height: 10),
-                _buildInfoRow('Expires On:', session.subscriptionEndDate?.toLocal().toString().split(' ')[0] ?? 'N/A'),
+                _buildInfoRow(
+                    'Expires On:',
+                    session.subscriptionEndDate
+                            ?.toLocal()
+                            .toString()
+                            .split(' ')[0] ??
+                        'N/A'),
                 const SizedBox(height: 20),
                 const Text(
                   'Premium Features:',
@@ -702,8 +737,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
         const SizedBox(height: 60),
 
 // Premium Illustration
-_buildPremiumIllustration(),
-        
+        _buildPremiumIllustration(),
+
         // Benefits Section
         const Text(
           'Premium Benefits',
@@ -711,18 +746,18 @@ _buildPremiumIllustration(),
         ),
         const SizedBox(height: 15),
         if (_isLoadingBenefits)
-  const Center(child: CircularProgressIndicator())
-else if (_benefits.isEmpty)
-  const Center(child: Text('Loading benefits...'))
-else
-  ..._benefits.asMap().entries.map((entry) {
-    int idx = entry.key;
-    PremiumBenefit benefit = entry.value;
-    return _buildBenefitItem(idx, Icons.check, benefit.text, '');
-  }).toList(),
-        
+          const Center(child: CircularProgressIndicator())
+        else if (_benefits.isEmpty)
+          const Center(child: Text('Loading benefits...'))
+        else
+          ..._benefits.asMap().entries.map((entry) {
+            int idx = entry.key;
+            PremiumBenefit benefit = entry.value;
+            return _buildBenefitItem(idx, Icons.check, benefit.text, '');
+          }).toList(),
+
         const SizedBox(height: 30),
-        
+
         // Plan Comparison Toggle
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -742,9 +777,9 @@ else
             ),
           ],
         ),
-        
+
         const SizedBox(height: 15),
-        
+
         // Plans Display
         _isLoadingPlans
             ? const Center(child: CircularProgressIndicator())
@@ -759,9 +794,9 @@ else
                           return _buildPlanCard(plan, idx);
                         }).toList(),
                       ),
-        
+
         const SizedBox(height: 30),
-        
+
         // Subscribe Button
         Center(
           child: Container(
@@ -798,16 +833,19 @@ else
                   SizedBox(width: 10),
                   Text(
                     'Subscribe Now',
-                    style: TextStyle(fontSize: 18, color: Colors.black, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold),
                   ),
                 ],
               ),
             ),
           ),
         ),
-        
+
         const SizedBox(height: 20),
-        
+
         // Trust Badges
         _buildTrustBadges(),
       ],
@@ -815,85 +853,85 @@ else
   }
 
   Widget _buildPremiumIllustration() {
-  return TweenAnimationBuilder<double>(
-    tween: Tween(begin: 0.0, end: 1.0),
-    duration: Duration(seconds: 2),
-    curve: Curves.easeInOut,
-    builder: (context, value, child) {
-      return Container(
-        margin: const EdgeInsets.symmetric(vertical: 20),
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: const LinearGradient(
-            colors: [Colors.orange, Colors.white, Colors.green],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Container(
-          height: 280,
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(seconds: 2),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 20),
+          padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Color(0xFF87CEEB), // Sky blue
-                Color(0xFFE0F6FF), // Light sky
-                Color(0xFFFFF8DC), // Cream (horizon)
-                Color(0xFFC8E6C9), // Light green (ground)
-              ],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              stops: [0.0, 0.4, 0.7, 1.0],
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(17),
           ),
-          child: Stack(
-            children: [
-              // Animated clouds
-              Positioned(
-                left: 20 + (value * 10),
-                top: 20,
-                child: _buildCloud(30, 20),
+          child: Container(
+            height: 280,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Color(0xFF87CEEB), // Sky blue
+                  Color(0xFFE0F6FF), // Light sky
+                  Color(0xFFFFF8DC), // Cream (horizon)
+                  Color(0xFFC8E6C9), // Light green (ground)
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: [0.0, 0.4, 0.7, 1.0],
               ),
-              Positioned(
-                right: 30 - (value * 8),
-                top: 40,
-                child: _buildCloud(40, 25),
-              ),
-              Positioned(
-                left: MediaQuery.of(context).size.width * 0.3,
-                top: 15 + (value * 5),
-                child: _buildCloud(25, 15),
-              ),
-              
-              // Animated parachute
-              Transform.translate(
-                offset: Offset(0, -10 + (value * 10)),
-                child: Center(
-                  child: CustomPaint(
-                    size: Size(200, 280),
-                    painter: EnhancedParachutePainter(animationValue: value),
+              borderRadius: BorderRadius.circular(17),
+            ),
+            child: Stack(
+              children: [
+                // Animated clouds
+                Positioned(
+                  left: 20 + (value * 10),
+                  top: 20,
+                  child: _buildCloud(30, 20),
+                ),
+                Positioned(
+                  right: 30 - (value * 8),
+                  top: 40,
+                  child: _buildCloud(40, 25),
+                ),
+                Positioned(
+                  left: MediaQuery.of(context).size.width * 0.3,
+                  top: 15 + (value * 5),
+                  child: _buildCloud(25, 15),
+                ),
+
+                // Animated parachute
+                Transform.translate(
+                  offset: Offset(0, -10 + (value * 10)),
+                  child: Center(
+                    child: CustomPaint(
+                      size: Size(200, 280),
+                      painter: EnhancedParachutePainter(animationValue: value),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
-Widget _buildCloud(double width, double height) {
-  return Container(
-    width: width,
-    height: height,
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.6),
-      borderRadius: BorderRadius.circular(20),
-    ),
-  );
-}
+  Widget _buildCloud(double width, double height) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(20),
+      ),
+    );
+  }
 
   Widget _buildPlanCard(SubscriptionPlan plan, int index) {
     final isSelected = _selectedPlan == plan.name;
@@ -921,7 +959,9 @@ Widget _buildCloud(double width, double height) {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isSelected ? _getBenefitColor(index).withOpacity(0.5) : _getBenefitColor(index),
+                color: isSelected
+                    ? _getBenefitColor(index).withOpacity(0.5)
+                    : _getBenefitColor(index),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Column(
@@ -986,7 +1026,8 @@ Widget _buildCloud(double width, double height) {
                             if (plan.free > 0)
                               Row(
                                 children: [
-                                  Icon(Icons.star, color: Colors.orange, size: 16),
+                                  Icon(Icons.star,
+                                      color: Colors.orange, size: 16),
                                   SizedBox(width: 4),
                                   Text(
                                     '${plan.free} free days',
@@ -1061,7 +1102,7 @@ Widget _buildCloud(double width, double height) {
           int idx = entry.key;
           SubscriptionPlan plan = entry.value;
           final isSelected = _selectedPlan == plan.name;
-          
+
           return GestureDetector(
             onTap: () {
               setState(() {
@@ -1075,15 +1116,17 @@ Widget _buildCloud(double width, double height) {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(20),
                 gradient: LinearGradient(
-                        colors: [Colors.orange, Colors.white, Colors.green],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                  colors: [Colors.orange, Colors.white, Colors.green],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
               ),
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isSelected ? _getBenefitColor(idx).withOpacity(0.5) : _getBenefitColor(idx),
+                  color: isSelected
+                      ? _getBenefitColor(idx).withOpacity(0.5)
+                      : _getBenefitColor(idx),
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Column(
@@ -1156,7 +1199,8 @@ Widget _buildCloud(double width, double height) {
     );
   }
 
-  Widget _buildBenefitItem(int index, IconData icon, String title, String subtitle) {
+  Widget _buildBenefitItem(
+      int index, IconData icon, String title, String subtitle) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       padding: const EdgeInsets.all(2),
@@ -1175,7 +1219,8 @@ Widget _buildCloud(double width, double height) {
         ),
         child: ListTile(
           leading: Icon(icon, color: const Color(0xFF00B4D8), size: 40),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          title:
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
           subtitle: subtitle.isNotEmpty ? Text(subtitle) : null,
         ),
       ),
@@ -1211,15 +1256,15 @@ Widget _buildCloud(double width, double height) {
           ),
           SizedBox(height: 20),
           if (_isLoadingFaqs)
-  const Center(child: CircularProgressIndicator())
-else if (_faqs.isEmpty)
-  const Center(child: Text('Loading FAQs...'))
-else
-  ..._faqs.asMap().entries.map((entry) {
-    int idx = entry.key;
-    Faq faq = entry.value;
-    return _buildFAQItem(faq.question, faq.answer, idx);
-  }).toList(),
+            const Center(child: CircularProgressIndicator())
+          else if (_faqs.isEmpty)
+            const Center(child: Text('Loading FAQs...'))
+          else
+            ..._faqs.asMap().entries.map((entry) {
+              int idx = entry.key;
+              Faq faq = entry.value;
+              return _buildFAQItem(faq.question, faq.answer, idx);
+            }).toList(),
         ],
       ),
     );
@@ -1269,8 +1314,8 @@ class TopWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.lineTo(0, size.height * 0.35);
-    path.quadraticBezierTo(
-        size.width * 0.25, size.height * 0.5, size.width * 0.5, size.height * 0.35);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.5,
+        size.width * 0.5, size.height * 0.35);
     path.quadraticBezierTo(
         size.width * 0.75, size.height * 0.2, size.width, size.height * 0.35);
     path.lineTo(size.width, 0);
@@ -1302,132 +1347,134 @@ class BottomWaveClipper extends CustomClipper<Path> {
 
 class EnhancedParachutePainter extends CustomPainter {
   final double animationValue;
-  
+
   EnhancedParachutePainter({required this.animationValue});
-  
+
   @override
   void paint(Canvas canvas, Size size) {
     final Paint paint = Paint()..style = PaintingStyle.fill;
-    
+
     final double centerX = size.width / 2;
     final double canopyTop = size.height * 0.1;
     final double canopyRadius = size.width * 0.35;
-    
+
     // Draw umbrella-style parachute canopy with curve
     final int segments = 8;
     final double segmentAngle = 3.14159 / segments;
-    
+
     // Draw curved parachute segments
     for (int i = 0; i < segments; i++) {
       Path segmentPath = Path();
-      
+
       // Colors alternate between orange and dark blue
       if (i % 2 == 0) {
         paint.color = Colors.orange;
       } else {
         paint.color = Color(0xFF1E3A5F);
       }
-      
+
       // Create curved segment
       double startAngle = 3.14159 + (i * segmentAngle);
       double endAngle = startAngle + segmentAngle;
-      
+
       // Top arc
       segmentPath.moveTo(centerX, canopyTop);
       segmentPath.arcTo(
-        Rect.fromCircle(center: Offset(centerX, canopyTop), radius: canopyRadius),
+        Rect.fromCircle(
+            center: Offset(centerX, canopyTop), radius: canopyRadius),
         startAngle,
         segmentAngle,
         false,
       );
-      
+
       // Curved bottom (umbrella effect)
       double bottomCurveDepth = 15;
-      double midX = centerX + canopyRadius * math.cos((startAngle + endAngle) / 2 - 3.14159);
-      double midY = canopyTop + canopyRadius * math.sin((startAngle + endAngle) / 2 - 3.14159) + bottomCurveDepth;
-      
-      segmentPath.quadraticBezierTo(
-        midX, midY + 10,
-        centerX, canopyTop
-      );
-      
+      double midX = centerX +
+          canopyRadius * math.cos((startAngle + endAngle) / 2 - 3.14159);
+      double midY = canopyTop +
+          canopyRadius * math.sin((startAngle + endAngle) / 2 - 3.14159) +
+          bottomCurveDepth;
+
+      segmentPath.quadraticBezierTo(midX, midY + 10, centerX, canopyTop);
+
       canvas.drawPath(segmentPath, paint);
     }
-    
+
     // Draw parachute outline with curve
     Paint outlinePaint = Paint()
       ..color = Color(0xFF1E3A5F)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
-    
+
     Path outlinePath = Path();
     outlinePath.moveTo(centerX - canopyRadius, canopyTop);
-    
+
     // Curved umbrella outline
     for (int i = 0; i <= 20; i++) {
       double t = i / 20;
       double angle = 3.14159 + (t * 3.14159);
       double x = centerX + canopyRadius * math.cos(angle);
       double y = canopyTop + canopyRadius * math.sin(angle);
-      
+
       // Add curve depth
       y += 15 * (0.5 - (t - 0.5).abs() * 2).abs();
-      
+
       outlinePath.lineTo(x, y);
     }
-    
+
     canvas.drawPath(outlinePath, outlinePaint);
-    
+
     // Draw parachute strings
     Paint stringPaint = Paint()
       ..color = Colors.grey.shade600
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
-    
+
     double stringStartY = canopyTop + canopyRadius + 15;
     double boxTopY = size.height * 0.52;
-    
+
     // Multiple strings with slight sway
     double sway = animationValue * 3;
-    
+
     canvas.drawLine(
       Offset(centerX - canopyRadius * 0.85, stringStartY),
       Offset(centerX - size.width * 0.15 + sway, boxTopY),
       stringPaint,
     );
-    
+
     canvas.drawLine(
       Offset(centerX - canopyRadius * 0.5, stringStartY - 10),
       Offset(centerX - size.width * 0.08 + sway, boxTopY),
       stringPaint,
     );
-    
+
     canvas.drawLine(
       Offset(centerX + canopyRadius * 0.5, stringStartY - 10),
       Offset(centerX + size.width * 0.08 - sway, boxTopY),
       stringPaint,
     );
-    
+
     canvas.drawLine(
       Offset(centerX + canopyRadius * 0.85, stringStartY),
       Offset(centerX + size.width * 0.15 - sway, boxTopY),
       stringPaint,
     );
-    
+
     // Draw realistic gift box
     double boxWidth = size.width * 0.32;
     double boxHeight = size.height * 0.18;
-    
+
     // Box shadow
     paint.color = Colors.black.withOpacity(0.2);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(centerX - boxWidth / 2 + 3, boxTopY + 3, boxWidth, boxHeight),
+        Rect.fromLTWH(
+            centerX - boxWidth / 2 + 3, boxTopY + 3, boxWidth, boxHeight),
         Radius.circular(8),
       ),
       paint,
     );
-    
+
     // Main gift box (gradient effect)
     Path boxPath = Path();
     boxPath.addRRect(
@@ -1436,92 +1483,105 @@ class EnhancedParachutePainter extends CustomPainter {
         Radius.circular(8),
       ),
     );
-    
+
     paint.shader = LinearGradient(
       colors: [Color(0xFFE53935), Color(0xFFC62828)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-    ).createShader(Rect.fromLTWH(centerX - boxWidth / 2, boxTopY, boxWidth, boxHeight));
-    
+    ).createShader(
+        Rect.fromLTWH(centerX - boxWidth / 2, boxTopY, boxWidth, boxHeight));
+
     canvas.drawPath(boxPath, paint);
     paint.shader = null;
-    
+
     // Gold ribbon - vertical
     paint.color = Color(0xFFFFD700);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(centerX - boxWidth * 0.08, boxTopY - 8, boxWidth * 0.16, boxHeight + 16),
+        Rect.fromLTWH(centerX - boxWidth * 0.08, boxTopY - 8, boxWidth * 0.16,
+            boxHeight + 16),
         Radius.circular(4),
       ),
       paint,
     );
-    
+
     // Gold ribbon - horizontal
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(centerX - boxWidth / 2 - 8, boxTopY + boxHeight * 0.4, boxWidth + 16, boxHeight * 0.2),
+        Rect.fromLTWH(centerX - boxWidth / 2 - 8, boxTopY + boxHeight * 0.4,
+            boxWidth + 16, boxHeight * 0.2),
         Radius.circular(4),
       ),
       paint,
     );
-    
+
     // Ribbon shine effect
     paint.color = Color(0xFFFFF59D).withOpacity(0.5);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(centerX - boxWidth * 0.04, boxTopY - 8, boxWidth * 0.08, boxHeight + 16),
+        Rect.fromLTWH(centerX - boxWidth * 0.04, boxTopY - 8, boxWidth * 0.08,
+            boxHeight + 16),
         Radius.circular(2),
       ),
       paint,
     );
-    
+
     // Draw decorative bow on top
     paint.color = Color(0xFFFFD700);
-    
+
     // Left bow loop
     Path leftBow = Path();
     leftBow.moveTo(centerX - 8, boxTopY - 8);
     leftBow.quadraticBezierTo(
-      centerX - 25, boxTopY - 25,
-      centerX - 18, boxTopY - 12,
+      centerX - 25,
+      boxTopY - 25,
+      centerX - 18,
+      boxTopY - 12,
     );
     leftBow.quadraticBezierTo(
-      centerX - 12, boxTopY - 8,
-      centerX - 8, boxTopY - 8,
+      centerX - 12,
+      boxTopY - 8,
+      centerX - 8,
+      boxTopY - 8,
     );
     canvas.drawPath(leftBow, paint);
-    
+
     // Right bow loop
     Path rightBow = Path();
     rightBow.moveTo(centerX + 8, boxTopY - 8);
     rightBow.quadraticBezierTo(
-      centerX + 25, boxTopY - 25,
-      centerX + 18, boxTopY - 12,
+      centerX + 25,
+      boxTopY - 25,
+      centerX + 18,
+      boxTopY - 12,
     );
     rightBow.quadraticBezierTo(
-      centerX + 12, boxTopY - 8,
-      centerX + 8, boxTopY - 8,
+      centerX + 12,
+      boxTopY - 8,
+      centerX + 8,
+      boxTopY - 8,
     );
     canvas.drawPath(rightBow, paint);
-    
+
     // Bow center
     canvas.drawCircle(Offset(centerX, boxTopY - 8), 5, paint);
-    
+
     // Add sparkles on box
     paint.color = Colors.white;
     canvas.drawCircle(Offset(centerX - 15, boxTopY + 15), 2, paint);
     canvas.drawCircle(Offset(centerX + 18, boxTopY + 25), 1.5, paint);
-    canvas.drawCircle(Offset(centerX - 10, boxTopY + boxHeight - 10), 1.8, paint);
-    
+    canvas.drawCircle(
+        Offset(centerX - 10, boxTopY + boxHeight - 10), 1.8, paint);
+
     // Draw people on ground
     double groundY = size.height * 0.85;
-    
+
     // Person 1 (Male - left)
     _drawPerson(canvas, centerX - 60, groundY, Color(0xFF2196F3), true);
-    
+
     // Person 2 (Female - right)
     _drawPerson(canvas, centerX + 50, groundY, Color(0xFFE91E63), false);
-    
+
     // Draw ground line
     paint.color = Color(0xFF8BC34A);
     paint.style = PaintingStyle.stroke;
@@ -1531,21 +1591,22 @@ class EnhancedParachutePainter extends CustomPainter {
       Offset(size.width, groundY + 35),
       paint,
     );
-    
+
     // Add small grass elements
     for (int i = 0; i < 5; i++) {
       double x = (size.width / 6) * (i + 1);
       _drawGrass(canvas, x, groundY + 35);
     }
   }
-  
-  void _drawPerson(Canvas canvas, double x, double y, Color shirtColor, bool isMale) {
+
+  void _drawPerson(
+      Canvas canvas, double x, double y, Color shirtColor, bool isMale) {
     Paint paint = Paint()..style = PaintingStyle.fill;
-    
+
     // Head
     paint.color = Color(0xFFFFDBAC);
     canvas.drawCircle(Offset(x, y), 8, paint);
-    
+
     // Hair
     paint.color = isMale ? Color(0xFF4A4A4A) : Color(0xFF8B4513);
     if (isMale) {
@@ -1561,7 +1622,7 @@ class EnhancedParachutePainter extends CustomPainter {
       canvas.drawCircle(Offset(x, y - 8), 5, paint);
       canvas.drawCircle(Offset(x + 8, y - 6), 4, paint);
     }
-    
+
     // Body (shirt)
     paint.color = shirtColor;
     Path body = Path();
@@ -1570,29 +1631,29 @@ class EnhancedParachutePainter extends CustomPainter {
     body.lineTo(x + 10, y + 25);
     body.close();
     canvas.drawPath(body, paint);
-    
+
     // Arms (waving)
     paint.style = PaintingStyle.stroke;
     paint.strokeWidth = 3;
     paint.strokeCap = StrokeCap.round;
-    
+
     // Left arm
     canvas.drawLine(Offset(x - 8, y + 12), Offset(x - 15, y + 5), paint);
-    
+
     // Right arm
     canvas.drawLine(Offset(x + 8, y + 12), Offset(x + 15, y + 5), paint);
-    
+
     // Legs
     paint.color = Color(0xFF424242);
     canvas.drawLine(Offset(x - 5, y + 25), Offset(x - 5, y + 35), paint);
     canvas.drawLine(Offset(x + 5, y + 25), Offset(x + 5, y + 35), paint);
-    
+
     // Add excited expression
     paint.style = PaintingStyle.fill;
     paint.color = Colors.black;
     canvas.drawCircle(Offset(x - 3, y - 2), 1.5, paint);
     canvas.drawCircle(Offset(x + 3, y - 2), 1.5, paint);
-    
+
     // Smile
     paint.style = PaintingStyle.stroke;
     paint.strokeWidth = 1;
@@ -1601,19 +1662,19 @@ class EnhancedParachutePainter extends CustomPainter {
     smile.quadraticBezierTo(x, y + 5, x + 3, y + 3);
     canvas.drawPath(smile, paint);
   }
-  
+
   void _drawGrass(Canvas canvas, double x, double y) {
     Paint paint = Paint()
       ..color = Color(0xFF7CB342)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
-    
+
     canvas.drawLine(Offset(x, y), Offset(x - 2, y - 5), paint);
     canvas.drawLine(Offset(x, y), Offset(x, y - 6), paint);
     canvas.drawLine(Offset(x, y), Offset(x + 2, y - 5), paint);
   }
-  
+
   @override
   bool shouldRepaint(EnhancedParachutePainter oldDelegate) {
     return oldDelegate.animationValue != animationValue;

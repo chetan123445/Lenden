@@ -61,6 +61,13 @@ module.exports = (io) => {
   router.post('/users/verify-reset-otp', forgotPasswordController.verifyResetOtp);
   router.post('/users/reset-password', forgotPasswordController.resetPassword);
   router.post('/users/recover-account', userController.recoverAccount);
+  
+  // Token management routes
+  router.post('/users/refresh-token', userController.refreshToken);
+  router.post('/users/logout', userController.logout);
+  router.post('/users/logout-all-devices', userController.logoutAllDevices);
+  router.get('/users/active-sessions', userController.getActiveSessions);
+  
   // All authenticated user routes should use sessionTimeout after auth
   router.get('/users/me', auth, sessionTimeout, profileController.getUserProfile);
   router.put('/users/me', auth, sessionTimeout, upload.single('profileImage'), editProfileController.updateUserProfile);

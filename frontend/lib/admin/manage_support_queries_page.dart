@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../user/session.dart';
 import '../api_config.dart';
 import 'package:intl/intl.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import '../utils/api_client.dart';
 
 class ManageSupportQueriesPage extends StatefulWidget {
   @override
@@ -113,29 +113,13 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     });
 
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      setState(() {
-        _error = 'Authentication token not found.';
-        _isLoading = false;
-      });
-      return;
-    }
 
     try {
-      final uri =
-          Uri.parse('${ApiConfig.baseUrl}/api/admin/support/queries').replace(
-        queryParameters: searchTerm != null && searchTerm.isNotEmpty
-            ? {'searchTerm': searchTerm}
-            : null,
-      );
-      final response = await http.get(
-        uri,
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final path = '/api/admin/support/queries' +
+          ((searchTerm != null && searchTerm.isNotEmpty)
+              ? '?searchTerm=${Uri.encodeComponent(searchTerm)}'
+              : '');
+      final response = await ApiClient.get(path);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -173,14 +157,9 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/reply'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'replyText': replyText}),
+      final response = await ApiClient.post(
+        '/api/admin/support/queries/$queryId/reply',
+        body: {'replyText': replyText},
       );
 
       if (response.statusCode == 200) {
@@ -219,14 +198,9 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     }
 
     try {
-      final response = await http.put(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/replies/$replyId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'replyText': newReplyText}),
+      final response = await ApiClient.put(
+        '/api/admin/support/queries/$queryId/replies/$replyId',
+        body: {'replyText': newReplyText},
       );
 
       if (response.statusCode == 200) {
@@ -250,22 +224,9 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
   }
 
   Future<void> _deleteReply(String queryId, String replyId) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showStylishSnackBar('Authentication token not found.', Colors.red);
-      return;
-    }
-
     try {
-      final response = await http.delete(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/replies/$replyId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiClient.delete(
+          '/api/admin/support/queries/$queryId/replies/$replyId');
 
       if (response.statusCode == 200) {
         _showStylishSnackBar('Reply deleted successfully!', Colors.green);
@@ -288,23 +249,10 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
   }
 
   Future<void> _updateQueryStatus(String queryId, String status) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showStylishSnackBar('Authentication token not found.', Colors.red);
-      return;
-    }
-
     try {
-      final response = await http.patch(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/support/queries/$queryId/status'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'status': status}),
+      final response = await ApiClient.put(
+        '/api/admin/support/queries/$queryId/status',
+        body: {'status': status},
       );
 
       if (response.statusCode == 200) {

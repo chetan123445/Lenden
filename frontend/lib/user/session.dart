@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
+import '../utils/http_interceptor.dart';
 
 class SessionProvider extends ChangeNotifier {
   final _storage = const FlutterSecureStorage();
-  String? _token;
+  String? _accessToken;
+  String? _refreshToken;
   Map<String, dynamic>? _user;
   List<Map<String, dynamic>>? _counterparties;
   DateTime? _counterpartiesLastFetched;
   String? _role;
   bool _userDataManuallySet =
       false; // Flag to track if user data was set manually
-  String? get token => _token;
+  String? get accessToken => _accessToken;
+  String? get refreshToken => _refreshToken;
+  String? get token => _accessToken; // For backward compatibility
   Map<String, dynamic>? get user => _user;
   List<Map<String, dynamic>>? get counterparties => _counterparties;
   DateTime? get counterpartiesLastFetched => _counterpartiesLastFetched;
@@ -34,107 +37,92 @@ class SessionProvider extends ChangeNotifier {
 
   static const String _deviceIdKey = 'device_id';
 
-  Future<void> loadToken() async {
-    _token = await _storage.read(key: 'token');
+  Future<void> loadTokens() async {
+    _accessToken = await _storage.read(key: 'access_token');
+    _refreshToken = await _storage.read(key: 'refresh_token');
     notifyListeners();
   }
 
-  Future<void> saveToken(String token) async {
+  Future<void> saveTokens(String accessToken, String refreshToken) async {
     print(
-        '💾 SessionProvider.saveToken called with token: ${token != null ? 'Present' : 'Missing'}');
-    _token = token;
-    await _storage.write(key: 'token', value: token);
-    print('💾 Token saved to storage');
+        '💾 SessionProvider.saveTokens called with accessToken: ${accessToken != null ? 'Present' : 'Missing'}, refreshToken: ${refreshToken != null ? 'Present' : 'Missing'}');
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+    await _storage.write(key: 'access_token', value: accessToken);
+    await _storage.write(key: 'refresh_token', value: refreshToken);
+    print('💾 Tokens saved to storage');
     notifyListeners();
     print('💾 SessionProvider.notifyListeners() called');
   }
 
-  Future<void> clearToken() async {
-    _token = null;
+  Future<void> saveToken(String token) async {
+    // For backward compatibility - treat as access token
+    await saveTokens(token, _refreshToken ?? '');
+  }
+
+  Future<void> clearTokens() async {
+    _accessToken = null;
+    _refreshToken = null;
     _user = null;
     _role = null;
     _userDataManuallySet = false;
-    await _storage.delete(key: 'token');
+    await _storage.delete(key: 'access_token');
+    await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'user_data');
     clearCounterparties();
     notifyListeners();
   }
 
+  Future<void> clearToken() async {
+    // For backward compatibility
+    await clearTokens();
+  }
+
   Future<void> initSession() async {
     print('🔄 SessionProvider.initSession() called');
-    _token = await _storage.read(key: 'token');
-    print('🔄 Token from storage: ${_token != null ? 'Present' : 'Missing'}');
+    await loadTokens();
+    print('🔄 Access token from storage: ${_accessToken != null ? 'Present' : 'Missing'}');
+    print('🔄 Refresh token from storage: ${_refreshToken != null ? 'Present' : 'Missing'}');
 
-    if (_token != null) {
-      // First try to load saved user data
+    if (_accessToken != null) {
       await _loadUserData();
       print(
           '🔄 After loading user data: _user = ${_user != null ? 'Present' : 'Missing'}, _role = $_role');
 
-      // Only try to fetch user profile if we don't already have user data and it wasn't manually set
       if (_user == null && !_userDataManuallySet) {
         print(
             '🔄 No user data found and not manually set, fetching from API...');
-      } else {
-        print(
-            '🔄 Skipping API fetch - user data already available or manually set');
-        print('🔄 _user: ${_user != null ? 'Present' : 'Missing'}');
-        print('🔄 _userDataManuallySet: $_userDataManuallySet');
-      }
+        
+        var response = await HttpInterceptor.get('/api/users/me');
 
-      if (_user == null && !_userDataManuallySet) {
-        try {
-          // Try user endpoint first
-          var response = await http.get(
-            Uri.parse('${ApiConfig.baseUrl}/api/users/me'),
-            headers: {'Authorization': 'Bearer $_token'},
-          );
-          if (response.statusCode == 200) {
-            var user = jsonDecode(response.body);
-            if (user['profileImage'] is Map &&
-                user['profileImage']['url'] != null) {
-              user['profileImage'] = user['profileImage']['url'];
-            }
-            _user = user;
-            _role = 'user';
-            await checkSubscriptionStatus();
-            notifyListeners();
-            return;
+        if (response.statusCode != 200) {
+          response = await HttpInterceptor.get('/api/admins/me');
+        }
+
+        if (response.statusCode == 200) {
+          var user = jsonDecode(response.body);
+          if (user['profileImage'] is Map &&
+              user['profileImage']['url'] != null) {
+            user['profileImage'] = user['profileImage']['url'];
           }
-          // Try admin endpoint if user failed
-          response = await http.get(
-            Uri.parse('${ApiConfig.baseUrl}/api/admins/me'),
-            headers: {'Authorization': 'Bearer $_token'},
-          );
-          if (response.statusCode == 200) {
-            var user = jsonDecode(response.body);
-            if (user['profileImage'] is Map &&
-                user['profileImage']['url'] != null) {
-              user['profileImage'] = user['profileImage']['url'];
-            }
-            _user = user;
-            _role = 'admin';
-            notifyListeners();
-            return;
-          }
-          // If both endpoints fail, clear the invalid token
-          print('Both user and admin endpoints failed, clearing invalid token');
-          await clearToken();
-        } catch (e) {
-          print('Error during session initialization: $e');
-          // If there's an error, clear the token to be safe
-          await clearToken();
+          _user = user;
+          _role = response.request?.url.path.contains('/admins/') ?? false ? 'admin' : 'user';
+          await checkSubscriptionStatus();
+          notifyListeners();
+        } else {
+          print('Both user and admin endpoints failed, clearing tokens');
+          await clearTokens();
         }
       } else {
         // We already have user data, just notify listeners
         await checkSubscriptionStatus();
         notifyListeners();
-        return;
       }
+    } else {
+        _user = null;
+        _role = null;
+        notifyListeners();
     }
-    _user = null;
-    _role = null;
-    notifyListeners();
   }
 
   void setUser(Map<String, dynamic> user) {
@@ -161,24 +149,21 @@ class SessionProvider extends ChangeNotifier {
 
     // Verify the session state after setting
     print('🔍 Session state after setUser:');
-    print('   _token: ${_token != null ? 'Present' : 'Missing'}');
+    print('   _accessToken: ${_accessToken != null ? 'Present' : 'Missing'}');
     print('   _user: ${_user != null ? 'Present' : 'Missing'}');
     print('   _role: $_role');
     print('   isAdmin: $isAdmin');
   }
 
   Future<void> checkSubscriptionStatus() async {
-    if (_token == null) {
-      print('Subscription check: No token');
+    if (_accessToken == null) {
+      print('Subscription check: No access token');
       return;
     }
 
     print('Subscription check: Fetching status...');
     try {
-        final response = await http.get(
-            Uri.parse('${ApiConfig.baseUrl}/api/subscription/status'),
-            headers: {'Authorization': 'Bearer $_token'},
-        );
+        final response = await HttpInterceptor.get('/api/subscription/status');
 
         if (response.statusCode == 200) {
             final data = jsonDecode(response.body);
@@ -205,17 +190,14 @@ class SessionProvider extends ChangeNotifier {
 }
 
 Future<void> fetchSubscriptionHistory() async {
-    if (_token == null) {
-      print('Subscription history: No token');
+    if (_accessToken == null) {
+      print('Subscription history: No access token');
       return;
     }
 
     print('Subscription history: Fetching history...');
     try {
-        final response = await http.get(
-            Uri.parse('${ApiConfig.baseUrl}/api/subscription/history'),
-            headers: {'Authorization': 'Bearer $_token'},
-        );
+        final response = await HttpInterceptor.get('/api/subscription/history');
 
         if (response.statusCode == 200) {
             final data = jsonDecode(response.body);
@@ -273,27 +255,21 @@ Future<void> fetchSubscriptionHistory() async {
   }
 
   Future<void> refreshUserProfile() async {
-    if (_token == null) return;
+    if (_accessToken == null) return;
 
     try {
       final isAdmin = _role == 'admin';
       final url = isAdmin
-          ? '${ApiConfig.baseUrl}/api/admins/me'
-          : '${ApiConfig.baseUrl}/api/users/me';
+          ? '/api/admins/me'
+          : '/api/users/me';
 
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'Authorization': 'Bearer $_token'},
-      );
+      final response = await HttpInterceptor.get(url);
 
       if (response.statusCode == 200) {
         final user = jsonDecode(response.body);
         setUser(user);
-      } else if (response.statusCode == 440) {
-        // Session timeout
+      } else if (response.statusCode == 401) {
         await logout();
-        // Optionally show a dialog/snackbar
-        // You can use a callback or a global key to show a message in your app
       }
     } catch (e) {
       print('Error refreshing user profile: $e');
@@ -302,29 +278,27 @@ Future<void> fetchSubscriptionHistory() async {
 
   // Method to force clear image cache and refresh profile
   Future<void> forceRefreshProfile() async {
-    if (_token == null) return;
+    if (_accessToken == null) return;
 
     try {
       final isAdmin = _role == 'admin';
       final url = isAdmin
-          ? '${ApiConfig.baseUrl}/api/admins/me'
-          : '${ApiConfig.baseUrl}/api/users/me';
+          ? '/api/admins/me'
+          : '/api/users/me';
 
       // Add cache busting parameter
       final cacheBustingUrl = '$url?t=${DateTime.now().millisecondsSinceEpoch}';
 
-      final response = await http.get(
-        Uri.parse(cacheBustingUrl),
-        headers: {
-          'Authorization': 'Bearer $_token',
+      final response = await HttpInterceptor.get(cacheBustingUrl, headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
-        },
-      );
+        });
 
       if (response.statusCode == 200) {
         final user = jsonDecode(response.body);
         setUser(user);
+      } else if (response.statusCode == 401) {
+        await logout();
       }
     } catch (e) {
       print('Error force refreshing user profile: $e');
@@ -349,22 +323,14 @@ Future<void> fetchSubscriptionHistory() async {
   }
 
   Future<void> logout() async {
-    final deviceId = await getDeviceId();
-    if (_token != null && deviceId != null) {
+    if (_refreshToken != null) {
       try {
-        await http.post(
-          Uri.parse('${ApiConfig.baseUrl}/api/users/logout-device'),
-          headers: {
-            'Authorization': 'Bearer $_token',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({'deviceId': deviceId}),
-        );
+        await HttpInterceptor.post('/api/users/logout', body: {'refreshToken': _refreshToken});
       } catch (e) {
         print('Error logging out on server: $e');
       }
     }
-    await clearToken();
+    await clearTokens();
     clearUser();
     clearCounterparties();
     clearSubscription();

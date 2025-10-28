@@ -2,8 +2,9 @@ import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+
 import '../user/session.dart';
+import '../utils/api_client.dart';
 import 'custom_warning_widget.dart';
 
 class ChangePasswordPage extends StatefulWidget {
@@ -42,17 +43,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/change-password'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
+      final response = await ApiClient.post(
+        '/api/users/change-password',
+        body: {
           'currentPassword': _currentPasswordController.text,
           'newPassword': _newPasswordController.text,
-        }),
+        },
       );
 
       if (response.statusCode == 200) {

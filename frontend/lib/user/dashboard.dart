@@ -3,13 +3,13 @@ import 'package:provider/provider.dart';
 import '../user/session.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math' as math;
 import '../api_config.dart';
 import '../profile/edit_profile_page.dart';
 import 'dart:async';
 import '../otp_input.dart';
+import '../utils/api_client.dart';
 import '../Transaction/transaction_page.dart';
 import '../Transaction/user_transactions_page.dart';
 import '../Transaction/analytics_page.dart';
@@ -172,11 +172,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
   Future<void> fetchTransactions() async {
     setState(() => loading = true);
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final baseUrl = ApiConfig.baseUrl;
-    final res = await http.get(Uri.parse('$baseUrl/api/transactions/me'),
-        headers: {'Authorization': 'Bearer $token'});
+    final res = await ApiClient.get('/api/transactions/me');
     setState(() {
       transactions = res.statusCode == 200
           ? List<Map<String, dynamic>>.from(jsonDecode(res.body))
@@ -205,11 +201,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     if (email == null) {
       return;
     }
-    final token = session.token;
     try {
-      final res = await http.get(
-          Uri.parse('${ApiConfig.baseUrl}/api/analytics/user?email=$email'),
-          headers: {'Authorization': 'Bearer $token'});
+      final res = await ApiClient.get('/api/analytics/user?email=$email');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         if (data['topCounterparties'] != null) {
@@ -277,13 +270,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
   Future<void> _checkAndShowRatingDialog() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final baseUrl = ApiConfig.baseUrl;
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/api/rating/my'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final res = await ApiClient.get('/api/rating/my');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
@@ -325,7 +313,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
             child: Container(
               padding: EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Color(0xFFFCE4EC), // Light pink background
                 borderRadius: BorderRadius.circular(20),
               ),
               child: StatefulBuilder(
@@ -354,12 +342,21 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(5, (i) {
                           return IconButton(
-                            icon: Icon(
-                              Icons.star,
-                              color: i < _selectedStars
-                                  ? Colors.amber
-                                  : Colors.grey[300],
-                              size: 36,
+                            icon: Stack(
+                              children: <Widget>[
+                                Icon(
+                                  Icons.star,
+                                  color: i < _selectedStars
+                                      ? Colors.amber
+                                      : Colors.grey[300],
+                                  size: 36,
+                                ),
+                                Icon(
+                                  Icons.star_border,
+                                  color: Colors.black,
+                                  size: 36,
+                                ),
+                              ],
                             ),
                             onPressed: () {
                               setState(() => _selectedStars = i + 1);
@@ -371,87 +368,55 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              gradient: const LinearGradient(
-                                colors: [Colors.orange, Colors.white, Colors.green],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                          ElevatedButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(),
-                              child: Text('Close',
-                                  style: TextStyle(
-                                      color: Colors.grey[700],
-                                      fontWeight: FontWeight.bold)),
-                            ),
+                            child: Text('Close',
+                                style: TextStyle(
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.bold)),
                           ),
-                          Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              gradient: _selectedStars > 0
-                                  ? const LinearGradient(
-                                      colors: [
-                                        Colors.orange,
-                                        Colors.white,
-                                        Colors.green
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    )
-                                  : null,
-                              color: _selectedStars > 0 ? null : Colors.grey[300],
-                            ),
-                            child: ElevatedButton(
-                              onPressed: _selectedStars > 0
-                                  ? () async {
-                                      final session = Provider.of<SessionProvider>(
-                                          context,
-                                          listen: false);
-                                      final token = session.token;
-                                      final baseUrl = ApiConfig.baseUrl;
-                                      final res = await http.post(
-                                        Uri.parse('$baseUrl/api/rating'),
-                                        headers: {
-                                          'Authorization': 'Bearer $token',
-                                          'Content-Type': 'application/json',
-                                        },
-                                        body: json
-                                            .encode({'rating': _selectedStars}),
+                          ElevatedButton(
+                            onPressed: _selectedStars > 0
+                                ? () async {
+                                    final res = await ApiClient.post(
+                                      '/api/rating',
+                                      body: {'rating': _selectedStars},
+                                    );
+                                    if (res.statusCode == 200) {
+                                      setState(() {
+                                        _hasRatedApp = true;
+                                      });
+                                      Navigator.of(ctx).pop();
+                                      _showThankYouDialog();
+                                    } else {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                            content: Text(
+                                                'Failed to submit rating.')),
                                       );
-                                      if (res.statusCode == 200) {
-                                        setState(() {
-                                          _hasRatedApp = true;
-                                        });
-                                        Navigator.of(ctx).pop();
-                                        _showThankYouDialog();
-                                      } else {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(
-                                              content: Text(
-                                                  'Failed to submit rating.')),
-                                        );
-                                      }
                                     }
-                                  : null,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12)),
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 24, vertical: 12),
-                              ),
-                              child: Text('Submit',
-                                  style: TextStyle(
-                                      color: _selectedStars > 0
-                                          ? Colors.black
-                                          : Colors.grey[600],
-                                      fontWeight: FontWeight.bold)),
+                                  }
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 12),
                             ),
+                            child: Text('Submit',
+                                style: TextStyle(
+                                    color: _selectedStars > 0
+                                        ? Colors.black
+                                        : Colors.grey[600],
+                                    fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),
@@ -1694,13 +1659,9 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
   Future<Map<String, dynamic>?> _fetchCounterpartyProfile(String email) async {
     if (email.isEmpty) return null;
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
     try {
-      final res = await http.get(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'),
-        headers: {'Authorization': 'Bearer $token'},
+      final res = await ApiClient.get(
+        '/api/users/profile-by-email?email=$email',
       );
       if (res.statusCode == 200) {
         return jsonDecode(res.body);

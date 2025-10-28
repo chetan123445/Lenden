@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
+import '../utils/api_client.dart';
 import 'package:provider/provider.dart';
 import 'session.dart';
 
@@ -59,9 +59,7 @@ class _NotesPageState extends State<NotesPage> {
   Future<void> fetchNotes() async {
     setState(() { loading = true; error = null; });
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final url = '${ApiConfig.baseUrl}/api/notes';
-    final res = await http.get(Uri.parse(url), headers: {'Authorization': 'Bearer $token'});
+    final res = await ApiClient.get('/api/notes');
     if (res.statusCode == 200) {
       final fetchedNotes = List<Map<String, dynamic>>.from(json.decode(res.body)['notes']);
       setState(() {
@@ -201,10 +199,9 @@ class _NotesPageState extends State<NotesPage> {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
       if (isEdit) {
-        final url = '${ApiConfig.baseUrl}/api/notes/${note!['_id']}';
-        final res = await http.put(Uri.parse(url),
-          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-          body: json.encode({'title': result['title'], 'content': result['content']}),
+        final res = await ApiClient.put(
+          '/api/notes/${note!['_id']}',
+          body: {'title': result['title'], 'content': result['content']},
         );
         if (res.statusCode == 200) {
           final updatedNote = Map<String, dynamic>.from(note);
@@ -221,10 +218,9 @@ class _NotesPageState extends State<NotesPage> {
           });
         }
       } else {
-        final url = '${ApiConfig.baseUrl}/api/notes';
-        final res = await http.post(Uri.parse(url),
-          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-          body: json.encode({'title': result['title'], 'content': result['content']}),
+        final res = await ApiClient.post(
+          '/api/notes',
+          body: {'title': result['title'], 'content': result['content']},
         );
         if (res.statusCode == 201) {
           final newNote = json.decode(res.body)['note'];
@@ -284,9 +280,7 @@ class _NotesPageState extends State<NotesPage> {
 
     if (confirmed == true) {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final url = '${ApiConfig.baseUrl}/api/notes/$id';
-      final res = await http.delete(Uri.parse(url), headers: {'Authorization': 'Bearer $token'});
+      final res = await ApiClient.delete('/api/notes/$id');
       if (res.statusCode == 200) {
         setState(() {
           notes.removeWhere((note) => note['_id'] == id);

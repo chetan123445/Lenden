@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../../user/session.dart';
 import '../../api_config.dart';
 import 'user_edit_page.dart';
+import '../../utils/api_client.dart';
 
 class UserDetailsPage extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -42,14 +42,8 @@ class _UserDetailsPageState extends State<UserDetailsPage>
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/users/${widget.user['_id']}/details'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response =
+          await ApiClient.get('/api/admin/users/${widget.user['_id']}/details');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -83,18 +77,9 @@ class _UserDetailsPageState extends State<UserDetailsPage>
     final currentStatus = widget.user['isActive'] ?? false;
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.patch(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/users/${widget.user['_id']}/status'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
-          'isActive': !currentStatus,
-        }),
-      );
+      final response = await ApiClient.patch(
+          '/api/admin/users/${widget.user['_id']}/status',
+          body: {'isActive': !currentStatus});
 
       if (response.statusCode == 200) {
         setState(() {
@@ -685,8 +670,8 @@ class _UserDetailsPageState extends State<UserDetailsPage>
 
   Widget _buildTransactionCard(Map<String, dynamic> transaction) {
     final amount = transaction['amount']?.toString() ?? '0';
-    final type = transaction['type'] ?? 'unknown';
-    final status = transaction['status'] ?? 'pending';
+    final date = transaction['date'] ?? 'Not provided';
+    final status = transaction['status'] ?? 'unknown';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -712,7 +697,7 @@ class _UserDetailsPageState extends State<UserDetailsPage>
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              type == 'send' ? Icons.send : Icons.call_received,
+              Icons.receipt,
               color: const Color(0xFF00B4D8),
               size: 20,
             ),
@@ -723,7 +708,7 @@ class _UserDetailsPageState extends State<UserDetailsPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${type.toUpperCase()} Transaction',
+                  'Transaction ID: ${transaction['_id']}',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -732,54 +717,52 @@ class _UserDetailsPageState extends State<UserDetailsPage>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _formatDate(transaction['createdAt']),
+                  'Amount: \$${amount}',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Date: ${_formatDate(date)}',
                   style: const TextStyle(
                     fontSize: 12,
                     color: Colors.grey,
                   ),
                 ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '\$$amount',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: status == 'completed'
-                      ? Colors.green.withOpacity(0.1)
-                      : Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  status.toUpperCase(),
+                const SizedBox(height: 4),
+                Text(
+                  'Status: ${status.toString().capitalize()}',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: status == 'completed' ? Colors.green : Colors.orange,
+                    color: _getStatusColor(status),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildActivityCard(Map<String, dynamic> activity) {
-    final action = activity['action'] ?? 'unknown';
-    final timestamp = activity['timestamp'];
+  String _formatDate(dynamic date) {
+    if (date == null) return 'Not available';
+    try {
+      final dateTime = DateTime.parse(date.toString()).toLocal();
+      final twoDigits = (int n) => n.toString().padLeft(2, '0');
+      return '${twoDigits(dateTime.day)}/${twoDigits(dateTime.month)}/${dateTime.year} ${twoDigits(dateTime.hour)}:${twoDigits(dateTime.minute)}';
+    } catch (e) {
+      return date.toString();
+    }
+  }
 
+  Widget _buildActivityCard(Map<String, dynamic> activity) {
+    final action = activity['action'] ?? 'activity';
+    final timestamp = activity['timestamp'];
+    final when = _formatDate(timestamp);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -788,11 +771,9 @@ class _UserDetailsPageState extends State<UserDetailsPage>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
+              color: Colors.grey.withOpacity(0.08),
+              blurRadius: 6,
+              offset: Offset(0, 2))
         ],
       ),
       child: Row(
@@ -811,27 +792,15 @@ class _UserDetailsPageState extends State<UserDetailsPage>
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _getActivityTitle(action),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_getActivityTitle(action),
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _formatDate(timestamp),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
+                      fontSize: 14, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(when,
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ]),
           ),
         ],
       ),
@@ -839,13 +808,13 @@ class _UserDetailsPageState extends State<UserDetailsPage>
   }
 
   IconData _getActivityIcon(String action) {
-    switch (action.toLowerCase()) {
-      case 'login':
+    switch (action) {
+      case 'user_registration':
+        return Icons.person_add;
+      case 'user_login':
         return Icons.login;
-      case 'logout':
+      case 'user_logout':
         return Icons.logout;
-      case 'transaction':
-        return Icons.receipt;
       case 'profile_update':
         return Icons.edit;
       case 'password_change':
@@ -856,98 +825,66 @@ class _UserDetailsPageState extends State<UserDetailsPage>
   }
 
   String _getActivityTitle(String action) {
-    switch (action.toLowerCase()) {
-      case 'login':
+    switch (action) {
+      case 'user_registration':
+        return 'New user registered';
+      case 'user_login':
         return 'User logged in';
-      case 'logout':
+      case 'user_logout':
         return 'User logged out';
-      case 'transaction':
-        return 'Transaction completed';
       case 'profile_update':
         return 'Profile updated';
       case 'password_change':
         return 'Password changed';
       default:
-        return 'Activity recorded';
+        return 'Activity logged';
     }
   }
 
-  String _formatDate(dynamic date) {
-    if (date == null) return 'Not available';
-
-    try {
-      final dateTime = DateTime.parse(date.toString());
-      return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute}';
-    } catch (e) {
-      return 'Invalid date';
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'successful':
+        return Colors.green;
+      case 'failed':
+        return Colors.red;
+      case 'pending':
+        return Colors.orange;
+      default:
+        return Colors.grey;
     }
   }
 
   Widget _buildProfileImage(Map<String, dynamic> user) {
-    final profileImage = user['profileImage'];
+    final imageUrl = user['profileImage'] ?? '';
 
-    if (profileImage == null) {
-      return Text(
-        (user['name'] as String?)?.substring(0, 1).toUpperCase() ?? 'U',
-        style: const TextStyle(
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
+    if (imageUrl.isEmpty) {
+      return const Icon(
+        Icons.person,
+        size: 40,
+        color: Colors.white,
       );
     }
 
-    // Handle different profileImage formats
-    if (profileImage is String) {
-      // It's a URL
-      return ClipOval(
-        child: Image.network(
-          profileImage,
-          width: 80,
-          height: 80,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Text(
-              (user['name'] as String?)?.substring(0, 1).toUpperCase() ?? 'U',
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            );
-          },
-        ),
-      );
-    } else if (profileImage is Map && profileImage['url'] != null) {
-      // It's a Map with URL
-      return ClipOval(
-        child: Image.network(
-          profileImage['url'],
-          width: 80,
-          height: 80,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Text(
-              (user['name'] as String?)?.substring(0, 1).toUpperCase() ?? 'U',
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            );
-          },
-        ),
-      );
-    } else {
-      // Fallback to initials
-      return Text(
-        (user['name'] as String?)?.substring(0, 1).toUpperCase() ?? 'U',
-        style: const TextStyle(
-          fontSize: 32,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-        ),
-      );
-    }
+    return ClipOval(
+      child: Image.network(
+        imageUrl,
+        width: 80,
+        height: 80,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return const Icon(
+            Icons.error,
+            size: 40,
+            color: Colors.red,
+          );
+        },
+      ),
+    );
+  }
+}
+
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${this.substring(1)}";
   }
 }

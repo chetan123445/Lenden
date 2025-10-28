@@ -2,7 +2,7 @@ import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../utils/api_client.dart';
 import '../user/session.dart';
 
 class AdminAnalyticsSettingsPage extends StatefulWidget {
@@ -51,13 +51,7 @@ class _AdminAnalyticsSettingsPageState
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/analytics-settings'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.get('/api/admin/analytics-settings');
 
       if (response.statusCode == 200) {
         final settings = json.decode(response.body);
@@ -105,14 +99,9 @@ class _AdminAnalyticsSettingsPageState
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/analytics-settings'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
+      final response = await ApiClient.put(
+        '/api/admin/analytics-settings',
+        body: {
           'enableAnalytics': _enableAnalytics,
           'enableUserTracking': _enableUserTracking,
           'enableTransactionAnalytics': _enableTransactionAnalytics,
@@ -128,7 +117,7 @@ class _AdminAnalyticsSettingsPageState
           'anonymizeData': _anonymizeData,
           'enableDataExport': _enableDataExport,
           'enableDataBackup': _enableDataBackup,
-        }),
+        },
       );
 
       if (response.statusCode == 200) {

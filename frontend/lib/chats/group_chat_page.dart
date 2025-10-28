@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
@@ -9,6 +8,7 @@ import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:intl/intl.dart';
 import 'dart:math';
 import '../widgets/subscription_prompt.dart';
+import '../utils/api_client.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String groupTransactionId;
@@ -196,12 +196,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   Future<void> _fetchMessages() async {
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-chat/messages/${widget.groupTransactionId}?userId=$_currentUserId'),
-        headers: {
-          'Authorization': 'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
-        },
-      );
+      final response = await ApiClient.get(
+          '/api/group-chat/messages/${widget.groupTransactionId}?userId=$_currentUserId');
       if (response.statusCode == 200) {
         if (mounted) {
           final body = jsonDecode(response.body);
@@ -247,7 +243,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
     if (!_isActiveMember) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('You are no longer an active member of this group. Chat is disabled.'),
+          content: Text(
+              'You are no longer an active member of this group. Chat is disabled.'),
           backgroundColor: Colors.red,
           duration: Duration(seconds: 3),
         ),
@@ -294,7 +291,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           elevation: 0,
           backgroundColor: Colors.transparent,
           child: Container(
@@ -351,14 +349,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               color: Colors.black.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(Icons.close, color: Colors.black87, size: 20),
+                            child: Icon(Icons.close,
+                                color: Colors.black87, size: 20),
                           ),
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                       ],
                     ),
                   ),
-                  
+
                   // Members list with tricolor borders
                   Container(
                     constraints: BoxConstraints(maxHeight: 400),
@@ -374,7 +373,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20),
                             gradient: const LinearGradient(
-                              colors: [Colors.orange, Colors.white, Colors.green],
+                              colors: [
+                                Colors.orange,
+                                Colors.white,
+                                Colors.green
+                              ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -389,13 +392,17 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           child: Container(
                             margin: const EdgeInsets.all(2),
                             decoration: BoxDecoration(
-                              color: _getNoteColor(index + 1), // Unique color for each member
+                              color: _getNoteColor(
+                                  index + 1), // Unique color for each member
                               borderRadius: BorderRadius.circular(18),
                             ),
                             child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
                               leading: CircleAvatar(
-                                backgroundColor: _getUserColor(memberId ?? member['email']).withOpacity(0.8),
+                                backgroundColor:
+                                    _getUserColor(memberId ?? member['email'])
+                                        .withOpacity(0.8),
                                 child: Text(
                                   (member['email'] ?? 'U')[0].toUpperCase(),
                                   style: TextStyle(
@@ -418,44 +425,46 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                   fontSize: 12,
                                 ),
                               ),
-                              trailing: member['leftAt'] != null 
-                                ? Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      'Left',
-                                      style: TextStyle(
-                                        color: Colors.red,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
+                              trailing: member['leftAt'] != null
+                                  ? Container(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        'Left',
+                                        style: TextStyle(
+                                          color: Colors.red,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    )
+                                  : Container(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.green.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        'Active',
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
-                                  )
-                                : Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      'Active',
-                                      style: TextStyle(
-                                        color: Colors.green,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
                             ),
                           ),
                         );
                       },
                     ),
                   ),
-                  
+
                   // Footer
                   Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -549,7 +558,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           elevation: 0,
           backgroundColor: Colors.transparent,
           child: Container(
@@ -566,7 +576,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Icon(Icons.info_outline, color: Colors.white, size: 40),
+                  child:
+                      Icon(Icons.info_outline, color: Colors.white, size: 40),
                 ),
                 Text(
                   'Message Details',
@@ -581,7 +592,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Column(
                     children: [
-                      _buildInfoRow(Icons.calendar_today, 'Date', formattedDate),
+                      _buildInfoRow(
+                          Icons.calendar_today, 'Date', formattedDate),
                       SizedBox(height: 8),
                       _buildInfoRow(Icons.access_time, 'Time', formattedTime),
                     ],
@@ -590,7 +602,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 SizedBox(height: 24),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text('CLOSE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: Text('CLOSE',
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
                 SizedBox(height: 8),
               ],
@@ -614,7 +628,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
         Expanded(
           child: Text(
             value,
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
             textAlign: TextAlign.end,
           ),
         ),
@@ -640,7 +655,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: Text(widget.groupTitle, style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          title: Text(widget.groupTitle,
+              style:
+                  TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           actions: [
             IconButton(
               icon: Icon(Icons.more_vert, color: Colors.black),
@@ -673,10 +690,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
                               reverse: true,
                               itemCount: _messages.length,
                               itemBuilder: (context, index) {
-                                final message = _messages.reversed.toList()[index];
+                                final message =
+                                    _messages.reversed.toList()[index];
                                 final sender = message['senderId'];
-                                final isMe = sender is Map && sender['_id'] == _currentUserId;
-                                return _buildMessageBubble(message, isMe, index);
+                                final isMe = sender is Map &&
+                                    sender['_id'] == _currentUserId;
+                                return _buildMessageBubble(
+                                    message, isMe, index);
                               },
                             )
                           : _buildInactiveMemberWidget(),
@@ -715,7 +735,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.no_accounts, size: 60, color: Colors.red.withOpacity(0.8)),
+            Icon(Icons.no_accounts,
+                size: 60, color: Colors.red.withOpacity(0.8)),
             const SizedBox(height: 20),
             Text(
               'You are no longer a member of this group.',
@@ -747,7 +768,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
     final createdAt = DateTime.parse(message['createdAt']).toLocal();
     final now = DateTime.now();
-    final isToday = createdAt.day == now.day && createdAt.month == now.month && createdAt.year == now.year;
+    final isToday = createdAt.day == now.day &&
+        createdAt.month == now.month &&
+        createdAt.year == now.year;
 
     String formattedTimestamp;
     if (isToday) {
@@ -755,14 +778,16 @@ class _GroupChatPageState extends State<GroupChatPage> {
     } else {
       formattedTimestamp = DateFormat('MMM d, yyyy, h:mm a').format(createdAt);
     }
-    final hasReactions = message['reactions'] != null && message['reactions'].isNotEmpty;
+    final hasReactions =
+        message['reactions'] != null && message['reactions'].isNotEmpty;
     final senderName = message['senderId']?['name'] ?? 'Unknown';
     final senderId = message['senderId']?['_id'] ?? 'unknown';
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
       child: Column(
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           if (!isMe)
             Padding(
@@ -783,13 +808,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Replying to ${message['parentMessageId']?['senderId']?['name'] ?? ''}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
-                  Text(message['parentMessageId']?['message'] ?? '', style: TextStyle(color: Colors.black54)),
+                  Text(
+                      'Replying to ${message['parentMessageId']?['senderId']?['name'] ?? ''}',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.black54)),
+                  Text(message['parentMessageId']?['message'] ?? '',
+                      style: TextStyle(color: Colors.black54)),
                 ],
               ),
             ),
           Row(
-            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            mainAxisAlignment:
+                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (!isMe)
@@ -812,25 +842,37 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         ),
                       ),
                       child: Container(
-                        padding: EdgeInsets.fromLTRB(12, 10, 12, hasReactions ? 25 : 10),
+                        padding: EdgeInsets.fromLTRB(
+                            12, 10, 12, hasReactions ? 25 : 10),
                         decoration: BoxDecoration(
-                          color: isMe ? const Color(0xFFE8F5E9) : _getUserColor(senderId),
+                          color: isMe
+                              ? const Color(0xFFE8F5E9)
+                              : _getUserColor(senderId),
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: Column(
-                          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                          crossAxisAlignment: isMe
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
                           children: [
                             Text(
                               message['message'],
-                              style: TextStyle(color: Colors.black, fontSize: 16),
+                              style:
+                                  TextStyle(color: Colors.black, fontSize: 16),
                             ),
                             SizedBox(height: 4),
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(formattedTimestamp, style: TextStyle(fontSize: 10, color: Colors.black54)),
+                                Text(formattedTimestamp,
+                                    style: TextStyle(
+                                        fontSize: 10, color: Colors.black54)),
                                 if (message['isEdited'] == true)
-                                  Text(' (edited)', style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.black54)),
+                                  Text(' (edited)',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          fontStyle: FontStyle.italic,
+                                          color: Colors.black54)),
                               ],
                             ),
                           ],
@@ -842,16 +884,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
                         bottom: -12,
                         right: 10,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 6),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 3, horizontal: 6),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(10),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 4, offset: Offset(0, 1))],
+                            boxShadow: [
+                              BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 1))
+                            ],
                           ),
                           child: Wrap(
                             spacing: 5,
-                            children: message['reactions'].map<Widget>((reaction) {
-                              return Text(reaction['emoji'], style: TextStyle(fontSize: 14));
+                            children:
+                                message['reactions'].map<Widget>((reaction) {
+                              return Text(reaction['emoji'],
+                                  style: TextStyle(fontSize: 14));
                             }).toList(),
                           ),
                         ),
@@ -899,7 +949,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
         child: Row(
           children: [
             IconButton(
-              icon: Icon(_showEmojiPicker ? Icons.close : Icons.emoji_emotions_outlined, color: _isActiveMember ? Colors.grey : Colors.grey.withOpacity(0.3)),
+              icon: Icon(
+                  _showEmojiPicker
+                      ? Icons.close
+                      : Icons.emoji_emotions_outlined,
+                  color: _isActiveMember
+                      ? Colors.grey
+                      : Colors.grey.withOpacity(0.3)),
               onPressed: _isActiveMember ? _onEmojiIconPressed : null,
             ),
             Expanded(
@@ -908,7 +964,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 controller: _messageController,
                 enabled: _isActiveMember,
                 decoration: InputDecoration(
-                  hintText: _isActiveMember ? 'Type a message' : 'Chat disabled - You left the group',
+                  hintText: _isActiveMember
+                      ? 'Type a message'
+                      : 'Chat disabled - You left the group',
                   border: InputBorder.none,
                 ),
                 onTap: () {
@@ -920,7 +978,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   if (!_isActiveMember) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('You are no longer an active member of this group. Chat is disabled.'),
+                        content: Text(
+                            'You are no longer an active member of this group. Chat is disabled.'),
                         backgroundColor: Colors.red,
                         duration: Duration(seconds: 3),
                       ),
@@ -930,7 +989,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
               ),
             ),
             IconButton(
-              icon: Icon(Icons.send, color: _isActiveMember ? Colors.blue : Colors.grey.withOpacity(0.3)),
+              icon: Icon(Icons.send,
+                  color: _isActiveMember
+                      ? Colors.blue
+                      : Colors.grey.withOpacity(0.3)),
               onPressed: _isActiveMember ? _sendMessage : null,
             ),
           ],
@@ -961,8 +1023,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Replying to ${(_replyingTo['senderId'] is Map ? _replyingTo['senderId']['name'] : '')}', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(_replyingTo['message'], maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                    'Replying to ${(_replyingTo['senderId'] is Map ? _replyingTo['senderId']['name'] : '')}',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(_replyingTo['message'],
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
@@ -989,8 +1054,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Editing message', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(_editingMessage['message'], maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text('Editing message',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(_editingMessage['message'],
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
@@ -1022,7 +1089,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
             ),
             child: Wrap(
               children: <Widget>[
-                if (isMe && _isActiveMember && DateTime.now().difference(DateTime.parse(message['createdAt'])).inMinutes < 2)
+                if (isMe &&
+                    _isActiveMember &&
+                    DateTime.now()
+                            .difference(DateTime.parse(message['createdAt']))
+                            .inMinutes <
+                        2)
                   ListTile(
                     leading: Icon(Icons.edit, color: Colors.blueAccent),
                     title: Text('Edit'),
@@ -1049,7 +1121,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   ),
                 if (_isActiveMember)
                   ListTile(
-                    leading: Icon(Icons.emoji_emotions_outlined, color: Colors.orangeAccent),
+                    leading: Icon(Icons.emoji_emotions_outlined,
+                        color: Colors.orangeAccent),
                     title: Text('React'),
                     onTap: () {
                       Navigator.of(context).pop();
@@ -1066,7 +1139,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 ),
                 if (_isActiveMember)
                   ListTile(
-                    leading: Icon(Icons.delete_outline, color: Colors.redAccent),
+                    leading:
+                        Icon(Icons.delete_outline, color: Colors.redAccent),
                     title: Text('Delete for me'),
                     onTap: () {
                       Navigator.of(context).pop();
@@ -1075,7 +1149,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   ),
                 if (isMe && _isActiveMember)
                   ListTile(
-                    leading: Icon(Icons.delete_forever_outlined, color: Colors.red),
+                    leading:
+                        Icon(Icons.delete_forever_outlined, color: Colors.red),
                     title: Text('Delete for everyone'),
                     onTap: () {
                       Navigator.of(context).pop();

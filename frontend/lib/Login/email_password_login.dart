@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
+import '../utils/api_client.dart';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
@@ -17,18 +17,7 @@ class EmailPasswordLogin {
     String? deviceId,
   }) async {
     try {
-      final result = await _loginUserOrAdmin(
-          username: email, password: password, deviceId: deviceId);
-      return result;
-    } catch (e) {
-      return {'success': false, 'error': 'Login failed. Please try again.'};
-    }
-  }
-
-  static Future<Map<String, dynamic>> _loginUserOrAdmin(
-      {String? username, required String password, String? deviceId}) async {
-    try {
-      print('🔐 Attempting login for username: $username');
+      print('🔐 Attempting login for username: $email');
       DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
       String deviceName;
       if (kIsWeb) {
@@ -54,108 +43,54 @@ class EmailPasswordLogin {
         }
       }
 
-      final res = await _post('/api/users/login', {
-        'username': username,
+      final response = await ApiClient.post('/api/users/login', body: {
+        'username': email,
         'password': password,
         'deviceName': deviceName,
         if (deviceId != null) 'deviceId': deviceId,
       });
-      print('📥 Login response status: ${res['status']}');
-      print('📥 Login response data: ${res['data']}');
 
-      if (res['status'] == 200) {
+      final responseData = jsonDecode(response.body);
+      print('📥 Login response status: ${response.statusCode}');
+      print('📥 Login response data: $responseData');
+
+      if (response.statusCode == 200) {
         // Check if it's a user login
-        if (res['data']['user'] != null) {
+        if (responseData['user'] != null) {
           print('✅ User login successful');
           return {
             'success': true,
-            'userOrAdmin': res['data']['user'],
-            'token': res['data']['token'],
+            'userOrAdmin': responseData['user'],
+            'accessToken': responseData['accessToken'],
+            'refreshToken': responseData['refreshToken'],
             'userType': 'user'
           };
         }
         // Check if it's an admin login
-        else if (res['data']['admin'] != null) {
+        else if (responseData['admin'] != null) {
           print('✅ Admin login successful');
           return {
             'success': true,
-            'userOrAdmin': res['data']['admin'],
-            'token': res['data']['token'],
+            'userOrAdmin': responseData['admin'],
+            'accessToken': responseData['accessToken'],
+            'refreshToken': responseData['refreshToken'],
             'userType': 'admin'
           };
         }
-      } else if (res['status'] == 403 && res['data']['canRecover'] == true) {
+      } else if (response.statusCode == 403 && responseData['canRecover'] == true) {
         return {
           'success': false,
           'canRecover': true,
-          'error': res['data']['error'],
-          'email': res['data']['email'],
-          'username': res['data']['username'],
+          'error': responseData['error'],
+          'email': responseData['email'],
+          'username': responseData['username'],
         };
       }
-      print('❌ Login failed: ${res['data']['error']}');
-      return {'success': false, 'error': res['data']['error']};
+      print('❌ Login failed: ${responseData['error']}');
+      return {'success': false, 'error': responseData['error']};
     } catch (e) {
       print('❌ Login exception: $e');
       return {'success': false, 'error': e.toString()};
-    }
-  }
-
-  static Future<Map<String, dynamic>> _post(
-      String path, Map<String, dynamic> body) async {
-    try {
-      print('🌐 Making API call to: ${ApiConfig.baseUrl + path}');
-      print('📤 Request body: ${jsonEncode(body)}');
-
-      final response = await http.post(
-        Uri.parse(ApiConfig.baseUrl + path),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'Lenden-Flutter-App/1.0',
-        },
-        body: jsonEncode(body),
-      );
-
-      print('📥 Response status: ${response.statusCode}');
-      print('📥 Response headers: ${response.headers}');
-      print('📥 Response body: ${response.body}');
-
-      if (response.statusCode >= 200 && response.statusCode < 300) {
-        final data = jsonDecode(response.body);
-        return {'status': response.statusCode, 'data': data};
-      } else if (response.statusCode == 404) {
-        return {
-          'status': 404,
-          'data': {'error': 'API endpoint not found'}
-        };
-      } else if (response.statusCode == 500) {
-        return {
-          'status': 500,
-          'data': {'error': 'Server error'}
-        };
-      } else {
-        final data = jsonDecode(response.body);
-        return {'status': response.statusCode, 'data': data};
-      }
-    } catch (e) {
-      print('❌ API call error: $e');
-      if (e.toString().contains('SocketException')) {
-        return {
-          'status': 0,
-          'data': {'error': 'No internet connection'}
-        };
-      } else if (e.toString().contains('HandshakeException')) {
-        return {
-          'status': 0,
-          'data': {'error': 'SSL/TLS connection failed'}
-        };
-      } else {
-        return {
-          'status': 500,
-          'data': {'error': e.toString()}
-        };
-      }
     }
   }
 

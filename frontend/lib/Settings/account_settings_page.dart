@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../api_config.dart';
 import '../user/session.dart';
 import 'custom_warning_widget.dart';
+import '../utils/api_client.dart';
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({super.key});
@@ -56,12 +55,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/me'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.get('/api/users/me');
 
       if (response.statusCode == 200) {
         final userData = json.decode(response.body);
@@ -110,20 +104,16 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/account-information'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
+      final response = await ApiClient.put(
+        '/api/users/account-information',
+        body: {
           'name': _nameController.text.trim(),
           'phone': _phoneController.text.trim(),
           'address': _addressController.text.trim(),
           'gender': _gender,
           'birthday': _birthday?.toIso8601String(),
           'rating': _editableRating,
-        }),
+        },
       );
 
       if (response.statusCode == 200) {

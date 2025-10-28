@@ -4,10 +4,9 @@ import 'dart:math';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
-import 'package:http/http.dart' as http;
-import '../api_config.dart';
 import 'dart:convert';
 import '../Settings/privacy_settings_page.dart';
+import '../utils/api_client.dart';
 
 class AnalyticsPage extends StatefulWidget {
   final List<dynamic>?
@@ -46,8 +45,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       return;
     }
     try {
-      final res = await http.get(
-          Uri.parse('${ApiConfig.baseUrl}/api/analytics/user?email=$email'));
+      final res =
+          await ApiClient.get('/api/analytics/user?email=$email'); // changed
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         // If analyticsSharing is explicitly false, do not set analytics data
@@ -113,7 +112,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade400),
             ),
             SizedBox(height: 20),
-            Text('Loading Analytics...', style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
+            Text('Loading Analytics...',
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
           ],
         ),
       );
@@ -127,9 +127,15 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             children: [
               Icon(Icons.error_outline, color: Colors.red, size: 60),
               SizedBox(height: 20),
-              Text('An Error Occurred', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.red)),
+              Text('An Error Occurred',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red)),
               SizedBox(height: 10),
-              Text(error!, textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
+              Text(error!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
             ],
           ),
         ),
@@ -190,7 +196,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           children: [
             Icon(Icons.info_outline, color: Colors.grey.shade400, size: 60),
             SizedBox(height: 20),
-            Text('No analytics data available.', style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
+            Text('No analytics data available.',
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
           ],
         ),
       );
@@ -227,17 +234,22 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _summaryTile('Total Lent', totalLent, Colors.green, Icons.arrow_upward),
-                      _summaryTile('Total Borrowed', totalBorrowed, Colors.orange, Icons.arrow_downward),
-                      _summaryTile('Interest', totalInterest, Colors.blue, Icons.percent),
+                      _summaryTile('Total Lent', totalLent, Colors.green,
+                          Icons.arrow_upward),
+                      _summaryTile('Total Borrowed', totalBorrowed,
+                          Colors.orange, Icons.arrow_downward),
+                      _summaryTile('Interest', totalInterest, Colors.blue,
+                          Icons.percent),
                     ],
                   ),
                   SizedBox(height: 20),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      _countTile('Cleared', cleared, Colors.green, Icons.check_circle),
-                      _countTile('Uncleared', uncleared, Colors.red, Icons.cancel),
+                      _countTile(
+                          'Cleared', cleared, Colors.green, Icons.check_circle),
+                      _countTile(
+                          'Uncleared', uncleared, Colors.red, Icons.cancel),
                       _countTile('Total', total, Colors.teal, Icons.functions),
                     ],
                   ),
@@ -253,8 +265,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                     color: Colors.green,
                   ),
                   SizedBox(height: 6),
-                  Text(
-                      '${(clearedPercent * 100).toStringAsFixed(1)}% cleared',
+                  Text('${(clearedPercent * 100).toStringAsFixed(1)}% cleared',
                       style: TextStyle(color: Colors.teal)),
                 ],
               ),
@@ -366,7 +377,12 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 children: [
                   _buildSectionHeader('Top Counterparties', Icons.people),
                   SizedBox(height: 16),
-                  ...topCounterparties.take(5).toList().asMap().entries.map((entry) {
+                  ...topCounterparties
+                      .take(5)
+                      .toList()
+                      .asMap()
+                      .entries
+                      .map((entry) {
                     final index = entry.key;
                     final counterparty = entry.value;
                     return Padding(
@@ -513,43 +529,33 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 onTap: () async {
                   showDialog(
                     context: context,
-                    builder: (_) =>
-                        FutureBuilder<Map<String, dynamic>?>(
-                      future:
-                          _fetchCounterpartyProfile(counterparty['email']),
+                    builder: (_) => FutureBuilder<Map<String, dynamic>?>(
+                      future: _fetchCounterpartyProfile(counterparty['email']),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
-                          return Center(
-                              child:
-                                  CircularProgressIndicator());
+                          return Center(child: CircularProgressIndicator());
                         }
                         final profile = snapshot.data;
                         if (profile == null) {
                           return _StylishProfileDialog(
                             title: 'Counterparty Info',
                             name: 'No profile found.',
-                            avatarProvider:
-                                AssetImage('assets/Other.png'),
+                            avatarProvider: AssetImage('assets/Other.png'),
                             email: counterparty['email'],
                           );
                         }
-                        final gender =
-                            profile['gender'] ?? 'Other';
-                        dynamic imageUrl =
-                            profile['profileImage'];
-                        if (imageUrl is Map &&
-                            imageUrl['url'] != null)
+                        final gender = profile['gender'] ?? 'Other';
+                        dynamic imageUrl = profile['profileImage'];
+                        if (imageUrl is Map && imageUrl['url'] != null)
                           imageUrl = imageUrl['url'];
-                        if (imageUrl != null &&
-                            imageUrl is! String)
+                        if (imageUrl != null && imageUrl is! String)
                           imageUrl = null;
                         ImageProvider avatarProvider;
                         if (imageUrl != null &&
                             imageUrl.toString().isNotEmpty &&
                             imageUrl != 'null') {
-                          avatarProvider =
-                              NetworkImage(imageUrl);
+                          avatarProvider = NetworkImage(imageUrl);
                         } else {
                           avatarProvider = AssetImage(
                             gender == 'Male'
@@ -559,12 +565,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                                     : 'assets/Other.png',
                           );
                         }
-                        final phoneStr =
-                            (profile['phone'] ?? '').toString();
+                        final phoneStr = (profile['phone'] ?? '').toString();
                         return _StylishProfileDialog(
                           title: 'Counterparty',
-                          name:
-                              profile['name'] ?? 'Counterparty',
+                          name: profile['name'] ?? 'Counterparty',
                           avatarProvider: avatarProvider,
                           email: profile['email'],
                           phone: phoneStr,
@@ -577,8 +581,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 child: CircleAvatar(
                   radius: 14,
                   backgroundColor: Colors.teal.shade100,
-                  child: Icon(Icons.person_outline,
-                      color: Colors.teal, size: 16),
+                  child:
+                      Icon(Icons.person_outline, color: Colors.teal, size: 16),
                 ),
               ),
               SizedBox(width: 10),
@@ -593,8 +597,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 ),
                 child: Text('${counterparty['count']} txns',
                     style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white)),
+                        fontWeight: FontWeight.bold, color: Colors.white)),
               ),
             ],
           ),
@@ -606,8 +609,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   Future<Map<String, dynamic>?> _fetchCounterpartyProfile(String email) async {
     if (email.isEmpty) return null;
     try {
-      final res = await http.get(Uri.parse(
-          '${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'));
+      final res = await ApiClient.get(
+          '/api/users/profile-by-email?email=$email'); // changed
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
@@ -685,7 +688,8 @@ class _StylishProfileDialog extends StatelessWidget {
                           colors: [Colors.orange, Colors.white, Colors.green],
                         ),
                       ),
-                      child: CircleAvatar(radius: 36, backgroundImage: avatarProvider),
+                      child: CircleAvatar(
+                          radius: 36, backgroundImage: avatarProvider),
                     ),
                     SizedBox(height: 12),
                     Text(name,
@@ -700,7 +704,8 @@ class _StylishProfileDialog extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -709,11 +714,13 @@ class _StylishProfileDialog extends StatelessWidget {
                       SizedBox(height: 10),
                     ],
                     if (phone != null && phone!.isNotEmpty) ...[
-                      _buildInfoCard(Icons.phone, phone!, Colors.green.shade100),
+                      _buildInfoCard(
+                          Icons.phone, phone!, Colors.green.shade100),
                       SizedBox(height: 10),
                     ],
                     if (gender != null) ...[
-                      _buildInfoCard(Icons.transgender, gender!, Colors.purple.shade100),
+                      _buildInfoCard(
+                          Icons.transgender, gender!, Colors.purple.shade100),
                       SizedBox(height: 10),
                     ],
                   ],

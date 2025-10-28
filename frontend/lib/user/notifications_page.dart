@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
+import '../utils/api_client.dart';
 
 class UserNotificationsPage extends StatefulWidget {
   const UserNotificationsPage({Key? key}) : super(key: key);
@@ -49,12 +49,9 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final token = session.token;
     final url = viewAll
-        ? '${ApiConfig.baseUrl}/api/notifications?viewAll=true'
-        : '${ApiConfig.baseUrl}/api/notifications';
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+        ? '/api/notifications?viewAll=true'
+        : '/api/notifications';
+    final response = await ApiClient.get(url);
 
     if (response.statusCode == 200) {
       setState(() {
@@ -74,13 +71,7 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
   }
 
   Future<void> _markNotificationsAsRead() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final url = '${ApiConfig.baseUrl}/api/notifications/mark-as-read';
-    await http.post(
-      Uri.parse(url),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    await ApiClient.post('/api/notifications/mark-as-read');
   }
 
   @override

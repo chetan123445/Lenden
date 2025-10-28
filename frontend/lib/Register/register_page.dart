@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
 import '../api_config.dart';
 import '../otp_input.dart';
 import '../widgets/tricolor_border_text_field.dart';
 import 'dart:ui' as ui;
+import '../utils/api_client.dart';
 
 class UserRegisterPage extends StatefulWidget {
   const UserRegisterPage({super.key});
@@ -172,8 +172,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
       setState(() {
         _isVerifyingOtp = false;
       });
-      _showSnackBar('Registration successful!');
-      Navigator.pushReplacementNamed(context, '/login');
+      _showRegistrationSuccessDialog();
     } else {
       setState(() {
         _errorMessage = res['data']['error'] ?? 'OTP verification failed.';
@@ -196,8 +195,7 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
       setState(() {
         _isVerifyingOtp = false;
       });
-      _showSnackBar('Registration successful!');
-      Navigator.pushReplacementNamed(context, '/login');
+      _showRegistrationSuccessDialog();
     } else {
       setState(() {
         _errorMessage = res['data']['error'] ?? 'OTP verification failed.';
@@ -213,15 +211,8 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
       print('🌐 Making API call to: ${ApiConfig.baseUrl + path}');
       print('📤 Request body: ${jsonEncode(body)}');
 
-      final response = await http.post(
-        Uri.parse(ApiConfig.baseUrl + path),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'Lenden-Flutter-App/1.0',
-        },
-        body: jsonEncode(body),
-      ).timeout(const Duration(minutes: 2));
+      final response = await ApiClient.post(path, body: body)
+          .timeout(const Duration(minutes: 2));
 
       print('📥 Response status: ${response.statusCode}');
       print('📥 Response headers: ${response.headers}');
@@ -246,10 +237,10 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
         return {'status': response.statusCode, 'data': data};
       }
     } on TimeoutException catch (_) {
-        return {
-          'status': 408, // Request Timeout
-          'data': {'error': 'The request timed out. Please try again.'}
-        };
+      return {
+        'status': 408, // Request Timeout
+        'data': {'error': 'The request timed out. Please try again.'}
+      };
     } catch (e) {
       print('❌ API call error: $e');
       if (e.toString().contains('SocketException')) {
@@ -311,45 +302,68 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
     );
   }
 
-  void _showSuccessDialog(String title, String message) {
+  void _showRegistrationSuccessDialog() {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        backgroundColor: const Color(0xFFE0F7FA),
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.check_circle, color: Color(0xFF00B4D8), size: 60),
-            SizedBox(height: 12),
-            Text('Registration Successful',
-                style: TextStyle(
-                    color: Color(0xFF0077B5),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 22),
-                textAlign: TextAlign.center),
-          ],
-        ),
-        content: Text(
-          message,
-          style: const TextStyle(fontSize: 16, color: Colors.black87),
-          textAlign: TextAlign.center,
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.pushReplacementNamed(context, '/login');
-            },
-            child: const Text('Login',
-                style: TextStyle(
-                    color: Color(0xFF00B4D8),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16)),
+      barrierDismissible: false, // User must tap button to close
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            padding: const EdgeInsets.all(2),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.green, size: 80),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Registration Successful!',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'You can now log in with your new account.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(); // Close the dialog
+                      Navigator.pushReplacementNamed(context, '/login');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00B4D8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                    ),
+                    child: const Text('Go to Login', style: TextStyle(fontSize: 16, color: Colors.white)),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -418,20 +432,21 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 28.0, vertical: 24.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                                    children: [
-                                      const SizedBox(height: 20),
-                                      const Text('Register',
-                                          style: TextStyle(
-                                              fontSize: 32,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.black),
-                                          textAlign: TextAlign.center),
-                                      const SizedBox(height: 8),
-                                      const Text('Hello Welcome :)',
-                                        style: TextStyle(fontSize: 16, color: Colors.black),
-                                        textAlign: TextAlign.center),                    const SizedBox(height: 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 20),
+                    const Text('Register',
+                        style: TextStyle(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black),
+                        textAlign: TextAlign.center),
+                    const SizedBox(height: 8),
+                    const Text('Hello Welcome :)',
+                        style: TextStyle(fontSize: 16, color: Colors.black),
+                        textAlign: TextAlign.center),
+                    const SizedBox(height: 32),
                     const LoginIllustration(height: 180),
                     const SizedBox(height: 24),
                     TricolorBorderTextField(
@@ -496,8 +511,9 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                           DropdownMenuItem(
                               value: 'Other', child: Text('Other')),
                         ],
-                        onChanged: _detailsLocked ? null : (val) =>
-                            setState(() => _selectedGender = val),
+                        onChanged: _detailsLocked
+                            ? null
+                            : (val) => setState(() => _selectedGender = val),
                         validator: (val) =>
                             val == null ? 'Please select gender' : null,
                       ),
@@ -607,7 +623,11 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(24),
                               gradient: const LinearGradient(
-                                colors: [Colors.orange, Colors.white, Colors.green],
+                                colors: [
+                                  Colors.orange,
+                                  Colors.white,
+                                  Colors.green
+                                ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
@@ -620,7 +640,8 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                               ),
                               child: _isLoading
                                   ? Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: const [
                                         SizedBox(
                                             height: 20,
@@ -631,13 +652,15 @@ class _UserRegisterPageState extends State<UserRegisterPage> {
                                         SizedBox(width: 12),
                                         Text('Sending OTP...',
                                             style: TextStyle(
-                                                fontSize: 18, color: Colors.white)),
+                                                fontSize: 18,
+                                                color: Colors.white)),
                                       ],
                                     )
                                   : const Center(
                                       child: Text('Register',
                                           style: TextStyle(
-                                              fontSize: 18, color: Colors.white)),
+                                              fontSize: 18,
+                                              color: Colors.white)),
                                     ),
                             ),
                           ),
@@ -797,11 +820,9 @@ class TopWaveClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     Path path = Path();
     path.lineTo(0, size.height * 0.7 * 0.75); // scaled down
-    path.quadraticBezierTo(
-        size.width * 0.25, size.height * 0.75, 
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.75,
         size.width * 0.5, size.height * 0.7 * 0.75);
-    path.quadraticBezierTo(
-        size.width * 0.75, size.height * 0.4 * 0.75, 
+    path.quadraticBezierTo(size.width * 0.75, size.height * 0.4 * 0.75,
         size.width, size.height * 0.7 * 0.75);
     path.lineTo(size.width, 0);
     path.close();
@@ -876,7 +897,8 @@ class LoginIllustrationPainter extends CustomPainter {
 
     // Large decorative circle behind phone
     final decorPaint = Paint()..color = const Color(0xFFEEF6F9);
-    canvas.drawCircle(Offset(cx - sw(0.18), cy - sh(0.18)), sw(0.28), decorPaint);
+    canvas.drawCircle(
+        Offset(cx - sw(0.18), cy - sh(0.18)), sw(0.28), decorPaint);
 
     // Rounded rectangle "paper" behind person (like a panel)
     final panelPaint = Paint()..color = const Color(0xFFF6FBFD);
@@ -933,7 +955,8 @@ class LoginIllustrationPainter extends CustomPainter {
     canvas.drawRRect(screenRect, screenPaint);
 
     // Phone notch and top icons
-    final notchPaint = Paint()..color = const Color(0xFFEAF7FF).withOpacity(0.9);
+    final notchPaint = Paint()
+      ..color = const Color(0xFFEAF7FF).withOpacity(0.9);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromCenter(
@@ -987,38 +1010,49 @@ class LoginIllustrationPainter extends CustomPainter {
 
       // small icon at left of field
       final iconCenter = Offset(r.left + 12, r.center.dy);
-      canvas.drawCircle(iconCenter, 6, Paint()..color = const Color(0xFFB6DCEB));
+      canvas.drawCircle(
+          iconCenter, 6, Paint()..color = const Color(0xFFB6DCEB));
     }
 
     // Phone small "sign in" button
     final btnRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(phoneCenter.dx - phoneW * 0.14, phoneCenter.dy + phoneH * 0.12, phoneW * 0.28, sh(0.05)),
+      Rect.fromLTWH(phoneCenter.dx - phoneW * 0.14,
+          phoneCenter.dy + phoneH * 0.12, phoneW * 0.28, sh(0.05)),
       Radius.circular(10),
     );
     final btnPaint = Paint()
-  ..shader = ui.Gradient.linear(
-    // Replace invalid getters with manually computed points
-    Offset(btnRect.left, (btnRect.top + btnRect.bottom) / 2),
-    Offset(btnRect.right, (btnRect.top + btnRect.bottom) / 2),
-    [
-      const Color(0xFF386FA4),
-      const Color(0xFF2B7DB8),
-    ],
-  );
+      ..shader = ui.Gradient.linear(
+        // Replace invalid getters with manually computed points
+        Offset(btnRect.left, (btnRect.top + btnRect.bottom) / 2),
+        Offset(btnRect.right, (btnRect.top + btnRect.bottom) / 2),
+        [
+          const Color(0xFF386FA4),
+          const Color(0xFF2B7DB8),
+        ],
+      );
 
 // Draw the rounded rectangle button
-canvas.drawRRect(btnRect, btnPaint);
-
+    canvas.drawRRect(btnRect, btnPaint);
 
     // Phone tiny speaker & camera dots
-    canvas.drawCircle(Offset(phoneCenter.dx + phoneW * 0.26 / 2, phoneCenter.dy - phoneH / 2 + 8), 2, Paint()..color = const Color(0xFF1C2A32));
-    canvas.drawCircle(Offset(phoneCenter.dx - phoneW * 0.26 / 2, phoneCenter.dy - phoneH / 2 + 8), 2, Paint()..color = const Color(0xFF1C2A32));
+    canvas.drawCircle(
+        Offset(phoneCenter.dx + phoneW * 0.26 / 2,
+            phoneCenter.dy - phoneH / 2 + 8),
+        2,
+        Paint()..color = const Color(0xFF1C2A32));
+    canvas.drawCircle(
+        Offset(phoneCenter.dx - phoneW * 0.26 / 2,
+            phoneCenter.dy - phoneH / 2 + 8),
+        2,
+        Paint()..color = const Color(0xFF1C2A32));
 
     // --- PLANT (left bottom) ---
     final plantBase = Offset(cx - sw(0.36), cy + sh(0.24));
     final potPaint = Paint()..color = const Color(0xFFD9EDF5);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromCenter(center: plantBase, width: sw(0.12), height: sh(0.06)), Radius.circular(8)),
+      RRect.fromRectAndRadius(
+          Rect.fromCenter(center: plantBase, width: sw(0.12), height: sh(0.06)),
+          Radius.circular(8)),
       potPaint,
     );
 
@@ -1039,24 +1073,37 @@ canvas.drawRRect(btnRect, btnPaint);
     final envCenter = Offset(cx + sw(0.38), cy - sh(0.26));
     final envW = sw(0.14);
     final envH = sh(0.08);
-    final envRect = Rect.fromCenter(center: envCenter, width: envW, height: envH);
+    final envRect =
+        Rect.fromCenter(center: envCenter, width: envW, height: envH);
     final envPaint = Paint()..color = Colors.white;
-    canvas.drawRRect(RRect.fromRectAndRadius(envRect, Radius.circular(8)), envPaint);
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(envRect, Radius.circular(8)), envPaint);
     // flap lines
     final flap = Path();
     flap.moveTo(envRect.left + 8, envRect.top + 8);
     flap.lineTo(envRect.center.dx, envRect.bottom - 6);
     flap.lineTo(envRect.right - 8, envRect.top + 8);
-    final flapPaint = Paint()..color = const Color(0xFFDFEAF0)..style = PaintingStyle.stroke..strokeWidth = 1.2;
+    final flapPaint = Paint()
+      ..color = const Color(0xFFDFEAF0)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
     canvas.drawPath(flap, flapPaint);
 
     // small mail shadow
-    canvas.drawRRect(RRect.fromRectAndRadius(envRect.shift(Offset(3, 4)), Radius.circular(8)), Paint()..color = const Color(0xFFD7E6EA));
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(
+            envRect.shift(Offset(3, 4)), Radius.circular(8)),
+        Paint()..color = const Color(0xFFD7E6EA));
 
     // --- PERSON (right side, seated) ---
     // Shadow under person
     final groundShadow = Paint()..color = Colors.black.withOpacity(0.08);
-    canvas.drawOval(Rect.fromCenter(center: Offset(cx + sw(0.2), cy + sh(0.30)), width: sw(0.28), height: sh(0.05)), groundShadow);
+    canvas.drawOval(
+        Rect.fromCenter(
+            center: Offset(cx + sw(0.2), cy + sh(0.30)),
+            width: sw(0.28),
+            height: sh(0.05)),
+        groundShadow);
 
     // Pants (deep navy)
     final pantsPaint = Paint()..color = const Color(0xFF2C3E50);
@@ -1064,42 +1111,74 @@ canvas.drawRRect(btnRect, btnPaint);
     final px = cx + sw(0.18);
     final py = cy + sh(0.04);
     pantsPath.moveTo(px - sw(0.06), py + sh(0.05));
-    pantsPath.quadraticBezierTo(px - sw(0.09), py + sh(0.15), px - sw(0.02), py + sh(0.20));
+    pantsPath.quadraticBezierTo(
+        px - sw(0.09), py + sh(0.15), px - sw(0.02), py + sh(0.20));
     pantsPath.lineTo(px + sw(0.08), py + sh(0.20));
-    pantsPath.quadraticBezierTo(px + sw(0.12), py + sh(0.13), px + sw(0.06), py + sh(0.05));
+    pantsPath.quadraticBezierTo(
+        px + sw(0.12), py + sh(0.13), px + sw(0.06), py + sh(0.05));
     pantsPath.close();
     canvas.drawPath(pantsPath, pantsPaint);
 
     // Shoes
     final shoePaint = Paint()..color = const Color(0xFF172829);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(px - sw(0.03), py + sh(0.22)), width: sw(0.09), height: sh(0.03)), Radius.circular(6)), shoePaint);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(px + sw(0.06), py + sh(0.22)), width: sw(0.09), height: sh(0.03)), Radius.circular(6)), shoePaint);
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(
+            Rect.fromCenter(
+                center: Offset(px - sw(0.03), py + sh(0.22)),
+                width: sw(0.09),
+                height: sh(0.03)),
+            Radius.circular(6)),
+        shoePaint);
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(
+            Rect.fromCenter(
+                center: Offset(px + sw(0.06), py + sh(0.22)),
+                width: sw(0.09),
+                height: sh(0.03)),
+            Radius.circular(6)),
+        shoePaint);
 
     // Torso (shirt) with subtle gradient
-    final torsoRect = Rect.fromCenter(center: Offset(px + sw(0.02), py - sh(0.02)), width: sw(0.22), height: sh(0.18));
+    final torsoRect = Rect.fromCenter(
+        center: Offset(px + sw(0.02), py - sh(0.02)),
+        width: sw(0.22),
+        height: sh(0.18));
     final torsoPaint = Paint()
-      ..shader = ui.Gradient.linear(torsoRect.topLeft, torsoRect.bottomRight, [const Color(0xFFFFB07A), const Color(0xFFFF7A3F)]);
-    canvas.drawRRect(RRect.fromRectAndRadius(torsoRect, Radius.circular(12)), torsoPaint);
+      ..shader = ui.Gradient.linear(torsoRect.topLeft, torsoRect.bottomRight,
+          [const Color(0xFFFFB07A), const Color(0xFFFF7A3F)]);
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(torsoRect, Radius.circular(12)), torsoPaint);
 
     // Neck & head (skin tone)
-    final neckRect = Rect.fromCenter(center: Offset(px - sw(0.02), py - sh(0.12)), width: sw(0.07), height: sh(0.06));
+    final neckRect = Rect.fromCenter(
+        center: Offset(px - sw(0.02), py - sh(0.12)),
+        width: sw(0.07),
+        height: sh(0.06));
     final skinPaint = Paint()..color = const Color(0xFFFFDAB3);
-    canvas.drawRRect(RRect.fromRectAndRadius(neckRect, Radius.circular(6)), skinPaint);
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(neckRect, Radius.circular(6)), skinPaint);
 
     // Head
     final headCenter = Offset(px - sw(0.02), py - sh(0.20));
     final headRadius = sw(0.085);
     // head shading radial
     final headPaint = Paint()
-      ..shader = ui.Gradient.radial(headCenter, headRadius, [const Color(0xFFFFE6CC), const Color(0xFFFFD4A8)]);
+      ..shader = ui.Gradient.radial(headCenter, headRadius,
+          [const Color(0xFFFFE6CC), const Color(0xFFFFD4A8)]);
     canvas.drawCircle(headCenter, headRadius, headPaint);
 
     // Hair (dark)
     final hairPaint = Paint()..color = const Color(0xFF2E1E1A);
     final hairPath = Path();
-    hairPath.moveTo(headCenter.dx - headRadius * 0.9, headCenter.dy - headRadius * 0.25);
-    hairPath.quadraticBezierTo(headCenter.dx, headCenter.dy - headRadius * 1.05, headCenter.dx + headRadius * 0.9, headCenter.dy - headRadius * 0.25);
-    hairPath.arcToPoint(Offset(headCenter.dx - headRadius * 0.9, headCenter.dy - headRadius * 0.25), radius: Radius.circular(headRadius), clockwise: false);
+    hairPath.moveTo(
+        headCenter.dx - headRadius * 0.9, headCenter.dy - headRadius * 0.25);
+    hairPath.quadraticBezierTo(headCenter.dx, headCenter.dy - headRadius * 1.05,
+        headCenter.dx + headRadius * 0.9, headCenter.dy - headRadius * 0.25);
+    hairPath.arcToPoint(
+        Offset(headCenter.dx - headRadius * 0.9,
+            headCenter.dy - headRadius * 0.25),
+        radius: Radius.circular(headRadius),
+        clockwise: false);
     hairPath.close();
     canvas.drawPath(hairPath, hairPaint);
 
@@ -1108,12 +1187,36 @@ canvas.drawRRect(btnRect, btnPaint);
     final eyeIris = Paint()..color = const Color(0xFF2F7D8E);
     final eyePupil = Paint()..color = Colors.black;
     final eyeYOffset = sh(0.012);
-    canvas.drawOval(Rect.fromCenter(center: Offset(headCenter.dx - sw(0.03), headCenter.dy - eyeYOffset), width: sw(0.04), height: sh(0.02)), eyeWhite);
-    canvas.drawOval(Rect.fromCenter(center: Offset(headCenter.dx + sw(0.03), headCenter.dy - eyeYOffset), width: sw(0.04), height: sh(0.02)), eyeWhite);
-    canvas.drawCircle(Offset(headCenter.dx - sw(0.03), headCenter.dy - eyeYOffset), sw(0.01), eyeIris);
-    canvas.drawCircle(Offset(headCenter.dx + sw(0.03), headCenter.dy - eyeYOffset), sw(0.01), eyeIris);
-    canvas.drawCircle(Offset(headCenter.dx - sw(0.03), headCenter.dy - eyeYOffset), sw(0.005), eyePupil);
-    canvas.drawCircle(Offset(headCenter.dx + sw(0.03), headCenter.dy - eyeYOffset), sw(0.005), eyePupil);
+    canvas.drawOval(
+        Rect.fromCenter(
+            center:
+                Offset(headCenter.dx - sw(0.03), headCenter.dy - eyeYOffset),
+            width: sw(0.04),
+            height: sh(0.02)),
+        eyeWhite);
+    canvas.drawOval(
+        Rect.fromCenter(
+            center:
+                Offset(headCenter.dx + sw(0.03), headCenter.dy - eyeYOffset),
+            width: sw(0.04),
+            height: sh(0.02)),
+        eyeWhite);
+    canvas.drawCircle(
+        Offset(headCenter.dx - sw(0.03), headCenter.dy - eyeYOffset),
+        sw(0.01),
+        eyeIris);
+    canvas.drawCircle(
+        Offset(headCenter.dx + sw(0.03), headCenter.dy - eyeYOffset),
+        sw(0.01),
+        eyeIris);
+    canvas.drawCircle(
+        Offset(headCenter.dx - sw(0.03), headCenter.dy - eyeYOffset),
+        sw(0.005),
+        eyePupil);
+    canvas.drawCircle(
+        Offset(headCenter.dx + sw(0.03), headCenter.dy - eyeYOffset),
+        sw(0.005),
+        eyePupil);
 
     // Smile
     final smilePaint = Paint()
@@ -1123,19 +1226,24 @@ canvas.drawRRect(btnRect, btnPaint);
       ..strokeCap = StrokeCap.round;
     final smile = Path();
     smile.moveTo(headCenter.dx - sw(0.035), headCenter.dy + sh(0.01));
-    smile.quadraticBezierTo(headCenter.dx, headCenter.dy + sh(0.03), headCenter.dx + sw(0.035), headCenter.dy + sh(0.01));
+    smile.quadraticBezierTo(headCenter.dx, headCenter.dy + sh(0.03),
+        headCenter.dx + sw(0.035), headCenter.dy + sh(0.01));
     canvas.drawPath(smile, smilePaint);
 
     // Cheeks (blush)
     final blush = Paint()..color = const Color(0xFFFFB3BA).withOpacity(0.55);
-    canvas.drawCircle(Offset(headCenter.dx - sw(0.06), headCenter.dy + sh(0.0)), sw(0.015), blush);
-    canvas.drawCircle(Offset(headCenter.dx + sw(0.06), headCenter.dy + sh(0.0)), sw(0.015), blush);
+    canvas.drawCircle(Offset(headCenter.dx - sw(0.06), headCenter.dy + sh(0.0)),
+        sw(0.015), blush);
+    canvas.drawCircle(Offset(headCenter.dx + sw(0.06), headCenter.dy + sh(0.0)),
+        sw(0.015), blush);
 
     // Left arm (reaching to phone) - sleeve uses same gradient as torso
     final leftArm = Path();
     leftArm.moveTo(px - sw(0.02), py - sh(0.03));
-    leftArm.quadraticBezierTo(px - sw(0.12), py - sh(0.08), px - sw(0.18), py - sh(0.14));
-    leftArm.quadraticBezierTo(px - sw(0.16), py - sh(0.10), px - sw(0.08), py - sh(0.02));
+    leftArm.quadraticBezierTo(
+        px - sw(0.12), py - sh(0.08), px - sw(0.18), py - sh(0.14));
+    leftArm.quadraticBezierTo(
+        px - sw(0.16), py - sh(0.10), px - sw(0.08), py - sh(0.02));
     leftArm.close();
     canvas.drawPath(leftArm, torsoPaint);
 
@@ -1146,21 +1254,33 @@ canvas.drawRRect(btnRect, btnPaint);
     // Right arm (resting)
     final rightArm = Path();
     rightArm.moveTo(px + sw(0.06), py - sh(0.0));
-    rightArm.quadraticBezierTo(px + sw(0.14), py + sh(0.03), px + sw(0.18), py + sh(0.06));
-    rightArm.quadraticBezierTo(px + sw(0.14), py + sh(0.05), px + sw(0.06), py - sh(0.0));
+    rightArm.quadraticBezierTo(
+        px + sw(0.14), py + sh(0.03), px + sw(0.18), py + sh(0.06));
+    rightArm.quadraticBezierTo(
+        px + sw(0.14), py + sh(0.05), px + sw(0.06), py - sh(0.0));
     rightArm.close();
     canvas.drawPath(rightArm, torsoPaint);
 
     // Small book / paper near person (to match image)
-    final paperRect = Rect.fromCenter(center: Offset(px + sw(0.28), py + sh(0.02)), width: sw(0.12), height: sh(0.07));
-    canvas.drawRRect(RRect.fromRectAndRadius(paperRect, Radius.circular(6)), Paint()..color = const Color(0xFFF6F9FB));
-    canvas.drawRect(paperRect.deflate(6), Paint()..color = const Color(0xFFEFF6F8));
+    final paperRect = Rect.fromCenter(
+        center: Offset(px + sw(0.28), py + sh(0.02)),
+        width: sw(0.12),
+        height: sh(0.07));
+    canvas.drawRRect(RRect.fromRectAndRadius(paperRect, Radius.circular(6)),
+        Paint()..color = const Color(0xFFF6F9FB));
+    canvas.drawRect(
+        paperRect.deflate(6), Paint()..color = const Color(0xFFEFF6F8));
 
     // dotted lines on paper
     final dotPaint = Paint()..color = const Color(0xFFD6E6EA);
     for (int i = 0; i < 3; i++) {
       final dy = paperRect.top + 10 + i * 14;
-      canvas.drawLine(Offset(paperRect.left + 8, dy), Offset(paperRect.right - 8, dy), Paint()..color = const Color(0xFFE1EEF2)..strokeWidth = 1);
+      canvas.drawLine(
+          Offset(paperRect.left + 8, dy),
+          Offset(paperRect.right - 8, dy),
+          Paint()
+            ..color = const Color(0xFFE1EEF2)
+            ..strokeWidth = 1);
     }
 
     // small envelope shadow near top-right (already drawn)
@@ -1168,31 +1288,45 @@ canvas.drawRRect(btnRect, btnPaint);
     final bulletPaint = Paint()..color = const Color(0xFF5BA8D6);
     for (int i = 0; i < 3; i++) {
       final yy = phoneCenter.dy - phoneH * 0.02 + i * sh(0.06);
-      canvas.drawCircle(Offset(phoneCenter.dx - phoneW * 0.14 + 18, yy), 4, bulletPaint);
+      canvas.drawCircle(
+          Offset(phoneCenter.dx - phoneW * 0.14 + 18, yy), 4, bulletPaint);
     }
 
     // Overall tiny accents: rounded rectangle at bottom "Sign In" under whole illustration (mimic page CTA)
-    final bottomBtn = RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(cx, cy + sh(0.38)), width: sw(0.36), height: sh(0.07)), Radius.circular(24));
+    final bottomBtn = RRect.fromRectAndRadius(
+        Rect.fromCenter(
+            center: Offset(cx, cy + sh(0.38)),
+            width: sw(0.36),
+            height: sh(0.07)),
+        Radius.circular(24));
     final bottomBtnPaint = Paint()
-  ..shader = ui.Gradient.linear(
-    Offset(bottomBtn.left, (bottomBtn.top + bottomBtn.bottom) / 2),
-    Offset(bottomBtn.right, (bottomBtn.top + bottomBtn.bottom) / 2),
-    [
-      const Color(0xFF1D6D9F),
-      const Color(0xFF154F78),
-    ],
-  );
+      ..shader = ui.Gradient.linear(
+        Offset(bottomBtn.left, (bottomBtn.top + bottomBtn.bottom) / 2),
+        Offset(bottomBtn.right, (bottomBtn.top + bottomBtn.bottom) / 2),
+        [
+          const Color(0xFF1D6D9F),
+          const Color(0xFF154F78),
+        ],
+      );
 
-canvas.drawRRect(bottomBtn, bottomBtnPaint);
+    canvas.drawRRect(bottomBtn, bottomBtnPaint);
 
     // button text stroke (simple line to indicate)
-    canvas.drawLine(Offset(bottomBtn.left + 24, bottomBtn.center.dy), Offset(bottomBtn.right - 24, bottomBtn.center.dy), Paint()..color = Colors.white.withOpacity(0.06)..strokeWidth = 12);
+    canvas.drawLine(
+        Offset(bottomBtn.left + 24, bottomBtn.center.dy),
+        Offset(bottomBtn.right - 24, bottomBtn.center.dy),
+        Paint()
+          ..color = Colors.white.withOpacity(0.06)
+          ..strokeWidth = 12);
 
     // final small signature lines (mimic text under 'Login' heading)
     final headingPaint = Paint()..color = const Color(0xFF2C3E50);
     final titleY = cy - sh(0.4);
-    canvas.drawRect(Rect.fromLTWH(cx - sw(0.35), titleY, sw(0.26), sh(0.02)), Paint()..color = const Color(0xFF2C3E50));
-    canvas.drawRect(Rect.fromLTWH(cx - sw(0.35), titleY + sh(0.03), sw(0.18), sh(0.015)), Paint()..color = const Color(0xFF9FB9C8));
+    canvas.drawRect(Rect.fromLTWH(cx - sw(0.35), titleY, sw(0.26), sh(0.02)),
+        Paint()..color = const Color(0xFF2C3E50));
+    canvas.drawRect(
+        Rect.fromLTWH(cx - sw(0.35), titleY + sh(0.03), sw(0.18), sh(0.015)),
+        Paint()..color = const Color(0xFF9FB9C8));
   }
 
   @override

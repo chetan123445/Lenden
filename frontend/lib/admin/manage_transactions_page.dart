@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import '../user/session.dart';
 import '../api_config.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import '../utils/api_client.dart';
 
 class ManageTransactionsPage extends StatefulWidget {
   @override
@@ -23,21 +23,13 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
   }
 
   Future<void> fetchTransactions() async {
-    setState(() { loading = true; error = null; });
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    if (token == null) {
-      setState(() { error = 'Authentication token not found.'; loading = false; });
-      return;
-    }
+    setState(() {
+      loading = true;
+      error = null;
+    });
 
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/transactions'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiClient.get('/api/admin/transactions');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -47,32 +39,25 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
         });
       } else {
         final data = jsonDecode(response.body);
-        setState(() { error = data['error'] ?? 'Failed to load transactions.'; loading = false; });
+        setState(() {
+          error = data['error'] ?? 'Failed to load transactions.';
+          loading = false;
+        });
       }
     } catch (e) {
-      setState(() { error = 'An error occurred: $e'; loading = false; });
+      setState(() {
+        error = 'An error occurred: $e';
+        loading = false;
+      });
     }
   }
 
-  Future<void> _updateTransaction(String transactionId, Map<String, dynamic> updateData) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    if (token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Authentication token not found.')),
-      );
-      return;
-    }
-
+  Future<void> _updateTransaction(
+      String transactionId, Map<String, dynamic> updateData) async {
     try {
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/transactions/$transactionId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(updateData),
-      );
+      final response = await ApiClient.put(
+          '/api/admin/transactions/$transactionId',
+          body: updateData);
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -82,7 +67,8 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
       } else {
         final data = jsonDecode(response.body);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['error'] ?? 'Failed to update transaction.')),
+          SnackBar(
+              content: Text(data['error'] ?? 'Failed to update transaction.')),
         );
       }
     } catch (e) {
@@ -93,10 +79,14 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
   }
 
   void _showEditTransactionDialog(Map<String, dynamic> transaction) {
-    final _amountController = TextEditingController(text: transaction['amount'].toString());
-    final _currencyController = TextEditingController(text: transaction['currency']);
-    final _userEmailController = TextEditingController(text: transaction['userEmail']);
-    final _counterpartyEmailController = TextEditingController(text: transaction['counterpartyEmail']);
+    final _amountController =
+        TextEditingController(text: transaction['amount'].toString());
+    final _currencyController =
+        TextEditingController(text: transaction['currency']);
+    final _userEmailController =
+        TextEditingController(text: transaction['userEmail']);
+    final _counterpartyEmailController =
+        TextEditingController(text: transaction['counterpartyEmail']);
 
     showDialog(
       context: context,
@@ -134,7 +124,8 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
           TextButton(
             onPressed: () {
               final updateData = {
-                'amount': double.tryParse(_amountController.text) ?? transaction['amount'],
+                'amount': double.tryParse(_amountController.text) ??
+                    transaction['amount'],
                 'currency': _currencyController.text,
                 'userEmail': _userEmailController.text,
                 'counterpartyEmail': _counterpartyEmailController.text,
@@ -150,22 +141,9 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
   }
 
   Future<void> _deleteTransaction(String transactionId) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    if (token == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Authentication token not found.')),
-      );
-      return;
-    }
-
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/transactions/$transactionId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response =
+          await ApiClient.delete('/api/admin/transactions/$transactionId');
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -175,7 +153,8 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
       } else {
         final data = jsonDecode(response.body);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(data['error'] ?? 'Failed to delete transaction.')),
+          SnackBar(
+              content: Text(data['error'] ?? 'Failed to delete transaction.')),
         );
       }
     } catch (e) {
@@ -226,7 +205,8 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
                       margin: EdgeInsets.all(8.0),
                       child: ListTile(
                         title: Text('Amount: ${t['amount']} ${t['currency']}'),
-                        subtitle: Text('Lender: ${t['userEmail']}\nBorrower: ${t['counterpartyEmail']}'),
+                        subtitle: Text(
+                            'Lender: ${t['userEmail']}\nBorrower: ${t['counterpartyEmail']}'),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [

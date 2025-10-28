@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../user/session.dart';
 import 'dart:convert';
-import '../api_config.dart';
 import 'admin_ratings_page_helpers.dart';
 import '../profile/profile_page.dart' hide TopWaveClipper, BottomWaveClipper;
+import '../utils/api_client.dart';
 
 class AdminRatingsPage extends StatefulWidget {
   const AdminRatingsPage({Key? key}) : super(key: key);
@@ -23,15 +22,7 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
       _isLoading = true;
     });
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final response = await http.get(
-        Uri.parse(ApiConfig.baseUrl + '/api/rating/all'),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiClient.get('/api/rating/all');
       print('DEBUG: Status code: [33m${response.statusCode}[0m');
       print('DEBUG: Response body: [36m${response.body}[0m');
       if (response.statusCode == 200) {

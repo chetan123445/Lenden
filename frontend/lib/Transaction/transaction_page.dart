@@ -6,9 +6,9 @@ import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import '../otp_input.dart';
 import '../api_config.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../user/session.dart';
+import '../utils/api_client.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 // Add for wavy background
 import 'dart:math' as math;
@@ -16,7 +16,6 @@ import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:http_parser/http_parser.dart';
 import 'user_transactions_page.dart';
 import '../widgets/subscription_prompt.dart';
 
@@ -135,10 +134,8 @@ class _TransactionPageState extends State<TransactionPage> {
     }
 
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/transactions/user?email=$userEmail'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response =
+          await ApiClient.get('/api/transactions/user?email=$userEmail');
 
       if (response.statusCode == 200) {
         final transactions = jsonDecode(response.body) as List;
@@ -266,10 +263,9 @@ class _TransactionPageState extends State<TransactionPage> {
   }
 
   Future<bool> _checkEmailExists(String email) async {
-    final res = await http.post(
-      Uri.parse('${ApiConfig.baseUrl}/api/transactions/check-email'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email}),
+    final res = await ApiClient.post(
+      '/api/transactions/check-email',
+      body: {'email': email},
     );
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
@@ -291,10 +287,9 @@ class _TransactionPageState extends State<TransactionPage> {
     final url = isCounterparty
         ? '/api/transactions/send-counterparty-otp'
         : '/api/transactions/send-user-otp';
-    await http.post(
-      Uri.parse(ApiConfig.baseUrl + url),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email}),
+    await ApiClient.post(
+      url,
+      body: {'email': email},
     );
     _startOtpTimer(isCounterparty);
   }
@@ -317,10 +312,9 @@ class _TransactionPageState extends State<TransactionPage> {
     final url = isCounterparty
         ? '/api/transactions/verify-counterparty-otp'
         : '/api/transactions/verify-user-otp';
-    final res = await http.post(
-      Uri.parse(ApiConfig.baseUrl + url),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'otp': otp}),
+    final res = await ApiClient.post(
+      url,
+      body: {'email': email, 'otp': otp},
     );
     if (res.statusCode == 200) {
       setState(() {
@@ -368,157 +362,152 @@ class _TransactionPageState extends State<TransactionPage> {
 
     print('Form validation passed, proceeding with submission');
     setState(() => _isLoading = true);
-    var uri = Uri.parse('${ApiConfig.baseUrl}/api/transactions/create');
-    var request = http.MultipartRequest('POST', uri);
-    request.fields['amount'] = _amountController.text;
-    request.fields['currency'] = _currency;
-    request.fields['date'] = _selectedDate?.toIso8601String() ?? '';
-    request.fields['time'] = _selectedTime?.format(context) ?? '';
-    request.fields['place'] = _placeController.text;
-    request.fields['counterpartyEmail'] = _counterpartyEmailController.text;
-    request.fields['userEmail'] = _userEmailController.text;
-    request.fields['role'] = _role;
-    // Always send interest type, even if it's 'none'
-    request.fields['interestType'] = _interestType;
+    try {
+      final Map<String, dynamic> body = {
+        'amount': _amountController.text,
+        'currency': _currency,
+        'date': _selectedDate?.toIso8601String() ?? '',
+        'time': _selectedTime?.format(context) ?? '',
+        'place': _placeController.text,
+        'counterpartyEmail': _counterpartyEmailController.text,
+        'userEmail': _userEmailController.text,
+        'role': _role,
+        'interestType': _interestType,
+        'description': _descriptionController.text,
+      };
 
-    // Only send other interest-related fields if interest type is selected
-    if (_interestType != 'none') {
-      request.fields['interestRate'] = _interestRateController.text;
-      request.fields['expectedReturnDate'] =
-          _expectedReturnDate?.toIso8601String() ?? '';
-      if (_interestType == 'compound') {
-        request.fields['compoundingFrequency'] =
-            _compoundingFrequency.toString();
-      }
-    }
-
-    // Debug: Print the fields being sent
-    print('Sending transaction with fields: ${request.fields}');
-    request.fields['description'] = _descriptionController.text;
-    for (var file in _pickedFiles) {
-      if (file.bytes != null) {
-        MediaType? mediaType;
-        final ext = file.extension?.toLowerCase();
-        if (ext == 'png') {
-          mediaType = MediaType('image', 'png');
-        } else if (ext == 'jpg' || ext == 'jpeg') {
-          mediaType = MediaType('image', 'jpeg');
-        } else if (ext == 'pdf') {
-          mediaType = MediaType('application', 'pdf');
+      if (_interestType != 'none') {
+        body['interestRate'] = _interestRateController.text;
+        body['expectedReturnDate'] =
+            _expectedReturnDate?.toIso8601String() ?? '';
+        if (_interestType == 'compound') {
+          body['compoundingFrequency'] = _compoundingFrequency;
         }
-        request.files.add(http.MultipartFile.fromBytes(
-          'files',
-          file.bytes!,
-          filename: file.name,
-          contentType: mediaType,
-        ));
       }
-    }
-    var streamed = await request.send();
-    setState(() => _isLoading = false);
-    if (streamed.statusCode == 200) {
-      final resp = await streamed.stream.bytesToString();
-      final data = jsonDecode(resp);
-      setState(() {
-        _transactionId = data['transactionId'];
-      });
-      showDialog(
-        context: context,
-        builder: (_) => Dialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Container(
-            padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: Colors.white,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    ClipPath(
-                      clipper: TopWaveClipper(),
-                      child: Container(
-                        height: 80,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+
+      // Attach files as base64 payloads to avoid multipart complexity.
+      if (_pickedFiles.isNotEmpty) {
+        body['files'] = _pickedFiles.where((f) => f.bytes != null).map((f) {
+          final ext = (f.extension ?? '').toLowerCase();
+          String mime = 'application/octet-stream';
+          if (ext == 'png')
+            mime = 'image/png';
+          else if (ext == 'jpg' || ext == 'jpeg')
+            mime = 'image/jpeg';
+          else if (ext == 'pdf') mime = 'application/pdf';
+          return {
+            'name': f.name,
+            'mime': mime,
+            'data': base64Encode(f.bytes!),
+          };
+        }).toList();
+      }
+
+      final res = await ApiClient.post('/api/transactions/create', body: body);
+      setState(() => _isLoading = false);
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          _transactionId = data['transactionId'];
+        });
+        showDialog(
+          context: context,
+          builder: (_) => Dialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.white,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      ClipPath(
+                        clipper: TopWaveClipper(),
+                        child: Container(
+                          height: 80,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    Positioned(
-                      top: 16,
-                      child: CircleAvatar(
-                        radius: 28,
-                        backgroundColor: Colors.white,
-                        child: Icon(Icons.check_circle,
-                            color: Color(0xFF00B4D8), size: 48),
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 24),
-                Text('Transaction Created!',
-                    style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF00B4D8))),
-                SizedBox(height: 12),
-                Text('Transaction ID:',
-                    style: TextStyle(fontSize: 16, color: Colors.black87)),
-                SizedBox(height: 4),
-                SelectableText('${_transactionId ?? ''}',
-                    style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black)),
-                SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF00B4D8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    onPressed: () {
-                      Navigator.of(context).pop(); // Close the success dialog
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => UserTransactionsPage(),
+                      Positioned(
+                        top: 16,
+                        child: CircleAvatar(
+                          radius: 28,
+                          backgroundColor: Colors.white,
+                          child: Icon(Icons.check_circle,
+                              color: Color(0xFF00B4D8), size: 48),
                         ),
-                      );
-                    },
-                    child: Text('View Transactions',
-                        style: TextStyle(fontSize: 16, color: Colors.white)),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  SizedBox(height: 24),
+                  Text('Transaction Created!',
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF00B4D8))),
+                  SizedBox(height: 12),
+                  Text('Transaction ID:',
+                      style: TextStyle(fontSize: 16, color: Colors.black87)),
+                  SizedBox(height: 4),
+                  SelectableText('${_transactionId ?? ''}',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black)),
+                  SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF00B4D8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close the success dialog
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => UserTransactionsPage(),
+                          ),
+                        );
+                      },
+                      child: Text('View Transactions',
+                          style: TextStyle(fontSize: 16, color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    } else {
-      final resp = await streamed.stream.bytesToString();
-      String errorMsg = 'Failed to create transaction';
-      try {
-        final data = jsonDecode(resp);
-        errorMsg = data['error'] ?? errorMsg;
-        // Also log the full response for debugging
-        print('Backend error response: $data');
-      } catch (_) {
-        errorMsg = resp;
-        print('Raw error response: $resp');
+        );
+      } else {
+        final errBody = (res.body.isNotEmpty) ? res.body : 'Unknown error';
+        String errorMsg = 'Failed to create transaction';
+        try {
+          final data = jsonDecode(errBody);
+          errorMsg = data['error'] ?? data['message'] ?? errBody;
+        } catch (_) {
+          errorMsg = errBody;
+        }
+        _showStylishErrorDialog('Transaction Failed', errorMsg);
       }
-      _showStylishErrorDialog('Transaction Failed', errorMsg);
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showStylishErrorDialog('Transaction Failed', e.toString());
     }
   }
 

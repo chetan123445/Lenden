@@ -1,9 +1,9 @@
 import 'package:provider/provider.dart';
 import '../user/session.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
+import '../utils/api_client.dart';
 
 class FeedbackPage extends StatefulWidget {
   const FeedbackPage({Key? key}) : super(key: key);
@@ -65,15 +65,11 @@ class _FeedbackPageState extends State<FeedbackPage> {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
-      final response = await http.post(
-        Uri.parse(ApiConfig.baseUrl + '/api/rating'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
+      final response = await ApiClient.post(
+        '/api/rating',
+        body: {
           'rating': _selectedAppRating,
-        }),
+        },
       );
       if (response.statusCode == 200) {
         _showStylishPopup('App rating submitted!');
@@ -98,24 +94,19 @@ class _FeedbackPageState extends State<FeedbackPage> {
       _isLoading = true;
     });
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final response = await http.post(
-        Uri.parse(ApiConfig.baseUrl + '/api/feedback'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'feedback': _feedbackController.text,
-        }),
+      final response = await ApiClient.post(
+        '/api/feedback',
+        body: {'feedback': _feedbackController.text},
       );
       if (response.statusCode == 200) {
         _showStylishPopup('Feedback submitted!');
         _feedbackController.clear();
         await _fetchUserFeedbacks();
       } else {
-        _showStylishPopup('Error: ${response.body}', isError: true);
+        final body =
+            response.body.isNotEmpty ? jsonDecode(response.body) : null;
+        _showStylishPopup('Error: ${body?['error'] ?? response.body}',
+            isError: true);
       }
     } catch (e) {
       _showStylishPopup('Error: $e', isError: true);
@@ -154,15 +145,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
       _isLoading = true;
     });
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final response = await http.get(
-        Uri.parse(ApiConfig.baseUrl + '/api/feedback/my'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiClient.get('/api/feedback/my');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
@@ -171,13 +154,7 @@ class _FeedbackPageState extends State<FeedbackPage> {
         });
       }
       // Also fetch app rating status
-      final ratingRes = await http.get(
-        Uri.parse(ApiConfig.baseUrl + '/api/rating/my'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final ratingRes = await ApiClient.get('/api/rating/my');
       if (ratingRes.statusCode == 200) {
         final ratingData = jsonDecode(ratingRes.body);
         setState(() {
@@ -338,21 +315,12 @@ class _FeedbackPageState extends State<FeedbackPage> {
       _isLoading = true;
     });
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final ratingRes = await http.get(
-        Uri.parse(ApiConfig.baseUrl + '/api/rating/my'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final ratingRes = await ApiClient.get('/api/rating/my');
       if (ratingRes.statusCode == 200) {
         final ratingData = jsonDecode(ratingRes.body);
         setState(() {
           if (ratingData['rating'] != null) {
             _hasAppRated = true;
-            // ratingData['rating'] is a number (from backend)
             _selectedAppRating = ratingData['rating'];
           } else {
             _hasAppRated = false;

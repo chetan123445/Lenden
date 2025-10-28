@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../api_config.dart';
 import '../user/session.dart';
 import 'custom_warning_widget.dart';
+import '../utils/api_client.dart';
 
 class PrivacySettingsPage extends StatefulWidget {
   const PrivacySettingsPage({super.key});
@@ -45,12 +44,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/privacy-settings'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.get('/api/users/privacy-settings');
 
       if (response.statusCode == 200) {
         final settings = json.decode(response.body);
@@ -84,20 +78,16 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/privacy-settings'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
+      final response = await ApiClient.put(
+        '/api/users/privacy-settings',
+        body: {
           'profileVisibility': _profileVisibility,
           'contactSharing': _contactSharing,
           'analyticsSharing': _analyticsSharing,
           'loginNotifications': _loginNotifications,
           'deviceManagement': _deviceManagement,
           'sessionTimeout': int.parse(_sessionTimeout),
-        }),
+        },
       );
 
       if (response.statusCode == 200) {
@@ -203,12 +193,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/delete-account'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.delete('/api/users/delete-account');
 
       Navigator.of(context, rootNavigator: true).pop(); // Close progress dialog
 
@@ -238,12 +223,7 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   Future<void> _loadDevices() async {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/devices'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.get('/api/users/devices');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
@@ -258,13 +238,9 @@ class _PrivacySettingsPageState extends State<PrivacySettingsPage> {
   Future<void> _logoutDevice(String deviceId) async {
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/logout-device'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({'deviceId': deviceId}),
+      final response = await ApiClient.post(
+        '/api/users/logout-device',
+        body: {'deviceId': deviceId},
       );
       if (response.statusCode == 200) {
         if (mounted) {

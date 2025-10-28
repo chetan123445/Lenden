@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
 import '../user/session.dart';
 import 'dart:convert';
-import '../api_config.dart';
 import 'admin_ratings_page_helpers.dart';
 import '../profile/profile_page.dart' hide TopWaveClipper, BottomWaveClipper;
+import '../utils/api_client.dart';
 
 class AdminFeedbacksPage extends StatefulWidget {
   const AdminFeedbacksPage({Key? key}) : super(key: key);
@@ -24,17 +23,9 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
       _isLoading = true;
     });
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final response = await http.get(
-        Uri.parse(ApiConfig.baseUrl + '/api/feedbacks/all'),
-        headers: {
-          'Content-Type': 'application/json',
-          if (token != null) 'Authorization': 'Bearer $token',
-        },
-      );
-      print('DEBUG: Status code: [33m${response.statusCode}[0m');
-      print('DEBUG: Response body: [36m${response.body}[0m');
+      final response = await ApiClient.get('/api/feedbacks/all');
+      print('DEBUG: Status code: ${response.statusCode}');
+      print('DEBUG: Response body: ${response.body}');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {

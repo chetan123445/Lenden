@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../user/session.dart';
-import '../api_config.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'dart:math';
+import '../user/session.dart';
+import '../utils/api_client.dart';
 
 class AdminManagementPage extends StatefulWidget {
   const AdminManagementPage({Key? key}) : super(key: key);
@@ -63,21 +62,16 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
   }
 
   Future<void> fetchAdmins() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
+    setState(() {
+      isLoading = true;
+    });
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/admins'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-          'Content-Type': 'application/json',
-        },
-      );
-
+      final response = await ApiClient.get('/api/admin/admins');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
           admins = data['admins'];
-          filteredAdmins = data['admins']; // Initialize filteredAdmins
+          filteredAdmins = data['admins'];
           isLoading = false;
         });
       }
@@ -426,21 +420,15 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                                             listen: false);
 
                                     try {
-                                      final response = await http.post(
-                                        Uri.parse(
-                                            '${ApiConfig.baseUrl}/api/admin/admins'),
-                                        headers: {
-                                          'Authorization':
-                                              'Bearer ${session.token}',
-                                          'Content-Type': 'application/json',
-                                        },
-                                        body: json.encode({
+                                      final response = await ApiClient.post(
+                                        '/api/admin/admins',
+                                        body: {
                                           'name': name,
                                           'email': email,
                                           'username': username,
                                           'password': password,
                                           'gender': gender,
-                                        }),
+                                        },
                                       );
 
                                       final responseData =
@@ -536,16 +524,9 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
   }
 
   Future<void> removeAdmin(String adminId) async {
-    setState(() => adminBeingRemoved = adminId); // Set the admin being removed
-    final session = Provider.of<SessionProvider>(context, listen: false);
+    setState(() => adminBeingRemoved = adminId);
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/admins/$adminId'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-          'Content-Type': 'application/json',
-        },
-      );
+      final response = await ApiClient.delete('/api/admin/admins/$adminId');
 
       if (response.statusCode == 200) {
         fetchAdmins();
@@ -561,7 +542,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
         icon: Icons.error_outline,
       );
     } finally {
-      setState(() => adminBeingRemoved = null); // Clear the loading state
+      setState(() => adminBeingRemoved = null);
     }
   }
 

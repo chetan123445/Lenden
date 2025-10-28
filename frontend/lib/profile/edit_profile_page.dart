@@ -6,7 +6,7 @@ import 'dart:typed_data';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../api_config.dart';
+import '../utils/http_interceptor.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -105,44 +105,37 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final isAdmin = session.isAdmin;
     final url = isAdmin ? '/api/admins/me' : '/api/users/me';
-    final uri = Uri.parse(ApiConfig.baseUrl + url);
-    final request = http.MultipartRequest('PUT', uri);
-    request.headers['Authorization'] = 'Bearer ${session.token}';
-    request.fields['name'] = _nameController.text;
-    request.fields['birthday'] = _birthdayController.text;
-    request.fields['phone'] = _phoneController.text;
-    request.fields['address'] = _addressController.text;
-    request.fields['gender'] = _gender ?? '';
-    // Email and username are not editable, so not sent
-    if (_removeImage) {
-      request.fields['removeImage'] = 'true';
-    } else if (_newImageBytes != null) {
-      request.files.add(http.MultipartFile.fromBytes(
-          'profileImage', _newImageBytes!,
-          filename: 'profile.png'));
-    }
 
     try {
+      final request = await HttpInterceptor.multipartRequest('PUT', url);
+      request.fields['name'] = _nameController.text;
+      request.fields['birthday'] = _birthdayController.text;
+      request.fields['phone'] = _phoneController.text;
+      request.fields['address'] = _addressController.text;
+      request.fields['gender'] = _gender ?? '';
+      if (_removeImage) {
+        request.fields['removeImage'] = 'true';
+      } else if (_newImageBytes != null) {
+        request.files.add(http.MultipartFile.fromBytes(
+            'profileImage', _newImageBytes!,
+            filename: 'profile.png'));
+      }
+
       final response = await request.send();
       if (response.statusCode == 200) {
         final respStr = await response.stream.bytesToString();
         final updatedUser = jsonDecode(respStr);
 
-        // Update session with new user data immediately
         session.setUser(updatedUser);
-
-        // Force refresh user profile to ensure we have the latest data with cache busting
         await session.forceRefreshProfile();
 
-        // Force UI refresh by updating state
         setState(() {
           _newImageBytes = null;
           _removeImage = false;
-          _imageRefreshKey++; // Force avatar rebuild
+          _imageRefreshKey++;
           _isUpdating = false;
         });
 
-        // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -169,7 +162,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
           ),
         );
       } else {
-        final errorBody = await response.stream.bytesToString();
         setState(() {
           _isUpdating = false;
         });
@@ -225,7 +217,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
         backgroundColor: const Color(0xFF00B4D8),
       );
-    } else {
+    }
+    else {
       // Show network image with cache busting for real-time updates
       final cacheBustingUrl =
           '$imageUrl?t=${DateTime.now().millisecondsSinceEpoch}';
@@ -628,3 +621,4 @@ class BottomWaveClipper extends CustomClipper<Path> {
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
+

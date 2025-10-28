@@ -7,6 +7,7 @@ const { sendLoginNotificationEmail } = require('../utils/loginNotificationEmail'
 const jwt = require('jsonwebtoken');
 const { logProfileActivity } = require('./activityController');
 const { v4: uuidv4 } = require('uuid');
+const TokenService = require('../utils/tokenService');
 
 // In-memory OTP store (for demo; use DB or cache in production)
 const otpStore = {};
@@ -159,17 +160,37 @@ exports.login = async (req, res) => {
         return res.status(401).json({ error: 'Incorrect password' });
       }
       
-      // Generate JWT for user
-      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
-      // Generate a deviceId for this session
+      // Generate tokens for user
       const deviceId = req.body.deviceId || uuidv4();
-      const token = jwt.sign(
-        { _id: user._id, email: user.email, role: 'user', deviceId },
-        jwtSecret,
-        { expiresIn: '7d' }
-      );
+      const deviceName = req.body.deviceName || req.get('User-Agent');
+      const ipAddress = req.ip;
+      
+      // Generate access token (short-lived)
+      const accessToken = TokenService.generateAccessToken({
+        _id: user._id,
+        email: user.email,
+        role: 'user',
+        deviceId
+      });
+
+      // Generate refresh token (long-lived)
+      const refreshToken = TokenService.generateRefreshToken();
+      
+      // Save refresh token to database
+      await TokenService.saveRefreshToken({
+        token: refreshToken,
+        userId: user._id,
+        userType: 'user',
+        deviceId,
+        deviceName,
+        ipAddress,
+        userAgent: req.get('User-Agent'),
+        expiresAt: TokenService.calculateTokenExpiry()
+      });
+
       console.log('✅ Login successful for user:', username);
-      console.log('🎫 Token generated successfully');
+      console.log('🎫 Access token generated successfully');
+      console.log('🎫 Refresh token generated and saved');
       
       // Log login activity
       try {
@@ -197,7 +218,6 @@ exports.login = async (req, res) => {
       }
 
       // Device management: enforce single-device login if needed
-      const deviceName = req.body.deviceName || req.get('User-Agent');
       if (user.deviceManagement === false) {
         if (user.devices && user.devices.length > 0 && user.devices[0].deviceId !== deviceId) {
           return res.status(409).json({ error: 'This account is already logged in on another device.' });
@@ -205,7 +225,6 @@ exports.login = async (req, res) => {
         user.devices = [];
       }
       // Add/update this device
-      const ipAddress = req.ip;
       const now = new Date();
       // Remove any existing entry for this deviceId
       user.devices = user.devices.filter(d => d.deviceId !== deviceId);
@@ -218,7 +237,13 @@ exports.login = async (req, res) => {
       });
       await user.save();
 
-      res.json({ message: 'Login successful', user, token, deviceId });
+      res.json({ 
+        message: 'Login successful', 
+        user, 
+        accessToken, 
+        refreshToken,
+        deviceId 
+      });
       return;
     }
     
@@ -235,13 +260,45 @@ exports.login = async (req, res) => {
         return res.status(401).json({ error: 'Incorrect password' });
       }
       
-      // Generate JWT for admin
-      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
-      const token = jwt.sign({ _id: admin._id, email: admin.email, role: 'admin' }, jwtSecret, { expiresIn: '7d' });
-      console.log('✅ Login successful for admin:', username);
-      console.log('🎫 Token generated successfully');
+      // Generate tokens for admin
+      const deviceId = req.body.deviceId || uuidv4();
+      const deviceName = req.body.deviceName || req.get('User-Agent');
+      const ipAddress = req.ip;
       
-      res.json({ message: 'Login successful', admin, token });
+      // Generate access token (short-lived)
+      const accessToken = TokenService.generateAccessToken({
+        _id: admin._id,
+        email: admin.email,
+        role: 'admin',
+        deviceId
+      });
+
+      // Generate refresh token (long-lived)
+      const refreshToken = TokenService.generateRefreshToken();
+      
+      // Save refresh token to database
+      await TokenService.saveRefreshToken({
+        token: refreshToken,
+        userId: admin._id,
+        userType: 'admin',
+        deviceId,
+        deviceName,
+        ipAddress,
+        userAgent: req.get('User-Agent'),
+        expiresAt: TokenService.calculateTokenExpiry()
+      });
+
+      console.log('✅ Login successful for admin:', username);
+      console.log('🎫 Access token generated successfully');
+      console.log('🎫 Refresh token generated and saved');
+      
+      res.json({ 
+        message: 'Login successful', 
+        admin, 
+        accessToken, 
+        refreshToken,
+        deviceId 
+      });
       return;
     }
     
@@ -387,15 +444,47 @@ exports.verifyLoginOtp = async (req, res) => {
       
       console.log('✅ User found in database:', { id: user._id, name: user.name, email: user.email });
       
-      // Generate JWT token for user
-      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
-      const token = jwt.sign({ _id: user._id, email: user.email, role: 'user' }, jwtSecret, { expiresIn: '7d' });
+      // Generate tokens for user
+      const deviceId = req.body.deviceId || uuidv4();
+      const deviceName = req.body.deviceName || req.get('User-Agent');
+      const ipAddress = req.ip;
+      
+      // Generate access token (short-lived)
+      const accessToken = TokenService.generateAccessToken({
+        _id: user._id,
+        email: user.email,
+        role: 'user',
+        deviceId
+      });
+
+      // Generate refresh token (long-lived)
+      const refreshToken = TokenService.generateRefreshToken();
+      
+      // Save refresh token to database
+      await TokenService.saveRefreshToken({
+        token: refreshToken,
+        userId: user._id,
+        userType: 'user',
+        deviceId,
+        deviceName,
+        ipAddress,
+        userAgent: req.get('User-Agent'),
+        expiresAt: TokenService.calculateTokenExpiry()
+      });
+
       console.log('✅ OTP login successful for user:', email);
-      console.log('🎫 User token generated successfully');
-      console.log('🎫 Token length:', token.length);
+      console.log('🎫 Access token generated successfully');
+      console.log('🎫 Refresh token generated and saved');
       
       delete otpStore[email];
-      return res.status(200).json({ message: 'Login successful', userType: 'user', user, token });
+      return res.status(200).json({ 
+        message: 'Login successful', 
+        userType: 'user', 
+        user, 
+        accessToken,
+        refreshToken,
+        deviceId 
+      });
     } else if (entry.userType === 'admin') {
       admin = await Admin.findOne({ email });
       if (!admin) {
@@ -405,15 +494,47 @@ exports.verifyLoginOtp = async (req, res) => {
       
       console.log('✅ Admin found in database:', { id: admin._id, name: admin.name, email: admin.email });
       
-      // Generate JWT token for admin
-      const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
-      const token = jwt.sign({ _id: admin._id, email: admin.email, role: 'admin' }, jwtSecret, { expiresIn: '7d' });
+      // Generate tokens for admin
+      const deviceId = req.body.deviceId || uuidv4();
+      const deviceName = req.body.deviceName || req.get('User-Agent');
+      const ipAddress = req.ip;
+      
+      // Generate access token (short-lived)
+      const accessToken = TokenService.generateAccessToken({
+        _id: admin._id,
+        email: admin.email,
+        role: 'admin',
+        deviceId
+      });
+
+      // Generate refresh token (long-lived)
+      const refreshToken = TokenService.generateRefreshToken();
+      
+      // Save refresh token to database
+      await TokenService.saveRefreshToken({
+        token: refreshToken,
+        userId: admin._id,
+        userType: 'admin',
+        deviceId,
+        deviceName,
+        ipAddress,
+        userAgent: req.get('User-Agent'),
+        expiresAt: TokenService.calculateTokenExpiry()
+      });
+
       console.log('✅ OTP login successful for admin:', email);
-      console.log('🎫 Admin token generated successfully');
-      console.log('🎫 Token length:', token.length);
+      console.log('🎫 Access token generated successfully');
+      console.log('🎫 Refresh token generated and saved');
       
       delete otpStore[email];
-      return res.status(200).json({ message: 'Login successful', userType: 'admin', admin, token });
+      return res.status(200).json({ 
+        message: 'Login successful', 
+        userType: 'admin', 
+        admin, 
+        accessToken,
+        refreshToken,
+        deviceId 
+      });
     }
     
     console.log('❌ Unknown user type:', entry.userType);
@@ -500,5 +621,105 @@ exports.getUserById = async (req, res) => {
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Refresh access token using refresh token
+exports.refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token is required' });
+    }
+
+    // Validate refresh token
+    const tokenData = await TokenService.validateRefreshToken(refreshToken);
+    if (!tokenData) {
+      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+
+    // Generate new access token
+    const newAccessToken = TokenService.generateAccessToken({
+      _id: tokenData.userId,
+      email: tokenData.userType === 'user' 
+        ? (await User.findById(tokenData.userId))?.email 
+        : (await Admin.findById(tokenData.userId))?.email,
+      role: tokenData.userType,
+      deviceId: tokenData.deviceId
+    });
+
+    console.log('✅ Token refreshed successfully for user:', tokenData.userId);
+    
+    res.json({
+      message: 'Token refreshed successfully',
+      accessToken: newAccessToken
+    });
+
+  } catch (error) {
+    console.error('❌ Token refresh error:', error);
+    res.status(500).json({ error: 'Server error during token refresh' });
+  }
+};
+
+// Logout user by revoking refresh token
+exports.logout = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (refreshToken) {
+      await TokenService.revokeRefreshToken(refreshToken);
+    }
+    
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    res.status(500).json({ error: 'Server error during logout' });
+  }
+};
+
+// Logout from all devices
+exports.logoutAllDevices = async (req, res) => {
+  try {
+    const { userId, userType } = req.body;
+    
+    if (!userId || !userType) {
+      return res.status(400).json({ error: 'User ID and user type are required' });
+    }
+
+    await TokenService.revokeAllUserTokens(userId, userType);
+    
+    res.json({ message: 'Logged out from all devices successfully' });
+  } catch (error) {
+    console.error('❌ Logout all devices error:', error);
+    res.status(500).json({ error: 'Server error during logout from all devices' });
+  }
+};
+
+// Get active sessions for a user
+exports.getActiveSessions = async (req, res) => {
+  try {
+    const { userId, userType } = req.query;
+    
+    if (!userId || !userType) {
+      return res.status(400).json({ error: 'User ID and user type are required' });
+    }
+
+    const activeTokens = await TokenService.getUserActiveTokens(userId, userType);
+    
+    res.json({ 
+      activeSessions: activeTokens.map(token => ({
+        deviceId: token.deviceId,
+        deviceName: token.deviceName,
+        ipAddress: token.ipAddress,
+        userAgent: token.userAgent,
+        createdAt: token.createdAt,
+        lastUsed: token.lastUsed,
+        expiresAt: token.expiresAt
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Get active sessions error:', error);
+    res.status(500).json({ error: 'Server error while fetching active sessions' });
   }
 };

@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../api_config.dart';
 import '../user/session.dart';
+import '../utils/api_client.dart';
 
 class AdminFeaturesPage extends StatefulWidget {
   @override
   _AdminFeaturesPageState createState() => _AdminFeaturesPageState();
 }
 
-class _AdminFeaturesPageState extends State<AdminFeaturesPage> with SingleTickerProviderStateMixin {
+class _AdminFeaturesPageState extends State<AdminFeaturesPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -30,7 +31,8 @@ class _AdminFeaturesPageState extends State<AdminFeaturesPage> with SingleTicker
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text('Manage Features', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: Text('Manage Features',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: IconThemeData(color: Colors.black),
@@ -103,7 +105,16 @@ class SubscriptionPlan {
   final int discount;
   final int free;
 
-  SubscriptionPlan({required this.id, required this.name, required this.price, required this.duration, required this.features, required this.isAvailable, this.offer, required this.discount, required this.free});
+  SubscriptionPlan(
+      {required this.id,
+      required this.name,
+      required this.price,
+      required this.duration,
+      required this.features,
+      required this.isAvailable,
+      this.offer,
+      required this.discount,
+      required this.free});
 
   factory SubscriptionPlan.fromJson(Map<String, dynamic> json) {
     return SubscriptionPlan(
@@ -150,7 +161,8 @@ class Faq {
   }
 }
 
-void showStylishSnackBar(BuildContext context, String message, {bool isError = false}) {
+void showStylishSnackBar(BuildContext context, String message,
+    {bool isError = false}) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Container(
@@ -226,12 +238,7 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
   }
 
   Future<void> _fetchPlans() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}/api/admin/subscription-plans'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final response = await ApiClient.get('/api/admin/subscription-plans');
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       setState(() {
@@ -242,29 +249,22 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
     }
   }
 
-  Future<void> _togglePlanAvailability(SubscriptionPlan plan, bool isAvailable) async {
+  Future<void> _togglePlanAvailability(
+      SubscriptionPlan plan, bool isAvailable) async {
     setState(() {
       _isToggling[plan.id] = true;
     });
 
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
     try {
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/subscription-plans/${plan.id}'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'name': plan.name,
-          'price': plan.price,
-          'duration': plan.duration,
-          'features': plan.features,
-          'isAvailable': isAvailable,
-        }),
-      );
+      final response = await ApiClient.put(
+          '/api/admin/subscription-plans/${plan.id}',
+          body: {
+            'name': plan.name,
+            'price': plan.price,
+            'duration': plan.duration,
+            'features': plan.features,
+            'isAvailable': isAvailable,
+          });
 
       if (response.statusCode == 200) {
         _fetchPlans();
@@ -272,25 +272,23 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
           SnackBar(content: Text('Plan availability updated successfully')),
         );
       } else {
-        final responseBody = response.body;
-        showStylishSnackBar(context, 'Plan availability updated successfully');
+        // handle error
       }
     } catch (e) {
       showStylishSnackBar(context, 'An error occurred: $e', isError: true);
     } finally {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _isToggling[plan.id] = false;
         });
-      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-    backgroundColor: Colors.transparent,
-    body: _plans.isEmpty
+      backgroundColor: Colors.transparent,
+      body: _plans.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -299,7 +297,10 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
                   SizedBox(height: 16),
                   Text(
                     'Nothing here',
-                    style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        fontSize: 20,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
                   Text(
@@ -343,12 +344,16 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
                                   children: [
                                     Text(
                                       plan.name,
-                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold),
                                     ),
                                     SizedBox(height: 4),
                                     Text(
                                       '₹${plan.price} for ${plan.duration} days',
-                                      style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                                      style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[700]),
                                     ),
                                   ],
                                 ),
@@ -357,7 +362,8 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
                                   ? SizedBox(
                                       height: 24,
                                       width: 24,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
                                     )
                                   : Switch(
                                       value: plan.isAvailable,
@@ -373,7 +379,8 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
                             spacing: 8,
                             children: [
                               IconButton(
-                                icon: Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                                icon:
+                                    Icon(Icons.edit, color: Color(0xFF00B4D8)),
                                 onPressed: () => _showPlanDialog(plan: plan),
                               ),
                               IconButton(
@@ -390,29 +397,29 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
               },
             ),
       floatingActionButton: Container(
-  decoration: BoxDecoration(
-    borderRadius: BorderRadius.circular(30),
-    gradient: LinearGradient(
-      colors: [Colors.orange, Colors.white, Colors.green],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-  ),
-  padding: EdgeInsets.all(2),
-  child: Container(
-    decoration: BoxDecoration(
-      color: Color(0xFF00B4D8),
-      borderRadius: BorderRadius.circular(28),
-    ),
-    child: FloatingActionButton.extended(
-      onPressed: () => _showPlanDialog(),
-      icon: Icon(Icons.add),
-      label: Text('Add Plan'),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-    ),
-  ),
-),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: EdgeInsets.all(2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Color(0xFF00B4D8),
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: FloatingActionButton.extended(
+            onPressed: () => _showPlanDialog(),
+            icon: Icon(Icons.add),
+            label: Text('Add Plan'),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+          ),
+        ),
+      ),
     );
   }
 
@@ -478,7 +485,8 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      child: Text('Delete', style: TextStyle(color: Colors.white)),
+                      child:
+                          Text('Delete', style: TextStyle(color: Colors.white)),
                     ),
                   ],
                 ),
@@ -489,17 +497,17 @@ class _SubscriptionPlansTabState extends State<SubscriptionPlansTab> {
       ),
     );
     if (confirmed == true) {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/subscription-plans/$id'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response =
+          await ApiClient.delete('/api/admin/subscription-plans/$id');
       if (response.statusCode == 200) {
         _fetchPlans();
         showStylishSnackBar(context, 'Plan deleted successfully');
       } else {
-        showStylishSnackBar(context, 'Failed to delete plan', isError: true);
+        final body =
+            response.body.isNotEmpty ? json.decode(response.body) : null;
+        showStylishSnackBar(
+            context, body?['message'] ?? 'Failed to delete plan',
+            isError: true);
       }
     }
   }
@@ -616,35 +624,40 @@ class _PlanDialogState extends State<PlanDialog> {
                   _buildStylishTextField(
                     label: 'Plan Name',
                     initialValue: _name,
-                    validator: (value) => value!.isEmpty ? 'Please enter a name' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter a name' : null,
                     onSaved: (value) => _name = value!,
                   ),
                   _buildStylishTextField(
                     label: 'Price (₹)',
                     initialValue: _price.toString(),
                     keyboardType: TextInputType.number,
-                    validator: (value) => value!.isEmpty ? 'Please enter a price' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter a price' : null,
                     onSaved: (value) => _price = double.parse(value!),
                   ),
                   _buildStylishTextField(
                     label: 'Duration (days)',
                     initialValue: _duration.toString(),
                     keyboardType: TextInputType.number,
-                    validator: (value) => value!.isEmpty ? 'Please enter a duration' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter a duration' : null,
                     onSaved: (value) => _duration = int.parse(value!),
                   ),
                   _buildStylishTextField(
                     label: 'Discount (%)',
                     initialValue: _discount.toString(),
                     keyboardType: TextInputType.number,
-                    validator: (value) => value!.isEmpty ? 'Please enter a discount' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter a discount' : null,
                     onSaved: (value) => _discount = int.parse(value!),
                   ),
                   _buildStylishTextField(
                     label: 'Free Days',
                     initialValue: _free.toString(),
                     keyboardType: TextInputType.number,
-                    validator: (value) => value!.isEmpty ? 'Please enter free days' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter free days' : null,
                     onSaved: (value) => _free = int.parse(value!),
                   ),
                   _buildStylishTextField(
@@ -652,7 +665,11 @@ class _PlanDialogState extends State<PlanDialog> {
                     initialValue: _features.join(', '),
                     maxLines: 3,
                     validator: (value) => null,
-                    onSaved: (value) => _features = value!.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList(),
+                    onSaved: (value) => _features = value!
+                        .split(',')
+                        .map((e) => e.trim())
+                        .where((e) => e.isNotEmpty)
+                        .toList(),
                   ),
                   SizedBox(height: 20),
                   Row(
@@ -667,15 +684,18 @@ class _PlanDialogState extends State<PlanDialog> {
                         onPressed: _isSaving ? null : _savePlan,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFF00B4D8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                         child: _isSaving
                             ? SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
                               )
-                            : Text('Save', style: TextStyle(color: Colors.white)),
+                            : Text('Save',
+                                style: TextStyle(color: Colors.white)),
                       ),
                     ],
                   ),
@@ -694,46 +714,40 @@ class _PlanDialogState extends State<PlanDialog> {
       setState(() {
         _isSaving = true;
       });
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final url = widget.plan == null
-          ? '${ApiConfig.baseUrl}/api/admin/subscription-plans'
-          : '${ApiConfig.baseUrl}/api/admin/subscription-plans/${widget.plan!.id}';
-      final method = widget.plan == null ? 'POST' : 'PUT';
-
       try {
-        final response = await http.Client().send(http.Request(method, Uri.parse(url))
-          ..headers.addAll({'Authorization': 'Bearer $token', 'Content-Type': 'application/json'})
-          ..body = json.encode({
-            'name': _name,
-            'price': _price,
-            'duration': _duration,
-            'features': _features,
-            'discount': _discount,
-            'free': _free,
-          }));
+        final body = {
+          'name': _name,
+          'price': _price,
+          'duration': _duration,
+          'features': _features,
+          'discount': _discount,
+          'free': _free,
+        };
+        final response = widget.plan == null
+            ? await ApiClient.post('/api/admin/subscription-plans', body: body)
+            : await ApiClient.put(
+                '/api/admin/subscription-plans/${widget.plan!.id}',
+                body: body);
 
         if (response.statusCode == 201 || response.statusCode == 200) {
           widget.onSave();
           Navigator.of(context).pop();
           showStylishSnackBar(context, 'Plan saved successfully');
         } else {
-          final responseBody = await response.stream.bytesToString();
-          showStylishSnackBar(context, 'Failed to save plan: $responseBody', isError: true);
+          final respBody =
+              response.body.isNotEmpty ? json.decode(response.body) : null;
+          showStylishSnackBar(
+              context, respBody?['message'] ?? 'Failed to save plan',
+              isError: true);
         }
       } catch (e) {
         showStylishSnackBar(context, 'An error occurred: $e', isError: true);
       } finally {
-        if (mounted) {
-          setState(() {
-            _isSaving = false;
-          });
-        }
+        if (mounted) setState(() => _isSaving = false);
       }
     }
   }
 }
-
 
 // Premium Benefits Tab
 class PremiumBenefitsTab extends StatefulWidget {
@@ -742,7 +756,7 @@ class PremiumBenefitsTab extends StatefulWidget {
 }
 
 class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
-    List<PremiumBenefit> _benefits = [];
+  List<PremiumBenefit> _benefits = [];
 
   @override
   void initState() {
@@ -763,12 +777,7 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
   }
 
   Future<void> _fetchBenefits() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}/api/admin/premium-benefits'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final response = await ApiClient.get('/api/admin/premium-benefits');
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       setState(() {
@@ -782,8 +791,8 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-    backgroundColor: Colors.transparent,
-    body: _benefits.isEmpty
+      backgroundColor: Colors.transparent,
+      body: _benefits.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -792,7 +801,10 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
                   SizedBox(height: 16),
                   Text(
                     'Nothing here',
-                    style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        fontSize: 20,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
                   Text(
@@ -824,14 +836,17 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: ListTile(
-                      leading: Icon(Icons.check_circle, color: Color(0xFF00B4D8), size: 32),
-                      title: Text(benefit.text, style: TextStyle(fontWeight: FontWeight.w600)),
+                      leading: Icon(Icons.check_circle,
+                          color: Color(0xFF00B4D8), size: 32),
+                      title: Text(benefit.text,
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
                             icon: Icon(Icons.edit, color: Color(0xFF00B4D8)),
-                            onPressed: () => _showBenefitDialog(benefit: benefit),
+                            onPressed: () =>
+                                _showBenefitDialog(benefit: benefit),
                           ),
                           IconButton(
                             icon: Icon(Icons.delete, color: Colors.red),
@@ -845,29 +860,29 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
               },
             ),
       floatingActionButton: Container(
-  decoration: BoxDecoration(
-    borderRadius: BorderRadius.circular(30),
-    gradient: LinearGradient(
-      colors: [Colors.orange, Colors.white, Colors.green],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-  ),
-  padding: EdgeInsets.all(2),
-  child: Container(
-    decoration: BoxDecoration(
-      color: Color(0xFF00B4D8),
-      borderRadius: BorderRadius.circular(28),
-    ),
-    child: FloatingActionButton.extended(
-      onPressed: () => _showBenefitDialog(),
-      icon: Icon(Icons.add),
-      label: Text('Add Benefit'),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-    ),
-  ),
-),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: EdgeInsets.all(2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Color(0xFF00B4D8),
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: FloatingActionButton.extended(
+            onPressed: () => _showBenefitDialog(),
+            icon: Icon(Icons.add),
+            label: Text('Add Benefit'),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+          ),
+        ),
+      ),
     );
   }
 
@@ -881,82 +896,83 @@ class _PremiumBenefitsTabState extends State<PremiumBenefitsTab> {
   }
 
   Future<void> _deleteBenefit(String id) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(
-            colors: [Colors.orange, Colors.white, Colors.green],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        padding: EdgeInsets.all(2),
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           decoration: BoxDecoration(
-            color: Color(0xFFFFEBEE),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
-          padding: EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.red, size: 50),
-              SizedBox(height: 16),
-              Text(
-                'Delete Benefit',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Are you sure you want to delete this benefit?',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-              ),
-              SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: Text('Cancel'),
-                  ),
-                  SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+          padding: EdgeInsets.all(2),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Color(0xFFFFEBEE),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.red, size: 50),
+                SizedBox(height: 16),
+                Text(
+                  'Delete Benefit',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Are you sure you want to delete this benefit?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
+                SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text('Cancel'),
                     ),
-                    child: Text('Delete', style: TextStyle(color: Colors.white)),
-                  ),
-                ],
-              ),
-            ],
+                    SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child:
+                          Text('Delete', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
 
     if (confirmed == true) {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/premium-benefits/$id'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response =
+          await ApiClient.delete('/api/admin/premium-benefits/$id');
       if (response.statusCode == 200) {
-  _fetchBenefits();
-  showStylishSnackBar(context, 'Benefit deleted successfully');
-} else {
-  showStylishSnackBar(context, 'Failed to delete benefit', isError: true);
-}
+        _fetchBenefits();
+        showStylishSnackBar(context, 'Benefit deleted successfully');
+      } else {
+        final body =
+            response.body.isNotEmpty ? json.decode(response.body) : null;
+        showStylishSnackBar(
+            context, body?['message'] ?? 'Failed to delete benefit',
+            isError: true);
+      }
     }
   }
 }
@@ -1039,10 +1055,12 @@ class _BenefitDialogState extends State<BenefitDialog> {
                           ),
                           filled: true,
                           fillColor: Colors.white,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
                         ),
                         maxLines: 3,
-                        validator: (value) => value!.isEmpty ? 'Please enter benefit text' : null,
+                        validator: (value) =>
+                            value!.isEmpty ? 'Please enter benefit text' : null,
                         onSaved: (value) => _text = value!,
                       ),
                     ),
@@ -1060,15 +1078,18 @@ class _BenefitDialogState extends State<BenefitDialog> {
                         onPressed: _isSaving ? null : _saveBenefit,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFF00B4D8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                         child: _isSaving
                             ? SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
                               )
-                            : Text('Save', style: TextStyle(color: Colors.white)),
+                            : Text('Save',
+                                style: TextStyle(color: Colors.white)),
                       ),
                     ],
                   ),
@@ -1087,39 +1108,33 @@ class _BenefitDialogState extends State<BenefitDialog> {
       setState(() {
         _isSaving = true;
       });
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final url = widget.benefit == null
-          ? '${ApiConfig.baseUrl}/api/admin/premium-benefits'
-          : '${ApiConfig.baseUrl}/api/admin/premium-benefits/${widget.benefit!.id}';
-      final method = widget.benefit == null ? 'POST' : 'PUT';
-
       try {
-        final response = await http.Client().send(http.Request(method, Uri.parse(url))
-          ..headers.addAll({'Authorization': 'Bearer $token', 'Content-Type': 'application/json'})
-          ..body = json.encode({'text': _text}));
+        final body = {'text': _text};
+        final response = widget.benefit == null
+            ? await ApiClient.post('/api/admin/premium-benefits', body: body)
+            : await ApiClient.put(
+                '/api/admin/premium-benefits/${widget.benefit!.id}',
+                body: body);
 
         if (response.statusCode == 201 || response.statusCode == 200) {
           widget.onSave();
           Navigator.of(context).pop();
           showStylishSnackBar(context, 'Benefit saved successfully');
         } else {
-          final responseBody = await response.stream.bytesToString();
-          showStylishSnackBar(context, 'Failed to save benefit: $responseBody', isError: true);
+          final respBody =
+              response.body.isNotEmpty ? json.decode(response.body) : null;
+          showStylishSnackBar(
+              context, respBody?['message'] ?? 'Failed to save benefit',
+              isError: true);
         }
       } catch (e) {
         showStylishSnackBar(context, 'An error occurred: $e', isError: true);
       } finally {
-        if (mounted) {
-          setState(() {
-            _isSaving = false;
-          });
-        }
+        if (mounted) setState(() => _isSaving = false);
       }
     }
   }
 }
-
 
 // FAQs Tab
 class FaqsTab extends StatefulWidget {
@@ -1149,12 +1164,7 @@ class _FaqsTabState extends State<FaqsTab> {
   }
 
   Future<void> _fetchFaqs() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final response = await http.get(
-      Uri.parse('${ApiConfig.baseUrl}/api/admin/faqs'),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final response = await ApiClient.get('/api/admin/faqs');
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
       setState(() {
@@ -1168,8 +1178,8 @@ class _FaqsTabState extends State<FaqsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-    backgroundColor: Colors.transparent,
-    body: _faqs.isEmpty
+      backgroundColor: Colors.transparent,
+      body: _faqs.isEmpty
           ? Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -1178,7 +1188,10 @@ class _FaqsTabState extends State<FaqsTab> {
                   SizedBox(height: 16),
                   Text(
                     'Nothing here',
-                    style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        fontSize: 20,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 8),
                   Text(
@@ -1212,29 +1225,35 @@ class _FaqsTabState extends State<FaqsTab> {
                     child: Column(
                       children: [
                         ExpansionTile(
-                          leading: Icon(Icons.help_outline, color: Color(0xFF00B4D8), size: 28),
+                          leading: Icon(Icons.help_outline,
+                              color: Color(0xFF00B4D8), size: 28),
                           title: Text(
                             faq.question,
-                            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 15),
                           ),
                           children: [
                             Padding(
                               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                               child: Text(
                                 faq.answer,
-                                style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                                style: TextStyle(
+                                    color: Colors.grey[700], fontSize: 14),
                               ),
                             ),
                           ],
-                          tilePadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          tilePadding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               IconButton(
-                                icon: Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                                icon:
+                                    Icon(Icons.edit, color: Color(0xFF00B4D8)),
                                 onPressed: () => _showFaqDialog(faq: faq),
                               ),
                               IconButton(
@@ -1251,29 +1270,29 @@ class _FaqsTabState extends State<FaqsTab> {
               },
             ),
       floatingActionButton: Container(
-  decoration: BoxDecoration(
-    borderRadius: BorderRadius.circular(30),
-    gradient: LinearGradient(
-      colors: [Colors.orange, Colors.white, Colors.green],
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-    ),
-  ),
-  padding: EdgeInsets.all(2),
-  child: Container(
-    decoration: BoxDecoration(
-      color: Color(0xFF00B4D8),
-      borderRadius: BorderRadius.circular(28),
-    ),
-    child: FloatingActionButton.extended(
-      onPressed: () => _showFaqDialog(),
-      icon: Icon(Icons.add),
-      label: Text('Add FAQ'),
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-    ),
-  ),
-),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          gradient: LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: EdgeInsets.all(2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Color(0xFF00B4D8),
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: FloatingActionButton.extended(
+            onPressed: () => _showFaqDialog(),
+            icon: Icon(Icons.add),
+            label: Text('Add FAQ'),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1287,82 +1306,81 @@ class _FaqsTabState extends State<FaqsTab> {
   }
 
   Future<void> _deleteFaq(String id) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(
-            colors: [Colors.orange, Colors.white, Colors.green],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        padding: EdgeInsets.all(2),
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
           decoration: BoxDecoration(
-            color: Color(0xFFFFEBEE),
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
-          padding: EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.red, size: 50),
-              SizedBox(height: 16),
-              Text(
-                'Delete FAQ',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Are you sure you want to delete this FAQ?',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-              ),
-              SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: Text('Cancel'),
-                  ),
-                  SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+          padding: EdgeInsets.all(2),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Color(0xFFFFEBEE),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.red, size: 50),
+                SizedBox(height: 16),
+                Text(
+                  'Delete FAQ',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Are you sure you want to delete this FAQ?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
+                SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text('Cancel'),
                     ),
-                    child: Text('Delete', style: TextStyle(color: Colors.white)),
-                  ),
-                ],
-              ),
-            ],
+                    SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      child:
+                          Text('Delete', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
 
     if (confirmed == true) {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/faqs/$id'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await ApiClient.delete('/api/admin/faqs/$id');
       if (response.statusCode == 200) {
-  _fetchFaqs();
-  showStylishSnackBar(context, 'FAQ deleted successfully');
-} else {
-  showStylishSnackBar(context, 'Failed to delete FAQ', isError: true);
-}
+        _fetchFaqs();
+        showStylishSnackBar(context, 'FAQ deleted successfully');
+      } else {
+        final body =
+            response.body.isNotEmpty ? json.decode(response.body) : null;
+        showStylishSnackBar(context, body?['message'] ?? 'Failed to delete FAQ',
+            isError: true);
+      }
     }
   }
 }
@@ -1469,14 +1487,16 @@ class _FaqDialogState extends State<FaqDialog> {
                     label: 'Question',
                     initialValue: _question,
                     maxLines: 2,
-                    validator: (value) => value!.isEmpty ? 'Please enter a question' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter a question' : null,
                     onSaved: (value) => _question = value!,
                   ),
                   _buildStylishTextField(
                     label: 'Answer',
                     initialValue: _answer,
                     maxLines: 4,
-                    validator: (value) => value!.isEmpty ? 'Please enter an answer' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter an answer' : null,
                     onSaved: (value) => _answer = value!,
                   ),
                   SizedBox(height: 20),
@@ -1492,15 +1512,18 @@ class _FaqDialogState extends State<FaqDialog> {
                         onPressed: _isSaving ? null : _saveFaq,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFF00B4D8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                         child: _isSaving
                             ? SizedBox(
                                 height: 20,
                                 width: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
                               )
-                            : Text('Save', style: TextStyle(color: Colors.white)),
+                            : Text('Save',
+                                style: TextStyle(color: Colors.white)),
                       ),
                     ],
                   ),
@@ -1519,17 +1542,12 @@ class _FaqDialogState extends State<FaqDialog> {
       setState(() {
         _isSaving = true;
       });
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final url = widget.faq == null
-          ? '${ApiConfig.baseUrl}/api/admin/faqs'
-          : '${ApiConfig.baseUrl}/api/admin/faqs/${widget.faq!.id}';
-      final method = widget.faq == null ? 'POST' : 'PUT';
-
       try {
-        final response = await http.Client().send(http.Request(method, Uri.parse(url))
-          ..headers.addAll({'Authorization': 'Bearer $token', 'Content-Type': 'application/json'})
-          ..body = json.encode({'question': _question, 'answer': _answer}));
+        final body = {'question': _question, 'answer': _answer};
+        final response = widget.faq == null
+            ? await ApiClient.post('/api/admin/faqs', body: body)
+            : await ApiClient.put('/api/admin/faqs/${widget.faq!.id}',
+                body: body);
 
         if (response.statusCode == 201 || response.statusCode == 200) {
           widget.onSave();
@@ -1538,9 +1556,12 @@ class _FaqDialogState extends State<FaqDialog> {
             SnackBar(content: Text('FAQ saved successfully')),
           );
         } else {
-          final responseBody = await response.stream.bytesToString();
+          final respBody =
+              response.body.isNotEmpty ? json.decode(response.body) : null;
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to save FAQ: $responseBody')),
+            SnackBar(
+                content: Text(
+                    'Failed to save FAQ: ${respBody?['message'] ?? response.body}')),
           );
         }
       } catch (e) {
@@ -1548,23 +1569,20 @@ class _FaqDialogState extends State<FaqDialog> {
           SnackBar(content: Text('An error occurred: $e')),
         );
       } finally {
-        if (mounted) {
-          setState(() {
-            _isSaving = false;
-          });
-        }
+        if (mounted) setState(() => _isSaving = false);
       }
     }
   }
 }
+
 // Wave Clippers
 class TopWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
     Path path = Path();
     path.lineTo(0, size.height * 0.35);
-    path.quadraticBezierTo(
-        size.width * 0.25, size.height * 0.5, size.width * 0.5, size.height * 0.35);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.5,
+        size.width * 0.5, size.height * 0.35);
     path.quadraticBezierTo(
         size.width * 0.75, size.height * 0.2, size.width, size.height * 0.35);
     path.lineTo(size.width, 0);
@@ -1613,28 +1631,29 @@ class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
     setState(() {
       _searched = true;
     });
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    String url = '${ApiConfig.baseUrl}/api/admin/subscriptions';
-    if (searchQuery != null && searchQuery.isNotEmpty) {
-      url += '?search=$searchQuery';
-    }
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {'Authorization': 'Bearer $token'},
-    );
-    if (response.statusCode == 200) {
-      setState(() {
-        _subscriptions = json.decode(response.body);
-      });
-    } else if (response.statusCode == 404) {
-      final responseBody = json.decode(response.body);
-      showStylishSnackBar(context, responseBody['message'], isError: true);
-      setState(() {
-        _subscriptions = [];
-      });
-    } else {
-      // Handle other errors
+    try {
+      String path = '/api/admin/subscriptions';
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        path += '?search=${Uri.encodeComponent(searchQuery)}';
+      }
+      final response = await ApiClient.get(path);
+      if (response.statusCode == 200) {
+        setState(() {
+          _subscriptions = json.decode(response.body);
+        });
+      } else if (response.statusCode == 404) {
+        final responseBody =
+            response.body.isNotEmpty ? json.decode(response.body) : null;
+        showStylishSnackBar(context, responseBody?['message'] ?? 'Not found',
+            isError: true);
+        setState(() {
+          _subscriptions = [];
+        });
+      } else {
+        // Handle other errors
+      }
+    } catch (e) {
+      // network / parsing error
     }
   }
 
@@ -1642,7 +1661,10 @@ class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
     showDialog(
       context: context,
       builder: (context) {
-        return EditSubscriptionDialog(subscription: subscription, onSave: () => _fetchSubscriptions(searchQuery: _searchController.text));
+        return EditSubscriptionDialog(
+            subscription: subscription,
+            onSave: () =>
+                _fetchSubscriptions(searchQuery: _searchController.text));
       },
     );
   }
@@ -1700,7 +1722,8 @@ class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                       ),
-                      child: Text('Deactivate', style: TextStyle(color: Colors.white)),
+                      child: Text('Deactivate',
+                          style: TextStyle(color: Colors.white)),
                     ),
                   ],
                 ),
@@ -1712,11 +1735,9 @@ class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
     );
 
     if (confirmed == true) {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/subscriptions/$subscriptionId/deactivate'),
-        headers: {'Authorization': 'Bearer $token'},
+      final response = await ApiClient.put(
+        '/api/admin/subscriptions/$subscriptionId/deactivate',
+        body: {},
       );
       if (response.statusCode == 200) {
         _fetchSubscriptions(searchQuery: _searchController.text);
@@ -1756,7 +1777,8 @@ class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
                       decoration: InputDecoration(
                         hintText: 'Search by name or email',
                         border: InputBorder.none,
-                        prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
+                        prefixIcon:
+                            Icon(Icons.search, color: Color(0xFF00B4D8)),
                       ),
                       onSubmitted: (value) {
                         _fetchSubscriptions(searchQuery: value);
@@ -1785,11 +1807,15 @@ class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.inbox, size: 80, color: Colors.grey[400]),
+                            Icon(Icons.inbox,
+                                size: 80, color: Colors.grey[400]),
                             SizedBox(height: 16),
                             Text(
                               'No subscriptions found',
-                              style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                              style: TextStyle(
+                                  fontSize: 20,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
@@ -1799,12 +1825,17 @@ class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
                         itemBuilder: (context, index) {
                           final sub = _subscriptions[index];
                           return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             padding: const EdgeInsets.all(2),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
                               gradient: LinearGradient(
-                                colors: [Colors.orange, Colors.white, Colors.green],
+                                colors: [
+                                  Colors.orange,
+                                  Colors.white,
+                                  Colors.green
+                                ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
@@ -1815,19 +1846,24 @@ class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
                                 borderRadius: BorderRadius.circular(18),
                               ),
                               child: ListTile(
-                                title: Text(sub['user']?['name'] ?? 'No name', style: TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: Text(sub['user']?['email'] ?? 'No email'),
+                                title: Text(sub['user']?['name'] ?? 'No name',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle:
+                                    Text(sub['user']?['email'] ?? 'No email'),
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
-                                      icon: Icon(Icons.edit, color: Color(0xFF00B4D8)),
+                                      icon: Icon(Icons.edit,
+                                          color: Color(0xFF00B4D8)),
                                       onPressed: () {
                                         _showEditSubscriptionDialog(sub);
                                       },
                                     ),
                                     IconButton(
-                                      icon: Icon(Icons.cancel, color: Colors.red),
+                                      icon:
+                                          Icon(Icons.cancel, color: Colors.red),
                                       onPressed: () {
                                         _deactivateSubscription(sub['_id']);
                                       },
@@ -1982,39 +2018,45 @@ class _EditSubscriptionDialogState extends State<EditSubscriptionDialog> {
                   _buildStylishTextField(
                     label: 'Subscription Plan',
                     initialValue: _subscriptionPlan,
-                    validator: (value) => value!.isEmpty ? 'Please enter a plan name' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter a plan name' : null,
                     onSaved: (value) => _subscriptionPlan = value!,
                   ),
                   _buildStylishTextField(
                     label: 'Duration (days)',
                     initialValue: _duration.toString(),
                     keyboardType: TextInputType.number,
-                    validator: (value) => value!.isEmpty ? 'Please enter a duration' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter a duration' : null,
                     onSaved: (value) => _duration = int.parse(value!),
                   ),
                   _buildStylishTextField(
                     label: 'Price',
                     initialValue: _price.toString(),
                     keyboardType: TextInputType.number,
-                    validator: (value) => value!.isEmpty ? 'Please enter a price' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter a price' : null,
                     onSaved: (value) => _price = double.parse(value!),
                   ),
                   _buildStylishTextField(
                     label: 'Discount (%)',
                     initialValue: _discount.toString(),
                     keyboardType: TextInputType.number,
-                    validator: (value) => value!.isEmpty ? 'Please enter a discount' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter a discount' : null,
                     onSaved: (value) => _discount = int.parse(value!),
                   ),
                   _buildStylishTextField(
                     label: 'Free Days',
                     initialValue: _free.toString(),
                     keyboardType: TextInputType.number,
-                    validator: (value) => value!.isEmpty ? 'Please enter free days' : null,
+                    validator: (value) =>
+                        value!.isEmpty ? 'Please enter free days' : null,
                     onSaved: (value) => _free = int.parse(value!),
                   ),
                   SizedBox(height: 16),
-                  Text('End Date', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('End Date',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   SizedBox(height: 8),
                   Container(
                     padding: EdgeInsets.all(2),
@@ -2032,8 +2074,10 @@ class _EditSubscriptionDialogState extends State<EditSubscriptionDialog> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: ListTile(
-                        title: Text('${_endDate.toLocal().toString().substring(0, 10)}'),
-                        trailing: Icon(Icons.calendar_today, color: Color(0xFF00B4D8)),
+                        title: Text(
+                            '${_endDate.toLocal().toString().substring(0, 10)}'),
+                        trailing: Icon(Icons.calendar_today,
+                            color: Color(0xFF00B4D8)),
                         onTap: () => _selectEndDate(context),
                       ),
                     ),
@@ -2067,20 +2111,16 @@ class _EditSubscriptionDialogState extends State<EditSubscriptionDialog> {
       _formKey.currentState!.save();
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/subscriptions/${widget.subscription['_id']}'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
+      final response = await ApiClient.put(
+        '/api/admin/subscriptions/${widget.subscription['_id']}',
+        body: {
           'subscriptionPlan': _subscriptionPlan,
           'duration': _duration,
           'price': _price,
           'discount': _discount,
           'free': _free,
           'endDate': _endDate.toIso8601String(),
-        }),
+        },
       );
       if (response.statusCode == 200) {
         widget.onSave();

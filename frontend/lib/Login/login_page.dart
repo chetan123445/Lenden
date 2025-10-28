@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:http/http.dart' as http;
+
 import 'dart:convert';
 import '../api_config.dart';
 import '../otp_input.dart';
@@ -12,6 +12,22 @@ import 'email_otp_login.dart';
 import 'package:uuid/uuid.dart';
 import '../widgets/tricolor_border_text_field.dart';
 import 'dart:ui' as ui;
+
+import '../utils/http_interceptor.dart';
+
+/// Minimal ApiClient stub to satisfy references from this file.
+/// Replace with your real API client implementation (e.g. using `package:http`)
+/// that prefixes paths with your backend base URL and returns responses
+/// with `statusCode` and `body`.
+class ApiClient {
+  static Future<dynamic> post(String path, {Map<String, dynamic>? body}) async {
+    return await HttpInterceptor.post(path, body: body);
+  }
+
+  static Future<dynamic> get(String path) async {
+    return await HttpInterceptor.get(path);
+  }
+}
 
 class UserLoginPage extends StatefulWidget {
   const UserLoginPage({super.key});
@@ -79,6 +95,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
     dynamic userOrAdmin;
     String? userType;
     String? token;
+    String? refreshToken;
     Map<String, dynamic>? recoverInfo;
     try {
       if (_loginMethod == 'Email + Password') {
@@ -92,7 +109,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
         if (result['success']) {
           userOrAdmin = result['userOrAdmin'];
           userType = result['userType'];
-          token = result['token'];
+          token = result['accessToken'];
+          refreshToken = result['refreshToken'];
         } else {
           error = result['error'];
           if (result['canRecover'] == true) {
@@ -110,7 +128,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
         if (result['success']) {
           userOrAdmin = result['data'];
           userType = result['userType'];
-          token = result['token'];
+          token = result['accessToken'];
+          refreshToken = result['refreshToken'];
         } else {
           error = result['error'];
           if (result['canRecover'] == true) {
@@ -159,7 +178,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
             });
             userOrAdmin = result['userOrAdmin'];
             userType = result['userType'];
-            token = result['token'];
+            token = result['accessToken'];
+            refreshToken = result['refreshToken'];
           } else {
             setState(() {
               _otpErrorMessage = result['error'];
@@ -169,25 +189,30 @@ class _UserLoginPageState extends State<UserLoginPage> {
         }
       }
 
-      // Save token and fetch user info
-      if (token != null && userType != null) {
+      // Save tokens and fetch user info
+      if (token != null && refreshToken != null && userType != null) {
         print('🔐 Saving authentication data for login method: $_loginMethod');
-        print('🎫 Token: ${token != null ? 'Present' : 'Missing'}');
+        print('🎫 Access Token: ${token != null ? 'Present' : 'Missing'}');
+        print('🎫 Refresh Token: ${refreshToken != null ? 'Present' : 'Missing'}');
         print('👤 User type: $userType');
         print('👤 User data: $userOrAdmin');
 
         final session = Provider.of<SessionProvider>(context, listen: false);
-        print('🔐 About to save token to session');
-        print('🔐 Token to save: ${token != null ? 'Present' : 'Missing'}');
-        print('🔐 Token length: ${token?.length ?? 0}');
-        await session.saveToken(token);
-        print('✅ Token saved to session');
+        print('🔐 About to save tokens to session');
+        print('🔐 Access token to save: ${token != null ? 'Present' : 'Missing'}');
+        print('🔐 Refresh token to save: ${refreshToken != null ? 'Present' : 'Missing'}');
+        print('🔐 Access token length: ${token?.length ?? 0}');
+        print('🔐 Refresh token length: ${refreshToken?.length ?? 0}');
+        await session.saveTokens(token, refreshToken);
+        print('✅ Tokens saved to session');
 
-        // Verify token was saved
+        // Verify tokens were saved
         print('🔍 Token verification after save:');
         print(
-            '   Session token: ${session.token != null ? 'Present' : 'Missing'}');
-        print('   Session token length: ${session.token?.length ?? 0}');
+            '   Session access token: ${session.accessToken != null ? 'Present' : 'Missing'}');
+        print('   Session refresh token: ${session.refreshToken != null ? 'Present' : 'Missing'}');
+        print('   Session access token length: ${session.accessToken?.length ?? 0}');
+        print('   Session refresh token length: ${session.refreshToken?.length ?? 0}');
 
         // For Email + OTP, also fetch the complete profile to ensure all fields are present
         if (_loginMethod == 'Email + OTP' && userOrAdmin != null) {
@@ -235,7 +260,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
 
           // Verify the session was set correctly
           print('🔍 Verifying session data after setting:');
-          print('   Token: ${session.token != null ? 'Present' : 'Missing'}');
+          print('   Access Token: ${session.accessToken != null ? 'Present' : 'Missing'}');
+          print('   Refresh Token: ${session.refreshToken != null ? 'Present' : 'Missing'}');
           print('   User: ${session.user}');
           print('   Role: ${session.role}');
           print('   Is Admin: ${session.isAdmin}');
@@ -342,10 +368,9 @@ class _UserLoginPageState extends State<UserLoginPage> {
     setState(() => _isLoading = true);
     try {
       final emailOrUsername = recoverInfo['email'] ?? recoverInfo['username'];
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/recover-account'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'emailOrUsername': emailOrUsername}),
+      final response = await ApiClient.post(
+        '/api/users/recover-account',
+        body: {'emailOrUsername': emailOrUsername},
       );
       if (response.statusCode == 200) {
         // After recovery, try login again
@@ -363,15 +388,10 @@ class _UserLoginPageState extends State<UserLoginPage> {
 
   Future<Map<String, dynamic>?> _fetchProfile(
       String token, String userType) async {
-    final url = userType == 'admin'
-        ? ApiConfig.baseUrl + '/api/admins/me'
-        : ApiConfig.baseUrl + '/api/users/me';
+    final path = userType == 'admin' ? '/api/admins/me' : '/api/users/me';
     try {
-      print('🌐 Fetching profile from: $url');
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      print('🌐 Fetching profile from: $path');
+      final response = await ApiClient.get(path);
       print('🌐 Profile response status: ${response.statusCode}');
       if (response.statusCode == 200) {
         final profileData = jsonDecode(response.body);

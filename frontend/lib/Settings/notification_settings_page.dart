@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../api_config.dart';
 import '../user/session.dart';
 import 'custom_warning_widget.dart';
+import '../utils/api_client.dart';
 
 class NotificationSettingsPage extends StatefulWidget {
   const NotificationSettingsPage({super.key});
@@ -46,12 +45,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/notification-settings'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.get('/api/users/notification-settings');
 
       if (response.statusCode == 200) {
         final settings = json.decode(response.body);
@@ -67,7 +61,8 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           _quietHoursStart = settings['quietHoursStart'] ?? '22:00';
           _quietHoursEnd = settings['quietHoursEnd'] ?? '08:00';
           _quietHoursEnabled = settings['quietHoursEnabled'] ?? false;
-          _displayNotificationCount = settings['displayNotificationCount'] ?? true;
+          _displayNotificationCount =
+              settings['displayNotificationCount'] ?? true;
         });
       }
     } catch (e) {
@@ -91,13 +86,9 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/notification-settings'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
+      final response = await ApiClient.put(
+        '/api/users/notification-settings',
+        body: {
           'transactionNotifications': _transactionNotifications,
           'paymentReminders': _paymentReminders,
           'groupNotifications': _groupNotifications,
@@ -109,7 +100,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
           'quietHoursEnd': _quietHoursEnd,
           'quietHoursEnabled': _quietHoursEnabled,
           'displayNotificationCount': _displayNotificationCount,
-        }),
+        },
       );
 
       if (response.statusCode == 200) {

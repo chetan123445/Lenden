@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
-import '../api_config.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import '../utils/api_client.dart';
 
 class ManageGroupTransactionsPage extends StatefulWidget {
   @override
@@ -30,24 +29,8 @@ class _ManageGroupTransactionsPageState
       error = null;
     });
 
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      setState(() {
-        error = 'Authentication token not found.';
-        loading = false;
-      });
-      return;
-    }
-
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/group-transactions'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiClient.get('/api/admin/group-transactions');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -101,21 +84,9 @@ class _ManageGroupTransactionsPageState
   }
 
   Future<void> _deleteGroup(String groupId) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showSnackBar('Authentication token not found.');
-      return;
-    }
-
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/group-transactions/$groupId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response =
+          await ApiClient.delete('/api/admin/group-transactions/$groupId');
 
       if (response.statusCode == 200) {
         _showSnackBar('Group deleted successfully.');
@@ -155,23 +126,10 @@ class _ManageGroupTransactionsPageState
 
   Future<void> _updateGroup(
       String groupId, Map<String, dynamic> updateData) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showSnackBar('Authentication token not found.');
-      return;
-    }
-
     try {
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/group-transactions/$groupId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(updateData),
-      );
+      final response = await ApiClient.put(
+          '/api/admin/group-transactions/$groupId',
+          body: updateData);
 
       if (response.statusCode == 200) {
         _showSnackBar('Group updated successfully.');
@@ -237,24 +195,10 @@ class _ManageGroupTransactionsPageState
   }
 
   Future<void> _addMember(String groupId, String email) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showSnackBar('Authentication token not found.');
-      return;
-    }
-
     try {
-      final response = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/group-transactions/$groupId/members'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'email': email}),
-      );
+      final response = await ApiClient.post(
+          '/api/admin/group-transactions/$groupId/members',
+          body: {'email': email});
 
       if (response.statusCode == 200) {
         _showSnackBar('Member added successfully.');
@@ -310,22 +254,9 @@ class _ManageGroupTransactionsPageState
   }
 
   Future<void> _removeMember(String groupId, String memberId) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showSnackBar('Authentication token not found.');
-      return;
-    }
-
     try {
-      final response = await http.delete(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/group-transactions/$groupId/members/$memberId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiClient.delete(
+          '/api/admin/group-transactions/$groupId/members/$memberId');
 
       if (response.statusCode == 200) {
         _showSnackBar('Member removed successfully.');
@@ -366,24 +297,10 @@ class _ManageGroupTransactionsPageState
 
   Future<void> _addExpense(
       String groupId, Map<String, dynamic> expenseData) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showSnackBar('Authentication token not found.');
-      return;
-    }
-
     try {
-      final response = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/group-transactions/$groupId/expenses'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(expenseData),
-      );
+      final response = await ApiClient.post(
+          '/api/admin/group-transactions/$groupId/expenses',
+          body: expenseData);
 
       if (response.statusCode == 200) {
         _showSnackBar('Expense added successfully.');
@@ -568,24 +485,10 @@ class _ManageGroupTransactionsPageState
 
   Future<void> _editExpense(String groupId, String expenseId,
       Map<String, dynamic> expenseData) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showSnackBar('Authentication token not found.');
-      return;
-    }
-
     try {
-      final response = await http.put(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/group-transactions/$groupId/expenses/$expenseId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(expenseData),
-      );
+      final response = await ApiClient.put(
+          '/api/admin/group-transactions/$groupId/expenses/$expenseId',
+          body: expenseData);
 
       if (response.statusCode == 200) {
         _showSnackBar('Expense updated successfully.');
@@ -779,22 +682,9 @@ class _ManageGroupTransactionsPageState
   }
 
   Future<void> _deleteExpense(String groupId, String expenseId) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showSnackBar('Authentication token not found.');
-      return;
-    }
-
     try {
-      final response = await http.delete(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/group-transactions/$groupId/expenses/$expenseId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiClient.delete(
+          '/api/admin/group-transactions/$groupId/expenses/$expenseId');
 
       if (response.statusCode == 200) {
         _showSnackBar('Expense deleted successfully.');
@@ -834,24 +724,10 @@ class _ManageGroupTransactionsPageState
 
   Future<void> _settleExpenseSplits(
       String groupId, String expenseId, List<String> memberEmails) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showSnackBar('Authentication token not found.');
-      return;
-    }
-
     try {
-      final response = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/admin/group-transactions/$groupId/expenses/$expenseId/settle'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'memberEmails': memberEmails}),
-      );
+      final response = await ApiClient.post(
+          '/api/admin/group-transactions/$groupId/expenses/$expenseId/settle',
+          body: {'memberEmails': memberEmails});
 
       if (response.statusCode == 200) {
         _showSnackBar('Expense splits settled successfully.');

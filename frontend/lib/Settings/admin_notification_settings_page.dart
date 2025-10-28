@@ -2,8 +2,8 @@ import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../user/session.dart';
+import '../utils/api_client.dart';
 
 class AdminNotificationSettingsPage extends StatefulWidget {
   const AdminNotificationSettingsPage({super.key});
@@ -68,13 +68,7 @@ class _AdminNotificationSettingsPageState
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/notification-settings'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.get('/api/admin/notification-settings');
 
       if (response.statusCode == 200) {
         final settings = json.decode(response.body);
@@ -113,7 +107,8 @@ class _AdminNotificationSettingsPageState
           _quietHoursStart = settings['quietHoursStart'] ?? '22:00';
           _quietHoursEnd = settings['quietHoursEnd'] ?? '08:00';
           _timezone = settings['timezone'] ?? 'UTC';
-          _displayNotificationCount = settings['displayNotificationCount'] ?? true;
+          _displayNotificationCount =
+              settings['displayNotificationCount'] ?? true;
         });
       }
     } catch (e) {
@@ -140,47 +135,41 @@ class _AdminNotificationSettingsPageState
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/notification-settings'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
-          'systemAlerts': _systemAlerts,
-          'maintenanceAlerts': _maintenanceAlerts,
-          'errorAlerts': _errorAlerts,
-          'performanceAlerts': _performanceAlerts,
-          'securityAlerts': _securityAlerts,
-          'backupAlerts': _backupAlerts,
-          'newUserAlerts': _newUserAlerts,
-          'suspiciousActivityAlerts': _suspiciousActivityAlerts,
-          'accountLockoutAlerts': _accountLockoutAlerts,
-          'failedLoginAlerts': _failedLoginAlerts,
-          'userDeletionAlerts': _userDeletionAlerts,
-          'bulkActionAlerts': _bulkActionAlerts,
-          'largeTransactionAlerts': _largeTransactionAlerts,
-          'failedTransactionAlerts': _failedTransactionAlerts,
-          'suspiciousTransactionAlerts': _suspiciousTransactionAlerts,
-          'dailyTransactionSummary': _dailyTransactionSummary,
-          'weeklyTransactionSummary': _weeklyTransactionSummary,
-          'monthlyTransactionSummary': _monthlyTransactionSummary,
-          'emailNotifications': _emailNotifications,
-          'pushNotifications': _pushNotifications,
-          'smsNotifications': _smsNotifications,
-          'inAppNotifications': _inAppNotifications,
-          'notificationFrequency': _notificationFrequency,
-          'quietHoursEnabled': _quietHoursEnabled,
-          'quietHoursStart': _quietHoursStart,
-          'quietHoursEnd': _quietHoursEnd,
-          'timezone': _timezone,
-          'displayNotificationCount': _displayNotificationCount,
-        }),
-      );
+      final response =
+          await ApiClient.put('/api/admin/notification-settings', body: {
+        'systemAlerts': _systemAlerts,
+        'maintenanceAlerts': _maintenanceAlerts,
+        'errorAlerts': _errorAlerts,
+        'performanceAlerts': _performanceAlerts,
+        'securityAlerts': _securityAlerts,
+        'backupAlerts': _backupAlerts,
+        'newUserAlerts': _newUserAlerts,
+        'suspiciousActivityAlerts': _suspiciousActivityAlerts,
+        'accountLockoutAlerts': _accountLockoutAlerts,
+        'failedLoginAlerts': _failedLoginAlerts,
+        'userDeletionAlerts': _userDeletionAlerts,
+        'bulkActionAlerts': _bulkActionAlerts,
+        'largeTransactionAlerts': _largeTransactionAlerts,
+        'failedTransactionAlerts': _failedTransactionAlerts,
+        'suspiciousTransactionAlerts': _suspiciousTransactionAlerts,
+        'dailyTransactionSummary': _dailyTransactionSummary,
+        'weeklyTransactionSummary': _weeklyTransactionSummary,
+        'monthlyTransactionSummary': _monthlyTransactionSummary,
+        'emailNotifications': _emailNotifications,
+        'pushNotifications': _pushNotifications,
+        'smsNotifications': _smsNotifications,
+        'inAppNotifications': _inAppNotifications,
+        'notificationFrequency': _notificationFrequency,
+        'quietHoursEnabled': _quietHoursEnabled,
+        'quietHoursStart': _quietHoursStart,
+        'quietHoursEnd': _quietHoursEnd,
+        'timezone': _timezone,
+        'displayNotificationCount': _displayNotificationCount,
+      });
 
       if (response.statusCode == 200) {
         final settings = json.decode(response.body);
+        final session = Provider.of<SessionProvider>(context, listen: false);
         session.updateNotificationSettings(settings);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

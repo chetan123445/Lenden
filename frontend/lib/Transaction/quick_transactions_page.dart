@@ -1,10 +1,10 @@
 import 'package:elegant_notification/elegant_notification.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
+import '../utils/api_client.dart';
 import '../widgets/subscription_prompt.dart';
 
 class QuickTransactionsPage extends StatefulWidget {
@@ -38,14 +38,11 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     }
 
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/quick-transactions'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
+      final response = await ApiClient.get('/api/quick-transactions');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final transactions = List<Map<String, dynamic>>.from(data['quickTransactions'] ?? []);
+        final transactions =
+            List<Map<String, dynamic>>.from(data['quickTransactions'] ?? []);
         return transactions.length;
       }
     } catch (e) {
@@ -97,19 +94,19 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
         // Search in description
         final description = (transaction['description'] ?? '').toLowerCase();
         final searchLower = query.toLowerCase();
-        
+
         // Search in amount
         final amount = transaction['amount']?.toString() ?? '';
-        
+
         // Search in counterparty names and emails
         final users = transaction['users'] as List? ?? [];
         final counterpartyInfo = users.map((u) {
           return '${u['name'] ?? ''} ${u['email'] ?? ''}'.toLowerCase();
         }).join(' ');
 
-        return description.contains(searchLower) || 
-              amount.contains(searchLower) || 
-              counterpartyInfo.contains(searchLower);
+        return description.contains(searchLower) ||
+            amount.contains(searchLower) ||
+            counterpartyInfo.contains(searchLower);
       }).toList();
       sortTransactions();
     });
@@ -123,28 +120,42 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   }
 
   Future<void> fetchQuickTransactions() async {
-    setState(() { loading = true; error = null; });
+    setState(() {
+      loading = true;
+      error = null;
+    });
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final url = '${ApiConfig.baseUrl}/api/quick-transactions';
-    final res = await http.get(Uri.parse(url), headers: {'Authorization': 'Bearer $token'});
-    if (res.statusCode == 200) {
-      final fetchedTransactions = List<Map<String, dynamic>>.from(json.decode(res.body)['quickTransactions']);
+    try {
+      final res = await ApiClient.get('/api/quick-transactions');
+      if (res.statusCode == 200) {
+        final fetchedTransactions = List<Map<String, dynamic>>.from(
+            json.decode(res.body)['quickTransactions']);
+        setState(() {
+          transactions = fetchedTransactions;
+          filteredTransactions = fetchedTransactions;
+          sortTransactions();
+          filterTransactions(searchQuery); // Apply current filters
+          loading = false;
+        });
+      } else {
+        setState(() {
+          error = 'Failed to load quick transactions';
+          loading = false;
+        });
+      }
+    } catch (e) {
       setState(() {
-        transactions = fetchedTransactions;
-        filteredTransactions = fetchedTransactions;
-        sortTransactions();
-        filterTransactions(searchQuery); // Apply current filters
+        error = 'Failed to load quick transactions';
         loading = false;
       });
-    } else {
-      setState(() { error = 'Failed to load quick transactions'; loading = false; });
     }
   }
 
-  Future<void> createOrEditQuickTransaction({Map<String, dynamic>? transaction}) async {
+  Future<void> createOrEditQuickTransaction(
+      {Map<String, dynamic>? transaction}) async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    if (!session.isSubscribed && transaction == null) { // Only check for new transactions
+    if (!session.isSubscribed && transaction == null) {
+      // Only check for new transactions
       final quickTransactionCount = await _getQuickTransactionCount();
       if (quickTransactionCount >= 10) {
         showSubscriptionPrompt(context);
@@ -166,7 +177,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       fetchQuickTransactions();
       ElegantNotification.success(
         title: Text("Success"),
-        description: Text("Transaction has been successfully ${transaction != null ? 'updated' : 'created'}!"),
+        description: Text(
+            "Transaction has been successfully ${transaction != null ? 'updated' : 'created'}!"),
       ).show(context);
     }
   }
@@ -176,7 +188,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Delete Quick Transaction', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text('Delete Quick Transaction',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         content: Text('Are you sure you want to delete this transaction?'),
         actions: [
           TextButton(
@@ -186,7 +199,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Delete', style: TextStyle(color: Colors.white)),
@@ -196,10 +210,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
 
     if (confirmed == true) {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final url = '${ApiConfig.baseUrl}/api/quick-transactions/$id';
-      final res = await http.delete(Uri.parse(url), headers: {'Authorization': 'Bearer $token'});
+      final res = await ApiClient.delete('/api/quick-transactions/$id');
       if (res.statusCode == 200) {
         fetchQuickTransactions();
         ElegantNotification.success(
@@ -221,7 +232,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Clear Quick Transaction', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text('Clear Quick Transaction',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         content: Text('Are you sure you want to clear this transaction?'),
         actions: [
           TextButton(
@@ -231,7 +243,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => Navigator.pop(context, true),
             child: Text('Clear', style: TextStyle(color: Colors.white)),
@@ -241,10 +254,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
 
     if (confirmed == true) {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final url = '${ApiConfig.baseUrl}/api/quick-transactions/$id/clear';
-      final res = await http.put(Uri.parse(url), headers: {'Authorization': 'Bearer $token'});
+      final res =
+          await ApiClient.put('/api/quick-transactions/$id/clear', body: {});
       if (res.statusCode == 200) {
         setState(() {
           final index = transactions.indexWhere((t) => t['_id'] == id);
@@ -322,7 +333,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
   }
 
-Widget _buildFilterOption(String label, String value, IconData icon) {
+  Widget _buildFilterOption(String label, String value, IconData icon) {
     final isSelected = filterBy == value;
     return ListTile(
       leading: Icon(icon, color: isSelected ? Color(0xFF00B4D8) : Colors.grey),
@@ -364,7 +375,8 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
 
   @override
   Widget build(BuildContext context) {
-    final displayedTransactions = _showAll ? filteredTransactions : filteredTransactions.take(3).toList();
+    final displayedTransactions =
+        _showAll ? filteredTransactions : filteredTransactions.take(3).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FA),
@@ -395,7 +407,8 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
                     ],
                   ),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(25),
@@ -408,17 +421,21 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
                           child: TextField(
                             onChanged: filterTransactions,
                             decoration: InputDecoration(
-                              hintText: 'Search by description, amount, or user...',
-                              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
+                              hintText:
+                                  'Search by description, amount, or user...',
+                              hintStyle: TextStyle(
+                                  color: Colors.grey[400], fontSize: 15),
                               border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 12),
                             ),
                             style: const TextStyle(fontSize: 15),
                           ),
                         ),
                         if (searchQuery.isNotEmpty)
                           IconButton(
-                            icon: Icon(Icons.clear, color: Colors.grey[400], size: 20),
+                            icon: Icon(Icons.clear,
+                                color: Colors.grey[400], size: 20),
                             onPressed: () {
                               setState(() {
                                 searchQuery = '';
@@ -462,7 +479,8 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
                           ],
                         ),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(18),
@@ -471,19 +489,25 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                filterBy == 'all' ? Icons.filter_alt_outlined : Icons.filter_alt,
-                                color: filterBy == 'all' ? Colors.black87 : Color(0xFF00B4D8),
+                                filterBy == 'all'
+                                    ? Icons.filter_alt_outlined
+                                    : Icons.filter_alt,
+                                color: filterBy == 'all'
+                                    ? Colors.black87
+                                    : Color(0xFF00B4D8),
                                 size: 18,
                               ),
                               SizedBox(width: 6),
                               Text(
-                                filterBy == 'all' 
-                                    ? 'Filter' 
-                                    : filterBy == 'cleared' 
-                                        ? 'Cleared' 
+                                filterBy == 'all'
+                                    ? 'Filter'
+                                    : filterBy == 'cleared'
+                                        ? 'Cleared'
                                         : 'Not Cleared',
                                 style: TextStyle(
-                                  color: filterBy == 'all' ? Colors.black87 : Color(0xFF00B4D8),
+                                  color: filterBy == 'all'
+                                      ? Colors.black87
+                                      : Color(0xFF00B4D8),
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -514,7 +538,8 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
                           ],
                         ),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(18),
@@ -546,29 +571,40 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
               // Transactions List
               Expanded(
                 child: loading
-                    ? const Center(child: CircularProgressIndicator(color: Colors.black87))
+                    ? const Center(
+                        child: CircularProgressIndicator(color: Colors.black87))
                     : error != null
-                        ? Center(child: Text(error!, style: const TextStyle(color: Colors.red)))
+                        ? Center(
+                            child: Text(error!,
+                                style: const TextStyle(color: Colors.red)))
                         : filteredTransactions.isEmpty
                             ? Center(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.receipt_long, size: 80, color: Colors.grey[400]),
+                                    Icon(Icons.receipt_long,
+                                        size: 80, color: Colors.grey[400]),
                                     const SizedBox(height: 20),
                                     Text(
-                                      searchQuery.isNotEmpty || filterBy != 'all'
+                                      searchQuery.isNotEmpty ||
+                                              filterBy != 'all'
                                           ? 'No transactions found'
                                           : 'No quick transactions yet.',
-                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.grey[600]),
+                                      style: TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.grey[600]),
                                     ),
                                     const SizedBox(height: 10),
                                     Text(
-                                      searchQuery.isNotEmpty || filterBy != 'all'
+                                      searchQuery.isNotEmpty ||
+                                              filterBy != 'all'
                                           ? 'Try adjusting your search or filters'
                                           : 'Tap the "+" button to create your first one!',
                                       textAlign: TextAlign.center,
-                                      style: TextStyle(fontSize: 16, color: Colors.grey[500]),
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey[500]),
                                     ),
                                   ],
                                 ),
@@ -577,18 +613,26 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
                                 children: [
                                   Expanded(
                                     child: ListView.separated(
-                                      padding: const EdgeInsets.fromLTRB(20.0, 8, 20.0, 110), // Added bottom padding to prevent bottom wave overlap
+                                      padding: const EdgeInsets.fromLTRB(
+                                          20.0,
+                                          8,
+                                          20.0,
+                                          110), // Added bottom padding to prevent bottom wave overlap
                                       itemCount: displayedTransactions.length,
-                                      separatorBuilder: (_, __) => const SizedBox(height: 16),
+                                      separatorBuilder: (_, __) =>
+                                          const SizedBox(height: 16),
                                       itemBuilder: (context, i) {
-                                        final transaction = displayedTransactions[i];
-                                        return _buildQuickTransactionCard(transaction);
+                                        final transaction =
+                                            displayedTransactions[i];
+                                        return _buildQuickTransactionCard(
+                                            transaction);
                                       },
                                     ),
                                   ),
                                   if (filteredTransactions.length > 3)
                                     Padding(
-                                      padding: const EdgeInsets.only(bottom: 100.0),
+                                      padding:
+                                          const EdgeInsets.only(bottom: 100.0),
                                       child: TextButton(
                                         onPressed: () {
                                           setState(() {
@@ -596,9 +640,12 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
                                           });
                                         },
                                         child: Text(
-                                          _showAll ? 'Show Less' : 'See All Transactions',
+                                          _showAll
+                                              ? 'Show Less'
+                                              : 'See All Transactions',
                                           style: const TextStyle(
-                                            color: Color.fromARGB(255, 6, 18, 20),
+                                            color:
+                                                Color.fromARGB(255, 6, 18, 20),
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -657,13 +704,15 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
             right: 0,
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20.0, vertical: 16.0),
                 child: Row(
                   children: [
                     IconButton(
                       icon: const Icon(Icons.arrow_back, color: Colors.black),
                       onPressed: () {
-                        Navigator.pushReplacementNamed(context, '/user/dashboard');
+                        Navigator.pushReplacementNamed(
+                            context, '/user/dashboard');
                       },
                     ),
                     Expanded(
@@ -675,7 +724,9 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
                             fontWeight: FontWeight.bold,
                             color: Colors.black,
                             letterSpacing: 1.2,
-                            shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
+                            shadows: [
+                              Shadow(color: Colors.black26, blurRadius: 4)
+                            ],
                           ),
                         ),
                       ),
@@ -765,12 +816,14 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
                     if (isCleared)
                       Text(
                         'Cleared',
-                        style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: Colors.green, fontWeight: FontWeight.bold),
                       ),
                     PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'edit') {
-                          createOrEditQuickTransaction(transaction: transaction);
+                          createOrEditQuickTransaction(
+                              transaction: transaction);
                         } else if (value == 'delete') {
                           deleteQuickTransaction(transaction['_id']);
                         } else if (value == 'clear') {
@@ -816,7 +869,9 @@ Widget _buildFilterOption(String label, String value, IconData icon) {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        (transaction['users'] as List).map((u) => u['name'] as String).join(', '),
+                        (transaction['users'] as List)
+                            .map((u) => u['name'] as String)
+                            .join(', '),
                         style: TextStyle(
                           fontSize: 14,
                           color: Colors.grey[600],
@@ -848,7 +903,8 @@ class _QuickTransactionDialog extends StatefulWidget {
   const _QuickTransactionDialog({Key? key, this.transaction}) : super(key: key);
 
   @override
-  __QuickTransactionDialogState createState() => __QuickTransactionDialogState();
+  __QuickTransactionDialogState createState() =>
+      __QuickTransactionDialogState();
 }
 
 class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
@@ -856,9 +912,11 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
   final TextEditingController _amountController = TextEditingController();
   String _currency = 'INR';
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _counterpartyEmailController = TextEditingController();
+  final TextEditingController _counterpartyEmailController =
+      TextEditingController();
   String _role = 'lender';
   bool _isLoading = false;
+  String? _userEmail;
 
   final List<Map<String, String>> _currencies = [
     {'code': 'INR', 'symbol': '₹'},
@@ -876,29 +934,54 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
   @override
   void initState() {
     super.initState();
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    _userEmail = session.user?['email'];
+
     if (widget.transaction != null) {
       _amountController.text = widget.transaction!['amount']?.toString() ?? '';
       _currency = widget.transaction!['currency'] ?? 'INR';
       _descriptionController.text = widget.transaction!['description'] ?? '';
-      final currentUserEmail = Provider.of<SessionProvider>(context, listen: false).user!['email'];
-      final counterparty = (widget.transaction!['users'] as List).firstWhere(
-        (user) => user['email'] != currentUserEmail,
-        orElse: () => null,
-      );
-      _counterpartyEmailController.text = counterparty != null ? counterparty['email'] : '';
+      final currentUserEmail = _userEmail;
+      if (currentUserEmail != null) {
+        final counterparty = (widget.transaction!['users'] as List).firstWhere(
+          (user) => user['email'] != currentUserEmail,
+          orElse: () => null,
+        );
+        _counterpartyEmailController.text =
+            counterparty != null ? counterparty['email'] : '';
+      }
       _role = widget.transaction!['role'] ?? 'lender';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final userEmail = Provider.of<SessionProvider>(context, listen: false).user!['email'];
+    final userEmail = _userEmail;
     final isEditing = widget.transaction != null;
+
+    if (userEmail == null) {
+      return Dialog(
+        child: Container(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Error: User not logged in.'),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('OK'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -926,7 +1009,9 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      isEditing ? 'Edit Quick Transaction' : 'New Quick Transaction',
+                      isEditing
+                          ? 'Edit Quick Transaction'
+                          : 'New Quick Transaction',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -937,7 +1022,7 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                 ],
               ),
             ),
-            
+
             // Form content
             Flexible(
               child: SingleChildScrollView(
@@ -952,7 +1037,8 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                           controller: _amountController,
                           decoration: InputDecoration(
                             labelText: 'Amount',
-                            prefixIcon: Icon(Icons.attach_money, color: Color(0xFF00B4D8)),
+                            prefixIcon: Icon(Icons.attach_money,
+                                color: Color(0xFF00B4D8)),
                             border: InputBorder.none,
                           ),
                           keyboardType: TextInputType.number,
@@ -965,7 +1051,7 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                         ),
                       ),
                       SizedBox(height: 16),
-                      
+
                       // Currency dropdown
                       _buildStylishField(
                         child: DropdownButtonFormField<String>(
@@ -976,23 +1062,26 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                                     child: Text('${c['symbol']} ${c['code']}'),
                                   ))
                               .toList(),
-                          onChanged: (val) => setState(() => _currency = val ?? 'INR'),
+                          onChanged: (val) =>
+                              setState(() => _currency = val ?? 'INR'),
                           decoration: InputDecoration(
                             labelText: 'Currency',
-                            prefixIcon: Icon(Icons.currency_exchange, color: Color(0xFF00B4D8)),
+                            prefixIcon: Icon(Icons.currency_exchange,
+                                color: Color(0xFF00B4D8)),
                             border: InputBorder.none,
                           ),
                         ),
                       ),
                       SizedBox(height: 16),
-                      
+
                       // Description field
                       _buildStylishField(
                         child: TextFormField(
                           controller: _descriptionController,
                           decoration: InputDecoration(
                             labelText: 'Description',
-                            prefixIcon: Icon(Icons.description, color: Color(0xFF00B4D8)),
+                            prefixIcon: Icon(Icons.description,
+                                color: Color(0xFF00B4D8)),
                             border: InputBorder.none,
                           ),
                           maxLines: 2,
@@ -1005,7 +1094,7 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                         ),
                       ),
                       SizedBox(height: 16),
-                      
+
                       // User email (disabled)
                       _buildStylishField(
                         child: TextFormField(
@@ -1019,7 +1108,7 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                         ),
                       ),
                       SizedBox(height: 16),
-                      
+
                       // Counterparty email
                       _buildStylishField(
                         child: TextFormField(
@@ -1027,7 +1116,10 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                           enabled: !isEditing,
                           decoration: InputDecoration(
                             labelText: 'Counterparty Email',
-                            prefixIcon: Icon(Icons.person_outline, color: isEditing ? Colors.grey : Color(0xFF00B4D8)),
+                            prefixIcon: Icon(Icons.person_outline,
+                                color: isEditing
+                                    ? Colors.grey
+                                    : Color(0xFF00B4D8)),
                             border: InputBorder.none,
                           ),
                           validator: (value) {
@@ -1042,19 +1134,23 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                         ),
                       ),
                       SizedBox(height: 16),
-                      
+
                       // Role dropdown
                       _buildStylishField(
                         child: DropdownButtonFormField<String>(
                           value: _role,
                           items: [
-                            DropdownMenuItem(value: 'lender', child: Text('Lender')),
-                            DropdownMenuItem(value: 'borrower', child: Text('Borrower')),
+                            DropdownMenuItem(
+                                value: 'lender', child: Text('Lender')),
+                            DropdownMenuItem(
+                                value: 'borrower', child: Text('Borrower')),
                           ],
-                          onChanged: (val) => setState(() => _role = val ?? 'lender'),
+                          onChanged: (val) =>
+                              setState(() => _role = val ?? 'lender'),
                           decoration: InputDecoration(
                             labelText: 'Your Role',
-                            prefixIcon: Icon(Icons.people, color: Color(0xFF00B4D8)),
+                            prefixIcon:
+                                Icon(Icons.people, color: Color(0xFF00B4D8)),
                             border: InputBorder.none,
                           ),
                         ),
@@ -1064,7 +1160,7 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                 ),
               ),
             ),
-            
+
             // Action buttons
             Container(
               padding: EdgeInsets.all(20),
@@ -1098,39 +1194,49 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                     child: StatefulBuilder(
                       builder: (BuildContext context, StateSetter setState) {
                         return ElevatedButton(
-                          onPressed: _isLoading ? null : () async {
-                            if (_formKey.currentState!.validate()) {
-                              setState(() {
-                                _isLoading = true;
-                              });
-                              final session = Provider.of<SessionProvider>(context, listen: false);
-                              final token = session.token;
-                              final url = isEditing
-                                  ? '${ApiConfig.baseUrl}/api/quick-transactions/${widget.transaction!['_id']}'
-                                  : '${ApiConfig.baseUrl}/api/quick-transactions';
+                          onPressed: _isLoading
+                              ? null
+                              : () async {
+                                  if (_formKey.currentState!.validate()) {
+                                    setState(() {
+                                      _isLoading = true;
+                                    });
 
-                              final body = {
-                                'amount': _amountController.text,
-                                'currency': _currency,
-                                'description': _descriptionController.text,
-                                'counterpartyEmail': _counterpartyEmailController.text,
-                                'role': _role,
-                                'date': DateTime.now().toIso8601String(),
-                                'time': TimeOfDay.now().format(context),
-                              };
+                                    final body = {
+                                      'amount': _amountController.text,
+                                      'currency': _currency,
+                                      'description':
+                                          _descriptionController.text,
+                                      'counterpartyEmail':
+                                          _counterpartyEmailController.text,
+                                      'role': _role,
+                                      'date': DateTime.now().toIso8601String(),
+                                      'time': TimeOfDay.now().format(context),
+                                    };
 
-                              final res = isEditing
-                                  ? await http.put(Uri.parse(url), headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'}, body: json.encode(body))
-                                  : await http.post(Uri.parse(url), headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'}, body: json.encode(body));
+                                    try {
+                                      final res = isEditing
+                                          ? await ApiClient.put(
+                                              '/api/quick-transactions/${widget.transaction!['_id']}',
+                                              body: body)
+                                          : await ApiClient.post(
+                                              '/api/quick-transactions',
+                                              body: body);
 
-                              if (res.statusCode == 200 || res.statusCode == 201) {
-                                Navigator.pop(context, true);
-                              } else {
-                                final error = json.decode(res.body)['error'];
-                                Navigator.pop(context, error);
-                              }
-                            }
-                          },
+                                      if (res.statusCode == 200 ||
+                                          res.statusCode == 201) {
+                                        Navigator.pop(context, true);
+                                      } else {
+                                        final error =
+                                            json.decode(res.body)['error'] ??
+                                                res.body;
+                                        Navigator.pop(context, error);
+                                      }
+                                    } catch (e) {
+                                      Navigator.pop(context, e.toString());
+                                    }
+                                  }
+                                },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Color(0xFF00B4D8),
                             padding: EdgeInsets.symmetric(vertical: 14),
@@ -1139,10 +1245,15 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                             ),
                           ),
                           child: _isLoading
-                              ? CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Colors.white))
+                              ? CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white))
                               : Text(
                                   isEditing ? 'Update' : 'Create',
-                                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold),
                                 ),
                         );
                       },
@@ -1175,6 +1286,7 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
     );
   }
 }
+
 
 class TopWaveClipper extends CustomClipper<Path> {
   @override

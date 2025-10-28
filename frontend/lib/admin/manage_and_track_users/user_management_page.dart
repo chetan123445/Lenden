@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../../user/session.dart';
 import '../../api_config.dart';
 import 'user_details_page.dart';
 import 'user_edit_page.dart';
+import '../../utils/api_client.dart';
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -43,13 +43,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/users'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.get('/api/admin/users');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -129,17 +123,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   Future<void> _toggleUserStatus(String userId, bool currentStatus) async {
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.patch(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/users/$userId/status'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
-          'isActive': !currentStatus,
-        }),
-      );
+      final response = await ApiClient.patch('/api/admin/users/$userId/status',
+          body: {'isActive': !currentStatus});
 
       if (response.statusCode == 200) {
         // Update local data
@@ -199,13 +184,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     if (confirmed == true) {
       try {
-        final session = Provider.of<SessionProvider>(context, listen: false);
-        final response = await http.delete(
-          Uri.parse('${ApiConfig.baseUrl}/api/admin/users/$userId'),
-          headers: {
-            'Authorization': 'Bearer ${session.token}',
-          },
-        );
+        final response = await ApiClient.delete('/api/admin/users/$userId');
 
         if (response.statusCode == 200) {
           setState(() {

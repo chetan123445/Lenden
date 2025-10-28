@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import '../api_config.dart';
 import '../otp_input.dart';
+import '../utils/api_client.dart';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
@@ -14,16 +14,17 @@ class EmailOtpLogin {
     required BuildContext context,
   }) async {
     try {
-      final otpSendRes = await _post('/api/users/send-login-otp', {
+      final response = await ApiClient.post('/api/users/send-login-otp', body: {
         'email': email,
       });
 
-      if (otpSendRes['status'] == 200) {
+      if (response.statusCode == 200) {
         return {'success': true};
       } else {
+        final responseData = jsonDecode(response.body);
         return {
           'success': false,
-          'error': otpSendRes['data']['error'] ?? 'User not found'
+          'error': responseData['error'] ?? 'User not found'
         };
       }
     } catch (e) {
@@ -66,63 +67,73 @@ class EmailOtpLogin {
           deviceName = 'Unknown Device';
         }
       }
-      final otpVerifyRes = await _post('/api/users/verify-login-otp', {
+      final response = await ApiClient.post('/api/users/verify-login-otp', body: {
         'email': email,
         'otp': otp,
         'deviceName': deviceName,
         if (deviceId != null) 'deviceId': deviceId,
       });
 
-      print('📥 OTP verification response status: ${otpVerifyRes['status']}');
-      print('📥 OTP verification response data: ${otpVerifyRes['data']}');
+      final responseData = jsonDecode(response.body);
+      print('📥 OTP verification response status: ${response.statusCode}');
+      print('📥 OTP verification response data: $responseData');
 
-      if (otpVerifyRes['status'] == 200) {
+      if (response.statusCode == 200) {
         final userOrAdmin =
-            otpVerifyRes['data']['user'] ?? otpVerifyRes['data']['admin'];
-        final userType = otpVerifyRes['data']['userType'] ?? 'user';
-        final token = otpVerifyRes['data']['token'];
+            responseData['user'] ?? responseData['admin'];
+        final userType = responseData['userType'] ?? 'user';
+        final accessToken = responseData['accessToken'];
+        final refreshToken = responseData['refreshToken'];
 
         print('✅ OTP verification successful');
         print('👤 User data: $userOrAdmin');
         print('🔑 User type: $userType');
-        print('🎫 Token: ${token != null ? 'Present' : 'Missing'}');
-        print('🎫 Token length: ${token?.length ?? 0}');
-        print('📋 Full response data: ${otpVerifyRes['data']}');
-        print('📋 Response keys: ${otpVerifyRes['data'].keys.toList()}');
+        print('🎫 Access Token: ${accessToken != null ? 'Present' : 'Missing'}');
+        print('🎫 Refresh Token: ${refreshToken != null ? 'Present' : 'Missing'}');
+        print('🎫 Access Token length: ${accessToken?.length ?? 0}');
+        print('🎫 Refresh Token length: ${refreshToken?.length ?? 0}');
+        print('📋 Full response data: $responseData');
+        print('📋 Response keys: ${responseData.keys.toList()}');
 
         // Check if userOrAdmin is null or empty
         if (userOrAdmin == null) {
           print('❌ ERROR: userOrAdmin is null!');
           print(
-              '❌ Available keys in data: ${otpVerifyRes['data'].keys.toList()}');
+              '❌ Available keys in data: ${responseData.keys.toList()}');
         }
 
-        // Check if token is null or empty
-        if (token == null || token.isEmpty) {
-          print('❌ ERROR: Token is null or empty!');
-          print('❌ Token value: "$token"');
+        // Check if tokens are null or empty
+        if (accessToken == null || accessToken.isEmpty) {
+          print('❌ ERROR: Access token is null or empty!');
+          print('❌ Access token value: "$accessToken"');
+        }
+
+        if (refreshToken == null || refreshToken.isEmpty) {
+          print('❌ ERROR: Refresh token is null or empty!');
+          print('❌ Refresh token value: "$refreshToken"');
         }
 
         return {
           'success': true,
           'userOrAdmin': userOrAdmin,
           'userType': userType,
-          'token': token,
+          'accessToken': accessToken,
+          'refreshToken': refreshToken,
         };
-      } else if (otpVerifyRes['status'] == 403 &&
-          otpVerifyRes['data']['canRecover'] == true) {
+      } else if (response.statusCode == 403 &&
+          responseData['canRecover'] == true) {
         return {
           'success': false,
           'canRecover': true,
-          'error': otpVerifyRes['data']['error'],
-          'email': otpVerifyRes['data']['email'],
-          'username': otpVerifyRes['data']['username'],
+          'error': responseData['error'],
+          'email': responseData['email'],
+          'username': responseData['username'],
         };
       } else {
-        print('❌ OTP verification failed: ${otpVerifyRes['data']['error']}');
+        print('❌ OTP verification failed: ${responseData['error']}');
         return {
           'success': false,
-          'error': otpVerifyRes['data']['error'] ?? 'OTP verification failed.'
+          'error': responseData['error'] ?? 'OTP verification failed.'
         };
       }
     } catch (e) {
@@ -131,48 +142,6 @@ class EmailOtpLogin {
         'success': false,
         'error': 'OTP verification failed. Please try again.'
       };
-    }
-  }
-
-  static Future<Map<String, dynamic>> _post(
-      String path, Map<String, dynamic> body) async {
-    try {
-      final response = await http.post(
-        Uri.parse(ApiConfig.baseUrl + path),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'Lenden-Flutter-App/1.0',
-        },
-        body: jsonEncode(body),
-      );
-
-      dynamic data;
-      try {
-        data = jsonDecode(response.body);
-      } catch (e) {
-        data = {'error': 'Invalid JSON response from server.', 'body': response.body};
-      }
-      
-      return {'status': response.statusCode, 'data': data};
-
-    } catch (e) {
-      if (e.toString().contains('SocketException')) {
-        return {
-          'status': 0,
-          'data': {'error': 'No internet connection'}
-        };
-      } else if (e.toString().contains('HandshakeException')) {
-        return {
-          'status': 0,
-          'data': {'error': 'SSL/TLS connection failed'}
-        };
-      } else {
-        return {
-          'status': 500,
-          'data': {'error': e.toString()}
-        };
-      }
     }
   }
 

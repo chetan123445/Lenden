@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
+import '../utils/api_client.dart';
 
 class AdminNotificationsPage extends StatefulWidget {
   const AdminNotificationsPage({Key? key}) : super(key: key);
@@ -56,36 +56,22 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
   }
 
   Future<void> _markNotificationsAsRead() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final url = '${ApiConfig.baseUrl}/api/notifications/mark-as-read';
-    await http.post(
-      Uri.parse(url),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    await ApiClient.post('/api/notifications/mark-as-read');
   }
 
   Future<void> _fetchReceivedNotifications({bool viewAll = false}) async {
     setState(() {
       _isLoadingReceived = true;
     });
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final url = viewAll
-        ? '${ApiConfig.baseUrl}/api/notifications?viewAll=true'
-        : '${ApiConfig.baseUrl}/api/notifications';
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+    final url =
+        viewAll ? '/api/notifications?viewAll=true' : '/api/notifications';
+    final response = await ApiClient.get(url);
 
     if (response.statusCode == 200) {
       setState(() {
         _receivedNotifications = json.decode(response.body);
         _isLoadingReceived = false;
-        if (viewAll) {
-          _viewAllReceived = true;
-        }
+        if (viewAll) _viewAllReceived = true;
         _calculateUnreadCount();
       });
     } else {
@@ -99,23 +85,16 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
     setState(() {
       _isLoadingSent = true;
     });
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
     final url = viewAll
-        ? '${ApiConfig.baseUrl}/api/notifications/sent?viewAll=true'
-        : '${ApiConfig.baseUrl}/api/notifications/sent';
-    final response = await http.get(
-      Uri.parse(url),
-      headers: {'Authorization': 'Bearer $token'},
-    );
+        ? '/api/notifications/sent?viewAll=true'
+        : '/api/notifications/sent';
+    final response = await ApiClient.get(url);
 
     if (response.statusCode == 200) {
       setState(() {
         _sentNotifications = json.decode(response.body);
         _isLoadingSent = false;
-        if (viewAll) {
-          _viewAllSent = true;
-        }
+        if (viewAll) _viewAllSent = true;
       });
     } else {
       setState(() {
@@ -128,29 +107,19 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
 
   Future<void> _sendNotification() async {
     if (_isSending) return;
-
     setState(() {
       _isSending = true;
     });
 
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
     final recipients =
         _recipientsController.text.split(',').map((e) => e.trim()).toList();
 
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/notifications'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'message': _messageController.text,
-          'recipientType': _recipientType,
-          'recipients': recipients,
-        }),
-      );
+      final response = await ApiClient.post('/api/notifications', body: {
+        'message': _messageController.text,
+        'recipientType': _recipientType,
+        'recipients': recipients,
+      });
 
       if (response.statusCode == 201) {
         _messageController.clear();
@@ -267,14 +236,9 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
   }
 
   Future<void> _deleteNotification(String notificationId) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/notifications/$notificationId'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response =
+          await ApiClient.delete('/api/notifications/$notificationId');
 
       if (response.statusCode == 200) {
         _fetchReceivedNotifications();
@@ -472,18 +436,13 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                     .toList();
 
                 try {
-                  final response = await http.put(
-                    Uri.parse(
-                        '${ApiConfig.baseUrl}/api/notifications/${notification['_id']}'),
-                    headers: {
-                      'Authorization': 'Bearer $token',
-                      'Content-Type': 'application/json',
-                    },
-                    body: json.encode({
+                  final response = await ApiClient.put(
+                    '/api/notifications/${notification['_id']}',
+                    body: {
                       'message': editMessageController.text,
                       'recipientType': editRecipientType,
                       'recipients': recipients,
-                    }),
+                    },
                   );
 
                   if (response.statusCode == 200) {
@@ -634,7 +593,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                             decoration: const InputDecoration(
                               labelText: 'Message',
                               border: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
                             ),
                           ),
                         ),
@@ -730,8 +690,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
               final userId = session.user!['_id'];
               final bool isRead = notification['readBy'].contains(userId);
               return Container(
-                margin: const EdgeInsets.symmetric(
-                    vertical: 8.0, horizontal: 16.0),
+                margin:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
@@ -869,8 +829,8 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
             itemBuilder: (context, index) {
               final notification = _sentNotifications[index];
               return Container(
-                margin: const EdgeInsets.symmetric(
-                    vertical: 8.0, horizontal: 16.0),
+                margin:
+                    const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),

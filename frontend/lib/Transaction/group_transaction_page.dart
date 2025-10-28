@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
+import '../utils/api_client.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../widgets/subscription_prompt.dart';
 
@@ -62,24 +62,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   Future<void> _toggleFavourite(String groupId) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final email = session.user?['email'];
-
-    if (token == null || email == null) {
-      // Handle not logged in
-      return;
-    }
-
     try {
-      final response = await http.put(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/$groupId/favourite'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({'email': email}),
+      final response = await ApiClient.put(
+        '/api/group-transactions/$groupId/favourite',
       );
 
       if (response.statusCode == 200) {
@@ -103,18 +88,14 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   Future<int> _getGroupCount() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
     final userEmail = session.user?['email'];
 
-    if (token == null || userEmail == null) {
+    if (userEmail == null) {
       return 0;
     }
 
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/user-groups'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await ApiClient.get('/api/group-transactions/user-groups');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -131,10 +112,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   Future<bool> _checkUserExists(String email) async {
     try {
-      final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/check-email'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
+      final res = await ApiClient.post(
+        '/api/users/check-email',
+        body: {'email': email},
       );
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -318,18 +298,16 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions'),
-        headers: headers,
-        body: jsonEncode({
+      final res = await ApiClient.post(
+        '/api/group-transactions',
+        body: {
           'title': _titleController.text.trim(),
           'memberEmails':
               memberEmails, // Backend expects emails for group creation
           'color': selectedGroupColor != null
               ? '#${selectedGroupColor!.value.toRadixString(16).substring(2).toUpperCase()}'
               : null,
-        }),
+        },
       );
       final data = json.decode(res.body);
       if (res.statusCode == 201) {
@@ -527,12 +505,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       memberAddError = null;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
-        headers: headers,
-        body: jsonEncode({'email': email}),
+      final res = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/add-member',
+        body: {'email': email},
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -621,12 +596,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       memberAddError = null;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
-        headers: headers,
-        body: jsonEncode({'email': email}),
+      final res = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/add-member',
+        body: {'email': email},
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -676,8 +648,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       addingExpense = true;
     });
     try {
-      final headers = await _authHeaders(context);
-
       // Prepare split data based on split type
       List<Map<String, dynamic>> splitData = [];
       if (splitType == 'equal') {
@@ -708,11 +678,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       };
       print('Adding expense with data: ${json.encode(requestData)}');
 
-      final res = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-expense'),
-        headers: headers,
-        body: jsonEncode(requestData),
+      final res = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/add-expense',
+        body: requestData,
       );
 
       print('Response status: ${res.statusCode}');
@@ -757,11 +725,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/request-leave'),
-        headers: headers,
+      final res = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/request-leave',
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -790,21 +755,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final token = Provider.of<SessionProvider>(context, listen: false).token;
-      if (token == null) {
-        setState(() {
-          error = 'Authentication token not found. Please log in again.';
-          groupsLoading = false;
-        });
-        return;
-      }
-
-      final res = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/group-transactions/user-groups'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final res = await ApiClient.get('/api/group-transactions/user-groups');
 
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
@@ -982,15 +933,12 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       loading = true;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.put(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/color'),
-        headers: headers,
-        body: jsonEncode({
+      final res = await ApiClient.put(
+        '/api/group-transactions/${group!['_id']}/color',
+        body: {
           'color':
               '#${newColor.value.toRadixString(16).substring(2).toUpperCase()}'
-        }),
+        },
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1578,11 +1526,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.delete(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}'),
-        headers: headers,
+      final res = await ApiClient.delete(
+        '/api/group-transactions/${group!['_id']}',
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1614,11 +1559,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/leave'),
-        headers: headers,
+      final res = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/leave',
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1656,11 +1598,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/send-leave-request'),
-        headers: headers,
+      final res = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/send-leave-request',
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1694,12 +1633,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
-        headers: headers,
-        body: jsonEncode({'email': email}),
+      final res = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/remove-member',
+        body: {'email': email},
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1730,12 +1666,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/add-member'),
-        headers: headers,
-        body: jsonEncode({'email': email}),
+      final res = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/add-member',
+        body: {'email': email},
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1772,14 +1705,10 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final headers = await _authHeaders(context);
-
       // First, settle all expenses for this member (set their split amounts to 0)
-      final res = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/settle-member-expenses'),
-        headers: headers,
-        body: jsonEncode({'email': email}),
+      final res = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/settle-member-expenses',
+        body: {'email': email},
       );
 
       if (res.statusCode != 200) {
@@ -1791,11 +1720,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       }
 
       // Then remove the member
-      final removeRes = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/remove-member'),
-        headers: headers,
-        body: jsonEncode({'email': email}),
+      final removeRes = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/remove-member',
+        body: {'email': email},
       );
 
       final removeData = json.decode(removeRes.body);
@@ -1827,11 +1754,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final headers = await _authHeaders(context);
-      final res = await http.delete(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId'),
-        headers: headers,
+      final res = await ApiClient.delete(
+        '/api/group-transactions/${group!['_id']}/expenses/$expenseId',
       );
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1863,8 +1787,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final headers = await _authHeaders(context);
-
       // Debug: Print the expense data being sent
       print('Sending edit expense request:');
       print('Expense ID: $expenseId');
@@ -1872,11 +1794,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       print(
           'Current user email: ${Provider.of<SessionProvider>(context, listen: false).user?['email']}');
 
-      final res = await http.put(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId'),
-        headers: headers,
-        body: jsonEncode(expenseData),
+      final res = await ApiClient.put(
+        '/api/group-transactions/${group!['_id']}/expenses/$expenseId',
+        body: expenseData,
       );
       final data = json.decode(res.body);
 
@@ -1923,18 +1843,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      final headers = {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json'
-      };
-
-      final res = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/group-transactions/${group!['_id']}/expenses/$expenseId/settle'),
-        headers: headers,
-        body: jsonEncode({'memberEmails': memberEmails}),
+      final res = await ApiClient.post(
+        '/api/group-transactions/${group!['_id']}/expenses/$expenseId/settle',
+        body: {'memberEmails': memberEmails},
       );
       final data = json.decode(res.body);
 

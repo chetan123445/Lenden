@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
@@ -8,6 +7,7 @@ import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:intl/intl.dart';
 import '../widgets/subscription_prompt.dart';
+import '../utils/api_client.dart';
 
 class ChatPage extends StatefulWidget {
   final String transactionId;
@@ -48,12 +48,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _fetchOtherUserDetails() async {
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/${widget.otherUserId}'),
-        headers: {
-          'Authorization': 'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
-        },
-      );
+      final response = await ApiClient.get('/api/users/${widget.otherUserId}');
       if (response.statusCode == 200) {
         if (mounted) {
           setState(() {
@@ -129,12 +124,8 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _fetchMessages() async {
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/chat/messages/${widget.transactionId}?userId=$_currentUserId'),
-        headers: {
-          'Authorization': 'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
-        },
-      );
+      final response = await ApiClient.get(
+          '/api/chat/messages/${widget.transactionId}?userId=$_currentUserId');
       if (response.statusCode == 200) {
         if (mounted) {
           final body = jsonDecode(response.body);
@@ -249,7 +240,11 @@ class _ChatPageState extends State<ChatPage> {
             ),
             child: Wrap(
               children: <Widget>[
-                if (isMe && DateTime.now().difference(DateTime.parse(message['createdAt'])).inMinutes < 2)
+                if (isMe &&
+                    DateTime.now()
+                            .difference(DateTime.parse(message['createdAt']))
+                            .inMinutes <
+                        2)
                   ListTile(
                     leading: Icon(Icons.edit, color: Colors.blueAccent),
                     title: Text('Edit'),
@@ -274,7 +269,8 @@ class _ChatPageState extends State<ChatPage> {
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.emoji_emotions_outlined, color: Colors.orangeAccent),
+                  leading: Icon(Icons.emoji_emotions_outlined,
+                      color: Colors.orangeAccent),
                   title: Text('React'),
                   onTap: () {
                     Navigator.of(context).pop();
@@ -299,7 +295,8 @@ class _ChatPageState extends State<ChatPage> {
                 ),
                 if (isMe)
                   ListTile(
-                    leading: Icon(Icons.delete_forever_outlined, color: Colors.red),
+                    leading:
+                        Icon(Icons.delete_forever_outlined, color: Colors.red),
                     title: Text('Delete for everyone'),
                     onTap: () {
                       Navigator.of(context).pop();
@@ -323,7 +320,8 @@ class _ChatPageState extends State<ChatPage> {
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           elevation: 0,
           backgroundColor: Colors.transparent,
           child: Container(
@@ -340,7 +338,8 @@ class _ChatPageState extends State<ChatPage> {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Icon(Icons.info_outline, color: Colors.white, size: 40),
+                  child:
+                      Icon(Icons.info_outline, color: Colors.white, size: 40),
                 ),
                 Text(
                   'Message Details',
@@ -355,7 +354,8 @@ class _ChatPageState extends State<ChatPage> {
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
                   child: Column(
                     children: [
-                      _buildInfoRow(Icons.calendar_today, 'Date', formattedDate),
+                      _buildInfoRow(
+                          Icons.calendar_today, 'Date', formattedDate),
                       SizedBox(height: 8),
                       _buildInfoRow(Icons.access_time, 'Time', formattedTime),
                     ],
@@ -364,7 +364,9 @@ class _ChatPageState extends State<ChatPage> {
                 SizedBox(height: 24),
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: Text('CLOSE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: Text('CLOSE',
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
                 SizedBox(height: 8),
               ],
@@ -388,7 +390,8 @@ class _ChatPageState extends State<ChatPage> {
         Expanded(
           child: Text(
             value,
-            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(
+                color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
             textAlign: TextAlign.end,
           ),
         ),
@@ -436,7 +439,8 @@ class _ChatPageState extends State<ChatPage> {
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           elevation: 0,
           backgroundColor: Colors.transparent,
           child: Container(
@@ -480,8 +484,12 @@ class _ChatPageState extends State<ChatPage> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('You:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                              Text('$currentUserMessageCount', style: TextStyle(fontSize: 16)),
+                              Text('You:',
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold)),
+                              Text('$currentUserMessageCount',
+                                  style: TextStyle(fontSize: 16)),
                             ],
                           ),
                         ),
@@ -495,8 +503,12 @@ class _ChatPageState extends State<ChatPage> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('${_otherUser!['name']}:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                              Text('$otherUserMessageCount', style: TextStyle(fontSize: 16)),
+                              Text('${_otherUser!['name']}:',
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold)),
+                              Text('$otherUserMessageCount',
+                                  style: TextStyle(fontSize: 16)),
                             ],
                           ),
                         ),
@@ -558,7 +570,8 @@ class _ChatPageState extends State<ChatPage> {
                                   height: 40,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) {
-                                    final gender = _otherUser?['gender'] ?? 'Other';
+                                    final gender =
+                                        _otherUser?['gender'] ?? 'Other';
                                     if (gender == 'Male') {
                                       return Image.asset('assets/Male.png');
                                     } else if (gender == 'Female') {
@@ -580,7 +593,8 @@ class _ChatPageState extends State<ChatPage> {
                           Text(_otherUser!['name'] ?? 'User'),
                           Text(
                             _otherUser!['email'] ?? '',
-                            style: TextStyle(fontSize: 12, color: Colors.white70),
+                            style:
+                                TextStyle(fontSize: 12, color: Colors.white70),
                           ),
                         ],
                       ),
@@ -614,7 +628,8 @@ class _ChatPageState extends State<ChatPage> {
                       itemBuilder: (context, index) {
                         final message = _messages.reversed.toList()[index];
                         final sender = message['senderId'];
-                        final isMe = sender is Map && sender['_id'] == _currentUserId;
+                        final isMe =
+                            sender is Map && sender['_id'] == _currentUserId;
                         return _buildMessageBubble(message, isMe);
                       },
                     ),
@@ -635,7 +650,9 @@ class _ChatPageState extends State<ChatPage> {
     }
     final createdAt = DateTime.parse(message['createdAt']).toLocal();
     final now = DateTime.now();
-    final isToday = createdAt.day == now.day && createdAt.month == now.month && createdAt.year == now.year;
+    final isToday = createdAt.day == now.day &&
+        createdAt.month == now.month &&
+        createdAt.year == now.year;
 
     String formattedTimestamp;
     if (isToday) {
@@ -643,12 +660,14 @@ class _ChatPageState extends State<ChatPage> {
     } else {
       formattedTimestamp = DateFormat('MMM d, yyyy, h:mm a').format(createdAt);
     }
-    final hasReactions = message['reactions'] != null && message['reactions'].isNotEmpty;
+    final hasReactions =
+        message['reactions'] != null && message['reactions'].isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
       child: Column(
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
           if (message['parentMessageId'] != null)
             Container(
@@ -661,13 +680,18 @@ class _ChatPageState extends State<ChatPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Replying to ${message['parentMessageId']['senderId']['name']}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black54)),
-                  Text(message['parentMessageId']['message'], style: TextStyle(color: Colors.black54)),
+                  Text(
+                      'Replying to ${message['parentMessageId']['senderId']['name']}',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.black54)),
+                  Text(message['parentMessageId']['message'],
+                      style: TextStyle(color: Colors.black54)),
                 ],
               ),
             ),
           Row(
-            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+            mainAxisAlignment:
+                isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (!isMe)
@@ -690,25 +714,35 @@ class _ChatPageState extends State<ChatPage> {
                         ),
                       ),
                       child: Container(
-                        padding: EdgeInsets.fromLTRB(12, 10, 12, hasReactions ? 25 : 10),
+                        padding: EdgeInsets.fromLTRB(
+                            12, 10, 12, hasReactions ? 25 : 10),
                         decoration: BoxDecoration(
                           color: isMe ? Color(0xFFE8F5E9) : Color(0xFFE3F2FD),
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: Column(
-                          crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                          crossAxisAlignment: isMe
+                              ? CrossAxisAlignment.end
+                              : CrossAxisAlignment.start,
                           children: [
                             Text(
                               message['message'],
-                              style: TextStyle(color: Colors.black, fontSize: 16),
+                              style:
+                                  TextStyle(color: Colors.black, fontSize: 16),
                             ),
                             SizedBox(height: 4),
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(formattedTimestamp, style: TextStyle(fontSize: 10, color: Colors.black54)),
+                                Text(formattedTimestamp,
+                                    style: TextStyle(
+                                        fontSize: 10, color: Colors.black54)),
                                 if (message['isEdited'] == true)
-                                  Text(' (edited)', style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.black54)),
+                                  Text(' (edited)',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          fontStyle: FontStyle.italic,
+                                          color: Colors.black54)),
                               ],
                             ),
                           ],
@@ -720,16 +754,24 @@ class _ChatPageState extends State<ChatPage> {
                         bottom: -12,
                         right: 10,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 6),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 3, horizontal: 6),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(10),
-                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 4, offset: Offset(0, 1))],
+                            boxShadow: [
+                              BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 4,
+                                  offset: Offset(0, 1))
+                            ],
                           ),
                           child: Wrap(
                             spacing: 5,
-                            children: message['reactions'].map<Widget>((reaction) {
-                              return Text(reaction['emoji'], style: TextStyle(fontSize: 14));
+                            children:
+                                message['reactions'].map<Widget>((reaction) {
+                              return Text(reaction['emoji'],
+                                  style: TextStyle(fontSize: 14));
                             }).toList(),
                           ),
                         ),
@@ -777,7 +819,11 @@ class _ChatPageState extends State<ChatPage> {
         child: Row(
           children: [
             IconButton(
-              icon: Icon(_showEmojiPicker ? Icons.close : Icons.emoji_emotions_outlined, color: Colors.grey),
+              icon: Icon(
+                  _showEmojiPicker
+                      ? Icons.close
+                      : Icons.emoji_emotions_outlined,
+                  color: Colors.grey),
               onPressed: _onEmojiIconPressed,
             ),
             Expanded(
@@ -829,8 +875,11 @@ class _ChatPageState extends State<ChatPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Replying to ${(_replyingTo['senderId'] is Map ? _replyingTo['senderId']['name'] : '')}', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(_replyingTo['message'], maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text(
+                    'Replying to ${(_replyingTo['senderId'] is Map ? _replyingTo['senderId']['name'] : '')}',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(_replyingTo['message'],
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
@@ -857,8 +906,10 @@ class _ChatPageState extends State<ChatPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Editing message', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text(_editingMessage['message'], maxLines: 1, overflow: TextOverflow.ellipsis),
+                Text('Editing message',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                Text(_editingMessage['message'],
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
@@ -883,11 +934,15 @@ class WaveClipper extends CustomClipper<Path> {
     Path path = Path();
     path.lineTo(0, size.height * 0.525); // 0.7 * 0.75
     path.quadraticBezierTo(
-        size.width * 0.25, size.height * 0.75, // 1.0 * 0.75
-        size.width * 0.5, size.height * 0.525); // 0.7 * 0.75
+        size.width * 0.25,
+        size.height * 0.75, // 1.0 * 0.75
+        size.width * 0.5,
+        size.height * 0.525); // 0.7 * 0.75
     path.quadraticBezierTo(
-        size.width * 0.75, size.height * 0.3, // 0.4 * 0.75
-        size.width, size.height * 0.525); // 0.7 * 0.75
+        size.width * 0.75,
+        size.height * 0.3, // 0.4 * 0.75
+        size.width,
+        size.height * 0.525); // 0.7 * 0.75
     path.lineTo(size.width, 0);
     path.close();
     return path;

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
+import '../utils/api_client.dart';
 
 class AdminNotesPage extends StatefulWidget {
   const AdminNotesPage({Key? key}) : super(key: key);
@@ -38,9 +38,13 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
           case 'updated_desc':
             return (b['updatedAt'] ?? '').compareTo(a['updatedAt'] ?? '');
           case 'title_az':
-            return (a['title'] ?? '').toLowerCase().compareTo((b['title'] ?? '').toLowerCase());
+            return (a['title'] ?? '')
+                .toLowerCase()
+                .compareTo((b['title'] ?? '').toLowerCase());
           case 'title_za':
-            return (b['title'] ?? '').toLowerCase().compareTo((a['title'] ?? '').toLowerCase());
+            return (b['title'] ?? '')
+                .toLowerCase()
+                .compareTo((a['title'] ?? '').toLowerCase());
           default:
             return 0;
         }
@@ -51,39 +55,55 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
   void filterNotes(String query) {
     setState(() {
       searchQuery = query;
-      filteredNotes = notes.where((note) => (note['title'] ?? '').toLowerCase().contains(query.toLowerCase())).toList();
+      filteredNotes = notes
+          .where((note) =>
+              (note['title'] ?? '').toLowerCase().contains(query.toLowerCase()))
+          .toList();
       sortNotes();
     });
   }
 
   Future<void> fetchNotes() async {
-    setState(() { loading = true; error = null; });
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final url = '${ApiConfig.baseUrl}/api/notes';
-    final res = await http.get(Uri.parse(url), headers: {'Authorization': 'Bearer $token'});
-    if (res.statusCode == 200) {
-      final fetchedNotes = List<Map<String, dynamic>>.from(json.decode(res.body)['notes']);
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      final res = await ApiClient.get('/api/notes');
+      if (res.statusCode == 200) {
+        final fetchedNotes =
+            List<Map<String, dynamic>>.from(json.decode(res.body)['notes']);
+        setState(() {
+          notes = fetchedNotes;
+          filteredNotes = fetchedNotes;
+          sortNotes();
+          loading = false;
+        });
+      } else {
+        setState(() {
+          error = 'Failed to load notes';
+          loading = false;
+        });
+      }
+    } catch (e) {
       setState(() {
-        notes = fetchedNotes;
-        filteredNotes = fetchedNotes;
-        sortNotes();
+        error = 'Failed to load notes';
         loading = false;
       });
-    } else {
-      setState(() { error = 'Failed to load notes'; loading = false; });
     }
   }
 
   Future<void> createOrEditNote({Map<String, dynamic>? note}) async {
     final titleController = TextEditingController(text: note?['title'] ?? '');
-    final contentController = TextEditingController(text: note?['content'] ?? '');
+    final contentController =
+        TextEditingController(text: note?['content'] ?? '');
     final isEdit = note != null;
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           elevation: 0,
           backgroundColor: Colors.transparent,
           child: Container(
@@ -167,24 +187,32 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
-                          child: Text('Cancel', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+                          child: Text('Cancel',
+                              style: TextStyle(
+                                  color: Colors.grey[600], fontSize: 16)),
                         ),
                         SizedBox(width: 10),
                         ElevatedButton(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.black87,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
                           ),
                           onPressed: () {
                             final title = titleController.text.trim();
                             final content = contentController.text.trim();
                             if (title.isEmpty || content.isEmpty) return;
-                            Navigator.pop(context, {'title': title, 'content': content});
+                            Navigator.pop(
+                                context, {'title': title, 'content': content});
                           },
                           child: Text(
                             isEdit ? 'Update' : 'Create',
-                            style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -197,21 +225,23 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
         );
       },
     );
-    if (result != null && result['title']!.isNotEmpty && result['content']!.isNotEmpty) {
+    if (result != null &&
+        result['title']!.isNotEmpty &&
+        result['content']!.isNotEmpty) {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
       if (isEdit) {
         final url = '${ApiConfig.baseUrl}/api/notes/${note!['_id']}';
-        final res = await http.put(Uri.parse(url),
-          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-          body: json.encode({'title': result['title'], 'content': result['content']}),
+        final res = await ApiClient.put(
+          '/api/notes/${note!['_id']}',
+          body: {'title': result['title'], 'content': result['content']},
         );
         if (res.statusCode == 200) {
           final updatedNote = Map<String, dynamic>.from(note);
           updatedNote['title'] = result['title'];
           updatedNote['content'] = result['content'];
           updatedNote['updatedAt'] = DateTime.now().toIso8601String();
-          
+
           setState(() {
             final index = notes.indexWhere((n) => n['_id'] == note['_id']);
             if (index != -1) {
@@ -222,9 +252,9 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
         }
       } else {
         final url = '${ApiConfig.baseUrl}/api/notes';
-        final res = await http.post(Uri.parse(url),
-          headers: {'Authorization': 'Bearer $token', 'Content-Type': 'application/json'},
-          body: json.encode({'title': result['title'], 'content': result['content']}),
+        final res = await ApiClient.post(
+          '/api/notes',
+          body: {'title': result['title'], 'content': result['content']},
         );
         if (res.statusCode == 201) {
           final newNote = json.decode(res.body)['note'];
@@ -253,7 +283,8 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
               child: Icon(Icons.delete_outline, color: Colors.red, size: 24),
             ),
             SizedBox(width: 12),
-            Text('Delete Note', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
+            Text('Delete Note',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
           ],
         ),
         content: Text(
@@ -266,17 +297,26 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
             style: TextButton.styleFrom(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey[600], fontSize: 15, fontWeight: FontWeight.w600)),
+            child: Text('Cancel',
+                style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               elevation: 0,
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: Text('Delete', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+            child: Text('Delete',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -286,7 +326,7 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
       final url = '${ApiConfig.baseUrl}/api/notes/$id';
-      final res = await http.delete(Uri.parse(url), headers: {'Authorization': 'Bearer $token'});
+      final res = await ApiClient.delete('/api/notes/$id');
       if (res.statusCode == 200) {
         setState(() {
           notes.removeWhere((note) => note['_id'] == id);
@@ -304,7 +344,20 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
   }
 
   String _getMonthName(int month) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return months[month - 1];
   }
 
@@ -347,13 +400,17 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                   SizedBox(width: 12),
                   Text(
                     'Sort By',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87),
                   ),
                 ],
               ),
             ),
             Divider(height: 1, thickness: 1, color: Colors.grey[200]),
-            _buildSortOption('created_desc', 'Newest First', Icons.new_releases),
+            _buildSortOption(
+                'created_desc', 'Newest First', Icons.new_releases),
             _buildSortOption('created_asc', 'Oldest First', Icons.access_time),
             _buildSortOption('updated_desc', 'Recently Updated', Icons.update),
             _buildSortOption('updated_asc', 'Least Updated', Icons.history),
@@ -379,7 +436,8 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.blue.withOpacity(0.05) : Colors.transparent,
+          color:
+              isSelected ? Colors.blue.withOpacity(0.05) : Colors.transparent,
           border: Border(
             left: BorderSide(
               color: isSelected ? Colors.blue : Colors.transparent,
@@ -422,13 +480,15 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
           children: [
             // Header
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
               child: Row(
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.black87),
                     onPressed: () {
-                      Navigator.pushReplacementNamed(context, '/admin/dashboard');
+                      Navigator.pushReplacementNamed(
+                          context, '/admin/dashboard');
                     },
                   ),
                   Expanded(
@@ -448,7 +508,7 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                 ],
               ),
             ),
-            
+
             // Search Bar with Tricolor Border
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -470,7 +530,8 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                   ],
                 ),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(25),
@@ -484,16 +545,19 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                           onChanged: filterNotes,
                           decoration: InputDecoration(
                             hintText: 'Search notes...',
-                            hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
+                            hintStyle: TextStyle(
+                                color: Colors.grey[400], fontSize: 15),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 12),
                           ),
                           style: const TextStyle(fontSize: 15),
                         ),
                       ),
                       if (searchQuery.isNotEmpty)
                         IconButton(
-                          icon: Icon(Icons.clear, color: Colors.grey[400], size: 20),
+                          icon: Icon(Icons.clear,
+                              color: Colors.grey[400], size: 20),
                           onPressed: () => filterNotes(''),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(),
@@ -503,9 +567,9 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Sort button with Tricolor Border
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -532,7 +596,8 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                         ],
                       ),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(18),
@@ -540,7 +605,8 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.filter_list, color: Colors.black87, size: 18),
+                            Icon(Icons.filter_list,
+                                color: Colors.black87, size: 18),
                             SizedBox(width: 6),
                             Text(
                               'Sort',
@@ -558,38 +624,48 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Notes List
             Expanded(
               child: loading
-                  ? const Center(child: CircularProgressIndicator(color: Colors.black87))
+                  ? const Center(
+                      child: CircularProgressIndicator(color: Colors.black87))
                   : error != null
-                      ? Center(child: Text(error!, style: const TextStyle(color: Colors.red)))
+                      ? Center(
+                          child: Text(error!,
+                              style: const TextStyle(color: Colors.red)))
                       : filteredNotes.isEmpty
                           ? Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.note_outlined, size: 64, color: Colors.grey[300]),
+                                  Icon(Icons.note_outlined,
+                                      size: 64, color: Colors.grey[300]),
                                   SizedBox(height: 16),
                                   Text(
                                     'No notes yet',
-                                    style: TextStyle(color: Colors.grey[400], fontSize: 18, fontWeight: FontWeight.w500),
+                                    style: TextStyle(
+                                        color: Colors.grey[400],
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w500),
                                   ),
                                   SizedBox(height: 8),
                                   Text(
                                     'Tap + to create your first note',
-                                    style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                                    style: TextStyle(
+                                        color: Colors.grey[400], fontSize: 14),
                                   ),
                                 ],
                               ),
                             )
                           : ListView.separated(
-                              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20.0, vertical: 8),
                               itemCount: filteredNotes.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 16),
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 16),
                               itemBuilder: (context, i) {
                                 final note = filteredNotes[i];
                                 return GestureDetector(
@@ -599,7 +675,11 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(22),
                                       gradient: const LinearGradient(
-                                        colors: [Colors.orange, Colors.white, Colors.green],
+                                        colors: [
+                                          Colors.orange,
+                                          Colors.white,
+                                          Colors.green
+                                        ],
                                         begin: Alignment.topLeft,
                                         end: Alignment.bottomRight,
                                       ),
@@ -619,92 +699,150 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                                       child: Padding(
                                         padding: const EdgeInsets.all(20),
                                         child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment
+                                                      .spaceBetween,
                                               children: [
                                                 Expanded(
                                                   child: Text(
-                                                    note['title'] ?? '(No Title)',
+                                                    note['title'] ??
+                                                        '(No Title)',
                                                     style: const TextStyle(
                                                       fontSize: 18,
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                       color: Colors.black87,
                                                     ),
                                                     maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
                                                   ),
                                                 ),
                                                 PopupMenuButton(
                                                   icon: Container(
                                                     padding: EdgeInsets.all(4),
                                                     decoration: BoxDecoration(
-                                                      color: Colors.black.withOpacity(0.05),
-                                                      borderRadius: BorderRadius.circular(8),
+                                                      color: Colors.black
+                                                          .withOpacity(0.05),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8),
                                                     ),
-                                                    child: Icon(Icons.more_vert, color: Colors.grey[700], size: 20),
+                                                    child: Icon(Icons.more_vert,
+                                                        color: Colors.grey[700],
+                                                        size: 20),
                                                   ),
-                                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                  shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              16)),
                                                   elevation: 8,
                                                   offset: Offset(0, 8),
                                                   itemBuilder: (context) => [
                                                     PopupMenuItem(
                                                       child: Container(
-                                                        padding: EdgeInsets.symmetric(vertical: 4),
+                                                        padding: EdgeInsets
+                                                            .symmetric(
+                                                                vertical: 4),
                                                         child: Row(
                                                           children: [
                                                             Container(
-                                                              padding: EdgeInsets.all(8),
-                                                              decoration: BoxDecoration(
-                                                                color: Colors.blue.withOpacity(0.1),
-                                                                borderRadius: BorderRadius.circular(8),
+                                                              padding:
+                                                                  EdgeInsets
+                                                                      .all(8),
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                color: Colors
+                                                                    .blue
+                                                                    .withOpacity(
+                                                                        0.1),
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                            8),
                                                               ),
-                                                              child: Icon(Icons.edit, size: 18, color: Colors.blue),
+                                                              child: Icon(
+                                                                  Icons.edit,
+                                                                  size: 18,
+                                                                  color: Colors
+                                                                      .blue),
                                                             ),
                                                             SizedBox(width: 12),
                                                             Text(
                                                               'Edit Note',
                                                               style: TextStyle(
                                                                 fontSize: 15,
-                                                                fontWeight: FontWeight.w500,
-                                                                color: Colors.black87,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                                color: Colors
+                                                                    .black87,
                                                               ),
                                                             ),
                                                           ],
                                                         ),
                                                       ),
                                                       onTap: () {
-                                                        Future.delayed(Duration.zero, () => createOrEditNote(note: note));
+                                                        Future.delayed(
+                                                            Duration.zero,
+                                                            () =>
+                                                                createOrEditNote(
+                                                                    note:
+                                                                        note));
                                                       },
                                                     ),
                                                     PopupMenuItem(
                                                       child: Container(
-                                                        padding: EdgeInsets.symmetric(vertical: 4),
+                                                        padding: EdgeInsets
+                                                            .symmetric(
+                                                                vertical: 4),
                                                         child: Row(
                                                           children: [
                                                             Container(
-                                                              padding: EdgeInsets.all(8),
-                                                              decoration: BoxDecoration(
-                                                                color: Colors.red.withOpacity(0.1),
-                                                                borderRadius: BorderRadius.circular(8),
+                                                              padding:
+                                                                  EdgeInsets
+                                                                      .all(8),
+                                                              decoration:
+                                                                  BoxDecoration(
+                                                                color: Colors
+                                                                    .red
+                                                                    .withOpacity(
+                                                                        0.1),
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                            8),
                                                               ),
-                                                              child: Icon(Icons.delete, size: 18, color: Colors.red),
+                                                              child: Icon(
+                                                                  Icons.delete,
+                                                                  size: 18,
+                                                                  color: Colors
+                                                                      .red),
                                                             ),
                                                             SizedBox(width: 12),
                                                             Text(
                                                               'Delete Note',
                                                               style: TextStyle(
                                                                 fontSize: 15,
-                                                                fontWeight: FontWeight.w500,
-                                                                color: Colors.red,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                                color:
+                                                                    Colors.red,
                                                               ),
                                                             ),
                                                           ],
                                                         ),
                                                       ),
                                                       onTap: () {
-                                                        Future.delayed(Duration.zero, () => deleteNote(note['_id']));
+                                                        Future.delayed(
+                                                            Duration.zero,
+                                                            () => deleteNote(
+                                                                note['_id']));
                                                       },
                                                     ),
                                                   ],
@@ -714,7 +852,9 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                                             const SizedBox(height: 12),
                                             Row(
                                               children: [
-                                                Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
+                                                Icon(Icons.calendar_today,
+                                                    size: 12,
+                                                    color: Colors.grey[600]),
                                                 SizedBox(width: 4),
                                                 Text(
                                                   'Created: ${_formatDate(note['createdAt'])}',
@@ -724,7 +864,9 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                                                   ),
                                                 ),
                                                 SizedBox(width: 12),
-                                                Icon(Icons.update, size: 12, color: Colors.grey[600]),
+                                                Icon(Icons.update,
+                                                    size: 12,
+                                                    color: Colors.grey[600]),
                                                 SizedBox(width: 4),
                                                 Text(
                                                   'Updated: ${_formatDate(note['updatedAt'])}',
@@ -739,7 +881,8 @@ class _AdminNotesPageState extends State<AdminNotesPage> {
                                             SingleChildScrollView(
                                               scrollDirection: Axis.vertical,
                                               child: SingleChildScrollView(
-                                                scrollDirection: Axis.horizontal,
+                                                scrollDirection:
+                                                    Axis.horizontal,
                                                 child: Text(
                                                   note['content'] ?? '',
                                                   style: TextStyle(

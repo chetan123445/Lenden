@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
+import '../utils/api_client.dart';
 import '../user/session.dart';
 import 'package:intl/intl.dart';
 
@@ -117,8 +117,7 @@ class _ActivityPageState extends State<ActivityPage> {
 
       final uri = Uri.parse('$baseUrl/api/activities')
           .replace(queryParameters: queryParams);
-      final response =
-          await http.get(uri, headers: {'Authorization': 'Bearer $token'});
+      final response = await ApiClient.get(uri.path + (uri.query.isNotEmpty ? '?' + uri.query : ''));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -174,8 +173,7 @@ class _ActivityPageState extends State<ActivityPage> {
 
       final uri = Uri.parse('$baseUrl/api/activities/stats')
           .replace(queryParameters: queryParams);
-      final response =
-          await http.get(uri, headers: {'Authorization': 'Bearer $token'});
+      final response = await ApiClient.get(uri.path + (uri.query.isNotEmpty ? '?' + uri.query : ''));
 
       if (response.statusCode == 200) {
         setState(() {
@@ -1515,10 +1513,7 @@ class _ActivityPageState extends State<ActivityPage> {
 
                             final uri = Uri.parse(
                                 '$baseUrl/api/activities/${activity['_id']}');
-                            final response = await http.delete(
-                              uri,
-                              headers: {'Authorization': 'Bearer $token'},
-                            );
+                            final response = await ApiClient.delete(uri.path);
 
                             if (response.statusCode == 200) {
                               // Remove from local list

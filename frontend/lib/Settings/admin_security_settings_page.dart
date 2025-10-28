@@ -2,8 +2,8 @@ import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../user/session.dart';
+import '../utils/api_client.dart';
 
 class AdminSecuritySettingsPage extends StatefulWidget {
   const AdminSecuritySettingsPage({super.key});
@@ -55,13 +55,7 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/security-settings'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.get('/api/admin/security-settings');
 
       if (response.statusCode == 200) {
         final settings = json.decode(response.body);
@@ -117,36 +111,29 @@ class _AdminSecuritySettingsPageState extends State<AdminSecuritySettingsPage> {
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/security-settings'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
-          'requireTwoFactorAuth': _requireTwoFactorAuth,
-          'enableSessionTimeout': _enableSessionTimeout,
-          'sessionTimeoutMinutes': int.parse(_sessionTimeoutMinutes),
-          'enableLoginNotifications': _enableLoginNotifications,
-          'enableFailedLoginAlerts': _enableFailedLoginAlerts,
-          'maxFailedAttempts': _maxFailedAttempts,
-          'lockoutDuration': int.parse(_lockoutDuration),
-          'enableIpWhitelist': _enableIpWhitelist,
-          'allowedIps': _allowedIps,
-          'enableGeolocationRestriction': _enableGeolocationRestriction,
-          'allowedCountries': _allowedCountries,
-          'enableTimeBasedAccess': _enableTimeBasedAccess,
-          'accessStartTime': _accessStartTime,
-          'accessEndTime': _accessEndTime,
-          'requireStrongPasswords': _requireStrongPasswords,
-          'enablePasswordExpiry': _enablePasswordExpiry,
-          'passwordExpiryDays': int.parse(_passwordExpiryDays),
-          'preventPasswordReuse': _preventPasswordReuse,
-          'passwordHistoryCount': _passwordHistoryCount,
-          'enableAccountLockout': _enableAccountLockout,
-        }),
-      );
+      final response =
+          await ApiClient.put('/api/admin/security-settings', body: {
+        'requireTwoFactorAuth': _requireTwoFactorAuth,
+        'enableSessionTimeout': _enableSessionTimeout,
+        'sessionTimeoutMinutes': int.parse(_sessionTimeoutMinutes),
+        'enableLoginNotifications': _enableLoginNotifications,
+        'enableFailedLoginAlerts': _enableFailedLoginAlerts,
+        'maxFailedAttempts': _maxFailedAttempts,
+        'lockoutDuration': int.parse(_lockoutDuration),
+        'enableIpWhitelist': _enableIpWhitelist,
+        'allowedIps': _allowedIps,
+        'enableGeolocationRestriction': _enableGeolocationRestriction,
+        'allowedCountries': _allowedCountries,
+        'enableTimeBasedAccess': _enableTimeBasedAccess,
+        'accessStartTime': _accessStartTime,
+        'accessEndTime': _accessEndTime,
+        'requireStrongPasswords': _requireStrongPasswords,
+        'enablePasswordExpiry': _enablePasswordExpiry,
+        'passwordExpiryDays': int.parse(_passwordExpiryDays),
+        'preventPasswordReuse': _preventPasswordReuse,
+        'passwordHistoryCount': _passwordHistoryCount,
+        'enableAccountLockout': _enableAccountLockout,
+      });
 
       if (response.statusCode == 200) {
         if (mounted) {

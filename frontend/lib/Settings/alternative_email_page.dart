@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'dart:async';
-import 'package:http/http.dart' as http;
-import '../api_config.dart';
 import '../user/session.dart';
 import '../otp_input.dart';
 import 'custom_warning_widget.dart';
+import '../utils/api_client.dart';
 
 class AlternativeEmailPage extends StatefulWidget {
   const AlternativeEmailPage({super.key});
@@ -49,12 +48,7 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/me'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.get('/api/users/me');
 
       if (response.statusCode == 200) {
         final userData = json.decode(response.body);
@@ -90,15 +84,9 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/alternative-email/send-otp'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
-          'altEmail': _emailController.text.trim(),
-        }),
+      final response = await ApiClient.post(
+        '/api/users/alternative-email/send-otp',
+        body: {'altEmail': _emailController.text.trim()},
       );
 
       if (response.statusCode == 200) {
@@ -147,17 +135,9 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/users/alternative-email/verify-otp'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
-          'altEmail': _targetEmail,
-          'otp': _otpCode,
-        }),
+      final response = await ApiClient.post(
+        '/api/users/alternative-email/verify-otp',
+        body: {'altEmail': _targetEmail, 'otp': _otpCode},
       );
 
       if (response.statusCode == 200) {
@@ -277,12 +257,7 @@ class _AlternativeEmailPageState extends State<AlternativeEmailPage> {
 
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/users/alternative-email'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.delete('/api/users/alternative-email');
 
       if (response.statusCode == 200) {
         if (mounted) {

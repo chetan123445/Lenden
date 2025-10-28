@@ -20,7 +20,6 @@ import 'admin/admin_ratings_page.dart';
 import 'admin/admin_feedbacks_page.dart';
 import 'user/notifications_page.dart';
 import 'admin/notifications_page.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'api_config.dart';
 import 'widgets/notification_icon.dart';

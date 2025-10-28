@@ -2,8 +2,8 @@ import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../user/session.dart';
+import '../utils/api_client.dart';
 
 class AdminSystemSettingsPage extends StatefulWidget {
   const AdminSystemSettingsPage({super.key});
@@ -51,13 +51,7 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/system-settings'),
-        headers: {
-          'Authorization': 'Bearer ${session.token}',
-        },
-      );
+      final response = await ApiClient.get('/api/admin/system-settings');
 
       if (response.statusCode == 200) {
         final settings = json.decode(response.body);
@@ -111,32 +105,24 @@ class _AdminSystemSettingsPageState extends State<AdminSystemSettingsPage> {
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/system-settings'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
-          'maintenanceMode': _maintenanceMode,
-          'userRegistrationEnabled': _userRegistrationEnabled,
-          'emailVerificationRequired': _emailVerificationRequired,
-          'phoneVerificationRequired': _phoneVerificationRequired,
-          'autoApproveUsers': _autoApproveUsers,
-          'enableNotifications': _enableNotifications,
-          'enableAnalytics': _enableAnalytics,
-          'maxTransactionAmount': double.parse(_maxTransactionAmount),
-          'minTransactionAmount': double.parse(_minTransactionAmount),
-          'dailyTransactionLimit': double.parse(_dailyTransactionLimit),
-          'monthlyTransactionLimit': double.parse(_monthlyTransactionLimit),
-          'defaultCurrency': _defaultCurrency,
-          'timezone': _timezone,
-          'dateFormat': _dateFormat,
-          'timeFormat': _timeFormat,
-          'language': _language,
-        }),
-      );
+      final response = await ApiClient.put('/api/admin/system-settings', body: {
+        'maintenanceMode': _maintenanceMode,
+        'userRegistrationEnabled': _userRegistrationEnabled,
+        'emailVerificationRequired': _emailVerificationRequired,
+        'phoneVerificationRequired': _phoneVerificationRequired,
+        'autoApproveUsers': _autoApproveUsers,
+        'enableNotifications': _enableNotifications,
+        'enableAnalytics': _enableAnalytics,
+        'maxTransactionAmount': double.parse(_maxTransactionAmount),
+        'minTransactionAmount': double.parse(_minTransactionAmount),
+        'dailyTransactionLimit': double.parse(_dailyTransactionLimit),
+        'monthlyTransactionLimit': double.parse(_monthlyTransactionLimit),
+        'defaultCurrency': _defaultCurrency,
+        'timezone': _timezone,
+        'dateFormat': _dateFormat,
+        'timeFormat': _timeFormat,
+        'language': _language,
+      });
 
       if (response.statusCode == 200) {
         if (mounted) {

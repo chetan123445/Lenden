@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
-import '../api_config.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import '../utils/api_client.dart';
 
 class TrackUserActivityPage extends StatefulWidget {
   @override
@@ -49,24 +48,9 @@ class _TrackUserActivityPageState extends State<TrackUserActivityPage> {
       _activities = []; // Clear previous activities
     });
 
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      setState(() {
-        _error = 'Authentication token not found.';
-        _loading = false;
-      });
-      return;
-    }
-
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/user-activity/$searchTerm'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiClient.get(
+          '/api/admin/user-activity/${Uri.encodeComponent(searchTerm)}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -91,27 +75,48 @@ class _TrackUserActivityPageState extends State<TrackUserActivityPage> {
 
   String _getActivityTypeDisplayName(String type) {
     switch (type) {
-      case 'transaction_created': return 'Transaction Created';
-      case 'transaction_cleared': return 'Transaction Cleared';
-      case 'partial_payment_made': return 'Partial Payment Made';
-      case 'partial_payment_received': return 'Partial Payment Received';
-      case 'group_created': return 'Group Created';
-      case 'group_joined': return 'Joined Group';
-      case 'group_left': return 'Left Group';
-      case 'member_added': return 'Member Added';
-      case 'member_removed': return 'Member Removed';
-      case 'expense_added': return 'Expense Added';
-      case 'expense_edited': return 'Expense Edited';
-      case 'expense_deleted': return 'Expense Deleted';
-      case 'expense_settled': return 'Expense Settled';
-      case 'note_created': return 'Note Created';
-      case 'note_edited': return 'Note Edited';
-      case 'note_deleted': return 'Note Deleted';
-      case 'profile_updated': return 'Profile Updated';
-      case 'password_changed': return 'Password Changed';
-      case 'login': return 'Login';
-      case 'logout': return 'Logout';
-      default: return type.replaceAll('_', ' ').toUpperCase();
+      case 'transaction_created':
+        return 'Transaction Created';
+      case 'transaction_cleared':
+        return 'Transaction Cleared';
+      case 'partial_payment_made':
+        return 'Partial Payment Made';
+      case 'partial_payment_received':
+        return 'Partial Payment Received';
+      case 'group_created':
+        return 'Group Created';
+      case 'group_joined':
+        return 'Joined Group';
+      case 'group_left':
+        return 'Left Group';
+      case 'member_added':
+        return 'Member Added';
+      case 'member_removed':
+        return 'Member Removed';
+      case 'expense_added':
+        return 'Expense Added';
+      case 'expense_edited':
+        return 'Expense Edited';
+      case 'expense_deleted':
+        return 'Expense Deleted';
+      case 'expense_settled':
+        return 'Expense Settled';
+      case 'note_created':
+        return 'Note Created';
+      case 'note_edited':
+        return 'Note Edited';
+      case 'note_deleted':
+        return 'Note Deleted';
+      case 'profile_updated':
+        return 'Profile Updated';
+      case 'password_changed':
+        return 'Password Changed';
+      case 'login':
+        return 'Login';
+      case 'logout':
+        return 'Logout';
+      default:
+        return type.replaceAll('_', ' ').toUpperCase();
     }
   }
 
@@ -190,12 +195,12 @@ class _TrackUserActivityPageState extends State<TrackUserActivityPage> {
       final date = DateTime.parse(dateString);
       final now = DateTime.now();
       final difference = now.difference(date);
-      
+
       // For login activities, always show full date and time
       if (activityType == 'login') {
         return DateFormat('MMM dd, yyyy • h:mm a').format(date);
       }
-      
+
       if (difference.inDays == 0) {
         if (difference.inHours == 0) {
           return '${difference.inMinutes} minutes ago';
@@ -230,7 +235,8 @@ class _TrackUserActivityPageState extends State<TrackUserActivityPage> {
                 ? const Center(child: CircularProgressIndicator())
                 : _error != null
                     ? Center(
-                        child: Text(_error!, style: const TextStyle(color: Colors.red)),
+                        child: Text(_error!,
+                            style: const TextStyle(color: Colors.red)),
                       )
                     : _searchedTerm == null || _activities.isEmpty
                         ? _buildEmptyState()
@@ -309,12 +315,14 @@ class _TrackUserActivityPageState extends State<TrackUserActivityPage> {
 
   Widget _buildActivityCard(Map<String, dynamic> activity) {
     final type = activity['type'] as String? ?? 'unknown';
-    final title = activity['title'] as String? ?? _getActivityTypeDisplayName(type);
+    final title =
+        activity['title'] as String? ?? _getActivityTypeDisplayName(type);
     final description = activity['description'] as String? ?? 'No description';
-    final createdAt = activity['timestamp'] as String? ?? DateTime.now().toIso8601String(); // Use timestamp from backend
+    final createdAt = activity['timestamp'] as String? ??
+        DateTime.now().toIso8601String(); // Use timestamp from backend
     final amount = activity['amount'];
     final currency = activity['currency'];
-    
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -347,7 +355,7 @@ class _TrackUserActivityPageState extends State<TrackUserActivityPage> {
               ),
             ),
             const SizedBox(width: 12),
-            
+
             // Activity Details
             Expanded(
               child: Column(
@@ -366,7 +374,8 @@ class _TrackUserActivityPageState extends State<TrackUserActivityPage> {
                       ),
                       if (amount != null && currency != null)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.green.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),

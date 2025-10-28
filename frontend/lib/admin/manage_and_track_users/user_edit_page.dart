@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../../user/session.dart';
 import '../../api_config.dart';
+import '../../utils/api_client.dart';
 
 class UserEditPage extends StatefulWidget {
   final Map<String, dynamic> user;
@@ -100,14 +100,9 @@ class _UserEditPageState extends State<UserEditPage> {
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/users/${widget.user['_id']}'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${session.token}',
-        },
-        body: json.encode({
+      final response = await ApiClient.put(
+        '/api/admin/users/${widget.user['_id']}',
+        body: {
           'name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
           'phone': _phoneController.text.trim(),
@@ -120,7 +115,7 @@ class _UserEditPageState extends State<UserEditPage> {
           'isVerified': _isVerified,
           'phoneVerified': _phoneVerified,
           'twoFactorEnabled': _twoFactorEnabled,
-        }),
+        },
       );
 
       if (response.statusCode == 200) {
@@ -530,7 +525,8 @@ class _UserEditPageState extends State<UserEditPage> {
     return InputDecorator(
       decoration: InputDecoration(
         labelText: 'Date of Birth',
-        prefixIcon: const Icon(Icons.calendar_today, color: const Color(0xFF00B4D8)),
+        prefixIcon:
+            const Icon(Icons.calendar_today, color: const Color(0xFF00B4D8)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),

@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../user/session.dart';
 import '../api_config.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../utils/api_client.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
 import 'dart:typed_data';
@@ -93,19 +93,26 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       });
       return;
     }
-    final res = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/transactions/user?email=$email'));
-    if (res.statusCode == 200) {
-      final data = jsonDecode(res.body);
+    try {
+      final res = await ApiClient.get(
+          '/api/transactions/user?email=${Uri.encodeComponent(email)}');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          lending = data['lending'] ?? [];
+          borrowing = data['borrowing'] ?? [];
+          totalTransactions = data['totalTransactions'] ?? 0;
+          loading = false;
+        });
+      } else {
+        setState(() {
+          error = 'Failed to load transactions.';
+          loading = false;
+        });
+      }
+    } catch (e) {
       setState(() {
-        lending = data['lending'] ?? [];
-        borrowing = data['borrowing'] ?? [];
-        totalTransactions = data['totalTransactions'] ?? 0;
-        loading = false;
-      });
-    } else {
-      setState(() {
-        error = 'Failed to load transactions.';
+        error = 'Failed to load transactions: $e';
         loading = false;
       });
     }
@@ -135,15 +142,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     });
 
     try {
-      final response = await http.put(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/transactions/$transactionId/favourite'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization':
-              'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
-        },
-        body: jsonEncode({'email': email}),
+      final response = await ApiClient.put(
+        '/api/transactions/$transactionId/favourite',
+        body: {'email': email},
       );
 
       if (response.statusCode != 200) {
@@ -155,10 +156,12 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             (t['favourite'] as List<dynamic>).remove(email);
           }
         });
-        final data = jsonDecode(response.body);
+        final data =
+            response.body.isNotEmpty ? jsonDecode(response.body) : null;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(data['error'] ?? 'Failed to update favourite status'),
+            content:
+                Text(data?['error'] ?? 'Failed to update favourite status'),
             backgroundColor: Colors.red,
           ),
         );
@@ -198,17 +201,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     }
 
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/transactions/delete'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'transactionId': transactionId,
-          'email': email,
-        }),
-      );
-
-      final data = jsonDecode(response.body);
-
+      final response = await ApiClient.post('/api/transactions/delete', body: {
+        'transactionId': transactionId,
+        'email': email,
+      });
+      final data = response.body.isNotEmpty ? jsonDecode(response.body) : null;
       if (response.statusCode == 200) {
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -232,7 +229,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         await fetchTransactions();
       } else {
         // Show error message
-        String errorMessage = data['error'] ?? 'Failed to delete transaction';
+        String errorMessage = data?['error'] ?? 'Failed to delete transaction';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -387,8 +384,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     final String? transactionDbId = transaction['_id'];
     if (transactionDbId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: Missing transaction database ID.'))
-      );
+          SnackBar(content: Text('Error: Missing transaction database ID.')));
       return;
     }
 
@@ -396,27 +392,28 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     final userEmail = transaction['userEmail'];
     final counterpartyEmail = transaction['counterpartyEmail'];
 
-    final otherUserEmail = currentUserEmail == userEmail ? counterpartyEmail : userEmail;
+    final otherUserEmail =
+        currentUserEmail == userEmail ? counterpartyEmail : userEmail;
 
-    final otherUserProfile = await _fetchCounterpartyProfile(context, otherUserEmail);
+    final otherUserProfile =
+        await _fetchCounterpartyProfile(context, otherUserEmail);
     if (otherUserProfile == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not open chat. User not found.'))
-        );
-        return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open chat. User not found.')));
+      return;
     }
     final otherUserId = otherUserProfile['_id'];
 
     Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (context) => ChatPage(
-                transactionId: transactionDbId,
-                otherUserId: otherUserId,
-            ),
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatPage(
+          transactionId: transactionDbId,
+          otherUserId: otherUserId,
         ),
+      ),
     );
-}
+  }
 
   Widget _buildTransactionCard(Map t, bool isLending) {
     // Add state for expandable functionality
@@ -580,7 +577,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           Icon(Icons.percent, color: Colors.blue, size: 20),
           SizedBox(width: 6),
           Text(
-              '$typeLabel @ ${rate.toStringAsFixed(2)}%' + (freqLabel.isNotEmpty ? ' ($freqLabel)' : ''),
+              '$typeLabel @ ${rate.toStringAsFixed(2)}%' +
+                  (freqLabel.isNotEmpty ? ' ($freqLabel)' : ''),
               style: TextStyle(fontWeight: FontWeight.w500)),
         ],
       ));
@@ -882,7 +880,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                             Row(
                               children: [
                                 // Favourite button with loading indicator
-                                if (_favouritingTransactionId == t['transactionId'])
+                                if (_favouritingTransactionId ==
+                                    t['transactionId'])
                                   Padding(
                                     padding: const EdgeInsets.all(8.0),
                                     child: Row(
@@ -890,14 +889,14 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                         SizedBox(
                                           width: 24,
                                           height: 24,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
                                         ),
                                         SizedBox(width: 8),
-                                        Text(
-                                          (t['favourite'] as List<dynamic>).contains(email)
+                                        Text((t['favourite'] as List<dynamic>)
+                                                .contains(email)
                                             ? 'Adding to favourites...'
-                                            : 'Removing from favourites...'
-                                        ),
+                                            : 'Removing from favourites...'),
                                       ],
                                     ),
                                   )
@@ -907,15 +906,19 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                       isFavourited
                                           ? Icons.favorite
                                           : Icons.favorite_border,
-                                      color: isFavourited ? Colors.red : Colors.grey,
+                                      color: isFavourited
+                                          ? Colors.red
+                                          : Colors.grey,
                                     ),
                                     onPressed: () {
-                                      _toggleFavourite(Map<String, dynamic>.from(t));
+                                      _toggleFavourite(
+                                          Map<String, dynamic>.from(t));
                                     },
                                   ),
 
                                 // Chat button with loading indicator
-                                if (_chattingTransactionId == t['transactionId'])
+                                if (_chattingTransactionId ==
+                                    t['transactionId'])
                                   Padding(
                                     padding: const EdgeInsets.all(8.0),
                                     child: Row(
@@ -923,7 +926,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                         SizedBox(
                                           width: 24,
                                           height: 24,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
                                         ),
                                         SizedBox(width: 8),
                                         Text('Opening chat...'),
@@ -935,9 +939,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                     icon: Icon(Icons.chat, color: Colors.blue),
                                     onPressed: () async {
                                       setState(() {
-                                        _chattingTransactionId = t['transactionId'];
+                                        _chattingTransactionId =
+                                            t['transactionId'];
                                       });
-                                      await _navigateToChat(Map<String, dynamic>.from(t));
+                                      await _navigateToChat(
+                                          Map<String, dynamic>.from(t));
                                       if (mounted) {
                                         setState(() {
                                           _chattingTransactionId = null;
@@ -972,8 +978,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                 isLending
                                     ? Icons.arrow_upward
                                     : Icons.arrow_downward,
-                                color:
-                                    isLending ? Colors.green : Colors.orange,
+                                color: isLending ? Colors.green : Colors.orange,
                                 size: 28),
                             if (t['isPartiallyPaid'] == true) ...[
                               SizedBox(width: 4),
@@ -1001,8 +1006,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                 final profile = user;
                                 final gender = profile?['gender'] ?? 'Other';
                                 dynamic imageUrl = profile?['profileImage'];
-                                if (imageUrl is Map &&
-                                    imageUrl['url'] != null)
+                                if (imageUrl is Map && imageUrl['url'] != null)
                                   imageUrl = imageUrl['url'];
                                 if (imageUrl != null && imageUrl is! String)
                                   imageUrl = null;
@@ -1089,16 +1093,16 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                               onTap: () async {
                                 showDialog(
                                   context: context,
-                                  builder: (_) => FutureBuilder<
-                                      Map<String, dynamic>?>( // Corrected type here
+                                  builder: (_) =>
+                                      FutureBuilder<Map<String, dynamic>?>(
+                                    // Corrected type here
                                     future: _fetchCounterpartyProfile(
                                         context, counterpartyEmail),
                                     builder: (context, snapshot) {
                                       if (snapshot.connectionState ==
                                           ConnectionState.waiting) {
                                         return Center(
-                                            child:
-                                                CircularProgressIndicator());
+                                            child: CircularProgressIndicator());
                                       }
                                       final profile = snapshot.data;
                                       if (profile == null) {
@@ -1113,14 +1117,12 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                           true) {
                                         return _StylishProfileDialog(
                                           title: 'Counterparty Info',
-                                          name:
-                                              'This account is Deactivated.',
+                                          name: 'This account is Deactivated.',
                                           avatarProvider:
                                               AssetImage('assets/Other.png'),
                                         );
                                       }
-                                      if (profile['profileIsPrivate'] ==
-                                          true) {
+                                      if (profile['profileIsPrivate'] == true) {
                                         return _StylishProfileDialog(
                                           title: 'Counterparty Info',
                                           name:
@@ -1140,14 +1142,12 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                           imageUrl['url'] != null)
                                         imageUrl = imageUrl['url'];
                                       if (imageUrl != null &&
-                                          imageUrl is! String)
-                                        imageUrl = null;
+                                          imageUrl is! String) imageUrl = null;
                                       ImageProvider avatarProvider;
                                       if (imageUrl != null &&
                                           imageUrl.toString().isNotEmpty &&
                                           imageUrl != 'null') {
-                                        avatarProvider =
-                                            NetworkImage(imageUrl);
+                                        avatarProvider = NetworkImage(imageUrl);
                                       } else {
                                         avatarProvider = AssetImage(
                                           gender == 'Male'
@@ -1158,12 +1158,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                         );
                                       }
                                       final phoneStr =
-                                          (profile['phone'] ?? '')
-                                              .toString();
+                                          (profile['phone'] ?? '').toString();
                                       return _StylishProfileDialog(
                                         title: 'Counterparty',
-                                        name: profile['name'] ??
-                                            'Counterparty',
+                                        name: profile['name'] ?? 'Counterparty',
                                         avatarProvider: avatarProvider,
                                         email: profile['email'],
                                         phone: phoneStr,
@@ -1182,11 +1180,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                             ),
                             SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                  'Counterparty: $counterpartyEmail',
+                              child: Text('Counterparty: $counterpartyEmail',
                                   style: TextStyle(
-                                      fontSize: 15,
-                                      color: Colors.black87)),
+                                      fontSize: 15, color: Colors.black87)),
                             ),
                           ],
                         ),
@@ -1210,8 +1206,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                         // Status indicator (always visible)
                         SizedBox(height: 8),
                         Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: fullyCleared
                                 ? Colors.green.withOpacity(0.1)
@@ -1271,8 +1267,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     height: isExpanded ? null : 0,
                     child: isExpanded
                         ? Padding(
-                            padding:
-                                const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -1281,8 +1276,6 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                     color: Colors.grey.withOpacity(0.3),
                                     thickness: 1),
                                 SizedBox(height: 12),
-
-
 
                                 // Place
                                 Row(
@@ -1303,11 +1296,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                         color: Colors.grey, size: 18),
                                     SizedBox(width: 6),
                                     Expanded(
-                                      child: Text(
-                                          'Transaction ID: ${t['transactionId']}',
-                                          style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[700]))),
+                                        child: Text(
+                                            'Transaction ID: ${t['transactionId']}',
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[700]))),
                                   ],
                                 ),
 
@@ -1356,8 +1349,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                     color: Colors.blue.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                        color:
-                                            Colors.blue.withOpacity(0.3)),
+                                        color: Colors.blue.withOpacity(0.3)),
                                   ),
                                   child: Column(
                                     crossAxisAlignment:
@@ -1365,10 +1357,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                     children: [
                                       Row(
                                         children: [
-                                          Icon(
-                                              Icons.account_balance_wallet,
-                                              color: Colors.blue,
-                                              size: 20),
+                                          Icon(Icons.account_balance_wallet,
+                                              color: Colors.blue, size: 20),
                                           SizedBox(width: 8),
                                           Text(
                                             'Amount Details',
@@ -1384,15 +1374,13 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                       Row(
                                         children: [
                                           Icon(Icons.attach_money,
-                                              color: Colors.green,
-                                              size: 16),
+                                              color: Colors.green, size: 16),
                                           SizedBox(width: 6),
                                           Text(
                                             'Original Amount: ${t['amount']} ${t['currency']}',
                                             style: TextStyle(
                                                 fontSize: 14,
-                                                fontWeight:
-                                                    FontWeight.w500),
+                                                fontWeight: FontWeight.w500),
                                           ),
                                         ],
                                       ),
@@ -1401,8 +1389,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                       Row(
                                         children: [
                                           Icon(Icons.payments,
-                                              color: Colors.green,
-                                              size: 16),
+                                              color: Colors.green, size: 16),
                                           SizedBox(width: 6),
                                           Text(
                                             'Amount Paid Till Now: ${_calculateAmountPaidTillNow(t)} ${t['currency']}',
@@ -1418,10 +1405,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                       SizedBox(height: 4),
                                       Row(
                                         children: [
-                                          Icon(
-                                              Icons.account_balance_wallet,
-                                              color: Colors.orange,
-                                              size: 16),
+                                          Icon(Icons.account_balance_wallet,
+                                              color: Colors.orange, size: 16),
                                           SizedBox(width: 6),
                                           Text(
                                             'Remaining Amount: ${_calculateRemainingAmount(t)} ${t['currency']}',
@@ -1455,13 +1440,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                 SizedBox(height: 10),
                                 Row(
                                   children: [
-
                                     // Delete button - only show if both parties have cleared
                                     if (fullyCleared) ...[
                                       Expanded(
                                         child: ElevatedButton.icon(
-                                          icon: Icon(
-                                              Icons.delete_forever,
+                                          icon: Icon(Icons.delete_forever,
                                               color: Colors.white),
                                           label: Text('Delete',
                                               style: TextStyle(
@@ -1470,8 +1453,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                             backgroundColor: Colors.red,
                                             shape: RoundedRectangleBorder(
                                                 borderRadius:
-                                                    BorderRadius.circular(
-                                                        8)),
+                                                    BorderRadius.circular(8)),
                                           ),
                                           onPressed: () {
                                             _showDeleteConfirmationDialog(
@@ -1503,10 +1485,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                               style: TextStyle(
                                                   color: Colors.black)),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                Colors.transparent,
-                                            shadowColor:
-                                                Colors.transparent,
+                                            backgroundColor: Colors.transparent,
+                                            shadowColor: Colors.transparent,
                                             shape: RoundedRectangleBorder(
                                               borderRadius:
                                                   BorderRadius.circular(8),
@@ -1514,8 +1494,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                           ),
                                           onPressed: () {
                                             _showReceiptOptionsDialog(
-                                                Map<String, dynamic>.from(
-                                                    t));
+                                                Map<String, dynamic>.from(t));
                                           },
                                         ),
                                       ),
@@ -1663,11 +1642,19 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Row(children: [Icon(Icons.person, size: 18), SizedBox(width: 6), Text('My Side')]),
+                            child: Row(children: [
+                              Icon(Icons.person, size: 18),
+                              SizedBox(width: 6),
+                              Text('My Side')
+                            ]),
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: Row(children: [Icon(Icons.people, size: 18), SizedBox(width: 6), Text('Other Party Side')]),
+                            child: Row(children: [
+                              Icon(Icons.people, size: 18),
+                              SizedBox(width: 6),
+                              Text('Other Party Side')
+                            ]),
                           ),
                         ],
                       ),
@@ -1688,8 +1675,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                 ChoiceChip(
                   label: Text('All'),
                   selected: interestTypeFilter == 'All',
-                  onSelected: (_) =>
-                      setState(() => interestTypeFilter = 'All'),
+                  onSelected: (_) => setState(() => interestTypeFilter = 'All'),
                   selectedColor: Color(0xFF00B4D8).withOpacity(0.2),
                 ),
                 SizedBox(width: 8),
@@ -1820,9 +1806,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     if (_maxAmount != null && (amount == null || amount > _maxAmount!))
       return false;
     if (interestTypeFilter != 'All' &&
-        (t['interestType'] ?? '').toString().toLowerCase() != 
-            interestTypeFilter)
-      return false;
+        (t['interestType'] ?? '').toString().toLowerCase() !=
+            interestTypeFilter) return false;
     // Global fuzzy search
     if (globalSearch.isNotEmpty) {
       final q = globalSearch.toLowerCase();
@@ -1858,16 +1843,32 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     final email = user?['email'];
     if (email == null) return;
-    final res = await http.post(
-      Uri.parse('${ApiConfig.baseUrl}/api/transactions/clear'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'transactionId': transactionId, 'email': email}),
-    );
-    if (res.statusCode == 200) {
-      fetchTransactions();
-    } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to clear transaction')));
+    try {
+      final res = await ApiClient.post('/api/transactions/clear',
+          body: {'transactionId': transactionId, 'email': email});
+      if (res.statusCode == 200) {
+        fetchTransactions();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to clear transaction')));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Network error: ${e.toString()}'))
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 4),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
     }
   }
 
@@ -2014,36 +2015,61 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       limitedTransactions = allTransactions.take(limit).toList();
     }
 
-    var finalLending = limitedTransactions.where((t) => t['type'] == 'lending').map((t) => t['data']).toList();
-    var finalBorrowing = limitedTransactions.where((t) => t['type'] == 'borrowing').map((t) => t['data']).toList();
+    var finalLending = limitedTransactions
+        .where((t) => t['type'] == 'lending')
+        .map((t) => t['data'])
+        .toList();
+    var finalBorrowing = limitedTransactions
+        .where((t) => t['type'] == 'borrowing')
+        .map((t) => t['data'])
+        .toList();
 
     if (finalLending.isNotEmpty) {
-        widgets.add(Text('Lending Amount',
-            style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: Colors.green)));
-        widgets.add(SizedBox(height: 8));
-        widgets
-            .addAll(finalLending.map((t) => _buildTransactionCard(t, true)));
-        widgets.add(SizedBox(height: 20));
+      widgets.add(Text('Lending Amount',
+          style: TextStyle(
+              fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green)));
+      widgets.add(SizedBox(height: 8));
+      widgets.addAll(finalLending.map((t) => _buildTransactionCard(t, true)));
+      widgets.add(SizedBox(height: 20));
     }
 
     if (finalBorrowing.isNotEmpty) {
-        widgets.add(Text('Borrowing Amount',
-            style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: Colors.orange)));
-        widgets.add(SizedBox(height: 8));
-        widgets.addAll(
-            finalBorrowing.map((t) => _buildTransactionCard(t, false)));
+      widgets.add(Text('Borrowing Amount',
+          style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: Colors.orange)));
+      widgets.add(SizedBox(height: 8));
+      widgets
+          .addAll(finalBorrowing.map((t) => _buildTransactionCard(t, false)));
     }
 
     if (widgets.isEmpty) {
       widgets.add(Center(
-          child: Text('No transactions found.',
-              style: TextStyle(color: Colors.grey))));
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long,
+                size: 80, color: Colors.grey[400]),
+            const SizedBox(height: 20),
+            Text(
+              'No transactions found',
+              style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Try adjusting your search or filters',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      ));
     }
     return widgets;
   }
@@ -2157,7 +2183,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       appBar: AppBar(
         backgroundColor: Color(0xFF00B4D8),
         elevation: 0,
-        title: Text('Your Transactions ($totalTransactions)', style: TextStyle(color: Colors.black)),
+        title: Text('Your Transactions ($totalTransactions)',
+            style: TextStyle(color: Colors.black)),
       ),
       body: loading
           ? Center(child: CircularProgressIndicator())
@@ -2186,8 +2213,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                 Icon(Icons.search, color: Color(0xFF00B4D8)),
                             filled: true,
                             fillColor: Colors.white,
-                            contentPadding:
-                                EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                            contentPadding: EdgeInsets.symmetric(
+                                vertical: 0, horizontal: 16),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16),
                               borderSide: BorderSide.none,
@@ -2213,7 +2240,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     Expanded(
                       child: ListView(
                         children: [
-                          ..._buildFilteredTransactionCards(limit: showAllTransactions ? null : 3),
+                          ..._buildFilteredTransactionCards(
+                              limit: showAllTransactions ? null : 3),
                           if (!showAllTransactions && totalCount > 3)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -2269,17 +2297,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       BuildContext context, String email) async {
     if (email.isEmpty) return null;
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-      if (token == null) return null;
-
-      final res = await http.get(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/users/profile-by-email?email=$email'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final res = await ApiClient.get(
+          '/api/users/profile-by-email?email=${Uri.encodeComponent(email)}');
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
       }
@@ -2517,19 +2536,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     );
 
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/transactions/${transaction['transactionId']}/receipt'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
-        },
-        body: jsonEncode({'email': email, 'action': 'email'}),
-      );
-
+      final response = await ApiClient.post(
+          '/api/transactions/${transaction['transactionId']}/receipt',
+          body: {'email': email, 'action': 'email'});
       Navigator.pop(context); // Close the loading dialog
-
-      final data = jsonDecode(response.body);
-
+      final data = response.body.isNotEmpty ? jsonDecode(response.body) : null;
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -2544,7 +2555,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           ),
         );
       } else {
-        String errorMessage = data['error'] ?? 'Failed to send receipt';
+        String errorMessage = data?['error'] ?? 'Failed to send receipt';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -2599,25 +2610,16 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     try {
       final user = Provider.of<SessionProvider>(context, listen: false).user;
       final email = user?['email'];
-
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/transactions/${transaction['transactionId']}/receipt'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${Provider.of<SessionProvider>(context, listen: false).token}',
-        },
-        body: jsonEncode({'email': email, 'action': 'download'}),
-      );
-
+      final response = await ApiClient.post(
+          '/api/transactions/${transaction['transactionId']}/receipt',
+          body: {'email': email, 'action': 'download'});
       Navigator.pop(context); // Close the loading dialog
-
       if (response.statusCode == 200) {
         final output = await getTemporaryDirectory();
-        final file = File('${output.path}/receipt-${transaction['transactionId']}.pdf');
+        final file =
+            File('${output.path}/receipt-${transaction['transactionId']}.pdf');
         await file.writeAsBytes(response.bodyBytes);
-
         OpenFile.open(file.path);
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Receipt downloaded to ${file.path}'),
@@ -2625,8 +2627,9 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           ),
         );
       } else {
-        final data = jsonDecode(response.body);
-        String errorMessage = data['error'] ?? 'Failed to download receipt';
+        final data =
+            response.body.isNotEmpty ? jsonDecode(response.body) : null;
+        String errorMessage = data?['error'] ?? 'Failed to download receipt';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -2854,13 +2857,9 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/transactions/send-partial-payment-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      );
-
+      final response = await ApiClient.post(
+          '/api/transactions/send-partial-payment-otp',
+          body: {'email': email});
       if (response.statusCode == 200) {
         setState(() {
           if (isLender) {
@@ -2877,7 +2876,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
         });
         _showMessage('OTP sent to ${isLender ? 'lender' : 'borrower'} email');
       } else {
-        final data = jsonDecode(response.body);
+        final data =
+            response.body.isNotEmpty ? jsonDecode(response.body) : null;
         _showMessage(data['error'] ?? 'Failed to send OTP', isError: true);
         setState(() {
           if (isLender) {
@@ -2919,13 +2919,9 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse(
-            '${ApiConfig.baseUrl}/api/transactions/verify-partial-payment-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'otp': otp}),
-      );
-
+      final response = await ApiClient.post(
+          '/api/transactions/verify-partial-payment-otp',
+          body: {'email': email, 'otp': otp});
       if (response.statusCode == 200) {
         setState(() {
           if (isLender) {
@@ -2938,7 +2934,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
         });
         _showMessage('OTP verified for ${isLender ? 'lender' : 'borrower'}');
       } else {
-        final data = jsonDecode(response.body);
+        final data =
+            response.body.isNotEmpty ? jsonDecode(response.body) : null;
         _showMessage(data['error'] ?? 'Failed to verify OTP', isError: true);
         setState(() {
           if (isLender) {
@@ -2987,21 +2984,17 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/transactions/partial-payment'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'transactionId': widget.transaction['transactionId'],
-          'amount': amount,
-          'description': _descriptionController.text,
-          'paidBy': paidBy,
-          'lenderEmail': lenderEmail,
-          'borrowerEmail': borrowerEmail,
-          'lenderOtpVerified': lenderOtpVerified,
-          'borrowerOtpVerified': borrowerOtpVerified,
-        }),
-      );
-
+      final response =
+          await ApiClient.post('/api/transactions/partial-payment', body: {
+        'transactionId': widget.transaction['transactionId'],
+        'amount': amount,
+        'description': _descriptionController.text,
+        'paidBy': paidBy,
+        'lenderEmail': lenderEmail,
+        'borrowerEmail': borrowerEmail,
+        'lenderOtpVerified': lenderOtpVerified,
+        'borrowerOtpVerified': borrowerOtpVerified,
+      });
       if (response.statusCode == 200) {
         _showMessage('Partial payment processed successfully');
         Future.delayed(Duration(seconds: 2), () {
@@ -3009,7 +3002,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
           widget.onPaymentComplete();
         });
       } else {
-        final data = jsonDecode(response.body);
+        final data =
+            response.body.isNotEmpty ? jsonDecode(response.body) : null;
         _showMessage(data['error'] ?? 'Failed to process partial payment',
             isError: true);
       }
@@ -3173,7 +3167,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         SizedBox(
-                                          width: 16, height: 16,
+                                          width: 16,
+                                          height: 16,
                                           child: CircularProgressIndicator(
                                               strokeWidth: 2,
                                               color: Colors.white),
@@ -3288,7 +3283,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     SizedBox(
-                                      width: 16, height: 16,
+                                      width: 16,
+                                      height: 16,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2, color: Colors.white),
                                     ),
@@ -3367,7 +3363,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         SizedBox(
-                                          width: 16, height: 16,
+                                          width: 16,
+                                          height: 16,
                                           child: CircularProgressIndicator(
                                               strokeWidth: 2,
                                               color: Colors.white),
@@ -3483,7 +3480,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     SizedBox(
-                                      width: 16, height: 16,
+                                      width: 16,
+                                      height: 16,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2, color: Colors.white),
                                     ),
@@ -3562,7 +3560,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                           : null,
                       child: isProcessing
                           ? SizedBox(
-                              width: 16, height: 16,
+                              width: 16,
+                              height: 16,
                               child: CircularProgressIndicator(
                                   strokeWidth: 2, color: Colors.white),
                             )
@@ -4020,15 +4019,27 @@ class _StylishProfileDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (email != null) ...[
-                  Row(children: [Icon(Icons.email, size: 18, color: Colors.teal), SizedBox(width: 8), Text(email!, style: TextStyle(fontSize: 16))]),
+                  Row(children: [
+                    Icon(Icons.email, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(email!, style: TextStyle(fontSize: 16))
+                  ]),
                   SizedBox(height: 10),
                 ],
                 if (phone != null && phone!.isNotEmpty) ...[
-                  Row(children: [Icon(Icons.phone, size: 18, color: Colors.teal), SizedBox(width: 8), Text(phone!, style: TextStyle(fontSize: 16))]),
+                  Row(children: [
+                    Icon(Icons.phone, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(phone!, style: TextStyle(fontSize: 16))
+                  ]),
                   SizedBox(height: 10),
                 ],
                 if (gender != null) ...[
-                  Row(children: [Icon(Icons.transgender, size: 18, color: Colors.teal), SizedBox(width: 8), Text(gender!, style: TextStyle(fontSize: 16))]),
+                  Row(children: [
+                    Icon(Icons.transgender, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(gender!, style: TextStyle(fontSize: 16))
+                  ]),
                   SizedBox(height: 10),
                 ],
               ],

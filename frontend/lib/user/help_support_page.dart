@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../api_config.dart';
+import '../utils/api_client.dart';
 import '../user/session.dart';
 import 'package:intl/intl.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -130,12 +130,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     }
 
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/support/queries/me'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiClient.get('/api/support/queries/me');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -174,16 +169,12 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     }
 
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/support/queries'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
+      final response = await ApiClient.post(
+        '/api/support/queries',
+        body: {
           'topic': _topicController.text,
           'description': _descriptionController.text,
-        }),
+        },
       );
 
       print('Submit Query Response Status: ${response.statusCode}');
@@ -309,17 +300,12 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       }
 
                       try {
-                        final response = await http.put(
-                          Uri.parse(
-                              '${ApiConfig.baseUrl}/api/support/queries/$queryId'),
-                          headers: {
-                            'Authorization': 'Bearer $token',
-                            'Content-Type': 'application/json',
-                          },
-                          body: jsonEncode({
+                        final response = await ApiClient.put(
+                          '/api/support/queries/$queryId',
+                          body: {
                             'topic': _topicController.text,
                             'description': _descriptionController.text,
-                          }),
+                          },
                         );
 
                         print(
@@ -333,9 +319,11 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                           _topicController.clear();
                           _descriptionController.clear();
                         } else {
-                          final data = jsonDecode(response.body);
+                          final data = response.body.isNotEmpty
+                              ? jsonDecode(response.body)
+                              : null;
                           _showStylishSnackBar(
-                              data['error'] ?? 'Failed to update query.',
+                              data?['error'] ?? 'Failed to update query.',
                               Colors.red);
                         }
                       } catch (e) {
@@ -356,12 +344,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
 
   Future<void> _deleteQuery(String queryId) async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      _showStylishSnackBar('Authentication token not found.', Colors.red);
-      return;
-    }
+    // token may be needed for socket headers; ApiClient will handle auth for HTTP calls
 
     // Show confirmation dialog
     bool confirmDelete = await showDialog(
@@ -410,26 +393,22 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     }
 
     try {
-      final response = await http.delete(
-        Uri.parse('${ApiConfig.baseUrl}/api/support/queries/$queryId'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiClient.delete('/api/support/queries/$queryId');
 
       print('Delete Query Response Status: ${response.statusCode}');
       print('Delete Query Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         _showStylishSnackBar('Query deleted successfully!', Colors.green);
-        // Socket event will handle UI update, but we can also remove it directly for immediate feedback
+        // Socket event will handle UI update, but remove directly for immediate feedback
         setState(() {
           _queries.removeWhere((query) => query['_id'] == queryId);
         });
       } else {
-        final data = jsonDecode(response.body);
+        final data =
+            response.body.isNotEmpty ? jsonDecode(response.body) : null;
         _showStylishSnackBar(
-            data['error'] ?? 'Failed to delete query.', Colors.red);
+            data?['error'] ?? 'Failed to delete query.', Colors.red);
       }
     } catch (e) {
       print('Delete Query Error: $e');

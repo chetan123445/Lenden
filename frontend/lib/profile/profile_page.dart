@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../api_config.dart';
+import '../utils/api_client.dart';
 import './edit_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -31,18 +30,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _fetchProfile() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
     final user = session.user;
 
     if (widget.email != null && widget.email!.isNotEmpty) {
       // Fetch profile by email (admin viewing another user)
-      final url = ApiConfig.baseUrl +
+      final path =
           '/api/users/profile-by-email?email=${Uri.encodeComponent(widget.email!)}';
       try {
-        final response = await http.get(
-          Uri.parse(url),
-          headers: {'Authorization': 'Bearer $token'},
-        );
+        final response = await ApiClient.get(path);
         if (response.statusCode == 200) {
           setState(() {
             _profile = jsonDecode(response.body);
@@ -68,13 +63,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
     // Default: show logged-in user's profile
     print('🔍 Profile page - Session check:');
-    print('   Token: ${token != null ? 'Present' : 'Missing'}');
+    print('   Token: ${session.accessToken != null ? 'Present' : 'Missing'}');
     print('   User: ${user != null ? 'Present' : 'Missing'}');
     print('   User data: $user');
     print('   Role: ${session.role}');
     print('   Is Admin: ${session.isAdmin}');
 
-    if (token == null || user == null) {
+    if (session.accessToken == null || user == null) {
       setState(() {
         _error = 'Not logged in.';
         _loading = false;
@@ -82,14 +77,9 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
     final isAdmin = session.isAdmin;
-    final url = isAdmin
-        ? ApiConfig.baseUrl + '/api/admins/me'
-        : ApiConfig.baseUrl + '/api/users/me';
+    final path = isAdmin ? '/api/admins/me' : '/api/users/me';
     try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await ApiClient.get(path);
       if (response.statusCode == 200) {
         setState(() {
           _profile = jsonDecode(response.body);
