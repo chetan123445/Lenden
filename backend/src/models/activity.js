@@ -102,6 +102,10 @@ const activitySchema = new mongoose.Schema({
   userAgent: {
     type: String,
     default: null
+  },
+  bookmarked: {
+    type: Boolean,
+    default: false
   }
 }, { 
   timestamps: true 

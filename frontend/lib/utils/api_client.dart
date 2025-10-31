@@ -120,7 +120,7 @@ class ApiClient {
 
     try {
       final uri =
-          Uri.parse('$_baseUrl/api/auth/refresh'); // adjust if endpoint differs
+          Uri.parse('$_baseUrl/api/users/refresh-token'); // adjust if endpoint differs
       final response = await _client.post(uri,
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'refreshToken': refreshToken}));

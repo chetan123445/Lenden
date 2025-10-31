@@ -5,6 +5,7 @@ import '../api_config.dart';
 import '../utils/api_client.dart';
 import '../user/session.dart';
 import 'package:intl/intl.dart';
+import 'package:elegant_notification/elegant_notification.dart';
 
 class ActivityPage extends StatefulWidget {
   const ActivityPage({super.key});
@@ -24,6 +25,7 @@ class _ActivityPageState extends State<ActivityPage> {
   DateTime? startDate;
   DateTime? endDate;
   String searchQuery = ''; // For smart search
+  bool _showBookmarkedOnly = false;
   int currentPage = 1;
   bool hasNextPage = false;
   bool hasPrevPage = false;
@@ -109,6 +111,10 @@ class _ActivityPageState extends State<ActivityPage> {
 
       if (searchQuery.isNotEmpty) {
         queryParams['search'] = searchQuery;
+      }
+
+      if (_showBookmarkedOnly) {
+        queryParams['bookmarked'] = 'true';
       }
 
       final uri = Uri.parse('$baseUrl/api/activities')
@@ -509,7 +515,7 @@ class _ActivityPageState extends State<ActivityPage> {
                   if (index == activities.length) {
                     return _buildLoadMoreButton();
                   }
-                  return _buildSwipeableActivityCard(activities[index]);
+                  return _buildActivityListItem(activities[index]);
                 },
               ),
           ],
@@ -817,6 +823,15 @@ class _ActivityPageState extends State<ActivityPage> {
               backgroundColor: Colors.purple.withOpacity(0.2),
               deleteIcon: const Icon(Icons.clear, size: 18),
             ),
+          if (_showBookmarkedOnly)
+            Chip(
+              label: const Text('Bookmarked'),
+              onDeleted: () {
+                setState(() => _showBookmarkedOnly = false);
+                fetchActivities(refresh: true);
+              },
+              backgroundColor: Colors.orange.withOpacity(0.2),
+            ),
           if (selectedType != null)
             Chip(
               label: Text(_getActivityTypeDisplayName(selectedType!)),
@@ -893,116 +908,20 @@ class _ActivityPageState extends State<ActivityPage> {
           if (index == activities.length) {
             return _buildLoadMoreButton();
           }
-          return _buildSwipeableActivityCard(activities[index]);
+          return _buildActivityListItem(activities[index]);
         },
       ),
     );
   }
 
-  Widget _buildSwipeableActivityCard(Map<String, dynamic> activity) {
+  Widget _buildActivityListItem(Map<String, dynamic> activity) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Dismissible(
-        key: Key(activity['_id'] ?? DateTime.now().toString()),
-        direction: DismissDirection.endToStart, // Only swipe from right to left
-        background: _buildSwipeBackground(),
-        confirmDismiss: (direction) => _showSwipeActionDialog(activity),
-        child: _buildActivityCard(activity),
-      ),
+      child: _buildActivityCard(activity),
     );
   }
 
-  Widget _buildSwipeBackground() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Colors.red, Colors.orange],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.more_vert,
-                  color: Colors.white,
-                  size: 24,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Actions',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Future<bool?> _showSwipeActionDialog(Map<String, dynamic> activity) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Activity Actions'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.info, color: Colors.blue),
-              title: const Text('View Details'),
-              onTap: () {
-                Navigator.of(context).pop(false);
-                _showActivityDetails(activity);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.share, color: Colors.green),
-              title: const Text('Share Activity'),
-              onTap: () {
-                Navigator.of(context).pop(false);
-                _shareActivity(activity);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.bookmark, color: Colors.orange),
-              title: const Text('Bookmark'),
-              onTap: () {
-                Navigator.of(context).pop(false);
-                _bookmarkActivity(activity);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Delete'),
-              onTap: () {
-                Navigator.of(context).pop(true);
-                _deleteActivity(activity);
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildActivityCard(Map<String, dynamic> activity) {
     final type = activity['type'] as String;
@@ -1135,16 +1054,42 @@ class _ActivityPageState extends State<ActivityPage> {
                         ),
                       ),
                       // Delete Button
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          color: Colors.red,
-                          size: 20,
-                        ),
-                        onPressed: () => _deleteActivity(activity),
-                        tooltip: 'Delete Activity',
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
+                      PopupMenuButton<String>(
+                        onSelected: (value) {
+                          if (value == 'details') {
+                            _showActivityDetails(activity);
+                          } else if (value == 'bookmark') {
+                            _bookmarkActivity(activity);
+                          } else if (value == 'delete') {
+                            _deleteActivity(activity);
+                          }
+                        },
+                        itemBuilder: (BuildContext context) {
+                          final isBookmarked = activity['bookmarked'] ?? false;
+                          return <PopupMenuEntry<String>>[
+                            const PopupMenuItem<String>(
+                              value: 'details',
+                              child: ListTile(
+                                leading: Icon(Icons.info, color: Colors.blue),
+                                title: Text('View Details'),
+                              ),
+                            ),
+                            PopupMenuItem<String>(
+                              value: 'bookmark',
+                              child: ListTile(
+                                leading: Icon(Icons.bookmark, color: isBookmarked ? Colors.red : Colors.orange),
+                                title: Text(isBookmarked ? 'Unbookmark' : 'Bookmark'),
+                              ),
+                            ),
+                            const PopupMenuItem<String>(
+                              value: 'delete',
+                              child: ListTile(
+                                leading: Icon(Icons.delete, color: Colors.red),
+                                title: Text('Delete'),
+                              ),
+                            ),
+                          ];
+                        },
                       ),
                     ],
                   ),
@@ -1180,62 +1125,110 @@ class _ActivityPageState extends State<ActivityPage> {
   void _showActivityDetails(Map<String, dynamic> activity) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(activity['title'] ?? 'Activity Details'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Type: ${_getActivityTypeDisplayName(activity['type'])}'),
-            const SizedBox(height: 8),
-            Text('Description: ${activity['description']}'),
-            const SizedBox(height: 8),
-            Text(
-                'Date: ${_formatDate(activity['createdAt'], activityType: activity['type'])}'),
-            if (activity['amount'] != null) ...[
-              const SizedBox(height: 8),
-              Text('Amount: ${activity['currency']}${activity['amount']}'),
-            ],
-            if (activity['metadata'] != null) ...[
-              const SizedBox(height: 8),
-              Text('Additional Info: ${activity['metadata']}'),
-            ],
-          ],
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
           ),
-        ],
-      ),
-    );
-  }
-
-  void _shareActivity(Map<String, dynamic> activity) {
-    // This would integrate with device sharing
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Sharing: ${activity['title']}'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  void _bookmarkActivity(Map<String, dynamic> activity) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Bookmarked: ${activity['title']}'),
-        backgroundColor: Colors.orange,
-        action: SnackBarAction(
-          label: 'Undo',
-          textColor: Colors.white,
-          onPressed: () {
-            // Undo bookmark action
-          },
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              shape: BoxShape.rectangle,
+              color: const Color(0xFFFCE4EC), // Light pink
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  offset: const Offset(0, 10),
+                  blurRadius: 20,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(activity['title'] ?? 'Activity Details',
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                Text('Type: ${_getActivityTypeDisplayName(activity['type'])}'),
+                const SizedBox(height: 8),
+                Text('Description: ${activity['description']}'),
+                const SizedBox(height: 8),
+                Text('Date: ${_formatDate(activity['createdAt'], activityType: activity['type'])}'),
+                if (activity['amount'] != null) ...[
+                  const SizedBox(height: 8),
+                  Text('Amount: ${activity['currency']}${activity['amount']}'),
+                ],
+                if (activity['metadata'] != null) ...[
+                  const SizedBox(height: 8),
+                  Text('Additional Info: ${activity['metadata']}'),
+                ],
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Close'),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
+  }
+
+
+
+  void _bookmarkActivity(Map<String, dynamic> activity) async {
+    final activityId = activity['_id'];
+    final isBookmarked = activity['bookmarked'] ?? false;
+
+    ElegantNotification.info(
+      title: Text(isBookmarked ? "Unbookmarking" : "Bookmarking"),
+      description: const Text("Please wait..."),
+    ).show(context);
+
+    setState(() {
+      activity['bookmarked'] = !isBookmarked;
+    });
+
+    try {
+      final response = await ApiClient.patch(
+        '/api/activities/$activityId/bookmark',
+        body: {'bookmarked': !isBookmarked},
+      );
+
+      if (response.statusCode == 200) {
+        ElegantNotification.success(
+          title: const Text("Success"),
+          description: Text(isBookmarked ? "Removed from bookmarks" : "Bookmarked successfully"),
+        ).show(context);
+      } else {
+        setState(() {
+          activity['bookmarked'] = isBookmarked; // Revert on failure
+        });
+        _showErrorDialog('Failed to update bookmark status');
+      }
+    } catch (e) {
+      setState(() {
+        activity['bookmarked'] = isBookmarked; // Revert on failure
+      });
+      _showErrorDialog('Error: $e');
+    }
   }
 
   void _deleteActivity(Map<String, dynamic> activity) {
@@ -1523,404 +1516,421 @@ class _ActivityPageState extends State<ActivityPage> {
     showDialog(
       context: context,
       barrierDismissible: true,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            shape: BoxShape.rectangle,
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                offset: const Offset(0, 10),
-                blurRadius: 20,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
               ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header with gradient background
-              Container(
-                width: double.infinity,
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF00B4D8), Color(0xFF0077B6)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(20),
-                    topRight: Radius.circular(20),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    // Close button at the top right
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const SizedBox(
-                            width: 40), // Spacer to center the content
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.filter_list_alt,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                        // Close button
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.of(context).pop();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.close,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Filter Activities',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Customize your activity view',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 14,
-                      ),
+                  shape: BoxShape.rectangle,
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      offset: const Offset(0, 10),
+                      blurRadius: 20,
                     ),
                   ],
                 ),
-              ),
-
-              // Filter Content
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Activity Type Filter with enhanced styling
-                      Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.orange, Colors.white, Colors.green],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(14),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header with gradient background
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF00B4D8), Color(0xFF0077B6)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: DropdownButtonFormField<String>(
-                            value: selectedType,
-                            decoration: InputDecoration(
-                              labelText: 'Activity Type',
-                              labelStyle: const TextStyle(
-                                color: Color(0xFF00B4D8),
-                                fontWeight: FontWeight.w600,
-                              ),
-                              prefixIcon: Container(
-                                margin: const EdgeInsets.all(8),
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF00B4D8).withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(
-                                  Icons.category,
-                                  color: Color(0xFF00B4D8),
-                                  size: 20,
-                                ),
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                            ),
-                            items: [
-                              DropdownMenuItem<String>(
-                                value: null,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: const Icon(Icons.all_inclusive,
-                                          size: 16, color: Colors.grey),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    const Text('All Types',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.w500)),
-                                  ],
-                                ),
-                              ),
-                              ...activityTypes
-                                  .map((type) => DropdownMenuItem<String>(
-                                        value: type,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(6),
-                                              decoration: BoxDecoration(
-                                                color: _getActivityColor(type)
-                                                    .withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                              ),
-                                              child: Icon(_getActivityIcon(type),
-                                                  size: 16,
-                                                  color: _getActivityColor(type)),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Flexible(
-                                              child: Text(
-                                                _getActivityTypeDisplayName(type),
-                                                style: const TextStyle(
-                                                    fontWeight: FontWeight.w500),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      )),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                selectedType = value;
-                              });
-                            },
-                          ),
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
                         ),
                       ),
-
-                      const SizedBox(height: 24),
-
-                      // Date Range Section
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(12),
-                          border:
-                              Border.all(color: Colors.grey.withOpacity(0.2)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
+                      child: Column(
+                        children: [
+                          // Close button at the top right
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const SizedBox(
+                                  width: 40), // Spacer to center the content
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.filter_list_alt,
+                                  color: Colors.white,
+                                  size: 28,
+                                ),
+                              ),
+                              // Close button
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.of(context).pop();
+                                },
+                                child: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: Colors.orange.withOpacity(0.1),
+                                    color: Colors.white.withOpacity(0.2),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Icon(
-                                    Icons.date_range,
-                                    color: Colors.orange,
+                                    Icons.close,
+                                    color: Colors.white,
                                     size: 20,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  'Date Range',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
-                                  ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Filter Activities',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Customize your activity view',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Filter Content
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Activity Type Filter with enhanced styling
+                            Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Colors.orange, Colors.white, Colors.green],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
-                              ],
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: DropdownButtonFormField<String>(
+                                  value: selectedType,
+                                  decoration: InputDecoration(
+                                    labelText: 'Activity Type',
+                                    labelStyle: const TextStyle(
+                                      color: Color(0xFF00B4D8),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    prefixIcon: Container(
+                                      margin: const EdgeInsets.all(8),
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF00B4D8).withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.category,
+                                        color: Color(0xFF00B4D8),
+                                        size: 20,
+                                      ),
+                                    ),
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 12),
+                                  ),
+                                  items: [
+                                    DropdownMenuItem<String>(
+                                      value: null,
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: const Icon(Icons.all_inclusive,
+                                                size: 16, color: Colors.grey),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          const Text('All Types',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.w500)),
+                                        ],
+                                      ),
+                                    ),
+                                    ...activityTypes
+                                        .map((type) => DropdownMenuItem<String>(
+                                              value: type,
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Container(
+                                                    padding: const EdgeInsets.all(6),
+                                                    decoration: BoxDecoration(
+                                                      color: _getActivityColor(type)
+                                                          .withOpacity(0.1),
+                                                      borderRadius:
+                                                          BorderRadius.circular(6),
+                                                    ),
+                                                    child: Icon(_getActivityIcon(type),
+                                                        size: 16,
+                                                        color: _getActivityColor(type)),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Flexible(
+                                                    child: Text(
+                                                      _getActivityTypeDisplayName(type),
+                                                      style: const TextStyle(
+                                                          fontWeight: FontWeight.w500),
+                                                      overflow: TextOverflow.ellipsis,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )),
+                                  ],
+                                  onChanged: (value) {
+                                    setState(() {
+                                      selectedType = value;
+                                    });
+                                  },
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 16),
+                            SwitchListTile(
+                              title: const Text('Show Bookmarked Only'),
+                              value: _showBookmarkedOnly,
+                              onChanged: (value) {
+                                setState(() {
+                                  _showBookmarkedOnly = value;
+                                });
+                              },
+                              secondary: const Icon(Icons.bookmark, color: Colors.orange),
+                            ),
 
-                            // Date Range Buttons
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildDateButton(
-                                    context: context,
-                                    label: 'Start Date',
-                                    date: startDate,
-                                    onPressed: () async {
-                                      final date = await showDatePicker(
-                                        context: context,
-                                        initialDate:
-                                            startDate ?? DateTime.now(),
-                                        firstDate: DateTime(2020),
-                                        lastDate: DateTime.now(),
-                                        builder: (context, child) {
-                                          return Theme(
-                                            data: Theme.of(context).copyWith(
-                                              colorScheme:
-                                                  const ColorScheme.light(
-                                                primary: Color(0xFF00B4D8),
-                                                onPrimary: Colors.white,
-                                                surface: Colors.white,
-                                                onSurface: Colors.black,
-                                              ),
-                                            ),
-                                            child: child!,
-                                          );
-                                        },
-                                      );
-                                      if (date != null) {
-                                        setState(() => startDate = date);
-                                      }
-                                    },
+                            const SizedBox(height: 24),
+
+                            // Date Range Section
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(12),
+                                border:
+                                    Border.all(color: Colors.grey.withOpacity(0.2)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.orange.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(
+                                          Icons.date_range,
+                                          color: Colors.orange,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Date Range',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(width: 12),
-                                Container(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 8),
-                                  child: const Icon(Icons.arrow_forward,
-                                      color: Colors.grey),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _buildDateButton(
-                                    context: context,
-                                    label: 'End Date',
-                                    date: endDate,
-                                    onPressed: () async {
-                                      final date = await showDatePicker(
-                                        context: context,
-                                        initialDate: endDate ?? DateTime.now(),
-                                        firstDate: DateTime(2020),
-                                        lastDate: DateTime.now(),
-                                        builder: (context, child) {
-                                          return Theme(
-                                            data: Theme.of(context).copyWith(
-                                              colorScheme:
-                                                  const ColorScheme.light(
-                                                primary: Color(0xFF00B4D8),
-                                                onPrimary: Colors.white,
-                                                surface: Colors.white,
-                                                onSurface: Colors.black,
-                                              ),
-                                            ),
-                                            child: child!,
-                                          );
-                                        },
-                                      );
-                                      if (date != null) {
-                                        setState(() => endDate = date);
-                                      }
-                                    },
+                                  const SizedBox(height: 16),
+
+                                  // Date Range Buttons
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildDateButton(
+                                          context: context,
+                                          label: 'Start Date',
+                                          date: startDate,
+                                          onPressed: () async {
+                                            final date = await showDatePicker(
+                                              context: context,
+                                              initialDate:
+                                                  startDate ?? DateTime.now(),
+                                              firstDate: DateTime(2020),
+                                              lastDate: DateTime.now(),
+                                              builder: (context, child) {
+                                                return Theme(
+                                                  data: Theme.of(context).copyWith(
+                                                    colorScheme:
+                                                        const ColorScheme.light(
+                                                      primary: Color(0xFF00B4D8),
+                                                      onPrimary: Colors.white,
+                                                      surface: Colors.white,
+                                                      onSurface: Colors.black,
+                                                    ),
+                                                  ),
+                                                  child: child!,
+                                                );
+                                              },
+                                            );
+                                            if (date != null) {
+                                              setState(() => startDate = date);
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Container(
+                                        padding:
+                                            const EdgeInsets.symmetric(horizontal: 8),
+                                        child: const Icon(Icons.arrow_forward,
+                                            color: Colors.grey),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _buildDateButton(
+                                          context: context,
+                                          label: 'End Date',
+                                          date: endDate,
+                                          onPressed: () async {
+                                            final date = await showDatePicker(
+                                              context: context,
+                                              initialDate: endDate ?? DateTime.now(),
+                                              firstDate: DateTime(2020),
+                                              lastDate: DateTime.now(),
+                                              builder: (context, child) {
+                                                return Theme(
+                                                  data: Theme.of(context).copyWith(
+                                                    colorScheme:
+                                                        const ColorScheme.light(
+                                                      primary: Color(0xFF00B4D8),
+                                                      onPrimary: Colors.white,
+                                                      surface: Colors.white,
+                                                      onSurface: Colors.black,
+                                                    ),
+                                                  ),
+                                                  child: child!,
+                                                );
+                                              },
+                                            );
+                                            if (date != null) {
+                                              setState(() => endDate = date);
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Action Buttons
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            selectedType = null;
-                            startDate = null;
-                            endDate = null;
-                          });
-                        },
-                        icon: const Icon(Icons.clear_all, color: Colors.red),
-                        label: const Text(
-                          'Clear All',
-                          style: TextStyle(
-                              color: Colors.red, fontWeight: FontWeight.w600),
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: const BorderSide(color: Colors.red),
-                          ),
-                        ),
-                      ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                          fetchActivities(refresh: true);
-                          fetchStats();
-                        },
-                        icon: const Icon(Icons.check, color: Colors.white),
-                        label: const Text(
-                          'Apply Filters',
-                          style: TextStyle(
-                              color: Colors.white, fontWeight: FontWeight.w600),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00B4D8),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+
+                    // Action Buttons
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  selectedType = null;
+                                  startDate = null;
+                                  endDate = null;
+                                });
+                              },
+                              icon: const Icon(Icons.clear_all, color: Colors.red),
+                              label: const Text(
+                                'Clear All',
+                                style: TextStyle(
+                                    color: Colors.red, fontWeight: FontWeight.w600),
+                              ),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: const BorderSide(color: Colors.red),
+                                ),
+                              ),
+                            ),
                           ),
-                          elevation: 2,
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                fetchActivities(refresh: true);
+                                fetchStats();
+                              },
+                              icon: const Icon(Icons.check, color: Colors.white),
+                              label: const Text(
+                                'Apply Filters',
+                                style: TextStyle(
+                                    color: Colors.white, fontWeight: FontWeight.w600),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00B4D8),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 2,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 

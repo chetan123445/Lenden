@@ -26,13 +26,17 @@ const createActivityLog = async (userId, type, title, description, metadata = {}
 exports.getUserActivities = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { page = 1, limit = 20, type, startDate, endDate, search } = req.query;
+    const { page = 1, limit = 20, type, startDate, endDate, search, bookmarked } = req.query;
     
     // Build query
     const query = { user: userId };
     
     if (type) {
       query.type = type;
+    }
+
+    if (bookmarked) {
+      query.bookmarked = bookmarked === 'true';
     }
     
     if (startDate || endDate) {
@@ -123,6 +127,29 @@ exports.getActivityStats = async (req, res) => {
   } catch (error) {
     console.error('Error fetching activity stats:', error);
     res.status(500).json({ error: 'Failed to fetch activity statistics' });
+  }
+};
+
+exports.bookmarkActivity = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { activityId } = req.params;
+    const { bookmarked } = req.body;
+
+    const activity = await Activity.findOneAndUpdate(
+      { _id: activityId, user: userId },
+      { bookmarked: bookmarked },
+      { new: true }
+    );
+
+    if (!activity) {
+      return res.status(404).json({ error: 'Activity not found or you do not have permission to edit it' });
+    }
+
+    res.json(activity);
+  } catch (error) {
+    console.error('Error bookmarking activity:', error);
+    res.status(500).json({ error: 'Failed to bookmark activity' });
   }
 };
 

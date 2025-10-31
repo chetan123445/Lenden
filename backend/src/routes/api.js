@@ -209,6 +209,7 @@ module.exports = (io) => {
   router.get('/activities', auth, activityController.getUserActivities);
   router.get('/activities/stats', auth, activityController.getActivityStats);
   router.delete('/activities/:activityId', auth, activityController.deleteActivity);
+  router.patch('/activities/:activityId/bookmark', auth, activityController.bookmarkActivity);
   router.delete('/activities/cleanup', auth, activityController.cleanupOldActivities);
 
   // Settings routes
