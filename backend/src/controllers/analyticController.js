@@ -30,8 +30,17 @@ exports.getUserAnalytics = async (req, res) => {
     let monthlyCounts = Array(12).fill(0);
     let counterparties = {};
     transactions.forEach(t => {
-      const isLender = t.userEmail === email && t.role === 'lender';
-      const isBorrower = t.userEmail === email && t.role === 'borrower';
+      let isLender = false;
+      let isBorrower = false;
+
+      if (t.userEmail === email) {
+        isLender = t.role === 'lender';
+        isBorrower = t.role === 'borrower';
+      } else { // counterpartyEmail === email
+        isLender = t.role === 'borrower'; // If original role was borrower, counterparty is lender
+        isBorrower = t.role === 'lender'; // If original role was lender, counterparty is borrower
+      }
+
       if (isLender) totalLent += t.amount;
       if (isBorrower) totalBorrowed += t.amount;
       if (t.userCleared && t.counterpartyCleared) cleared++;
