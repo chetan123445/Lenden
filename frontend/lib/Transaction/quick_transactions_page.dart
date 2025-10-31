@@ -373,6 +373,18 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
   }
 
+  Color _getNoteColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6), // Cream
+      Color(0xFFE8F5E9), // Light green
+      Color(0xFFFCE4EC), // Light pink
+      Color(0xFFE3F2FD), // Light blue
+      Color(0xFFFFF9C4), // Light yellow
+      Color(0xFFF3E5F5), // Light purple
+    ];
+    return colors[index % colors.length];
+  }
+
   @override
   Widget build(BuildContext context) {
     final displayedTransactions =
@@ -625,7 +637,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                                         final transaction =
                                             displayedTransactions[i];
                                         return _buildQuickTransactionCard(
-                                            transaction);
+                                            transaction, i);
                                       },
                                     ),
                                   ),
@@ -765,7 +777,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
   }
 
-  Widget _buildQuickTransactionCard(Map<String, dynamic> transaction) {
+  Widget _buildQuickTransactionCard(Map<String, dynamic> transaction, int i) {
     final bool isCleared = transaction['cleared'] == true;
     return Container(
       padding: const EdgeInsets.all(2),
@@ -786,7 +798,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: _getNoteColor(i),
           borderRadius: BorderRadius.circular(20),
         ),
         child: SingleChildScrollView(
