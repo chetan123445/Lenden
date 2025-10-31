@@ -33,10 +33,6 @@ class _ActivityPageState extends State<ActivityPage> {
   // Activity insights data
   Map<String, int> activityTypeCounts = {};
   Map<String, double> activityTypeAmounts = {};
-  String mostActiveDay = '';
-  String mostActiveTime = '';
-  int totalAmount = 0;
-  int averageAmount = 0;
 
   final List<String> activityTypes = [
     'transaction_created',
@@ -211,7 +207,6 @@ class _ActivityPageState extends State<ActivityPage> {
     // Reset insights
     activityTypeCounts.clear();
     activityTypeAmounts.clear();
-    totalAmount = 0;
 
     // Count activities by type and calculate amounts
     for (final activity in allActivities) {
@@ -225,59 +220,10 @@ class _ActivityPageState extends State<ActivityPage> {
       if (amount != null) {
         activityTypeAmounts[type] =
             (activityTypeAmounts[type] ?? 0) + amount.toDouble();
-        totalAmount += amount.toInt();
       }
     }
 
-    // Calculate average amount
-    final activitiesWithAmount =
-        allActivities.where((a) => a['amount'] != null).length;
-    averageAmount =
-        activitiesWithAmount > 0 ? totalAmount ~/ activitiesWithAmount : 0;
-
-    // Find most active day and time
-    _calculateMostActiveTime();
-
     setState(() {});
-  }
-
-  void _calculateMostActiveTime() {
-    final dayCounts = <String, int>{};
-    final timeCounts = <String, int>{};
-
-    for (final activity in allActivities) {
-      final createdAt = DateTime.parse(activity['createdAt'] as String);
-
-      // Count by day of week
-      final dayName = DateFormat('EEEE').format(createdAt);
-      dayCounts[dayName] = (dayCounts[dayName] ?? 0) + 1;
-
-      // Count by hour
-      final hour = createdAt.hour;
-      String timeSlot;
-      if (hour < 6)
-        timeSlot = 'Night (12 AM - 6 AM)';
-      else if (hour < 12)
-        timeSlot = 'Morning (6 AM - 12 PM)';
-      else if (hour < 18)
-        timeSlot = 'Afternoon (12 PM - 6 PM)';
-      else
-        timeSlot = 'Evening (6 PM - 12 AM)';
-
-      timeCounts[timeSlot] = (timeCounts[timeSlot] ?? 0) + 1;
-    }
-
-    // Find most active day
-    if (dayCounts.isNotEmpty) {
-      mostActiveDay =
-          dayCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
-    }
-
-    // Find most active time
-    if (timeCounts.isNotEmpty) {
-      mostActiveTime =
-          timeCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
-    }
   }
 
   // Search functionality
@@ -763,46 +709,6 @@ class _ActivityPageState extends State<ActivityPage> {
           const SizedBox(height: 16),
 
           // Insights Grid
-          Row(
-            children: [
-              Expanded(
-                child: _buildInsightCard(
-                  'Total Amount',
-                  '₹$totalAmount',
-                  Icons.account_balance_wallet,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildInsightCard(
-                  'Average',
-                  '₹$averageAmount',
-                  Icons.trending_up,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Expanded(
-                child: _buildInsightCard(
-                  'Most Active Day',
-                  mostActiveDay.isNotEmpty ? mostActiveDay : 'N/A',
-                  Icons.calendar_today,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildInsightCard(
-                  'Peak Time',
-                  mostActiveTime.isNotEmpty ? mostActiveTime : 'N/A',
-                  Icons.access_time,
-                ),
-              ),
-            ],
-          ),
 
           // Top Activity Types
           if (activityTypeCounts.isNotEmpty) ...[
