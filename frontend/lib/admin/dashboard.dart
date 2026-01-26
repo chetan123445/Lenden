@@ -13,6 +13,7 @@ import 'admin_feedbacks_page.dart';
 import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
 import 'admin_features_page.dart';
+import 'manage_gift_cards_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -224,6 +225,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           context,
                           MaterialPageRoute(
                               builder: (_) => AdminFeaturesPage()));
+                    },
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.card_giftcard,
+                    label: 'Manage Gift Cards',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => ManageGiftCardsPage()),
+                      );
                     },
                   ),
                   _buildDashboardCard(

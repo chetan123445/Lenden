@@ -30,6 +30,9 @@ module.exports = (io) => {
   const groupChatController = require('../controllers/groupChatController')(io);
   const subscriptionController = require('../controllers/subscriptionController');
   const adminFeatureController = require('../controllers/adminFeatureController');
+  const giftCardController = require('../controllers/giftCardController');
+  const handleUsage = require('../middleware/handleUsage');
+  const userGiftCardController = require('../controllers/userGiftCardController');
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -78,9 +81,13 @@ module.exports = (io) => {
   router.post('/users/logout-device', auth, sessionTimeout, userController.logoutDevice);
   router.get('/users/:id', auth, userController.getUserById);
 
+  // User Gift Card routes
+  router.get('/users/me/giftcards', auth, userGiftCardController.getUserGiftCards);
+  router.post('/users/me/giftcards/:id/scratch', auth, userGiftCardController.scratchGiftCard);
+
   // Quick Transaction routes
   router.get('/quick-transactions', auth, quickTransactionController.getQuickTransactions);
-  router.post('/quick-transactions', auth, quickTransactionController.createQuickTransaction);
+  router.post('/quick-transactions', auth, handleUsage('createQuickTransaction'), quickTransactionController.createQuickTransaction);
   router.put('/quick-transactions/:id', auth, quickTransactionController.updateQuickTransaction);
   router.delete('/quick-transactions/:id', auth, quickTransactionController.deleteQuickTransaction);
   router.put('/quick-transactions/:id/clear', auth, quickTransactionController.clearQuickTransaction);
@@ -149,7 +156,7 @@ module.exports = (io) => {
   router.get('/admins/:id/profile-image', profileController.getAdminProfileImage);
 
   // Transaction routes
-  router.post('/transactions/create', upload.array('files'), transactionController.createTransaction);
+  router.post('/transactions/create', auth, handleUsage('createUserTransaction'), upload.array('files'), transactionController.createTransaction);
   router.post('/transactions/check-email', transactionController.checkEmailExists);
   router.post('/transactions/send-counterparty-otp', transactionController.sendCounterpartyOTP);
   router.post('/transactions/verify-counterparty-otp', transactionController.verifyCounterpartyOTP);
@@ -179,7 +186,7 @@ module.exports = (io) => {
   router.delete('/notes/:id', auth, noteController.deleteNote);
 
   // Group Transaction routes
-  router.post('/group-transactions', auth, groupTransactionController.createGroup);
+  router.post('/group-transactions', auth, handleUsage('createGroup'), groupTransactionController.createGroup);
   router.post('/group-transactions/:groupId/add-member', auth, groupTransactionController.addMember);
   router.post('/group-transactions/:groupId/remove-member', auth, groupTransactionController.removeMember);
   router.post('/group-transactions/:groupId/settle-member-expenses', auth, groupTransactionController.settleMemberExpenses);
@@ -346,6 +353,13 @@ module.exports = (io) => {
   router.get('/admin/faqs', auth, isAdmin, adminFeatureController.getFaqs);
   router.put('/admin/faqs/:id', auth, isAdmin, adminFeatureController.updateFaq);
   router.delete('/admin/faqs/:id', auth, isAdmin, adminFeatureController.deleteFaq);
+
+  // Gift Card Management (Admin)
+  router.post('/admin/giftcards', auth, isAdmin, giftCardController.createGiftCard);
+  router.get('/admin/giftcards', auth, isAdmin, giftCardController.getGiftCards);
+  router.put('/admin/giftcards/:id', auth, isAdmin, giftCardController.updateGiftCard);
+  router.delete('/admin/giftcards/:id', auth, isAdmin, giftCardController.deleteGiftCard);
+
 
   return router;
 };
