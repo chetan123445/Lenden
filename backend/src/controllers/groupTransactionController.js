@@ -23,13 +23,95 @@ async function validateUsers(userIds) {
   return count === userIds.length;
 }
 
-exports.createGroup = async (req, res) => {
+exports.createGroupWithCoins = async (req, res) => {
+  const GROUP_COST = 20;
   try {
     const { title, memberEmails, color } = req.body;
-    const creator = req.user;
+    const creator = await User.findById(req.user._id);
 
     if (!creator) {
       return res.status(400).json({ error: 'Creator not found' });
+    }
+
+    if (creator.lenDenCoins < GROUP_COST) {
+      return res.status(403).json({ error: 'Insufficient LenDen coins.' });
+    }
+
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+    
+    // Filter out creator's email from memberEmails (they're added automatically)
+    const filteredMemberEmails = memberEmails.filter(email => email !== creator.email);
+    
+    // Find users by email
+    const users = await User.find({ email: { $in: filteredMemberEmails } });
+    if (users.length !== filteredMemberEmails.length) {
+      return res.status(400).json({ error: 'One or more members do not exist' });
+    }
+    
+    creator.lenDenCoins -= GROUP_COST;
+    await creator.save();
+
+    const memberIds = users.map(u => u._id.toString());
+    // Always add creator as the first member
+    memberIds.unshift(creator._id.toString());
+    
+    const members = memberIds.map(id => ({ user: id }));
+    const group = await GroupTransaction.create({ title, creator: creator._id, members, color });
+    // Populate members and creator for response
+    const populatedGroup = await GroupTransaction.findById(group._id)
+      .populate('members.user', 'email')
+      .populate('creator', 'email');
+    // Map members to include email
+    const groupObj = populatedGroup.toObject();
+    groupObj.members = groupObj.members.map(m => ({
+      _id: m.user._id,
+      email: m.user.email,
+      joinedAt: m.joinedAt,
+      leftAt: m.leftAt
+    }));
+    groupObj.creator = {
+      _id: groupObj.creator._id,
+      email: groupObj.creator.email
+    };
+    res.status(201).json({ 
+        message: "Group created successfully with LenDen coins",
+        group: groupObj, 
+        lenDenCoins: creator.lenDenCoins 
+    });
+    
+    // Log activity for group creation - all members get notified
+    try {
+      const creatorInfo = {
+        creatorId: creator._id,
+        creatorEmail: creator.email
+      };
+      await logGroupActivityForAllMembers('group_created_with_coins', group, {}, null, creatorInfo);
+      groupTransactionEmail.sendGroupCreatedEmail(populatedGroup, creator);
+    } catch (e) {
+      console.error('Failed to log group activity or send email:', e);
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.createGroup = async (req, res) => {
+  try {
+    const { title, memberEmails, color } = req.body;
+    const creator = await User.findById(req.user._id);
+
+    if (!creator) {
+      return res.status(400).json({ error: 'Creator not found' });
+    }
+
+    // Check subscription and free attempts
+    const subscription = await Subscription.findOne({ user: creator._id, status: 'active' });
+    const isSubscribed = subscription && subscription.subscribed && subscription.endDate >= new Date();
+    
+    if (!isSubscribed && creator.freeGroupsRemaining <= 0) {
+      return res.status(403).json({ error: 'No free group creations remaining. Please subscribe or use LenDen coins.' });
     }
 
     if (!title) {
@@ -51,6 +133,13 @@ exports.createGroup = async (req, res) => {
     
     const members = memberIds.map(id => ({ user: id }));
     const group = await GroupTransaction.create({ title, creator: creator._id, members, color });
+    
+    // Decrement free group creations if not subscribed
+    if (!isSubscribed) {
+      creator.freeGroupsRemaining -= 1;
+      await creator.save();
+    }
+    
     // Populate members and creator for response
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')

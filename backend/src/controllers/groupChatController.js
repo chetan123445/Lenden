@@ -35,8 +35,25 @@ module.exports = (io) => {
                 if (!isSubscribed) {
                     const userMessageCount = groupTransaction.messageCounts.find(mc => mc.user.toString() === senderId);
                     if (userMessageCount && userMessageCount.count >= 5) {
-                        socket.emit('createGroupMessageError', { ...data, error: 'You have reached your free message limit for this group. Please subscribe for unlimited messages.' });
-                        return;
+                        const MESSAGE_COST = 7;
+                        if (sender.lenDenCoins < MESSAGE_COST) {
+                            socket.emit('createGroupMessageError', { ...data, error: 'Insufficient LenDen coins to send a message. Please subscribe or earn more coins.' });
+                            return;
+                        }
+                        sender.lenDenCoins -= MESSAGE_COST;
+                        await sender.save();
+                    } else {
+                        if (userMessageCount) {
+                            await GroupTransaction.updateOne(
+                                { _id: groupTransactionId, 'messageCounts.user': senderId },
+                                { $inc: { 'messageCounts.$.count': 1 } }
+                            );
+                        } else {
+                            await GroupTransaction.updateOne(
+                                { _id: groupTransactionId },
+                                { $push: { messageCounts: { user: senderId, count: 1 } } }
+                            );
+                        }
                     }
                 }
 
@@ -62,23 +79,6 @@ module.exports = (io) => {
 
                 await chat.save();
 
-                // Increment message count for the user
-                if (!isSubscribed) {
-                    const userMessageCount = groupTransaction.messageCounts.find(mc => mc.user.toString() === senderId);
-
-                    if (userMessageCount) {
-                        await GroupTransaction.updateOne(
-                            { _id: groupTransactionId, 'messageCounts.user': senderId },
-                            { $inc: { 'messageCounts.$.count': 1 } }
-                        );
-                    } else {
-                        await GroupTransaction.updateOne(
-                            { _id: groupTransactionId },
-                            { $push: { messageCounts: { user: senderId, count: 1 } } }
-                        );
-                    }
-                }
-
                 chat = await GroupChat.findById(chat._id)
                     .populate('senderId', 'name')
                     .populate({
@@ -91,7 +91,7 @@ module.exports = (io) => {
 
                 const updatedGroupTransaction = await GroupTransaction.findById(groupTransactionId).populate('messageCounts.user', 'name');
 
-                io.to(groupTransactionId).emit('newGroupMessage', {chat, messageCounts: updatedGroupTransaction.messageCounts});
+                io.to(groupTransactionId).emit('newGroupMessage', {chat, messageCounts: updatedGroupTransaction.messageCounts, lenDenCoins: sender.lenDenCoins});
             } catch (error) {
                 console.error('Error in createGroupMessage socket handler:', error);
                 socket.emit('createGroupMessageError', { ...data, error: 'An error occurred while sending the message.' });

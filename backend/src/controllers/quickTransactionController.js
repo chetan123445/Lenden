@@ -40,6 +40,51 @@ exports.createQuickTransaction = async (req, res) => {
   }
 };
 
+exports.createQuickTransactionWithCoins = async (req, res) => {
+  const QUICK_TRANSACTION_COST = 5;
+  try {
+    const { amount, currency, date, time, description, counterpartyEmail, role } = req.body;
+    const user = await User.findById(req.user._id);
+    const userEmail = user.email;
+
+    if (user.lenDenCoins < QUICK_TRANSACTION_COST) {
+      return res.status(403).json({ error: 'Insufficient LenDen coins.' });
+    }
+
+    if (userEmail === counterpartyEmail) {
+      return res.status(400).json({ error: 'User and counterparty email cannot be the same.' });
+    }
+
+    const counterparty = await User.findOne({ email: counterpartyEmail });
+    if (!counterparty) {
+      return res.status(404).json({ error: 'Counterparty email not found.' });
+    }
+
+    user.lenDenCoins -= QUICK_TRANSACTION_COST;
+    await user.save();
+
+    const quickTransaction = new QuickTransaction({
+      amount,
+      currency,
+      date,
+      time,
+      description,
+      users: [userEmail, counterpartyEmail],
+      role,
+    });
+
+    await quickTransaction.save();
+    await logQuickTransactionActivity(req.user._id, 'quick_transaction_created_with_coins', quickTransaction, { counterpartyEmail });
+    res.status(201).json({ 
+        message: 'Quick transaction created successfully with LenDen coins', 
+        quickTransaction, 
+        lenDenCoins: user.lenDenCoins 
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+};
+
 exports.getQuickTransactions = async (req, res) => {
   try {
     const userEmail = req.user.email;

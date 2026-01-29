@@ -6,6 +6,8 @@ import 'package:provider/provider.dart';
 import '../user/session.dart';
 import '../utils/api_client.dart';
 import '../widgets/subscription_prompt.dart';
+import '../widgets/stylish_dialog.dart';
+import '../Digitise/subscriptions_page.dart';
 
 class QuickTransactionsPage extends StatefulWidget {
   const QuickTransactionsPage({Key? key}) : super(key: key);
@@ -132,15 +134,158 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   Future<void> createOrEditQuickTransaction(
       {Map<String, dynamic>? transaction}) async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    if (!session.isSubscribed && (session.freeQuickTransactionsRemaining ?? 0) <= 0 && transaction == null) {
-      // Only check for new transactions
-      showSubscriptionPrompt(context);
-      return;
+    if (!session.isSubscribed &&
+        (session.freeQuickTransactionsRemaining ?? 0) <= 0 &&
+        transaction == null) {
+      if ((session.lenDenCoins ?? 0) < 5) {
+        if ((session.lenDenCoins ?? 0) == 0) {
+          showZeroCoinsDialog(context);
+        } else {
+          showInsufficientCoinsDialog(context);
+        }
+        return;
+      }
+      final useCoins = await showDialog<bool>(
+        context: context,
+        builder: (context) => Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Container(
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.monetization_on, color: Colors.orange, size: 48),
+                  SizedBox(height: 16),
+                  Text(
+                    'Use LenDen Coins',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'You have no free quick transactions remaining. Would you like to use 5 LenDen coins to create this transaction?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey[800]),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'OR',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Subscribe now for unlimited access',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.green,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: 24),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[300],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                              color: Colors.grey[800],
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context, false);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SubscriptionsPage(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: Text(
+                          'Subscribe',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: Text(
+                          'Use Coins',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      if (useCoins != true) {
+        return;
+      }
     }
 
     final result = await showDialog(
       context: context,
-      builder: (context) => _QuickTransactionDialog(transaction: transaction),
+      builder: (context) => _QuickTransactionDialog(
+          transaction: transaction,
+          useCoins: !session.isSubscribed &&
+              (session.freeQuickTransactionsRemaining ?? 0) <= 0),
     );
 
     if (result is String) {
@@ -377,13 +522,18 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
               Consumer<SessionProvider>(
                 builder: (context, session, child) {
                   if (session.isSubscribed) {
-                    return Text('You have unlimited quick transactions.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold));
+                    return Text('You have unlimited quick transactions.',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold));
                   }
                   final remaining = session.freeQuickTransactionsRemaining;
                   if (remaining == null) {
                     return SizedBox.shrink();
                   }
-                  return Text('You have $remaining free quick transactions remaining.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold));
+                  return Text(
+                      'You have $remaining free quick transactions remaining.',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold));
                 },
               ),
               // Search Bar
@@ -741,12 +891,16 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       ),
       floatingActionButton: Consumer<SessionProvider>(
         builder: (context, session, child) {
-          final bool canCreate = session.isSubscribed || (session.freeQuickTransactionsRemaining ?? 0) > 0;
+          final bool canCreate = session.isSubscribed ||
+              (session.freeQuickTransactionsRemaining ?? 0) > 0 ||
+              (session.lenDenCoins ?? 0) >= 5;
           return Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
-                colors: canCreate ? [Colors.orange, Colors.green] : [Colors.grey, Colors.grey],
+                colors: canCreate
+                    ? [Colors.orange, Colors.green]
+                    : [Colors.grey, Colors.grey],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -759,7 +913,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
               ],
             ),
             child: FloatingActionButton(
-              onPressed: canCreate ? () => createOrEditQuickTransaction() : null,
+              onPressed:
+                  canCreate ? () => createOrEditQuickTransaction() : null,
               backgroundColor: Colors.transparent,
               elevation: 0,
               child: const Icon(Icons.add, color: Colors.white, size: 28),
@@ -904,8 +1059,11 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
 
 class _QuickTransactionDialog extends StatefulWidget {
   final Map<String, dynamic>? transaction;
+  final bool useCoins;
 
-  const _QuickTransactionDialog({Key? key, this.transaction}) : super(key: key);
+  const _QuickTransactionDialog(
+      {Key? key, this.transaction, this.useCoins = false})
+      : super(key: key);
 
   @override
   __QuickTransactionDialogState createState() =>
@@ -1220,12 +1378,14 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                                     };
 
                                     try {
+                                      final url = widget.useCoins
+                                          ? '/api/quick-transactions/with-coins'
+                                          : '/api/quick-transactions';
                                       final res = isEditing
                                           ? await ApiClient.put(
                                               '/api/quick-transactions/${widget.transaction!['_id']}',
                                               body: body)
-                                          : await ApiClient.post(
-                                              '/api/quick-transactions',
+                                          : await ApiClient.post(url,
                                               body: body);
 
                                       if (res.statusCode == 200 ||
@@ -1291,7 +1451,6 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
     );
   }
 }
-
 
 class TopWaveClipper extends CustomClipper<Path> {
   @override

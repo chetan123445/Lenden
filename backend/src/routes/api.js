@@ -84,6 +84,7 @@ module.exports = (io) => {
   // Quick Transaction routes
   router.get('/quick-transactions', auth, quickTransactionController.getQuickTransactions);
   router.post('/quick-transactions', auth, handleUsage('quickTransaction'), quickTransactionController.createQuickTransaction);
+  router.post('/quick-transactions/with-coins', auth, quickTransactionController.createQuickTransactionWithCoins);
   router.put('/quick-transactions/:id', auth, quickTransactionController.updateQuickTransaction);
   router.delete('/quick-transactions/:id', auth, quickTransactionController.deleteQuickTransaction);
   router.put('/quick-transactions/:id/clear', auth, quickTransactionController.clearQuickTransaction);
@@ -153,6 +154,7 @@ module.exports = (io) => {
 
   // Transaction routes
   router.post('/transactions/create', auth, handleUsage('userTransaction'), upload.array('files'), transactionController.createTransaction);
+  router.post('/transactions/with-coins', auth, upload.array('files'), transactionController.createTransactionWithCoins);
   router.post('/transactions/check-email', transactionController.checkEmailExists);
   router.post('/transactions/send-counterparty-otp', transactionController.sendCounterpartyOTP);
   router.post('/transactions/verify-counterparty-otp', transactionController.verifyCounterpartyOTP);
@@ -183,6 +185,7 @@ module.exports = (io) => {
 
   // Group Transaction routes
   router.post('/group-transactions', auth, handleUsage('group'), groupTransactionController.createGroup);
+  router.post('/group-transactions/with-coins', auth, groupTransactionController.createGroupWithCoins);
   router.post('/group-transactions/:groupId/add-member', auth, groupTransactionController.addMember);
   router.post('/group-transactions/:groupId/remove-member', auth, groupTransactionController.removeMember);
   router.post('/group-transactions/:groupId/settle-member-expenses', auth, groupTransactionController.settleMemberExpenses);

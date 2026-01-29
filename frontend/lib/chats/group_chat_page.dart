@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'dart:math';
 import '../widgets/subscription_prompt.dart';
 import '../utils/api_client.dart';
+import '../widgets/stylish_dialog.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String groupTransactionId;
@@ -106,7 +107,28 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 }
               }
             });
+            if (data['lenDenCoins'] != null) {
+              final session =
+                  Provider.of<SessionProvider>(context, listen: false);
+              session.loadFreebieCounts();
+            }
           }
+        }
+      }
+    });
+
+    socket.on('createGroupMessageError', (data) {
+      if (data['error'].contains('Insufficient LenDen coins')) {
+        showInsufficientCoinsDialog(context);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(data['error'] ?? 'Failed to send message'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 3),
+            ),
+          );
         }
       }
     });
@@ -228,16 +250,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
   }
 
-  void _sendMessage() {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    if (!session.isSubscribed) {
-      final messageCount = _messageCounts[_currentUserId] ?? 0;
-      if (messageCount >= 5) {
-        showSubscriptionPrompt(context);
-        return;
-      }
-    }
-
+  Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
 
     if (!_isActiveMember) {
@@ -250,6 +263,150 @@ class _GroupChatPageState extends State<GroupChatPage> {
         ),
       );
       return;
+    }
+
+    final session = Provider.of<SessionProvider>(context, listen: false);
+
+    // Allow if subscribed OR free messages remaining OR sufficient coins
+    final remainingFree = 5 - (_messageCounts[_currentUserId] ?? 0);
+    const int messageCost = 7;
+
+    if (!session.isSubscribed && remainingFree <= 0) {
+      final coins = session.lenDenCoins ?? 0;
+      if (coins < messageCost) {
+        if (coins == 0) {
+          showZeroCoinsDialog(context);
+        } else {
+          showInsufficientCoinsDialog(context);
+        }
+        return;
+      }
+
+      final useCoins = await showDialog<bool>(
+        context: context,
+        builder: (context) => Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Container(
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.monetization_on, color: Colors.orange, size: 48),
+                  SizedBox(height: 16),
+                  Text(
+                    'Use LenDen Coins',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'You have no free messages remaining. Would you like to use $messageCost LenDen coins to send this message?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey[800]),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'OR',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Subscribe now for unlimited access',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.green,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: 24),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[300],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                              color: Colors.grey[800],
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context, false);
+                          showSubscriptionPrompt(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: Text(
+                          'Subscribe',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: Text(
+                          'Use Coins',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
     }
 
     if (_editingMessage != null) {
@@ -659,11 +816,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(widget.groupTitle,
-                  style:
-                      TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                  style: TextStyle(
+                      color: Colors.black, fontWeight: FontWeight.bold)),
               Consumer<SessionProvider>(
                 builder: (context, session, child) {
-                  if(session.isSubscribed) {
+                  if (session.isSubscribed) {
                     return SizedBox.shrink();
                   }
                   final remaining = 5 - (_messageCounts[_currentUserId] ?? 0);
@@ -939,79 +1096,64 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Widget _buildMessageInput() {
-    return Consumer<SessionProvider>(
-      builder: (context, session, child) {
-        final remaining = 5 - (_messageCounts[_currentUserId] ?? 0);
-        final bool canSend = (session.isSubscribed || remaining > 0) && _isActiveMember;
-
-        return Container(
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(27),
-            gradient: const LinearGradient(
-              colors: [Colors.orange, Colors.white, Colors.green],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(27),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      margin: EdgeInsets.all(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              icon: Icon(
+                  _showEmojiPicker
+                      ? Icons.close
+                      : Icons.emoji_emotions_outlined,
+                  color: Colors.grey),
+              onPressed: _onEmojiIconPressed,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
+            Expanded(
+              child: TextField(
+                focusNode: _messageFocusNode,
+                controller: _messageController,
+                decoration: InputDecoration(
+                  hintText: 'Type a message',
+                  border: InputBorder.none,
+                ),
+                onTap: () {
+                  if (_showEmojiPicker) {
+                    setState(() {
+                      _showEmojiPicker = false;
+                    });
+                  }
+                },
               ),
-            ],
-          ),
-          margin: EdgeInsets.all(8),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(25),
             ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: Icon(
-                      _showEmojiPicker
-                          ? Icons.close
-                          : Icons.emoji_emotions_outlined,
-                      color: canSend
-                          ? Colors.grey
-                          : Colors.grey.withOpacity(0.3)),
-                  onPressed: canSend ? _onEmojiIconPressed : null,
-                ),
-                Expanded(
-                  child: TextField(
-                    focusNode: _messageFocusNode,
-                    controller: _messageController,
-                    enabled: canSend,
-                    decoration: InputDecoration(
-                      hintText: canSend
-                          ? 'Type a message'
-                          : 'No free messages left',
-                      border: InputBorder.none,
-                    ),
-                    onTap: () {
-                      if (_showEmojiPicker) {
-                        setState(() {
-                          _showEmojiPicker = false;
-                        });
-                      }
-                    },
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.send,
-                      color: canSend
-                          ? Colors.blue
-                          : Colors.grey.withOpacity(0.3)),
-                  onPressed: canSend ? _sendMessage : null,
-                ),
-              ],
+            IconButton(
+              icon: Icon(Icons.send, color: Colors.blue),
+              onPressed: _sendMessage,
             ),
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 

@@ -18,6 +18,8 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'user_transactions_page.dart';
 import '../widgets/subscription_prompt.dart';
+import '../widgets/stylish_dialog.dart';
+import '../Digitise/subscriptions_page.dart';
 
 class TopWaveClipper extends CustomClipper<Path> {
   @override
@@ -314,11 +316,318 @@ class _TransactionPageState extends State<TransactionPage> {
 
   Future<void> _submit() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    if (!session.isSubscribed && (session.freeUserTransactionsRemaining ?? 0) <= 0) {
-      showSubscriptionPrompt(context);
-      return;
+    if (session.isSubscribed ||
+        (session.freeUserTransactionsRemaining ?? 0) > 0) {
+      _submitWithApi();
+    } else {
+      if ((session.lenDenCoins ?? 0) < 10) {
+        if ((session.lenDenCoins ?? 0) == 0) {
+          showZeroCoinsDialog(context);
+        } else {
+          showInsufficientCoinsDialog(context);
+        }
+      } else {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: const LinearGradient(
+                    colors: [Colors.orange, Colors.white, Colors.green],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Container(
+                  padding: EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.monetization_on, color: Colors.orange, size: 48),
+                      SizedBox(height: 16),
+                      Text(
+                        'Use LenDen Coins',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        'You have no free transactions remaining. Would you like to use 10 LenDen coins to create this transaction?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 16, color: Colors.grey[800]),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'OR',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Subscribe now for unlimited access',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.green,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 24),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[300],
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 12),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                  color: Colors.grey[800],
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => SubscriptionsPage(),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 12),
+                            ),
+                            child: Text(
+                              'Subscribe',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              _submitWithCoins();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 24, vertical: 12),
+                            ),
+                            child: Text(
+                              'Use Coins',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      }
     }
+  }
 
+  Future<void> _submitWithCoins() async {
+    // Logic to submit with coins
+    setState(() => _isLoading = true);
+    try {
+      final Map<String, dynamic> body = {
+        'amount': _amountController.text,
+        'currency': _currency,
+        'date': _selectedDate?.toIso8601String() ?? '',
+        'time': _selectedTime?.format(context) ?? '',
+        'place': _placeController.text,
+        'counterpartyEmail': _counterpartyEmailController.text,
+        'userEmail': _userEmailController.text,
+        'role': _role,
+        'interestType': _interestType,
+        'description': _descriptionController.text,
+      };
+
+      if (_interestType != 'none') {
+        body['interestRate'] = _interestRateController.text;
+        body['expectedReturnDate'] =
+            _expectedReturnDate?.toIso8601String() ?? '';
+        if (_interestType == 'compound') {
+          body['compoundingFrequency'] = _compoundingFrequency;
+        }
+      }
+
+      // Attach files as base64 payloads to avoid multipart complexity.
+      if (_pickedFiles.isNotEmpty) {
+        body['files'] = _pickedFiles.where((f) => f.bytes != null).map((f) {
+          final ext = (f.extension ?? '').toLowerCase();
+          String mime = 'application/octet-stream';
+          if (ext == 'png')
+            mime = 'image/png';
+          else if (ext == 'jpg' || ext == 'jpeg')
+            mime = 'image/jpeg';
+          else if (ext == 'pdf') mime = 'application/pdf';
+          return {
+            'name': f.name,
+            'mime': mime,
+            'data': base64Encode(f.bytes!),
+          };
+        }).toList();
+      }
+
+      final res =
+          await ApiClient.post('/api/transactions/with-coins', body: body);
+      setState(() => _isLoading = false);
+      if (res.statusCode == 201) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          _transactionId = data['transactionId'];
+        });
+        final session = Provider.of<SessionProvider>(context, listen: false);
+        session.loadFreebieCounts();
+        showDialog(
+          context: context,
+          builder: (_) => Dialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: Colors.white,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      ClipPath(
+                        clipper: TopWaveClipper(),
+                        child: Container(
+                          height: 80,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 16,
+                        child: CircleAvatar(
+                          radius: 28,
+                          backgroundColor: Colors.white,
+                          child: Icon(Icons.check_circle,
+                              color: Color(0xFF00B4D8), size: 48),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 24),
+                  Text('Transaction Created!',
+                      style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF00B4D8))),
+                  SizedBox(height: 12),
+                  Text('Transaction ID:',
+                      style: TextStyle(fontSize: 16, color: Colors.black87)),
+                  SizedBox(height: 4),
+                  SelectableText('${_transactionId ?? ''}',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black)),
+                  SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF00B4D8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop(); // Close the success dialog
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => UserTransactionsPage(),
+                          ),
+                        );
+                      },
+                      child: Text('View Transactions',
+                          style: TextStyle(fontSize: 16, color: Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      } else if (res.statusCode == 403) {
+        showInsufficientCoinsDialog(context);
+      } else {
+        final errBody = (res.body.isNotEmpty) ? res.body : 'Unknown error';
+        String errorMsg = 'Failed to create transaction';
+        try {
+          final data = jsonDecode(errBody);
+          errorMsg = data['error'] ?? data['message'] ?? errBody;
+        } catch (_) {
+          errorMsg = errBody;
+        }
+        _showStylishErrorDialog('Transaction Failed', errorMsg);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showStylishErrorDialog('Transaction Failed', e.toString());
+    }
+  }
+
+  Future<void> _submitWithApi() async {
     setState(() => _sameEmailError = null);
 
     // Custom validation for expected return date when interest is selected
@@ -384,6 +693,7 @@ class _TransactionPageState extends State<TransactionPage> {
         setState(() {
           _transactionId = data['transactionId'];
         });
+        final session = Provider.of<SessionProvider>(context, listen: false);
         session.loadFreebieCounts();
         showDialog(
           context: context,
@@ -816,13 +1126,22 @@ class _TransactionPageState extends State<TransactionPage> {
                   Consumer<SessionProvider>(
                     builder: (context, session, child) {
                       if (session.isSubscribed) {
-                        return Text('You have unlimited transactions.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white));
+                        return Text('You have unlimited transactions.',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white));
                       }
                       final remaining = session.freeUserTransactionsRemaining;
                       if (remaining == null) {
                         return SizedBox.shrink();
                       }
-                      return Text('You have $remaining free transactions remaining.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white));
+                      return Text(
+                          'You have $remaining free transactions remaining.',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white));
                     },
                   ),
                   if (_bothUsersVerified) ...[
@@ -1157,17 +1476,16 @@ class _TransactionPageState extends State<TransactionPage> {
                     else
                       SizedBox(
                         width: double.infinity,
-                        child: Consumer<SessionProvider>(
-                          builder: (context, session, child) {
-                            final bool canCreate = session.isSubscribed || (session.freeUserTransactionsRemaining ?? 0) > 0;
-                            return ElevatedButton(
-                              onPressed: (_counterpartyVerified && _userVerified && !_isLoading) ? _submit : (canCreate && !_isLoading ? _submit : null),
-                              child: Text('Submit Transaction'),
-                              style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.teal,
-                                  padding: EdgeInsets.symmetric(vertical: 16)),
-                            );
-                          },
+                        child: ElevatedButton(
+                          onPressed: (_counterpartyVerified &&
+                                  _userVerified &&
+                                  !_isLoading)
+                              ? _submit
+                              : null,
+                          child: Text('Submit Transaction'),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.teal,
+                              padding: EdgeInsets.symmetric(vertical: 16)),
                         ),
                       ),
                     if (_transactionId != null) ...[

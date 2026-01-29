@@ -6,6 +6,8 @@ import '../user/session.dart';
 import '../utils/api_client.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../widgets/subscription_prompt.dart';
+import '../widgets/stylish_dialog.dart';
+import '../Digitise/subscriptions_page.dart';
 
 class GroupTransactionPage extends StatefulWidget {
   const GroupTransactionPage({Key? key}) : super(key: key);
@@ -259,10 +261,193 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     };
   }
 
+  Future<void> _createGroupWithCoins() async {
+    setState(() {
+      creatingGroup = true;
+      error = null;
+    });
+    try {
+      final res = await ApiClient.post(
+        '/api/group-transactions/with-coins',
+        body: {
+          'title': _titleController.text.trim(),
+          'memberEmails':
+              memberEmails, // Backend expects emails for group creation
+          'color': selectedGroupColor != null
+              ? '#${selectedGroupColor!.value.toRadixString(16).substring(2).toUpperCase()}'
+              : null,
+        },
+      );
+      final data = json.decode(res.body);
+      if (res.statusCode == 201) {
+        setState(() {
+          group = data['group'];
+          isCreator = true;
+        });
+        final session = Provider.of<SessionProvider>(context, listen: false);
+        session.loadFreebieCounts();
+      } else if (res.statusCode == 403) {
+        showInsufficientCoinsDialog(context);
+      } else {
+        setState(() {
+          error = data['error'] ?? 'Failed to create group';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        error = e.toString();
+      });
+    } finally {
+      setState(() {
+        creatingGroup = false;
+      });
+    }
+  }
+
   Future<void> _createGroup() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
     if (!session.isSubscribed && (session.freeGroupsRemaining ?? 0) <= 0) {
-      showSubscriptionPrompt(context);
+      if ((session.lenDenCoins ?? 0) < 20) {
+        if ((session.lenDenCoins ?? 0) == 0) {
+          showZeroCoinsDialog(context);
+        } else {
+          showInsufficientCoinsDialog(context);
+        }
+        return;
+      }
+      final useCoins = await showDialog<bool>(
+        context: context,
+        builder: (context) => Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Container(
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Color(0xFFE8F5E9),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.monetization_on, color: Colors.orange, size: 48),
+                  SizedBox(height: 16),
+                  Text(
+                    'Use LenDen Coins',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'You have no free groups remaining. Would you like to use 20 LenDen coins to create this group?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 16, color: Colors.grey[800]),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'OR',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.orange,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Subscribe now for unlimited access',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.green,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  SizedBox(height: 24),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[300],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                              color: Colors.grey[800],
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context, false);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SubscriptionsPage(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: Text(
+                          'Subscribe',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+                        ),
+                        child: Text(
+                          'Use Coins',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      if (useCoins == true) {
+        _createGroupWithCoins();
+      }
       return;
     }
 
@@ -4497,27 +4682,44 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                     children: [
                                       Consumer<SessionProvider>(
                                         builder: (context, session, child) {
-                                          final bool canCreate = session.isSubscribed || (session.freeGroupsRemaining ?? 0) > 0;
+                                          final bool canCreate = session
+                                                  .isSubscribed ||
+                                              (session.freeGroupsRemaining ??
+                                                      0) >
+                                                  0 ||
+                                              (session.lenDenCoins ?? 0) >= 20;
                                           return Column(
-                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.end,
                                             children: [
-                                              if (!session.isSubscribed && (session.freeGroupsRemaining ?? 0) > 0)
+                                              if (!session.isSubscribed &&
+                                                  (session.freeGroupsRemaining ??
+                                                          0) >
+                                                      0)
                                                 Padding(
-                                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                          bottom: 8.0),
                                                   child: Text(
                                                     '${session.freeGroupsRemaining} free group creations remaining.',
-                                                    style: TextStyle(color: Colors.green),
+                                                    style: TextStyle(
+                                                        color: Colors.green),
                                                   ),
                                                 ),
                                               ElevatedButton.icon(
-                                                onPressed: canCreate ? _showCreateGroup : null,
+                                                onPressed: canCreate
+                                                    ? _showCreateGroup
+                                                    : null,
                                                 icon: Icon(Icons.add),
                                                 label: Text('Create Group'),
                                                 style: ElevatedButton.styleFrom(
-                                                  backgroundColor: canCreate ? Color(0xFF00B4D8) : Colors.grey,
+                                                  backgroundColor: canCreate
+                                                      ? Color(0xFF00B4D8)
+                                                      : Colors.grey,
                                                   shape: RoundedRectangleBorder(
                                                       borderRadius:
-                                                          BorderRadius.circular(12)),
+                                                          BorderRadius.circular(
+                                                              12)),
                                                 ),
                                               ),
                                             ],
@@ -4678,20 +4880,37 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                                   SizedBox(height: 10),
                                                   Row(
                                                     children: [
-                                                      Icon(Icons.person, size: 18, color: Colors.grey),
+                                                      Icon(Icons.person,
+                                                          size: 18,
+                                                          color: Colors.grey),
                                                       SizedBox(width: 4),
-                                                      Text('Creator: ${g['creator']?['email'] ?? ''}', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                                                      Text(
+                                                          'Creator: ${g['creator']?['email'] ?? ''}',
+                                                          style: TextStyle(
+                                                              fontSize: 14,
+                                                              color: Colors
+                                                                  .grey[700])),
                                                     ],
                                                   ),
                                                   SizedBox(height: 6),
                                                   Row(
                                                     children: [
-                                                      Icon(Icons.people, size: 18, color: Colors.grey),
+                                                      Icon(Icons.people,
+                                                          size: 18,
+                                                          color: Colors.grey),
                                                       SizedBox(width: 4),
-                                                      Text('Members: ${(g['members'] as List).length}', style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                                                      Text(
+                                                          'Members: ${(g['members'] as List).length}',
+                                                          style: TextStyle(
+                                                              fontSize: 14,
+                                                              color: Colors
+                                                                  .grey[700])),
                                                       SizedBox(width: 12),
                                                       // Member avatars
-                                                      ...((g['members'] as List).take(5).map((m) => GestureDetector(
+                                                      ...((g['members'] as List)
+                                                          .take(5)
+                                                          .map((m) =>
+                                                              GestureDetector(
                                                                 onTap: () =>
                                                                     _showMemberDetails(
                                                                         m),
@@ -4950,11 +5169,14 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               width: double.infinity,
               child: Consumer<SessionProvider>(
                 builder: (context, session, child) {
-                  final bool canCreate = session.isSubscribed || (session.freeGroupsRemaining ?? 0) > 0;
+                  final bool canCreate = session.isSubscribed ||
+                      (session.freeGroupsRemaining ?? 0) > 0 ||
+                      (session.lenDenCoins ?? 0) >= 20;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (!session.isSubscribed && (session.freeGroupsRemaining ?? 0) > 0)
+                      if (!session.isSubscribed &&
+                          (session.freeGroupsRemaining ?? 0) > 0)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8.0),
                           child: Text(
@@ -4964,7 +5186,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           ),
                         ),
                       ElevatedButton(
-                        onPressed: creatingGroup || !canCreate ? null : _createGroup,
+                        onPressed:
+                            creatingGroup || !canCreate ? null : _createGroup,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFF00B4D8),
                           shape: RoundedRectangleBorder(
@@ -4974,7 +5197,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         child: creatingGroup
                             ? CircularProgressIndicator()
                             : Text('Create Group',
-                                style: TextStyle(fontSize: 18, color: Colors.white)),
+                                style: TextStyle(
+                                    fontSize: 18, color: Colors.white)),
                       ),
                     ],
                   );

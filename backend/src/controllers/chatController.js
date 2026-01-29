@@ -46,8 +46,25 @@ module.exports = (io) => {
                 if (!isSubscribed) {
                     const userMessageCount = transaction.messageCounts.find(mc => mc.user.toString() === senderId);
                     if (userMessageCount && userMessageCount.count >= 5) {
-                        socket.emit('createMessageError', { ...data, error: 'You have reached your free message limit for this transaction. Please subscribe for unlimited messages.' });
-                        return;
+                        const MESSAGE_COST = 5;
+                        if (sender.lenDenCoins < MESSAGE_COST) {
+                            socket.emit('createMessageError', { ...data, error: 'Insufficient LenDen coins to send a message. Please subscribe or earn more coins.' });
+                            return;
+                        }
+                        sender.lenDenCoins -= MESSAGE_COST;
+                        await sender.save();
+                    } else {
+                        if (userMessageCount) {
+                            await Transaction.updateOne(
+                                { _id: transactionId, 'messageCounts.user': senderId },
+                                { $inc: { 'messageCounts.$.count': 1 } }
+                            );
+                        } else {
+                            await Transaction.updateOne(
+                                { _id: transactionId },
+                                { $push: { messageCounts: { user: senderId, count: 1 } } }
+                            );
+                        }
                     }
                 }
 
@@ -60,23 +77,6 @@ module.exports = (io) => {
                 });
 
                 await chat.save();
-
-                // Increment message count for the user
-                if (!isSubscribed) {
-                    const userMessageCount = transaction.messageCounts.find(mc => mc.user.toString() === senderId);
-
-                    if (userMessageCount) {
-                        await Transaction.updateOne(
-                            { _id: transactionId, 'messageCounts.user': senderId },
-                            { $inc: { 'messageCounts.$.count': 1 } }
-                        );
-                    } else {
-                        await Transaction.updateOne(
-                            { _id: transactionId },
-                            { $push: { messageCounts: { user: senderId, count: 1 } } }
-                        );
-                    }
-                }
 
                 chat = await Chat.findById(chat._id)
                     .populate('senderId', 'name')
@@ -91,7 +91,7 @@ module.exports = (io) => {
                 
                 const updatedTransaction = await Transaction.findById(transactionId).populate('messageCounts.user', 'name');
 
-                io.to(senderId).to(receiverId).emit('newMessage', {chat, messageCounts: updatedTransaction.messageCounts});
+                io.to(senderId).to(receiverId).emit('newMessage', {chat, messageCounts: updatedTransaction.messageCounts, lenDenCoins: sender.lenDenCoins});
             } catch (error) {
                 console.error('Error in createMessage socket handler:', error);
                 socket.emit('createMessageError', { ...data, error: 'An error occurred while sending the message.' });

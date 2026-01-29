@@ -302,6 +302,149 @@ exports.generateReceipt = async (req, res) => {
   }
 };
 
+exports.createTransactionWithCoins = async (req, res) => {
+  const TRANSACTION_COST = 10;
+  try {
+    const {
+      amount,
+      currency,
+      date,
+      time,
+      place,
+      counterpartyEmail,
+      userEmail,
+      role, // 'lender' or 'borrower'
+      interestType,
+      interestRate,
+      expectedReturnDate,
+      compoundingFrequency,
+      description
+    } = req.body;
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(400).json({ error: 'User not found' });
+
+    if (user.lenDenCoins < TRANSACTION_COST) {
+      return res.status(403).json({ error: 'Insufficient LenDen coins.' });
+    }
+
+    if (user.email !== userEmail) {
+      return res.status(403).json({ error: 'User email does not match authenticated user.' });
+    }
+
+    // Validate required fields
+    if (!amount || !currency || !date || !time || !place || !counterpartyEmail || !userEmail || !role) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+    if (!['lender', 'borrower'].includes(role)) {
+      return res.status(400).json({ error: 'Role must be lender or borrower' });
+    }
+    
+    // Handle interest validation - make it optional
+    if (interestType && !['simple', 'compound', 'none'].includes(interestType)) {
+      return res.status(400).json({ error: 'Interest type must be simple, compound, or none' });
+    }
+    if (interestType === 'compound' && (!compoundingFrequency || isNaN(compoundingFrequency))) {
+      return res.status(400).json({ error: 'Compounding frequency required for compound interest' });
+    }
+    
+    // Set default interest type if not provided
+    const finalInterestType = interestType || 'none';
+    const finalInterestRate = (finalInterestType === 'none') ? null : interestRate;
+    const finalExpectedReturnDate = (finalInterestType === 'none') ? null : expectedReturnDate;
+    const finalCompoundingFrequency = (finalInterestType === 'none') ? null : compoundingFrequency;
+
+    // Check if both emails exist
+    const counterparty = await User.findOne({ email: counterpartyEmail });
+    if (!counterparty) return res.status(400).json({ error: 'Counterparty email not registered' });
+
+    // Handle photos (images only)
+    let photos = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          return res.status(400).json({ error: 'Invalid file type. Only PNG, JPG, JPEG allowed.' });
+        }
+        photos.push(file.buffer.toString('base64'));
+      }
+    }
+
+    // Calculate total amount with interest if applicable
+    let totalAmountWithInterest = amount;
+    if (finalInterestType && finalInterestRate) {
+      if (finalInterestType === 'simple') {
+        // For new transactions, no interest has accumulated yet
+        totalAmountWithInterest = amount;
+      } else if (finalInterestType === 'compound') {
+        // For new transactions, no interest has accumulated yet
+        totalAmountWithInterest = amount;
+      }
+    }
+
+    user.lenDenCoins -= TRANSACTION_COST;
+    await user.save();
+
+    // Save transaction
+    const transaction = await Transaction.create({
+      amount,
+      currency,
+      date,
+      time,
+      place,
+      photos,
+      counterpartyEmail,
+      userEmail,
+      role,
+      interestType: finalInterestType,
+      interestRate: finalInterestRate,
+      expectedReturnDate: finalExpectedReturnDate,
+      compoundingFrequency: finalCompoundingFrequency,
+      description: description || '',
+      remainingAmount: totalAmountWithInterest,
+      totalAmountWithInterest: totalAmountWithInterest
+    });
+    
+    // Log activity for both users with creator context
+    try {
+      const user = await User.findOne({ email: userEmail });
+      const counterparty = await User.findOne({ email: counterpartyEmail });
+      
+      // Determine who created the transaction (the user making the request)
+      const creatorInfo = {
+        creatorId: user._id,
+        creatorEmail: userEmail
+      };
+      
+      if (user) {
+        await logTransactionActivity(user._id, 'transaction_created_with_coins', transaction, {}, creatorInfo);
+      }
+      if (counterparty) {
+        await logTransactionActivity(counterparty._id, 'transaction_created_with_coins', transaction, {}, creatorInfo);
+      }
+    } catch (e) {
+      console.error('Failed to log transaction activity:', e);
+    }
+    
+    res.status(201).json({ 
+      success: true, 
+      message: "Transaction created successfully with LenDen coins",
+      transactionId: transaction.transactionId, 
+      transaction,
+      lenDenCoins: user.lenDenCoins
+    });
+
+    // Send receipt emails to both parties (fire and forget)
+    try {
+      sendTransactionReceipt(userEmail, transaction, counterpartyEmail);
+      sendTransactionReceipt(counterpartyEmail, transaction, userEmail);
+    } catch (e) {
+      console.error('Failed to send transaction receipt:', e);
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create transaction', details: err.message });
+  }
+};
+
 // Create a new transaction
 exports.createTransaction = async (req, res) => {
   try {

@@ -52,7 +52,7 @@ const userSchema = new mongoose.Schema({
   },
   lenDenCoins: {
     type: Number,
-    default: 0
+    default: 200
   },
   
   // Notification Settings
