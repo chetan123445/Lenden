@@ -32,6 +32,7 @@ class SessionProvider extends ChangeNotifier {
   int? _freeQuickTransactionsRemaining;
   int? _freeUserTransactionsRemaining;
   int? _freeGroupsRemaining;
+  int? _lenDenCoins;
 
 
   bool get isSubscribed => _isSubscribed;
@@ -42,6 +43,7 @@ class SessionProvider extends ChangeNotifier {
   int? get freeQuickTransactionsRemaining => _freeQuickTransactionsRemaining;
   int? get freeUserTransactionsRemaining => _freeUserTransactionsRemaining;
   int? get freeGroupsRemaining => _freeGroupsRemaining;
+  int? get lenDenCoins => _lenDenCoins;
 
   static const String _deviceIdKey = 'device_id';
 
@@ -235,6 +237,7 @@ Future<void> loadFreebieCounts() async {
             _freeQuickTransactionsRemaining = data['freeQuickTransactionsRemaining'];
             _freeUserTransactionsRemaining = data['freeUserTransactionsRemaining'];
             _freeGroupsRemaining = data['freeGroupsRemaining'];
+            _lenDenCoins = data['lenDenCoins'];
             notifyListeners();
         }
     } catch (e) {
@@ -352,6 +355,7 @@ Future<void> loadFreebieCounts() async {
     _freeQuickTransactionsRemaining = null;
     _freeUserTransactionsRemaining = null;
     _freeGroupsRemaining = null;
+    _lenDenCoins = null;
     notifyListeners();
   }
 

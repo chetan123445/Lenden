@@ -111,6 +111,72 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     },
   ];
 
+  bool _isShowingLenDenCoin = false;
+
+  void _showLenDenCoinsDialog(int coins) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Container(
+              padding: EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Color(0xFFFCE4EC), // Light pink background
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'LenDen Coins',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00B4D8),
+                    ),
+                  ),
+                  SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.monetization_on, color: Colors.amber, size: 40),
+                      SizedBox(width: 8),
+                      Text(
+                        '$coins',
+                        style: TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: Text('OK'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1403,6 +1469,13 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                           Row(
                             children: [
                               NotificationIcon(),
+                              GestureDetector(
+                                onTap: () {
+                                  final session = Provider.of<SessionProvider>(context, listen: false);
+                                  _showLenDenCoinsDialog(session.lenDenCoins ?? 0);
+                                },
+                                child: Icon(Icons.monetization_on, color: Colors.amber, size: 28),
+                              ),
                               Container(
                                 padding: const EdgeInsets.all(2),
                                 decoration: BoxDecoration(

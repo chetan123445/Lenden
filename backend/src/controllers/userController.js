@@ -734,6 +734,7 @@ exports.getFreebieCounts = async (req, res) => {
       freeQuickTransactionsRemaining: user.freeQuickTransactionsRemaining,
       freeUserTransactionsRemaining: user.freeUserTransactionsRemaining,
       freeGroupsRemaining: user.freeGroupsRemaining,
+      lenDenCoins: user.lenDenCoins,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

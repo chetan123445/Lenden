@@ -50,6 +50,10 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 3
   },
+  lenDenCoins: {
+    type: Number,
+    default: 0
+  },
   
   // Notification Settings
   notificationSettings: {
