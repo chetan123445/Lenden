@@ -124,29 +124,6 @@ class _TransactionPageState extends State<TransactionPage> {
     super.dispose();
   }
 
-  Future<int> _getUserTransactionCount() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final userEmail = session.user?['email'];
-
-    if (token == null || userEmail == null) {
-      return 0;
-    }
-
-    try {
-      final response =
-          await ApiClient.get('/api/transactions/user?email=$userEmail');
-
-      if (response.statusCode == 200) {
-        final transactions = jsonDecode(response.body) as List;
-        return transactions.length;
-      }
-    } catch (e) {
-      print('Error fetching transaction count: $e');
-    }
-    return 0;
-  }
-
   Future<void> _pickFiles() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
@@ -337,12 +314,9 @@ class _TransactionPageState extends State<TransactionPage> {
 
   Future<void> _submit() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    if (!session.isSubscribed) {
-      final transactionCount = await _getUserTransactionCount();
-      if (transactionCount >= 5) {
-        showSubscriptionPrompt(context);
-        return;
-      }
+    if (!session.isSubscribed && (session.freeUserTransactionsRemaining ?? 0) <= 0) {
+      showSubscriptionPrompt(context);
+      return;
     }
 
     setState(() => _sameEmailError = null);
@@ -410,6 +384,7 @@ class _TransactionPageState extends State<TransactionPage> {
         setState(() {
           _transactionId = data['transactionId'];
         });
+        session.loadFreebieCounts();
         showDialog(
           context: context,
           builder: (_) => Dialog(
@@ -838,6 +813,18 @@ class _TransactionPageState extends State<TransactionPage> {
                       shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
                     ),
                   ),
+                  Consumer<SessionProvider>(
+                    builder: (context, session, child) {
+                      if (session.isSubscribed) {
+                        return Text('You have unlimited transactions.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white));
+                      }
+                      final remaining = session.freeUserTransactionsRemaining;
+                      if (remaining == null) {
+                        return SizedBox.shrink();
+                      }
+                      return Text('You have $remaining free transactions remaining.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white));
+                    },
+                  ),
                   if (_bothUsersVerified) ...[
                     SizedBox(height: 8),
                     Container(
@@ -1170,16 +1157,17 @@ class _TransactionPageState extends State<TransactionPage> {
                     else
                       SizedBox(
                         width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _counterpartyVerified &&
-                                  _userVerified &&
-                                  !_isLoading
-                              ? _submit
-                              : null,
-                          child: Text('Submit Transaction'),
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.teal,
-                              padding: EdgeInsets.symmetric(vertical: 16)),
+                        child: Consumer<SessionProvider>(
+                          builder: (context, session, child) {
+                            final bool canCreate = session.isSubscribed || (session.freeUserTransactionsRemaining ?? 0) > 0;
+                            return ElevatedButton(
+                              onPressed: (_counterpartyVerified && _userVerified && !_isLoading) ? _submit : (canCreate && !_isLoading ? _submit : null),
+                              child: Text('Submit Transaction'),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.teal,
+                                  padding: EdgeInsets.symmetric(vertical: 16)),
+                            );
+                          },
                         ),
                       ),
                     if (_transactionId != null) ...[

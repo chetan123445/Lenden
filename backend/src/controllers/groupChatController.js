@@ -1,6 +1,7 @@
 const GroupChat = require('../models/groupChat');
 const GroupTransaction = require('../models/groupTransaction');
 const User = require('../models/user');
+const Subscription = require('../models/subscription');
 
 module.exports = (io) => {
     let users = {};
@@ -27,6 +28,17 @@ module.exports = (io) => {
                     socket.emit('createGroupMessageError', { ...data, error: 'User not found' });
                     return;
                 }
+                
+                const subscription = await Subscription.findOne({ user: senderId, status: 'active' });
+                const isSubscribed = subscription && subscription.subscribed && subscription.endDate >= new Date();
+
+                if (!isSubscribed) {
+                    const userMessageCount = groupTransaction.messageCounts.find(mc => mc.user.toString() === senderId);
+                    if (userMessageCount && userMessageCount.count >= 5) {
+                        socket.emit('createGroupMessageError', { ...data, error: 'You have reached your free message limit for this group. Please subscribe for unlimited messages.' });
+                        return;
+                    }
+                }
 
                 // Check if user is still an active member of the group
                 const isActiveMember = groupTransaction.members.some(member => 
@@ -51,18 +63,20 @@ module.exports = (io) => {
                 await chat.save();
 
                 // Increment message count for the user
-                const userMessageCount = groupTransaction.messageCounts.find(mc => mc.user.toString() === senderId);
+                if (!isSubscribed) {
+                    const userMessageCount = groupTransaction.messageCounts.find(mc => mc.user.toString() === senderId);
 
-                if (userMessageCount) {
-                    await GroupTransaction.updateOne(
-                        { _id: groupTransactionId, 'messageCounts.user': senderId },
-                        { $inc: { 'messageCounts.$.count': 1 } }
-                    );
-                } else {
-                    await GroupTransaction.updateOne(
-                        { _id: groupTransactionId },
-                        { $push: { messageCounts: { user: senderId, count: 1 } } }
-                    );
+                    if (userMessageCount) {
+                        await GroupTransaction.updateOne(
+                            { _id: groupTransactionId, 'messageCounts.user': senderId },
+                            { $inc: { 'messageCounts.$.count': 1 } }
+                        );
+                    } else {
+                        await GroupTransaction.updateOne(
+                            { _id: groupTransactionId },
+                            { $push: { messageCounts: { user: senderId, count: 1 } } }
+                        );
+                    }
                 }
 
                 chat = await GroupChat.findById(chat._id)

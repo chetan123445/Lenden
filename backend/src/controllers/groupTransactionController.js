@@ -1,5 +1,6 @@
 const GroupTransaction = require('../models/groupTransaction');
 const User = require('../models/user');
+const Subscription = require('../models/subscription');
 const { sendGroupSettleOtp } = require('../utils/groupSettleOtp');
 const { sendGroupLeaveRequestEmail } = require('../utils/groupLeaveRequestEmail');
 const groupTransactionEmail = require('../utils/groupTransactionEmail');
@@ -24,24 +25,19 @@ async function validateUsers(userIds) {
 
 exports.createGroup = async (req, res) => {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
     const { title, memberEmails, color } = req.body;
-    const creator = req.user._id;
-    
+    const creator = req.user;
+
+    if (!creator) {
+      return res.status(400).json({ error: 'Creator not found' });
+    }
+
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
     }
     
-    // Get creator's email to filter out from memberEmails
-    const creatorUser = await User.findById(creator);
-    if (!creatorUser) {
-      return res.status(400).json({ error: 'Creator not found' });
-    }
-    
     // Filter out creator's email from memberEmails (they're added automatically)
-    const filteredMemberEmails = memberEmails.filter(email => email !== creatorUser.email);
+    const filteredMemberEmails = memberEmails.filter(email => email !== creator.email);
     
     // Find users by email
     const users = await User.find({ email: { $in: filteredMemberEmails } });
@@ -51,10 +47,10 @@ exports.createGroup = async (req, res) => {
     
     const memberIds = users.map(u => u._id.toString());
     // Always add creator as the first member
-    memberIds.unshift(creator.toString());
+    memberIds.unshift(creator._id.toString());
     
     const members = memberIds.map(id => ({ user: id }));
-    const group = await GroupTransaction.create({ title, creator, members, color });
+    const group = await GroupTransaction.create({ title, creator: creator._id, members, color });
     // Populate members and creator for response
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
@@ -71,16 +67,20 @@ exports.createGroup = async (req, res) => {
       _id: groupObj.creator._id,
       email: groupObj.creator.email
     };
-    res.status(201).json({ group: groupObj });
+    res.status(201).json({ 
+        message: "Group created successfully",
+        group: groupObj, 
+        freeGroupsRemaining: creator.freeGroupsRemaining 
+    });
     
     // Log activity for group creation - all members get notified
     try {
       const creatorInfo = {
-        creatorId: creator,
-        creatorEmail: creatorUser.email
+        creatorId: creator._id,
+        creatorEmail: creator.email
       };
       await logGroupActivityForAllMembers('group_created', group, {}, null, creatorInfo);
-      groupTransactionEmail.sendGroupCreatedEmail(populatedGroup, creatorUser);
+      groupTransactionEmail.sendGroupCreatedEmail(populatedGroup, creator);
     } catch (e) {
       console.error('Failed to log group activity or send email:', e);
     }

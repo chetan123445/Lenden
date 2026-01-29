@@ -29,11 +29,19 @@ class SessionProvider extends ChangeNotifier {
   List<Map<String, dynamic>>? _subscriptionHistory;
   int? _free;
 
+  int? _freeQuickTransactionsRemaining;
+  int? _freeUserTransactionsRemaining;
+  int? _freeGroupsRemaining;
+
+
   bool get isSubscribed => _isSubscribed;
   String? get subscriptionPlan => _subscriptionPlan;
   DateTime? get subscriptionEndDate => _subscriptionEndDate;
   List<Map<String, dynamic>>? get subscriptionHistory => _subscriptionHistory;
   int? get free => _free;
+  int? get freeQuickTransactionsRemaining => _freeQuickTransactionsRemaining;
+  int? get freeUserTransactionsRemaining => _freeUserTransactionsRemaining;
+  int? get freeGroupsRemaining => _freeGroupsRemaining;
 
   static const String _deviceIdKey = 'device_id';
 
@@ -70,6 +78,7 @@ class SessionProvider extends ChangeNotifier {
     await _storage.delete(key: 'refresh_token');
     await _storage.delete(key: 'user_data');
     clearCounterparties();
+    clearSubscription();
     notifyListeners();
   }
 
@@ -108,6 +117,7 @@ class SessionProvider extends ChangeNotifier {
           _user = user;
           _role = response.request?.url.path.contains('/admins/') ?? false ? 'admin' : 'user';
           await checkSubscriptionStatus();
+          await loadFreebieCounts();
           notifyListeners();
         } else {
           print('Both user and admin endpoints failed, clearing tokens');
@@ -116,6 +126,7 @@ class SessionProvider extends ChangeNotifier {
       } else {
         // We already have user data, just notify listeners
         await checkSubscriptionStatus();
+        await loadFreebieCounts();
         notifyListeners();
       }
     } else {
@@ -179,6 +190,7 @@ class SessionProvider extends ChangeNotifier {
                 _free = null;
             }
             await fetchSubscriptionHistory();
+            await loadFreebieCounts();
             print('Subscription check: isSubscribed set to $_isSubscribed');
             notifyListeners();
         } else {
@@ -209,6 +221,24 @@ Future<void> fetchSubscriptionHistory() async {
         }
     } catch (e) {
         print('Error fetching subscription history: $e');
+    }
+}
+
+Future<void> loadFreebieCounts() async {
+    if (_accessToken == null) {
+        return;
+    }
+    try {
+        final response = await HttpInterceptor.get('/api/users/freebie-counts');
+        if (response.statusCode == 200) {
+            final data = jsonDecode(response.body);
+            _freeQuickTransactionsRemaining = data['freeQuickTransactionsRemaining'];
+            _freeUserTransactionsRemaining = data['freeUserTransactionsRemaining'];
+            _freeGroupsRemaining = data['freeGroupsRemaining'];
+            notifyListeners();
+        }
+    } catch (e) {
+        print('Error fetching freebie counts: $e');
     }
 }
 
@@ -319,6 +349,9 @@ Future<void> fetchSubscriptionHistory() async {
     _subscriptionEndDate = null;
     _subscriptionHistory = null;
     _free = null;
+    _freeQuickTransactionsRemaining = null;
+    _freeUserTransactionsRemaining = null;
+    _freeGroupsRemaining = null;
     notifyListeners();
   }
 

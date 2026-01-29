@@ -38,6 +38,18 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  freeQuickTransactionsRemaining: {
+    type: Number,
+    default: 10
+  },
+  freeUserTransactionsRemaining: {
+    type: Number,
+    default: 5
+  },
+  freeGroupsRemaining: {
+    type: Number,
+    default: 3
+  },
   
   // Notification Settings
   notificationSettings: {

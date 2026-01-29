@@ -152,7 +152,7 @@ class _ChatPageState extends State<ChatPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     if (!session.isSubscribed) {
       final messageCount = _messageCounts[_currentUserId] ?? 0;
-      if (messageCount >= 10) {
+      if (messageCount >= 5) {
         showSubscriptionPrompt(context);
         return;
       }
@@ -591,10 +591,17 @@ class _ChatPageState extends State<ChatPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(_otherUser!['name'] ?? 'User'),
-                          Text(
-                            _otherUser!['email'] ?? '',
-                            style:
-                                TextStyle(fontSize: 12, color: Colors.white70),
+                          Consumer<SessionProvider>(
+                            builder: (context, session, child) {
+                              if(session.isSubscribed) {
+                                return SizedBox.shrink();
+                              }
+                              final remaining = 5 - (_messageCounts[_currentUserId] ?? 0);
+                              return Text(
+                                'Free messages remaining: ${remaining > 0 ? remaining : 0}',
+                                style: TextStyle(fontSize: 12, color: Colors.white70),
+                              );
+                            },
                           ),
                         ],
                       ),
@@ -792,64 +799,72 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Widget _buildMessageInput() {
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(27),
-        gradient: const LinearGradient(
-          colors: [Colors.orange, Colors.white, Colors.green],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      margin: EdgeInsets.all(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              icon: Icon(
-                  _showEmojiPicker
-                      ? Icons.close
-                      : Icons.emoji_emotions_outlined,
-                  color: Colors.grey),
-              onPressed: _onEmojiIconPressed,
+    return Consumer<SessionProvider>(
+      builder: (context, session, child) {
+        final remaining = 5 - (_messageCounts[_currentUserId] ?? 0);
+        final bool canSend = session.isSubscribed || remaining > 0;
+
+        return Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(27),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            Expanded(
-              child: TextField(
-                focusNode: _messageFocusNode,
-                controller: _messageController,
-                decoration: InputDecoration(
-                  hintText: 'Type a message',
-                  border: InputBorder.none,
-                ),
-                onTap: () {
-                  if (_showEmojiPicker) {
-                    setState(() {
-                      _showEmojiPicker = false;
-                    });
-                  }
-                },
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
+            ],
+          ),
+          margin: EdgeInsets.all(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(25),
             ),
-            IconButton(
-              icon: Icon(Icons.send, color: Colors.blue),
-              onPressed: _sendMessage,
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(
+                      _showEmojiPicker
+                          ? Icons.close
+                          : Icons.emoji_emotions_outlined,
+                      color: Colors.grey),
+                  onPressed: canSend ? _onEmojiIconPressed : null,
+                ),
+                Expanded(
+                  child: TextField(
+                    focusNode: _messageFocusNode,
+                    controller: _messageController,
+                    enabled: canSend,
+                    decoration: InputDecoration(
+                      hintText: canSend ? 'Type a message' : 'No free messages left',
+                      border: InputBorder.none,
+                    ),
+                    onTap: () {
+                      if (_showEmojiPicker) {
+                        setState(() {
+                          _showEmojiPicker = false;
+                        });
+                      }
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.send, color: canSend ? Colors.blue : Colors.grey),
+                  onPressed: canSend ? _sendMessage : null,
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

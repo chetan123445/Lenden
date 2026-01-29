@@ -29,28 +29,6 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     fetchQuickTransactions();
   }
 
-  Future<int> _getQuickTransactionCount() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-
-    if (token == null) {
-      return 0;
-    }
-
-    try {
-      final response = await ApiClient.get('/api/quick-transactions');
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final transactions =
-            List<Map<String, dynamic>>.from(data['quickTransactions'] ?? []);
-        return transactions.length;
-      }
-    } catch (e) {
-      print('Error fetching quick transaction count: $e');
-    }
-    return 0;
-  }
-
   void sortTransactions() {
     setState(() {
       filteredTransactions.sort((a, b) {
@@ -154,13 +132,10 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   Future<void> createOrEditQuickTransaction(
       {Map<String, dynamic>? transaction}) async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    if (!session.isSubscribed && transaction == null) {
+    if (!session.isSubscribed && (session.freeQuickTransactionsRemaining ?? 0) <= 0 && transaction == null) {
       // Only check for new transactions
-      final quickTransactionCount = await _getQuickTransactionCount();
-      if (quickTransactionCount >= 10) {
-        showSubscriptionPrompt(context);
-        return;
-      }
+      showSubscriptionPrompt(context);
+      return;
     }
 
     final result = await showDialog(
@@ -175,6 +150,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       ).show(context);
     } else if (result == true) {
       fetchQuickTransactions();
+      session.loadFreebieCounts();
       ElegantNotification.success(
         title: Text("Success"),
         description: Text(
@@ -398,6 +374,18 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
           Column(
             children: [
               SizedBox(height: 120), // Reduced space for smaller wave
+              Consumer<SessionProvider>(
+                builder: (context, session, child) {
+                  if (session.isSubscribed) {
+                    return Text('You have unlimited quick transactions.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold));
+                  }
+                  final remaining = session.freeQuickTransactionsRemaining;
+                  if (remaining == null) {
+                    return SizedBox.shrink();
+                  }
+                  return Text('You have $remaining free quick transactions remaining.', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold));
+                },
+              ),
               // Search Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -751,28 +739,33 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
           ),
         ],
       ),
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            colors: [Colors.orange, Colors.green],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 12,
-              offset: Offset(0, 4),
+      floatingActionButton: Consumer<SessionProvider>(
+        builder: (context, session, child) {
+          final bool canCreate = session.isSubscribed || (session.freeQuickTransactionsRemaining ?? 0) > 0;
+          return Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: canCreate ? [Colors.orange, Colors.green] : [Colors.grey, Colors.grey],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: FloatingActionButton(
-          onPressed: () => createOrEditQuickTransaction(),
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: const Icon(Icons.add, color: Colors.white, size: 28),
-        ),
+            child: FloatingActionButton(
+              onPressed: canCreate ? () => createOrEditQuickTransaction() : null,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              child: const Icon(Icons.add, color: Colors.white, size: 28),
+            ),
+          );
+        },
       ),
     );
   }

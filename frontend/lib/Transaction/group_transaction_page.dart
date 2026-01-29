@@ -86,30 +86,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     super.dispose();
   }
 
-  Future<int> _getGroupCount() async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final userEmail = session.user?['email'];
-
-    if (userEmail == null) {
-      return 0;
-    }
-
-    try {
-      final response = await ApiClient.get('/api/group-transactions/user-groups');
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final groups = List<Map<String, dynamic>>.from(data['groups'] ?? []);
-        // Filter groups created by the current user
-        final createdGroups = groups.where((g) => g['creator']?['email'] == userEmail).toList();
-        return createdGroups.length;
-      }
-    } catch (e) {
-      print('Error fetching group count: $e');
-    }
-    return 0;
-  }
-
   Future<bool> _checkUserExists(String email) async {
     try {
       final res = await ApiClient.post(
@@ -285,12 +261,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   Future<void> _createGroup() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    if (!session.isSubscribed) {
-      final groupCount = await _getGroupCount();
-      if (groupCount >= 3) {
-        showSubscriptionPrompt(context);
-        return;
-      }
+    if (!session.isSubscribed && (session.freeGroupsRemaining ?? 0) <= 0) {
+      showSubscriptionPrompt(context);
+      return;
     }
 
     setState(() {
@@ -315,6 +288,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           group = data['group'];
           isCreator = true;
         });
+        session.loadFreebieCounts();
       } else {
         setState(() {
           error = data['error'] ?? 'Failed to create group';
@@ -4521,16 +4495,34 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.end,
                                     children: [
-                                      ElevatedButton.icon(
-                                        onPressed: _showCreateGroup,
-                                        icon: Icon(Icons.add),
-                                        label: Text('Create Group'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Color(0xFF00B4D8),
-                                          shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12)),
-                                        ),
+                                      Consumer<SessionProvider>(
+                                        builder: (context, session, child) {
+                                          final bool canCreate = session.isSubscribed || (session.freeGroupsRemaining ?? 0) > 0;
+                                          return Column(
+                                            crossAxisAlignment: CrossAxisAlignment.end,
+                                            children: [
+                                              if (!session.isSubscribed && (session.freeGroupsRemaining ?? 0) > 0)
+                                                Padding(
+                                                  padding: const EdgeInsets.only(bottom: 8.0),
+                                                  child: Text(
+                                                    '${session.freeGroupsRemaining} free group creations remaining.',
+                                                    style: TextStyle(color: Colors.green),
+                                                  ),
+                                                ),
+                                              ElevatedButton.icon(
+                                                onPressed: canCreate ? _showCreateGroup : null,
+                                                icon: Icon(Icons.add),
+                                                label: Text('Create Group'),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: canCreate ? Color(0xFF00B4D8) : Colors.grey,
+                                                  shape: RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(12)),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
                                       ),
                                     ],
                                   ),
@@ -4956,18 +4948,37 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             SizedBox(height: 28),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                onPressed: creatingGroup ? null : _createGroup,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF00B4D8),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: creatingGroup
-                    ? CircularProgressIndicator()
-                    : Text('Create Group',
-                        style: TextStyle(fontSize: 18, color: Colors.white)),
+              child: Consumer<SessionProvider>(
+                builder: (context, session, child) {
+                  final bool canCreate = session.isSubscribed || (session.freeGroupsRemaining ?? 0) > 0;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (!session.isSubscribed && (session.freeGroupsRemaining ?? 0) > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Text(
+                            '${session.freeGroupsRemaining} free group creations remaining.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.green),
+                          ),
+                        ),
+                      ElevatedButton(
+                        onPressed: creatingGroup || !canCreate ? null : _createGroup,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF00B4D8),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: creatingGroup
+                            ? CircularProgressIndicator()
+                            : Text('Create Group',
+                                style: TextStyle(fontSize: 18, color: Colors.white)),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],

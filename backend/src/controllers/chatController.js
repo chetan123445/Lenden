@@ -1,6 +1,7 @@
 const Chat = require('../models/chat');
 const Transaction = require('../models/transaction');
 const User = require('../models/user');
+const Subscription = require('../models/subscription');
 
 module.exports = (io) => {
     let users = {};
@@ -38,6 +39,17 @@ module.exports = (io) => {
                     socket.emit('createMessageError', { ...data, error: 'User not found' });
                     return;
                 }
+                
+                const subscription = await Subscription.findOne({ user: senderId, status: 'active' });
+                const isSubscribed = subscription && subscription.subscribed && subscription.endDate >= new Date();
+
+                if (!isSubscribed) {
+                    const userMessageCount = transaction.messageCounts.find(mc => mc.user.toString() === senderId);
+                    if (userMessageCount && userMessageCount.count >= 5) {
+                        socket.emit('createMessageError', { ...data, error: 'You have reached your free message limit for this transaction. Please subscribe for unlimited messages.' });
+                        return;
+                    }
+                }
 
                 let chat = new Chat({
                     transactionId,
@@ -50,18 +62,20 @@ module.exports = (io) => {
                 await chat.save();
 
                 // Increment message count for the user
-                const userMessageCount = transaction.messageCounts.find(mc => mc.user.toString() === senderId);
+                if (!isSubscribed) {
+                    const userMessageCount = transaction.messageCounts.find(mc => mc.user.toString() === senderId);
 
-                if (userMessageCount) {
-                    await Transaction.updateOne(
-                        { _id: transactionId, 'messageCounts.user': senderId },
-                        { $inc: { 'messageCounts.$.count': 1 } }
-                    );
-                } else {
-                    await Transaction.updateOne(
-                        { _id: transactionId },
-                        { $push: { messageCounts: { user: senderId, count: 1 } } }
-                    );
+                    if (userMessageCount) {
+                        await Transaction.updateOne(
+                            { _id: transactionId, 'messageCounts.user': senderId },
+                            { $inc: { 'messageCounts.$.count': 1 } }
+                        );
+                    } else {
+                        await Transaction.updateOne(
+                            { _id: transactionId },
+                            { $push: { messageCounts: { user: senderId, count: 1 } } }
+                        );
+                    }
                 }
 
                 chat = await Chat.findById(chat._id)

@@ -232,7 +232,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     if (!session.isSubscribed) {
       final messageCount = _messageCounts[_currentUserId] ?? 0;
-      if (messageCount >= 10) {
+      if (messageCount >= 5) {
         showSubscriptionPrompt(context);
         return;
       }
@@ -655,9 +655,26 @@ class _GroupChatPageState extends State<GroupChatPage> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          title: Text(widget.groupTitle,
-              style:
-                  TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.groupTitle,
+                  style:
+                      TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              Consumer<SessionProvider>(
+                builder: (context, session, child) {
+                  if(session.isSubscribed) {
+                    return SizedBox.shrink();
+                  }
+                  final remaining = 5 - (_messageCounts[_currentUserId] ?? 0);
+                  return Text(
+                    'Free messages remaining: ${remaining > 0 ? remaining : 0}',
+                    style: TextStyle(fontSize: 12, color: Colors.white70),
+                  );
+                },
+              ),
+            ],
+          ),
           actions: [
             IconButton(
               icon: Icon(Icons.more_vert, color: Colors.black),
@@ -922,82 +939,79 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   Widget _buildMessageInput() {
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(27),
-        gradient: const LinearGradient(
-          colors: [Colors.orange, Colors.white, Colors.green],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      margin: EdgeInsets.all(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              icon: Icon(
-                  _showEmojiPicker
-                      ? Icons.close
-                      : Icons.emoji_emotions_outlined,
-                  color: _isActiveMember
-                      ? Colors.grey
-                      : Colors.grey.withOpacity(0.3)),
-              onPressed: _isActiveMember ? _onEmojiIconPressed : null,
+    return Consumer<SessionProvider>(
+      builder: (context, session, child) {
+        final remaining = 5 - (_messageCounts[_currentUserId] ?? 0);
+        final bool canSend = (session.isSubscribed || remaining > 0) && _isActiveMember;
+
+        return Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(27),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            Expanded(
-              child: TextField(
-                focusNode: _messageFocusNode,
-                controller: _messageController,
-                enabled: _isActiveMember,
-                decoration: InputDecoration(
-                  hintText: _isActiveMember
-                      ? 'Type a message'
-                      : 'Chat disabled - You left the group',
-                  border: InputBorder.none,
-                ),
-                onTap: () {
-                  if (_showEmojiPicker) {
-                    setState(() {
-                      _showEmojiPicker = false;
-                    });
-                  }
-                  if (!_isActiveMember) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                            'You are no longer an active member of this group. Chat is disabled.'),
-                        backgroundColor: Colors.red,
-                        duration: Duration(seconds: 3),
-                      ),
-                    );
-                  }
-                },
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
+            ],
+          ),
+          margin: EdgeInsets.all(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(25),
             ),
-            IconButton(
-              icon: Icon(Icons.send,
-                  color: _isActiveMember
-                      ? Colors.blue
-                      : Colors.grey.withOpacity(0.3)),
-              onPressed: _isActiveMember ? _sendMessage : null,
+            child: Row(
+              children: [
+                IconButton(
+                  icon: Icon(
+                      _showEmojiPicker
+                          ? Icons.close
+                          : Icons.emoji_emotions_outlined,
+                      color: canSend
+                          ? Colors.grey
+                          : Colors.grey.withOpacity(0.3)),
+                  onPressed: canSend ? _onEmojiIconPressed : null,
+                ),
+                Expanded(
+                  child: TextField(
+                    focusNode: _messageFocusNode,
+                    controller: _messageController,
+                    enabled: canSend,
+                    decoration: InputDecoration(
+                      hintText: canSend
+                          ? 'Type a message'
+                          : 'No free messages left',
+                      border: InputBorder.none,
+                    ),
+                    onTap: () {
+                      if (_showEmojiPicker) {
+                        setState(() {
+                          _showEmojiPicker = false;
+                        });
+                      }
+                    },
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.send,
+                      color: canSend
+                          ? Colors.blue
+                          : Colors.grey.withOpacity(0.3)),
+                  onPressed: canSend ? _sendMessage : null,
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

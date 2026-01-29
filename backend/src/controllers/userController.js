@@ -723,3 +723,19 @@ exports.getActiveSessions = async (req, res) => {
     res.status(500).json({ error: 'Server error while fetching active sessions' });
   }
 };
+
+exports.getFreebieCounts = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.status(200).json({
+      freeQuickTransactionsRemaining: user.freeQuickTransactionsRemaining,
+      freeUserTransactionsRemaining: user.freeUserTransactionsRemaining,
+      freeGroupsRemaining: user.freeGroupsRemaining,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};

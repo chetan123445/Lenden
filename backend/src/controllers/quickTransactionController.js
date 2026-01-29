@@ -1,11 +1,13 @@
 const QuickTransaction = require('../models/quickTransaction');
 const User = require('../models/user');
+const Subscription = require('../models/subscription');
 const { logQuickTransactionActivity } = require('./activityController');
 
 exports.createQuickTransaction = async (req, res) => {
   try {
     const { amount, currency, date, time, description, counterpartyEmail, role } = req.body;
-    const userEmail = req.user.email;
+    const user = req.user;
+    const userEmail = user.email;
 
     if (userEmail === counterpartyEmail) {
       return res.status(400).json({ error: 'User and counterparty email cannot be the same.' });
@@ -28,7 +30,11 @@ exports.createQuickTransaction = async (req, res) => {
 
     await quickTransaction.save();
     await logQuickTransactionActivity(req.user._id, 'quick_transaction_created', quickTransaction, { counterpartyEmail });
-    res.status(201).json({ quickTransaction });
+    res.status(201).json({ 
+        message: 'Quick transaction created successfully', 
+        quickTransaction, 
+        freeQuickTransactionsRemaining: user.freeQuickTransactionsRemaining 
+    });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }

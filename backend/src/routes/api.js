@@ -32,7 +32,6 @@ module.exports = (io) => {
   const adminFeatureController = require('../controllers/adminFeatureController');
   const giftCardController = require('../controllers/giftCardController');
   const handleUsage = require('../middleware/handleUsage');
-  const userGiftCardController = require('../controllers/userGiftCardController');
 
   // Middleware to check for admin role
   const isAdmin = (req, res, next) => {
@@ -73,6 +72,7 @@ module.exports = (io) => {
   
   // All authenticated user routes should use sessionTimeout after auth
   router.get('/users/me', auth, sessionTimeout, profileController.getUserProfile);
+  router.get('/users/freebie-counts', auth, userController.getFreebieCounts);
   router.put('/users/me', auth, sessionTimeout, upload.single('profileImage'), editProfileController.updateUserProfile);
   // Serve user profile image
   router.get('/users/:id/profile-image', profileController.getUserProfileImage);
@@ -81,13 +81,9 @@ module.exports = (io) => {
   router.post('/users/logout-device', auth, sessionTimeout, userController.logoutDevice);
   router.get('/users/:id', auth, userController.getUserById);
 
-  // User Gift Card routes
-  router.get('/users/me/giftcards', auth, userGiftCardController.getUserGiftCards);
-  router.post('/users/me/giftcards/:id/scratch', auth, userGiftCardController.scratchGiftCard);
-
   // Quick Transaction routes
   router.get('/quick-transactions', auth, quickTransactionController.getQuickTransactions);
-  router.post('/quick-transactions', auth, handleUsage('createQuickTransaction'), quickTransactionController.createQuickTransaction);
+  router.post('/quick-transactions', auth, handleUsage('quickTransaction'), quickTransactionController.createQuickTransaction);
   router.put('/quick-transactions/:id', auth, quickTransactionController.updateQuickTransaction);
   router.delete('/quick-transactions/:id', auth, quickTransactionController.deleteQuickTransaction);
   router.put('/quick-transactions/:id/clear', auth, quickTransactionController.clearQuickTransaction);
@@ -156,7 +152,7 @@ module.exports = (io) => {
   router.get('/admins/:id/profile-image', profileController.getAdminProfileImage);
 
   // Transaction routes
-  router.post('/transactions/create', auth, handleUsage('createUserTransaction'), upload.array('files'), transactionController.createTransaction);
+  router.post('/transactions/create', auth, handleUsage('userTransaction'), upload.array('files'), transactionController.createTransaction);
   router.post('/transactions/check-email', transactionController.checkEmailExists);
   router.post('/transactions/send-counterparty-otp', transactionController.sendCounterpartyOTP);
   router.post('/transactions/verify-counterparty-otp', transactionController.verifyCounterpartyOTP);
@@ -186,7 +182,7 @@ module.exports = (io) => {
   router.delete('/notes/:id', auth, noteController.deleteNote);
 
   // Group Transaction routes
-  router.post('/group-transactions', auth, handleUsage('createGroup'), groupTransactionController.createGroup);
+  router.post('/group-transactions', auth, handleUsage('group'), groupTransactionController.createGroup);
   router.post('/group-transactions/:groupId/add-member', auth, groupTransactionController.addMember);
   router.post('/group-transactions/:groupId/remove-member', auth, groupTransactionController.removeMember);
   router.post('/group-transactions/:groupId/settle-member-expenses', auth, groupTransactionController.settleMemberExpenses);

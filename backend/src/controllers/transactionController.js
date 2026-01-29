@@ -1,5 +1,6 @@
 const Transaction = require('../models/transaction');
 const User = require('../models/user');
+const Subscription = require('../models/subscription');
 const lendingborrowingotp = require('../utils/lendingborrowingotp');
 const { sendTransactionReceipt, sendTransactionClearedNotification } = require('../utils/lendingborrowingotp');
 const { logTransactionActivity } = require('./activityController');
@@ -320,6 +321,13 @@ exports.createTransaction = async (req, res) => {
       description
     } = req.body;
 
+    const user = req.user;
+    if (!user) return res.status(400).json({ error: 'User not found' });
+
+    if (user.email !== userEmail) {
+      return res.status(403).json({ error: 'User email does not match authenticated user.' });
+    }
+
     // Validate required fields
     if (!amount || !currency || !date || !time || !place || !counterpartyEmail || !userEmail || !role) {
       return res.status(400).json({ error: 'All fields are required' });
@@ -344,9 +352,7 @@ exports.createTransaction = async (req, res) => {
 
     // Check if both emails exist
     const counterparty = await User.findOne({ email: counterpartyEmail });
-    const user = await User.findOne({ email: userEmail });
     if (!counterparty) return res.status(400).json({ error: 'Counterparty email not registered' });
-    if (!user) return res.status(400).json({ error: 'User email not registered' });
 
     // Handle photos (images only)
     let photos = [];
@@ -412,7 +418,13 @@ exports.createTransaction = async (req, res) => {
       console.error('Failed to log transaction activity:', e);
     }
     
-    res.json({ success: true, transactionId: transaction.transactionId, transaction });
+    res.json({ 
+      success: true, 
+      message: "Transaction created successfully",
+      transactionId: transaction.transactionId, 
+      transaction,
+      freeUserTransactionsRemaining: user.freeUserTransactionsRemaining
+    });
 
     // Send receipt emails to both parties (fire and forget)
     try {
