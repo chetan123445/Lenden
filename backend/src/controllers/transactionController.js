@@ -4,6 +4,7 @@ const Subscription = require('../models/subscription');
 const lendingborrowingotp = require('../utils/lendingborrowingotp');
 const { sendTransactionReceipt, sendTransactionClearedNotification } = require('../utils/lendingborrowingotp');
 const { logTransactionActivity } = require('./activityController');
+const { awardGiftCard, shouldAwardGiftCard } = require('./userGiftCardController');
 const multer = require('multer');
 const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg'];
 const PDFDocument = require('pdfkit');
@@ -561,12 +562,25 @@ exports.createTransaction = async (req, res) => {
       console.error('Failed to log transaction activity:', e);
     }
     
+    // Award gift card every 5 user transactions (guaranteed, randomized within window)
+    const userTxnCount = await Transaction.countDocuments({ userEmail });
+    console.log(`[User Transaction] User ${userEmail} has created ${userTxnCount} transactions total`);
+    let awardedCard = null;
+    if (shouldAwardGiftCard(user._id, userTxnCount, 5)) {
+      console.log(`[User Transaction] Awarding gift card at count ${userTxnCount}!`);
+      awardedCard = await awardGiftCard(user._id, 'userTransaction');
+    } else {
+      console.log(`[User Transaction] No card award yet. Progress: ${userTxnCount} within window`);
+    }
+
     res.json({ 
       success: true, 
       message: "Transaction created successfully",
       transactionId: transaction.transactionId, 
       transaction,
-      freeUserTransactionsRemaining: user.freeUserTransactionsRemaining
+      freeUserTransactionsRemaining: user.freeUserTransactionsRemaining,
+      giftCardAwarded: awardedCard ? true : false,
+      awardedCard: awardedCard
     });
 
     // Send receipt emails to both parties (fire and forget)

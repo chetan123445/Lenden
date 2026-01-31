@@ -8,6 +8,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../widgets/subscription_prompt.dart';
 import '../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
+import 'gift_card_page.dart';
 
 class GroupTransactionPage extends StatefulWidget {
   const GroupTransactionPage({Key? key}) : super(key: key);
@@ -3283,6 +3284,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       ),
     );
   }
+
+
 
   void _showLeaveGroupDialog() {
     // Check if user has pending balances

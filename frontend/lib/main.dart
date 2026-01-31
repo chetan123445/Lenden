@@ -20,6 +20,7 @@ import 'admin/admin_ratings_page.dart';
 import 'admin/admin_feedbacks_page.dart';
 import 'user/notifications_page.dart';
 import 'admin/notifications_page.dart';
+import 'Transaction/gift_card_page.dart';
 import 'dart:convert';
 import 'api_config.dart';
 import 'widgets/notification_icon.dart';
@@ -453,20 +454,26 @@ class HomePage extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(24)),
                               padding: EdgeInsets.zero,
                               elevation: 4,
-                              shadowColor: const Color(0xFF00B4D8).withOpacity(0.2),
+                              shadowColor:
+                                  const Color(0xFF00B4D8).withOpacity(0.2),
                             ),
                             child: Container(
                               padding: const EdgeInsets.all(2.5),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(24),
                                 gradient: const LinearGradient(
-                                  colors: [Colors.orange, Colors.white, Colors.green],
+                                  colors: [
+                                    Colors.orange,
+                                    Colors.white,
+                                    Colors.green
+                                  ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
                               ),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 13.5, horizontal: 29.5),
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 13.5, horizontal: 29.5),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(21.5),

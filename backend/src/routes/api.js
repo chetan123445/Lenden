@@ -359,6 +359,12 @@ module.exports = (io) => {
   router.put('/admin/giftcards/:id', auth, isAdmin, giftCardController.updateGiftCard);
   router.delete('/admin/giftcards/:id', auth, isAdmin, giftCardController.deleteGiftCard);
 
+  // Gift Card Management (User)
+  const userGiftCardController = require('../controllers/userGiftCardController');
+  router.get('/gift-cards/unscratched', auth, userGiftCardController.getUnscractchedGiftCards);
+  router.get('/gift-cards/scratched', auth, userGiftCardController.getScratcedGiftCards);
+  router.post('/gift-cards/:userGiftCardId/scratch', auth, userGiftCardController.scratchGiftCard);
+  router.get('/gift-cards/counts', auth, userGiftCardController.getGiftCardCounts);
 
   return router;
 };

@@ -6,6 +6,7 @@ const { sendGroupLeaveRequestEmail } = require('../utils/groupLeaveRequestEmail'
 const groupTransactionEmail = require('../utils/groupTransactionEmail');
 const mongoose = require('mongoose');
 const { logGroupActivity, logGroupActivityForAllMembers } = require('./activityController');
+const { awardGiftCard, shouldAwardGiftCard } = require('./userGiftCardController');
 const PDFDocument = require('pdfkit');
 const { sendGroupReceiptEmail } = require('../utils/groupReceiptEmail');
 
@@ -75,10 +76,24 @@ exports.createGroupWithCoins = async (req, res) => {
       _id: groupObj.creator._id,
       email: groupObj.creator.email
     };
+
+    // Award gift card every 3 group creations (guaranteed, randomized within window)
+    const groupCountWithCoins = await GroupTransaction.countDocuments({ creator: creator._id });
+    console.log(`[Group Creation with Coins] User ${creator.email} has created ${groupCountWithCoins} groups total`);
+    let awardedCardWithCoins = null;
+    if (shouldAwardGiftCard(creator._id, groupCountWithCoins, 3)) {
+      console.log(`[Group Creation with Coins] Awarding gift card at count ${groupCountWithCoins}!`);
+      awardedCardWithCoins = await awardGiftCard(creator._id, 'group');
+    } else {
+      console.log(`[Group Creation with Coins] No card award yet. Progress: ${groupCountWithCoins} within window`);
+    }
+
     res.status(201).json({ 
         message: "Group created successfully with LenDen coins",
         group: groupObj, 
-        lenDenCoins: creator.lenDenCoins 
+        lenDenCoins: creator.lenDenCoins,
+        giftCardAwarded: awardedCardWithCoins ? true : false,
+        awardedCard: awardedCardWithCoins
     });
     
     // Log activity for group creation - all members get notified
@@ -148,10 +163,24 @@ exports.createGroup = async (req, res) => {
       _id: groupObj.creator._id,
       email: groupObj.creator.email
     };
+
+    // Award gift card every 3 group creations (guaranteed, randomized within window)
+    const groupCount = await GroupTransaction.countDocuments({ creator: creator._id });
+    console.log(`[Group Creation] User ${creator.email} has created ${groupCount} groups total`);
+    let awardedCard = null;
+    if (shouldAwardGiftCard(creator._id, groupCount, 3)) {
+      console.log(`[Group Creation] Awarding gift card at count ${groupCount}!`);
+      awardedCard = await awardGiftCard(creator._id, 'group');
+    } else {
+      console.log(`[Group Creation] No card award yet. Progress: ${groupCount} within window`);
+    }
+
     res.status(201).json({ 
         message: "Group created successfully",
         group: groupObj, 
-        freeGroupsRemaining: creator.freeGroupsRemaining 
+        freeGroupsRemaining: creator.freeGroupsRemaining,
+        giftCardAwarded: awardedCard ? true : false,
+        awardedCard: awardedCard
     });
     
     // Log activity for group creation - all members get notified

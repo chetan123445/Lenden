@@ -34,7 +34,6 @@ class SessionProvider extends ChangeNotifier {
   int? _freeGroupsRemaining;
   int? _lenDenCoins;
 
-
   bool get isSubscribed => _isSubscribed;
   String? get subscriptionPlan => _subscriptionPlan;
   DateTime? get subscriptionEndDate => _subscriptionEndDate;
@@ -92,8 +91,10 @@ class SessionProvider extends ChangeNotifier {
   Future<void> initSession() async {
     print('🔄 SessionProvider.initSession() called');
     await loadTokens();
-    print('🔄 Access token from storage: ${_accessToken != null ? 'Present' : 'Missing'}');
-    print('🔄 Refresh token from storage: ${_refreshToken != null ? 'Present' : 'Missing'}');
+    print(
+        '🔄 Access token from storage: ${_accessToken != null ? 'Present' : 'Missing'}');
+    print(
+        '🔄 Refresh token from storage: ${_refreshToken != null ? 'Present' : 'Missing'}');
 
     if (_accessToken != null) {
       await _loadUserData();
@@ -103,7 +104,7 @@ class SessionProvider extends ChangeNotifier {
       if (_user == null && !_userDataManuallySet) {
         print(
             '🔄 No user data found and not manually set, fetching from API...');
-        
+
         var response = await HttpInterceptor.get('/api/users/me');
 
         if (response.statusCode != 200) {
@@ -117,7 +118,9 @@ class SessionProvider extends ChangeNotifier {
             user['profileImage'] = user['profileImage']['url'];
           }
           _user = user;
-          _role = response.request?.url.path.contains('/admins/') ?? false ? 'admin' : 'user';
+          _role = response.request?.url.path.contains('/admins/') ?? false
+              ? 'admin'
+              : 'user';
           await checkSubscriptionStatus();
           await loadFreebieCounts();
           notifyListeners();
@@ -132,9 +135,9 @@ class SessionProvider extends ChangeNotifier {
         notifyListeners();
       }
     } else {
-        _user = null;
-        _role = null;
-        notifyListeners();
+      _user = null;
+      _role = null;
+      notifyListeners();
     }
   }
 
@@ -176,34 +179,34 @@ class SessionProvider extends ChangeNotifier {
 
     print('Subscription check: Fetching status...');
     try {
-        final response = await HttpInterceptor.get('/api/subscription/status');
+      final response = await HttpInterceptor.get('/api/subscription/status');
 
-        if (response.statusCode == 200) {
-            final data = jsonDecode(response.body);
-            print('Subscription check: Data received: $data');
-            _isSubscribed = data['subscribed'] ?? false;
-            if (_isSubscribed) {
-                _subscriptionPlan = data['subscriptionPlan'];
-                _subscriptionEndDate = DateTime.parse(data['endDate']);
-                _free = data['free'];
-            } else {
-                _subscriptionPlan = null;
-                _subscriptionEndDate = null;
-                _free = null;
-            }
-            await fetchSubscriptionHistory();
-            await loadFreebieCounts();
-            print('Subscription check: isSubscribed set to $_isSubscribed');
-            notifyListeners();
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('Subscription check: Data received: $data');
+        _isSubscribed = data['subscribed'] ?? false;
+        if (_isSubscribed) {
+          _subscriptionPlan = data['subscriptionPlan'];
+          _subscriptionEndDate = DateTime.parse(data['endDate']);
+          _free = data['free'];
         } else {
-            print('Subscription check: Failed with status ${response.statusCode}');
+          _subscriptionPlan = null;
+          _subscriptionEndDate = null;
+          _free = null;
         }
+        await fetchSubscriptionHistory();
+        await loadFreebieCounts();
+        print('Subscription check: isSubscribed set to $_isSubscribed');
+        notifyListeners();
+      } else {
+        print('Subscription check: Failed with status ${response.statusCode}');
+      }
     } catch (e) {
-        print('Error checking subscription status: $e');
+      print('Error checking subscription status: $e');
     }
-}
+  }
 
-Future<void> fetchSubscriptionHistory() async {
+  Future<void> fetchSubscriptionHistory() async {
     if (_accessToken == null) {
       print('Subscription history: No access token');
       return;
@@ -211,39 +214,46 @@ Future<void> fetchSubscriptionHistory() async {
 
     print('Subscription history: Fetching history...');
     try {
-        final response = await HttpInterceptor.get('/api/subscription/history');
+      final response = await HttpInterceptor.get('/api/subscription/history');
 
-        if (response.statusCode == 200) {
-            final data = jsonDecode(response.body);
-            print('Subscription history: Data received: $data');
-            _subscriptionHistory = List<Map<String, dynamic>>.from(data);
-            notifyListeners();
-        } else {
-            print('Subscription history: Failed with status ${response.statusCode}');
-        }
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print('Subscription history: Data received: $data');
+        _subscriptionHistory = List<Map<String, dynamic>>.from(data);
+        notifyListeners();
+      } else {
+        print(
+            'Subscription history: Failed with status ${response.statusCode}');
+      }
     } catch (e) {
-        print('Error fetching subscription history: $e');
+      print('Error fetching subscription history: $e');
     }
-}
+  }
 
-Future<void> loadFreebieCounts() async {
+  Future<void> loadFreebieCounts() async {
     if (_accessToken == null) {
-        return;
+      return;
     }
     try {
-        final response = await HttpInterceptor.get('/api/users/freebie-counts');
-        if (response.statusCode == 200) {
-            final data = jsonDecode(response.body);
-            _freeQuickTransactionsRemaining = data['freeQuickTransactionsRemaining'];
-            _freeUserTransactionsRemaining = data['freeUserTransactionsRemaining'];
-            _freeGroupsRemaining = data['freeGroupsRemaining'];
-            _lenDenCoins = data['lenDenCoins'];
-            notifyListeners();
-        }
+      final response = await HttpInterceptor.get('/api/users/freebie-counts');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _freeQuickTransactionsRemaining =
+            data['freeQuickTransactionsRemaining'];
+        _freeUserTransactionsRemaining = data['freeUserTransactionsRemaining'];
+        _freeGroupsRemaining = data['freeGroupsRemaining'];
+        _lenDenCoins = data['lenDenCoins'];
+        notifyListeners();
+      }
     } catch (e) {
-        print('Error fetching freebie counts: $e');
+      print('Error fetching freebie counts: $e');
     }
-}
+  }
+
+  void updateUserCoins(int totalCoins) {
+    _lenDenCoins = totalCoins;
+    notifyListeners();
+  }
 
   void setCounterparties(List<Map<String, dynamic>> counterparties) {
     _counterparties = counterparties;
@@ -292,9 +302,7 @@ Future<void> loadFreebieCounts() async {
 
     try {
       final isAdmin = _role == 'admin';
-      final url = isAdmin
-          ? '/api/admins/me'
-          : '/api/users/me';
+      final url = isAdmin ? '/api/admins/me' : '/api/users/me';
 
       final response = await HttpInterceptor.get(url);
 
@@ -315,17 +323,15 @@ Future<void> loadFreebieCounts() async {
 
     try {
       final isAdmin = _role == 'admin';
-      final url = isAdmin
-          ? '/api/admins/me'
-          : '/api/users/me';
+      final url = isAdmin ? '/api/admins/me' : '/api/users/me';
 
       // Add cache busting parameter
       final cacheBustingUrl = '$url?t=${DateTime.now().millisecondsSinceEpoch}';
 
       final response = await HttpInterceptor.get(cacheBustingUrl, headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-        });
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+      });
 
       if (response.statusCode == 200) {
         final user = jsonDecode(response.body);
@@ -362,7 +368,8 @@ Future<void> loadFreebieCounts() async {
   Future<void> logout() async {
     if (_refreshToken != null) {
       try {
-        await HttpInterceptor.post('/api/users/logout', body: {'refreshToken': _refreshToken});
+        await HttpInterceptor.post('/api/users/logout',
+            body: {'refreshToken': _refreshToken});
       } catch (e) {
         print('Error logging out on server: $e');
       }

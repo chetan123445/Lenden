@@ -8,6 +8,7 @@ import '../utils/api_client.dart';
 import '../widgets/subscription_prompt.dart';
 import '../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
+import 'gift_card_page.dart';
 
 class QuickTransactionsPage extends StatefulWidget {
   const QuickTransactionsPage({Key? key}) : super(key: key);
@@ -453,6 +454,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       ),
     );
   }
+
+
 
   Widget _buildFilterOption(String label, String value, IconData icon) {
     final isSelected = filterBy == value;
@@ -1062,7 +1065,9 @@ class _QuickTransactionDialog extends StatefulWidget {
   final bool useCoins;
 
   const _QuickTransactionDialog(
-      {Key? key, this.transaction, this.useCoins = false})
+      {Key? key,
+      this.transaction,
+      this.useCoins = false})
       : super(key: key);
 
   @override

@@ -13,6 +13,7 @@ import '../utils/api_client.dart';
 import '../Transaction/transaction_page.dart';
 import '../Transaction/user_transactions_page.dart';
 import '../Transaction/analytics_page.dart';
+import '../Transaction/gift_card_page.dart';
 import '../user/notes_page.dart';
 import '../Transaction/group_transaction_page.dart';
 import '../Transaction/view_group_transactions_page.dart';
@@ -118,7 +119,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       context: context,
       builder: (context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Container(
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
@@ -150,7 +152,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.monetization_on, color: Colors.amber, size: 40),
+                      Icon(Icons.monetization_on,
+                          color: Colors.amber, size: 40),
                       SizedBox(width: 8),
                       Text(
                         '$coins',
@@ -213,7 +216,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
     if (lowerQuery.contains('quick') || lowerQuery.contains('transaction')) {
       matchedSection = 'quick_transactions';
-    } else if (lowerQuery.contains('create') || lowerQuery.contains('transaction')) {
+    } else if (lowerQuery.contains('create') ||
+        lowerQuery.contains('transaction')) {
       matchedSection = 'transactions';
     } else if (lowerQuery.contains('your') || lowerQuery.contains('detail')) {
       matchedSection = 'your_transactions';
@@ -277,7 +281,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
           // Fetch all profiles in parallel
           final profiles = await Future.wait(topCounterparties
-              .map((cp) => _fetchCounterpartyProfile(cp['email']))); 
+              .map((cp) => _fetchCounterpartyProfile(cp['email'])));
 
           List<Map<String, dynamic>> populatedCounterparties = [];
           for (int i = 0; i < topCounterparties.length; i++) {
@@ -602,8 +606,11 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         );
         break;
       case 'gift_cards':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gift Cards coming soon!')),
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const GiftCardPage(),
+          ),
         );
         break;
     }
@@ -822,8 +829,10 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                 title: const Text('Subscriptions'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const SubscriptionsPage()));
+                  Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const SubscriptionsPage()));
                 },
               ),
               ListTile(
@@ -1077,7 +1086,10 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                     // Main action cards
                     GestureDetector(
                       key: _sectionKeys['quick_transactions'],
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => QuickTransactionsPage())),
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => QuickTransactionsPage())),
                       child: Container(
                         margin:
                             EdgeInsets.symmetric(vertical: 16, horizontal: 24),
@@ -1471,10 +1483,14 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                               NotificationIcon(),
                               GestureDetector(
                                 onTap: () {
-                                  final session = Provider.of<SessionProvider>(context, listen: false);
-                                  _showLenDenCoinsDialog(session.lenDenCoins ?? 0);
+                                  final session = Provider.of<SessionProvider>(
+                                      context,
+                                      listen: false);
+                                  _showLenDenCoinsDialog(
+                                      session.lenDenCoins ?? 0);
                                 },
-                                child: Icon(Icons.monetization_on, color: Colors.amber, size: 28),
+                                child: Icon(Icons.monetization_on,
+                                    color: Colors.amber, size: 28),
                               ),
                               Container(
                                 padding: const EdgeInsets.all(2),
@@ -1599,7 +1615,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
               CircularProgressIndicator(),
               SizedBox(height: 8),
               Text(
-                'Fetching counterparties...', 
+                'Fetching counterparties...',
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
             ],
@@ -1801,7 +1817,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                               ),
                               SizedBox(height: 20),
                               Text(
-                                'Logging out...', 
+                                'Logging out...',
                                 style: TextStyle(
                                   color: Colors.black,
                                   fontSize: 18,
@@ -1829,7 +1845,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                               ),
                               SizedBox(height: 32),
                               Row(
-                                mainAxisAlignment: 
+                                mainAxisAlignment:
                                     MainAxisAlignment.spaceEvenly,
                                 children: [
                                   Expanded(
@@ -1852,7 +1868,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                           elevation: 0,
                                         ),
                                         child: Row(
-                                          mainAxisAlignment: 
+                                          mainAxisAlignment:
                                               MainAxisAlignment.center,
                                           children: [
                                             Icon(Icons.close, size: 20),
@@ -1899,7 +1915,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                               .withOpacity(0.3),
                                         ),
                                         child: Row(
-                                          mainAxisAlignment: 
+                                          mainAxisAlignment:
                                               MainAxisAlignment.center,
                                           children: [
                                             Icon(Icons.logout, size: 20),
@@ -2123,28 +2139,28 @@ class _StylishProfileDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (email != null) ...[
-                  Row(children: [ 
+                  Row(children: [
                     Icon(Icons.email, size: 18, color: Colors.teal),
                     SizedBox(width: 8),
-                    Text(email!, style: TextStyle(fontSize: 16))]
-                  ),
-                  SizedBox(height: 10), 
+                    Text(email!, style: TextStyle(fontSize: 16))
+                  ]),
+                  SizedBox(height: 10),
                 ],
                 if (phone != null && phone!.isNotEmpty) ...[
-                  Row(children: [ 
+                  Row(children: [
                     Icon(Icons.phone, size: 18, color: Colors.teal),
                     SizedBox(width: 8),
-                    Text(phone!, style: TextStyle(fontSize: 16))]
-                  ),
-                  SizedBox(height: 10), 
+                    Text(phone!, style: TextStyle(fontSize: 16))
+                  ]),
+                  SizedBox(height: 10),
                 ],
                 if (gender != null) ...[
-                  Row(children: [ 
+                  Row(children: [
                     Icon(Icons.transgender, size: 18, color: Colors.teal),
                     SizedBox(width: 8),
-                    Text(gender!, style: TextStyle(fontSize: 16))]
-                  ),
-                  SizedBox(height: 10), 
+                    Text(gender!, style: TextStyle(fontSize: 16))
+                  ]),
+                  SizedBox(height: 10),
                 ],
               ],
             ),

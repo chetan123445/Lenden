@@ -2,6 +2,7 @@ const QuickTransaction = require('../models/quickTransaction');
 const User = require('../models/user');
 const Subscription = require('../models/subscription');
 const { logQuickTransactionActivity } = require('./activityController');
+const { awardGiftCard, shouldAwardGiftCard } = require('./userGiftCardController');
 
 exports.createQuickTransaction = async (req, res) => {
   try {
@@ -25,15 +26,30 @@ exports.createQuickTransaction = async (req, res) => {
       time,
       description,
       users: [userEmail, counterpartyEmail],
+      creatorEmail: userEmail,
       role,
     });
 
     await quickTransaction.save();
     await logQuickTransactionActivity(req.user._id, 'quick_transaction_created', quickTransaction, { counterpartyEmail });
+
+    // Award gift card every 10 quick transactions (guaranteed, randomized within window)
+    const quickTxnCount = await QuickTransaction.countDocuments({ creatorEmail: userEmail });
+    console.log(`[Quick Transaction] User ${userEmail} has created ${quickTxnCount} quick transactions`);
+    let awardedCard = null;
+    if (shouldAwardGiftCard(req.user._id, quickTxnCount, 10)) {
+      console.log(`[Quick Transaction] Awarding gift card at count ${quickTxnCount}!`);
+      awardedCard = await awardGiftCard(req.user._id, 'quickTransaction');
+    } else {
+      console.log(`[Quick Transaction] No card award yet. Progress: ${quickTxnCount} within window`);
+    }
+
     res.status(201).json({ 
         message: 'Quick transaction created successfully', 
         quickTransaction, 
-        freeQuickTransactionsRemaining: user.freeQuickTransactionsRemaining 
+        freeQuickTransactionsRemaining: user.freeQuickTransactionsRemaining,
+        giftCardAwarded: awardedCard ? true : false,
+        awardedCard: awardedCard
     });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -70,15 +86,30 @@ exports.createQuickTransactionWithCoins = async (req, res) => {
       time,
       description,
       users: [userEmail, counterpartyEmail],
+      creatorEmail: userEmail,
       role,
     });
 
     await quickTransaction.save();
     await logQuickTransactionActivity(req.user._id, 'quick_transaction_created_with_coins', quickTransaction, { counterpartyEmail });
+
+    // Award gift card every 10 quick transactions (guaranteed, randomized within window)
+    const quickTxnCount = await QuickTransaction.countDocuments({ creatorEmail: userEmail });
+    console.log(`[Quick Transaction with Coins] User ${userEmail} has created ${quickTxnCount} quick transactions`);
+    let awardedCard = null;
+    if (shouldAwardGiftCard(user._id, quickTxnCount, 10)) {
+      console.log(`[Quick Transaction with Coins] Awarding gift card at count ${quickTxnCount}!`);
+      awardedCard = await awardGiftCard(user._id, 'quickTransaction');
+    } else {
+      console.log(`[Quick Transaction with Coins] No card award yet. Progress: ${quickTxnCount} within window`);
+    }
+
     res.status(201).json({ 
         message: 'Quick transaction created successfully with LenDen coins', 
         quickTransaction, 
-        lenDenCoins: user.lenDenCoins 
+        lenDenCoins: user.lenDenCoins,
+        giftCardAwarded: awardedCard ? true : false,
+        awardedCard: awardedCard
     });
   } catch (error) {
     res.status(400).json({ error: error.message });

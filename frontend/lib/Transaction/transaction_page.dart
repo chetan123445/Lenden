@@ -18,6 +18,7 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'user_transactions_page.dart';
 import '../widgets/subscription_prompt.dart';
+import 'gift_card_page.dart';
 import '../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
 
@@ -352,7 +353,8 @@ class _TransactionPageState extends State<TransactionPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.monetization_on, color: Colors.orange, size: 48),
+                      Icon(Icons.monetization_on,
+                          color: Colors.orange, size: 48),
                       SizedBox(height: 16),
                       Text(
                         'Use LenDen Coins',
@@ -695,6 +697,7 @@ class _TransactionPageState extends State<TransactionPage> {
         });
         final session = Provider.of<SessionProvider>(context, listen: false);
         session.loadFreebieCounts();
+
         showDialog(
           context: context,
           builder: (_) => Dialog(
@@ -870,6 +873,8 @@ class _TransactionPageState extends State<TransactionPage> {
       ),
     );
   }
+
+
 
   Widget _buildCurrencyDropdown() {
     return DropdownButtonFormField<String>(
