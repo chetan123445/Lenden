@@ -43,24 +43,48 @@ const handleUsage = (featureType) => {
       }
 
       if (user[usageField] > 0) {
-        user[usageField] -= 1;
-        await user.save();
-        
-        // Log the activity
-        const newActivity = new Activity({
-          user: user._id,
-          type: activityType,
-          title: activityTitle,
-          description: `Used one free credit for ${featureType}. ${user[usageField]} remaining.`,
-          ipAddress: req.ip,
-          userAgent: req.headers['user-agent'],
-        });
-        await newActivity.save();
+        // Reserve the free credit and only consume it if the request succeeds.
+        // Attach a response finish listener to decrement and log on success.
+        req.user = user; // attach fresh user to request
+        let consumed = false;
 
-        req.user = user;
+        const finishHandler = async () => {
+          // Only decrement once and only for successful responses
+          if (consumed) return;
+          consumed = true;
+          try {
+            if (res.statusCode && res.statusCode < 400) {
+              // Decrement and save
+              user[usageField] = Math.max(0, user[usageField] - 1);
+              await user.save();
+
+              // Log the activity
+              const newActivity = new Activity({
+                user: user._id,
+                type: activityType,
+                title: activityTitle,
+                description: `Used one free credit for ${featureType}. ${user[usageField]} remaining.`,
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+              });
+              await newActivity.save();
+            }
+          } catch (e) {
+            console.error('Error consuming free usage after response:', e);
+          } finally {
+            // cleanup listener
+            res.removeListener('finish', finishHandler);
+            res.removeListener('close', finishHandler);
+          }
+        };
+
+        res.on('finish', finishHandler);
+        // Also listen for close in case connection is aborted
+        res.on('close', finishHandler);
+
         next();
       } else {
-        res.status(403).json({
+        return res.status(403).json({
           error: `You have run out of free ${featureType}s. Please upgrade to premium for unlimited usage.`,
         });
       }

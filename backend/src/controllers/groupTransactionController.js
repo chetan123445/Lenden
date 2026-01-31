@@ -106,13 +106,8 @@ exports.createGroup = async (req, res) => {
       return res.status(400).json({ error: 'Creator not found' });
     }
 
-    // Check subscription and free attempts
-    const subscription = await Subscription.findOne({ user: creator._id, status: 'active' });
-    const isSubscribed = subscription && subscription.subscribed && subscription.endDate >= new Date();
-    
-    if (!isSubscribed && creator.freeGroupsRemaining <= 0) {
-      return res.status(403).json({ error: 'No free group creations remaining. Please subscribe or use LenDen coins.' });
-    }
+    // Subscription is handled by subscription checks and free-attempts are enforced
+    // by the `handleUsage('group')` middleware. No need to re-check here.
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -134,11 +129,8 @@ exports.createGroup = async (req, res) => {
     const members = memberIds.map(id => ({ user: id }));
     const group = await GroupTransaction.create({ title, creator: creator._id, members, color });
     
-    // Decrement free group creations if not subscribed
-    if (!isSubscribed) {
-      creator.freeGroupsRemaining -= 1;
-      await creator.save();
-    }
+    // freeGroupsRemaining is handled by the `handleUsage('group')` middleware
+    // so we avoid decrementing it again here to prevent double-counting.
     
     // Populate members and creator for response
     const populatedGroup = await GroupTransaction.findById(group._id)
