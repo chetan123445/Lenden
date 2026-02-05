@@ -54,6 +54,18 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 200
   },
+  friends: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  ],
+  blockedUsers: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  ],
   
   // Notification Settings
   notificationSettings: {

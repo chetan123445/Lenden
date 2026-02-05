@@ -56,7 +56,16 @@ const activitySchema = new mongoose.Schema({
       'quick_transaction_updated',
       'quick_transaction_deleted',
       'quick_transaction_cleared',
-      'quick_transaction_cleared_all'
+      'quick_transaction_cleared_all',
+      // Friend activities
+      'friend_request_sent',
+      'friend_request_received',
+      'friend_request_accepted',
+      'friend_request_declined',
+      'friend_request_canceled',
+      'friend_removed',
+      'user_blocked',
+      'user_unblocked'
         ],    required: true
   },
   title: {

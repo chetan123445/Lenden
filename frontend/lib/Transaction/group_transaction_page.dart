@@ -12,7 +12,10 @@ import '../Digitise/subscriptions_page.dart';
 import '../user/gift_card_page.dart';
 
 class GroupTransactionPage extends StatefulWidget {
-  const GroupTransactionPage({Key? key}) : super(key: key);
+  final List<String>? prefillMemberEmails;
+
+  const GroupTransactionPage({Key? key, this.prefillMemberEmails})
+      : super(key: key);
   @override
   State<GroupTransactionPage> createState() => _GroupTransactionPageState();
 }
@@ -26,6 +29,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   String? error;
   bool loading = false;
   String? memberAddError;
+  List<Map<String, dynamic>> _friends = [];
+  List<Map<String, dynamic>> _friendSuggestions = [];
+  Set<String> _blockedEmails = {};
 
   // State for group details
   Map<String, dynamic>? group; // Real group data
@@ -62,7 +68,259 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.prefillMemberEmails != null &&
+        widget.prefillMemberEmails!.isNotEmpty) {
+      memberEmails = List<String>.from(widget.prefillMemberEmails!);
+      showCreateGroupForm = true;
+    }
+    _loadFriends();
+    _memberEmailController.addListener(_updateFriendSuggestions);
     _fetchUserGroups();
+  }
+
+  Future<void> _addMembersFromFriends() async {
+    try {
+      final res = await ApiClient.get('/api/friends');
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body);
+      final friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
+      final blocked = List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
+      _blockedEmails = blocked
+          .map((u) => (u['email'] ?? '').toString().toLowerCase().trim())
+          .where((e) => e.isNotEmpty)
+          .toSet();
+      if (!mounted) return;
+
+      final tempSelected = Set<String>.from(memberEmails);
+      final selectableCount = friends
+          .where((f) =>
+              !_isBlockedEmail((f['email'] ?? '').toString().toLowerCase().trim()))
+          .length;
+      bool selectAll =
+          tempSelected.length == selectableCount && selectableCount > 0;
+      await showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: StatefulBuilder(
+            builder: (context, setDialogState) => Container(
+              padding: const EdgeInsets.all(16),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.7,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: const LinearGradient(
+                    colors: [Colors.orange, Colors.white, Colors.green],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _getFriendNoteColor(0),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 12),
+                      const Text('Select Friends',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      if (friends.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Row(
+                            children: [
+                              Checkbox(
+                                value: selectAll,
+                                onChanged: (val) {
+                                  setDialogState(() {
+                                    if (val == true) {
+                                      tempSelected
+                                        ..clear()
+                                        ..addAll(friends
+                                            .where((f) => !_isBlockedEmail(
+                                                (f['email'] ?? '')
+                                                    .toString()
+                                                    .toLowerCase()
+                                                    .trim()))
+                                            .map((f) =>
+                                                (f['email'] ?? '').toString()));
+                                      selectAll = true;
+                                    } else {
+                                      tempSelected.clear();
+                                      selectAll = false;
+                                    }
+                                  });
+                                },
+                              ),
+                              const Text('Select All'),
+                              const Spacer(),
+                              TextButton(
+                                onPressed: () {
+                                  setDialogState(() {
+                                    tempSelected.clear();
+                                    selectAll = false;
+                                  });
+                                },
+                                child: const Text('Deselect All'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: friends.isEmpty
+                            ? const Center(child: Text('No friends found'))
+                            : ListView.builder(
+                                itemCount: friends.length,
+                                itemBuilder: (context, index) {
+                                  final f = friends[index];
+                                  final email = (f['email'] ?? '').toString();
+                                  final name = (f['name'] ?? f['username'] ?? '')
+                                      .toString();
+                                  final isBlocked = _isBlockedEmail(email);
+                                  return Container(
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 4),
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(14),
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Colors.orange,
+                                          Colors.white,
+                                          Colors.green
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                    ),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: _getFriendNoteColor(
+                                            email.hashCode.abs() % 6),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: CheckboxListTile(
+                                        value: tempSelected.contains(email),
+                                        title:
+                                            Text(name.isNotEmpty ? name : email),
+                                        subtitle: Text(email),
+                                        secondary: isBlocked
+                                            ? const Icon(Icons.block,
+                                                color: Colors.red)
+                                            : null,
+                                        onChanged: isBlocked
+                                            ? null
+                                            : (val) {
+                                          setDialogState(() {
+                                            if (val == true) {
+                                              tempSelected.add(email);
+                                            } else {
+                                              tempSelected.remove(email);
+                                            }
+                                            selectAll =
+                                                tempSelected.length ==
+                                                        selectableCount &&
+                                                    selectableCount > 0;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                setState(() {
+                                  memberEmails = tempSelected.toList();
+                                });
+                                Navigator.pop(context);
+                              },
+                              child: const Text('Add Selected'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Color _getFriendNoteColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6),
+      Color(0xFFE8F5E9),
+      Color(0xFFFCE4EC),
+      Color(0xFFE3F2FD),
+      Color(0xFFFFF9C4),
+      Color(0xFFF3E5F5),
+    ];
+    return colors[index % colors.length];
+  }
+
+  Future<void> _loadFriends() async {
+    try {
+      final res = await ApiClient.get('/api/friends');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          _friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
+          final blocked =
+              List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
+          _blockedEmails = blocked
+              .map((u) => (u['email'] ?? '').toString().toLowerCase().trim())
+              .where((e) => e.isNotEmpty)
+              .toSet();
+        });
+        _updateFriendSuggestions();
+      }
+    } catch (_) {}
+  }
+
+  bool _isBlockedEmail(String? email) {
+    final target = email?.toLowerCase().trim();
+    if (target == null || target.isEmpty) return false;
+    return _blockedEmails.contains(target);
+  }
+
+  void _updateFriendSuggestions() {
+    final query = _memberEmailController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      setState(() => _friendSuggestions = []);
+      return;
+    }
+    final matches = _friends.where((f) {
+      final email = (f['email'] ?? '').toString().toLowerCase();
+      final name = (f['name'] ?? f['username'] ?? '').toString().toLowerCase();
+      if (_isBlockedEmail(email)) return false;
+      return email.contains(query) || name.contains(query);
+    }).toList();
+    setState(() => _friendSuggestions = matches.take(5).toList());
   }
 
   Future<void> _toggleFavourite(String groupId) async {
@@ -83,6 +341,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   @override
   void dispose() {
+    _memberEmailController.removeListener(_updateFriendSuggestions);
     _titleController.dispose();
     _memberEmailController.dispose();
     _expenseDescController.dispose();
@@ -126,6 +385,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         memberAddError = 'You (group creator) are already added by default.';
         _memberEmailController.clear();
       });
+      return;
+    }
+
+    if (_isBlockedEmail(email)) {
+      showBlockedUserDialog(context);
       return;
     }
 
@@ -263,7 +527,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     };
   }
 
+  bool _hasBlockedMembers() {
+    return memberEmails.any((email) => _isBlockedEmail(email));
+  }
+
   Future<void> _createGroupWithCoins() async {
+    if (_hasBlockedMembers()) {
+      showBlockedUserDialog(context);
+      return;
+    }
     setState(() {
       creatingGroup = true;
       error = null;
@@ -315,6 +587,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ).show(context);
         }
       } else if (res.statusCode == 403) {
+        final errorMsg = (data['error'] ?? 'Forbidden').toString();
+        if (errorMsg.toLowerCase().contains('blocked')) {
+          showBlockedUserDialog(context, message: errorMsg);
+          return;
+        }
         showInsufficientCoinsDialog(context);
       } else {
         setState(() {
@@ -334,6 +611,10 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   Future<void> _createGroup() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
+    if (_hasBlockedMembers()) {
+      showBlockedUserDialog(context);
+      return;
+    }
     if (!session.isSubscribed && (session.freeGroupsRemaining ?? 0) <= 0) {
       if ((session.lenDenCoins ?? 0) < 20) {
         if ((session.lenDenCoins ?? 0) == 0) {
@@ -529,8 +810,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ).show(context);
         }
       } else {
+        final errorMsg = (data['error'] ?? 'Failed to create group').toString();
+        if (errorMsg.toLowerCase().contains('blocked')) {
+          showBlockedUserDialog(context, message: errorMsg);
+          return;
+        }
         setState(() {
-          error = data['error'] ?? 'Failed to create group';
+          error = errorMsg;
         });
       }
     } catch (e) {
@@ -5208,6 +5494,52 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
+            ),
+            if (_friendSuggestions.isNotEmpty) ...[
+              SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _friendSuggestions.map((f) {
+                  final email = (f['email'] ?? '').toString();
+                  final name = (f['name'] ?? f['username'] ?? '').toString();
+                  return Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: const LinearGradient(
+                        colors: [Colors.orange, Colors.white, Colors.green],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _getFriendNoteColor(
+                            email.hashCode.abs() % 6),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ActionChip(
+                        label: Text(name.isNotEmpty ? '$name ($email)' : email),
+                        onPressed: () {
+                          _memberEmailController.text = email;
+                          _addMemberEmail();
+                        },
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+            SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _addMembersFromFriends,
+                icon: Icon(Icons.people, color: Colors.deepPurple),
+                label: Text('Add from Friends',
+                    style: TextStyle(color: Colors.deepPurple)),
+              ),
             ),
             if (memberAddError != null) ...[
               SizedBox(height: 6),

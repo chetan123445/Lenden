@@ -11,7 +11,14 @@ import '../Digitise/subscriptions_page.dart';
 import '../user/gift_card_page.dart';
 
 class QuickTransactionsPage extends StatefulWidget {
-  const QuickTransactionsPage({Key? key}) : super(key: key);
+  final String? prefillCounterpartyEmail;
+  final bool openCreateOnLoad;
+
+  const QuickTransactionsPage({
+    Key? key,
+    this.prefillCounterpartyEmail,
+    this.openCreateOnLoad = false,
+  }) : super(key: key);
   @override
   State<QuickTransactionsPage> createState() => _QuickTransactionsPageState();
 }
@@ -25,11 +32,134 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   String sortBy = 'created_desc';
   String filterBy = 'all'; // 'all', 'cleared', 'not_cleared'
   bool _showAll = false;
+  Set<String> _blockedEmails = {};
 
   @override
   void initState() {
     super.initState();
     fetchQuickTransactions();
+    _loadBlockedUsers();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.openCreateOnLoad &&
+          (widget.prefillCounterpartyEmail ?? '').isNotEmpty) {
+        _openQuickTransactionDialog(
+          prefillEmail: widget.prefillCounterpartyEmail,
+        );
+      }
+    });
+  }
+
+  Future<void> _loadBlockedUsers() async {
+    try {
+      final res = await ApiClient.get('/api/friends');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final blocked =
+            List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
+        setState(() {
+          _blockedEmails = blocked
+              .map((u) => (u['email'] ?? '').toString().toLowerCase().trim())
+              .where((e) => e.isNotEmpty)
+              .toSet();
+        });
+      }
+    } catch (_) {}
+  }
+
+  bool _isBlockedEmail(String? email) {
+    final target = email?.toLowerCase().trim();
+    if (target == null || target.isEmpty) return false;
+    return _blockedEmails.contains(target);
+  }
+
+  Future<void> _openQuickTransactionDialog({
+    Map<String, dynamic>? transaction,
+    String? prefillEmail,
+  }) async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (_blockedEmails.isEmpty) {
+      await _loadBlockedUsers();
+    }
+    if (_isBlockedEmail(prefillEmail)) {
+      showBlockedUserDialog(context);
+      return;
+    }
+
+    if (!session.isSubscribed &&
+        (session.freeQuickTransactionsRemaining ?? 0) <= 0 &&
+        transaction == null) {
+      if ((session.lenDenCoins ?? 0) < 5) {
+        if ((session.lenDenCoins ?? 0) == 0) {
+          showZeroCoinsDialog(context);
+        } else {
+          showInsufficientCoinsDialog(context);
+        }
+        return;
+      }
+      final useCoins = await showDialog(
+        context: context,
+        builder: (context) => SubscriptionPrompt(
+          title: 'No Free Quick Transactions Left',
+          subtitle:
+              'You have no free quick transactions remaining. Would you like to use 10 LenDen coins to create one?',
+        ),
+      );
+      if (useCoins != true) {
+        return;
+      }
+    }
+
+    final result = await showDialog(
+      context: context,
+      builder: (context) => _QuickTransactionDialog(
+        transaction: transaction,
+        useCoins: !session.isSubscribed &&
+            (session.freeQuickTransactionsRemaining ?? 0) <= 0,
+        prefillCounterpartyEmail: prefillEmail,
+        blockedEmails: _blockedEmails,
+      ),
+    );
+
+    if (result is String) {
+      if (result.toLowerCase().contains('blocked')) {
+        showBlockedUserDialog(context, message: result);
+        return;
+      }
+      ElegantNotification.error(
+        title: Text("Error"),
+        description: Text(result),
+      ).show(context);
+    } else if (result is Map<String, dynamic>) {
+      fetchQuickTransactions();
+      session.loadFreebieCounts();
+      final giftCardAwarded = result['giftCardAwarded'] as bool?;
+      final awardedCard = result['awardedCard'];
+
+      if (giftCardAwarded == true && awardedCard != null) {
+        ElegantNotification.success(
+          title: Text("Congratulations!"),
+          description: Text("You've won a gift card!"),
+          action: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => GiftCardPage()),
+              );
+            },
+            child: Text(
+              'View',
+              style: TextStyle(color: Colors.blue),
+            ),
+          ),
+        ).show(context);
+      } else {
+        ElegantNotification.success(
+          title: Text("Success"),
+          description: Text(
+              "Transaction has been successfully ${transaction != null ? 'updated' : 'created'}!"),
+        ).show(context);
+      }
+    }
   }
 
   void sortTransactions() {
@@ -135,6 +265,9 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   Future<void> createOrEditQuickTransaction(
       {Map<String, dynamic>? transaction}) async {
     final session = Provider.of<SessionProvider>(context, listen: false);
+    if (_blockedEmails.isEmpty) {
+      await _loadBlockedUsers();
+    }
     if (!session.isSubscribed &&
         (session.freeQuickTransactionsRemaining ?? 0) <= 0 &&
         transaction == null) {
@@ -286,7 +419,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       builder: (context) => _QuickTransactionDialog(
           transaction: transaction,
           useCoins: !session.isSubscribed &&
-              (session.freeQuickTransactionsRemaining ?? 0) <= 0),
+              (session.freeQuickTransactionsRemaining ?? 0) <= 0,
+          blockedEmails: _blockedEmails),
     );
 
     if (result is String) {
@@ -1085,11 +1219,15 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
 class _QuickTransactionDialog extends StatefulWidget {
   final Map<String, dynamic>? transaction;
   final bool useCoins;
+  final String? prefillCounterpartyEmail;
+  final Set<String> blockedEmails;
 
   const _QuickTransactionDialog(
       {Key? key,
       this.transaction,
-      this.useCoins = false})
+      this.useCoins = false,
+      this.prefillCounterpartyEmail,
+      this.blockedEmails = const {}})
       : super(key: key);
 
   @override
@@ -1107,6 +1245,8 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
   String _role = 'lender';
   bool _isLoading = false;
   String? _userEmail;
+  List<Map<String, dynamic>> _friends = [];
+  List<Map<String, dynamic>> _suggestions = [];
 
   final List<Map<String, String>> _currencies = [
     {'code': 'INR', 'symbol': '₹'},
@@ -1127,6 +1267,9 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     _userEmail = session.user?['email'];
 
+    _loadFriends();
+    _counterpartyEmailController.addListener(_updateSuggestions);
+
     if (widget.transaction != null) {
       _amountController.text = widget.transaction!['amount']?.toString() ?? '';
       _currency = widget.transaction!['currency'] ?? 'INR';
@@ -1141,7 +1284,154 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
             counterparty != null ? counterparty['email'] : '';
       }
       _role = widget.transaction!['role'] ?? 'lender';
+    } else if ((widget.prefillCounterpartyEmail ?? '').isNotEmpty) {
+      _counterpartyEmailController.text =
+          widget.prefillCounterpartyEmail!.trim();
     }
+  }
+
+  bool _isBlockedEmail(String? email) {
+    final target = email?.toLowerCase().trim();
+    if (target == null || target.isEmpty) return false;
+    return widget.blockedEmails.contains(target);
+  }
+
+  @override
+  void dispose() {
+    _counterpartyEmailController.removeListener(_updateSuggestions);
+    super.dispose();
+  }
+
+  Future<void> _loadFriends() async {
+    try {
+      final res = await ApiClient.get('/api/friends');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          _friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
+        });
+        _updateSuggestions();
+      }
+    } catch (_) {}
+  }
+
+  void _updateSuggestions() {
+    final query = _counterpartyEmailController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      setState(() => _suggestions = []);
+      return;
+    }
+    final matches = _friends.where((f) {
+      final email = (f['email'] ?? '').toString().toLowerCase();
+      final name = (f['name'] ?? f['username'] ?? '').toString().toLowerCase();
+      if (_isBlockedEmail(email)) return false;
+      return email.contains(query) || name.contains(query);
+    }).toList();
+    setState(() => _suggestions = matches.take(5).toList());
+  }
+
+  Future<void> _pickFriend() async {
+    try {
+      final res = await ApiClient.get('/api/friends');
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body);
+      final friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
+      if (!mounted) return;
+      showModalBottomSheet(
+        context: context,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) => Container(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: _getQuickNoteColor(0),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Text('Select Friend',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  if (friends.isEmpty)
+                    const Text('No friends found')
+                  else
+                    ...friends.map((f) {
+                      final email = f['email'] ?? '';
+                      final name = f['name'] ?? f['username'] ?? '';
+                      final isBlocked = _isBlockedEmail(email.toString());
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: _getQuickNoteColor(
+                                email.hashCode.abs() % 6),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ListTile(
+                            title: Text(name.toString()),
+                            subtitle: Text(email.toString()),
+                            trailing: isBlocked
+                                ? const Text('Blocked',
+                                    style: TextStyle(
+                                        color: Colors.red,
+                                        fontWeight: FontWeight.w600))
+                                : null,
+                            onTap: () {
+                              if (isBlocked) {
+                                showBlockedUserDialog(context);
+                                return;
+                              }
+                              setState(() {
+                                _counterpartyEmailController.text =
+                                    email.toString();
+                              });
+                              Navigator.pop(context);
+                            },
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Color _getQuickNoteColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6),
+      Color(0xFFE8F5E9),
+      Color(0xFFFCE4EC),
+      Color(0xFFE3F2FD),
+      Color(0xFFFFF9C4),
+      Color(0xFFF3E5F5),
+    ];
+    return colors[index % colors.length];
   }
 
   @override
@@ -1310,6 +1600,13 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                                 color: isEditing
                                     ? Colors.grey
                                     : Color(0xFF00B4D8)),
+                            suffixIcon: IconButton(
+                              icon: Icon(Icons.people,
+                                  color: isEditing
+                                      ? Colors.grey
+                                      : Color(0xFF00B4D8)),
+                              onPressed: isEditing ? null : _pickFriend,
+                            ),
                             border: InputBorder.none,
                           ),
                           validator: (value) {
@@ -1323,6 +1620,44 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                           },
                         ),
                       ),
+                      if (_suggestions.isNotEmpty && !isEditing) ...[
+                        SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _suggestions.map((f) {
+                            final email = (f['email'] ?? '').toString();
+                            final name = (f['name'] ?? f['username'] ?? '')
+                                .toString();
+                            return Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                gradient: const LinearGradient(
+                                  colors: [Colors.orange, Colors.white, Colors.green],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: _getQuickNoteColor(
+                                      email.hashCode.abs() % 6),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: ActionChip(
+                                  label: Text(name.isNotEmpty
+                                      ? '$name ($email)'
+                                      : email),
+                                  onPressed: () {
+                                    _counterpartyEmailController.text = email;
+                                  },
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
                       SizedBox(height: 16),
 
                       // Role dropdown
@@ -1388,6 +1723,11 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                               ? null
                               : () async {
                                   if (_formKey.currentState!.validate()) {
+                                    if (_isBlockedEmail(
+                                        _counterpartyEmailController.text)) {
+                                      showBlockedUserDialog(context);
+                                      return;
+                                    }
                                     setState(() {
                                       _isLoading = true;
                                     });
@@ -1422,6 +1762,17 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                                         final error =
                                             json.decode(res.body)['error'] ??
                                                 res.body;
+                                        final errorText =
+                                            error.toString().toLowerCase();
+                                        if (res.statusCode == 403 &&
+                                            errorText.contains('blocked')) {
+                                          showBlockedUserDialog(context,
+                                              message: error.toString());
+                                          setState(() {
+                                            _isLoading = false;
+                                          });
+                                          return;
+                                        }
                                         Navigator.pop(context, error);
                                       }
                                     } catch (e) {

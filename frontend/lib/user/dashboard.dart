@@ -26,6 +26,8 @@ import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
 import '../Digitise/subscriptions_page.dart';
 import '../Transaction/quick_transactions_page.dart';
+import 'friends_page.dart';
+import 'package:elegant_notification/elegant_notification.dart';
 
 class UserDashboardPage extends StatefulWidget {
   const UserDashboardPage({super.key});
@@ -38,8 +40,12 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     with TickerProviderStateMixin {
   List<Map<String, dynamic>> transactions = [];
   List<Map<String, dynamic>> counterparties = [];
+  List<Map<String, dynamic>> friends = [];
+  int _pendingFriendRequests = 0;
+  bool _friendToastShown = false;
   bool loading = true;
   bool _counterpartiesLoading = true;
+  bool _friendsLoading = true;
   int _imageRefreshKey = 0;
   final ScrollController _scrollController = ScrollController();
 
@@ -99,10 +105,10 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       'action': 'subscriptions'
     },
     {
-      'icon': Icons.credit_card,
-      'label': 'Credits',
+      'icon': Icons.people,
+      'label': 'Friends',
       'color': Colors.blue,
-      'action': 'credits'
+      'action': 'friends'
     },
     {
       'icon': Icons.card_giftcard,
@@ -185,6 +191,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     super.initState();
     fetchTransactions();
     _fetchCounterparties();
+    _fetchFriends();
     _checkAndShowRatingDialog();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -306,6 +313,53 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       if (mounted) {
         setState(() {
           _counterpartiesLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchFriends() async {
+    setState(() {
+      _friendsLoading = true;
+    });
+    try {
+      final res = await ApiClient.get('/api/friends');
+      final reqRes = await ApiClient.get('/api/friends/requests');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
+        });
+      }
+      if (reqRes.statusCode == 200) {
+        final data = jsonDecode(reqRes.body);
+        final pending = (data['incoming'] as List? ?? []).length;
+        setState(() {
+          _pendingFriendRequests = pending;
+        });
+        if (pending > 0 && !_friendToastShown && mounted) {
+          _friendToastShown = true;
+          ElegantNotification.info(
+            title: Text('Friend Request'),
+            description: Text('You have $pending pending request(s).'),
+            action: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FriendsPage()),
+                );
+              },
+              child: Text('View', style: TextStyle(color: Colors.blue)),
+            ),
+          ).show(context);
+        }
+      }
+    } catch (_) {
+      // ignore
+    } finally {
+      if (mounted) {
+        setState(() {
+          _friendsLoading = false;
         });
       }
     }
@@ -600,9 +654,10 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         Navigator.push(context,
             MaterialPageRoute(builder: (_) => const SubscriptionsPage()));
         break;
-      case 'credits':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Credits coming soon!')),
+      case 'friends':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const FriendsPage()),
         );
         break;
       case 'gift_cards':

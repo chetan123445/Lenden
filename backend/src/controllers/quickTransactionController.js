@@ -4,19 +4,36 @@ const Subscription = require('../models/subscription');
 const { logQuickTransactionActivity } = require('./activityController');
 const { awardGiftCard, shouldAwardGiftCard } = require('./userGiftCardController');
 
+const isBlockedBy = (user, other) =>
+  (user.blockedUsers || []).some(
+    (id) => id.toString() === other._id.toString()
+  );
+
 exports.createQuickTransaction = async (req, res) => {
   try {
     const { amount, currency, date, time, description, counterpartyEmail, role } = req.body;
-    const user = req.user;
+    const user = await User.findById(req.user._id).select('email blockedUsers');
     const userEmail = user.email;
 
     if (userEmail === counterpartyEmail) {
       return res.status(400).json({ error: 'User and counterparty email cannot be the same.' });
     }
 
-    const counterparty = await User.findOne({ email: counterpartyEmail });
+    const counterparty = await User.findOne({ email: counterpartyEmail }).select(
+      'email blockedUsers'
+    );
     if (!counterparty) {
       return res.status(404).json({ error: 'Counterparty email not found.' });
+    }
+    if (isBlockedBy(user, counterparty)) {
+      return res.status(403).json({
+        error: 'You have blocked this user. Unblock to proceed.',
+      });
+    }
+    if (isBlockedBy(counterparty, user)) {
+      return res.status(403).json({
+        error: 'You cannot add this user because they have blocked you.',
+      });
     }
 
     const quickTransaction = new QuickTransaction({
@@ -71,9 +88,21 @@ exports.createQuickTransactionWithCoins = async (req, res) => {
       return res.status(400).json({ error: 'User and counterparty email cannot be the same.' });
     }
 
-    const counterparty = await User.findOne({ email: counterpartyEmail });
+    const counterparty = await User.findOne({ email: counterpartyEmail }).select(
+      'email blockedUsers'
+    );
     if (!counterparty) {
       return res.status(404).json({ error: 'Counterparty email not found.' });
+    }
+    if (isBlockedBy(user, counterparty)) {
+      return res.status(403).json({
+        error: 'You have blocked this user. Unblock to proceed.',
+      });
+    }
+    if (isBlockedBy(counterparty, user)) {
+      return res.status(403).json({
+        error: 'You cannot add this user because they have blocked you.',
+      });
     }
 
     user.lenDenCoins -= QUICK_TRANSACTION_COST;

@@ -11,6 +11,8 @@ class SessionProvider extends ChangeNotifier {
   Map<String, dynamic>? _user;
   List<Map<String, dynamic>>? _counterparties;
   DateTime? _counterpartiesLastFetched;
+  Map<String, int>? _mutualFriendCounts;
+  DateTime? _mutualCountsLastFetched;
   String? _role;
   bool _userDataManuallySet =
       false; // Flag to track if user data was set manually
@@ -20,6 +22,8 @@ class SessionProvider extends ChangeNotifier {
   Map<String, dynamic>? get user => _user;
   List<Map<String, dynamic>>? get counterparties => _counterparties;
   DateTime? get counterpartiesLastFetched => _counterpartiesLastFetched;
+  Map<String, int>? get mutualFriendCounts => _mutualFriendCounts;
+  DateTime? get mutualCountsLastFetched => _mutualCountsLastFetched;
   String? get role => _role;
   bool get isAdmin => _role == 'admin';
 
@@ -264,6 +268,18 @@ class SessionProvider extends ChangeNotifier {
   void clearCounterparties() {
     _counterparties = null;
     _counterpartiesLastFetched = null;
+    notifyListeners();
+  }
+
+  void setMutualFriendCounts(Map<String, int> counts) {
+    _mutualFriendCounts = counts;
+    _mutualCountsLastFetched = DateTime.now();
+    notifyListeners();
+  }
+
+  void clearMutualFriendCounts() {
+    _mutualFriendCounts = null;
+    _mutualCountsLastFetched = null;
     notifyListeners();
   }
 

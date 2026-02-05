@@ -6,6 +6,7 @@ exports.createNotification = async (req, res) => {
   try {
     const { message, recipientType, recipients } = req.body;
     const sender = req.user._id;
+    const senderModel = req.user.role === 'admin' ? 'Admin' : 'User';
 
     let recipientIds = [];
     let recipientModel;
@@ -55,6 +56,7 @@ exports.createNotification = async (req, res) => {
 
     const notification = new Notification({
       sender,
+      senderModel,
       recipientType,
       recipients: recipientIds,
       recipientModel,

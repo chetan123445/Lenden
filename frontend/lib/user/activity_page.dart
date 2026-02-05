@@ -26,6 +26,7 @@ class _ActivityPageState extends State<ActivityPage> {
   DateTime? endDate;
   String searchQuery = ''; // For smart search
   bool _showBookmarkedOnly = false;
+  bool _showFriendOnly = false;
   int currentPage = 1;
   bool hasNextPage = false;
   bool hasPrevPage = false;
@@ -67,7 +68,26 @@ class _ActivityPageState extends State<ActivityPage> {
     'quick_transaction_deleted',
     'quick_transaction_cleared',
     'quick_transaction_cleared_all',
+    'friend_request_sent',
+    'friend_request_received',
+    'friend_request_accepted',
+    'friend_request_declined',
+    'friend_request_canceled',
+    'friend_removed',
+    'user_blocked',
+    'user_unblocked',
   ];
+
+  final Set<String> _friendActivityTypes = {
+    'friend_request_sent',
+    'friend_request_received',
+    'friend_request_accepted',
+    'friend_request_declined',
+    'friend_request_canceled',
+    'friend_removed',
+    'user_blocked',
+    'user_unblocked',
+  };
 
   @override
   void initState() {
@@ -127,6 +147,9 @@ class _ActivityPageState extends State<ActivityPage> {
         final filteredActivities =
             List<Map<String, dynamic>>.from(data['activities'])
                 .where((a) => a['type'] != 'user_rating_received')
+                .where((a) =>
+                    !_showFriendOnly ||
+                    _friendActivityTypes.contains(a['type']))
                 .toList();
         setState(() {
           if (refresh) {
@@ -312,6 +335,22 @@ class _ActivityPageState extends State<ActivityPage> {
         return 'Quick Transaction Cleared';
       case 'quick_transaction_cleared_all':
         return 'All Quick Transactions Cleared';
+      case 'friend_request_sent':
+        return 'Friend Request Sent';
+      case 'friend_request_received':
+        return 'Friend Request Received';
+      case 'friend_request_accepted':
+        return 'Friend Request Accepted';
+      case 'friend_request_declined':
+        return 'Friend Request Declined';
+      case 'friend_request_canceled':
+        return 'Friend Request Canceled';
+      case 'friend_removed':
+        return 'Friend Removed';
+      case 'user_blocked':
+        return 'User Blocked';
+      case 'user_unblocked':
+        return 'User Unblocked';
       default:
         return type.replaceAll('_', ' ').toUpperCase();
     }
@@ -364,6 +403,18 @@ class _ActivityPageState extends State<ActivityPage> {
       case 'quick_transaction_cleared':
       case 'quick_transaction_cleared_all':
         return Icons.flash_on;
+      case 'friend_request_sent':
+      case 'friend_request_received':
+      case 'friend_request_accepted':
+      case 'friend_request_declined':
+      case 'friend_request_canceled':
+        return Icons.people;
+      case 'friend_removed':
+        return Icons.person_remove;
+      case 'user_blocked':
+        return Icons.block;
+      case 'user_unblocked':
+        return Icons.check_circle;
       default:
         return Icons.info;
     }
@@ -418,6 +469,21 @@ class _ActivityPageState extends State<ActivityPage> {
         return Colors.green;
       case 'quick_transaction_cleared_all':
         return Colors.red;
+      case 'friend_request_sent':
+        return Colors.blue;
+      case 'friend_request_received':
+        return Colors.orange;
+      case 'friend_request_accepted':
+        return Colors.green;
+      case 'friend_request_declined':
+      case 'friend_request_canceled':
+        return Colors.red;
+      case 'friend_removed':
+        return Colors.red;
+      case 'user_blocked':
+        return Colors.red;
+      case 'user_unblocked':
+        return Colors.green;
       default:
         return Colors.grey;
     }
@@ -448,6 +514,45 @@ class _ActivityPageState extends State<ActivityPage> {
       }
     } catch (e) {
       return dateString;
+    }
+  }
+
+  String _formatActivityDescription(Map<String, dynamic> activity) {
+    final type = activity['type'] as String;
+    final description = activity['description']?.toString() ?? '';
+    final metadata = activity['metadata'] ?? {};
+    final withUser = metadata['with']?.toString();
+    final byUser = metadata['by']?.toString();
+    final toUser = metadata['to']?.toString();
+    final fromUser = metadata['from']?.toString();
+
+    switch (type) {
+      case 'friend_request_sent':
+        return toUser != null ? 'Sent friend request to $toUser' : description;
+      case 'friend_request_received':
+        return fromUser != null
+            ? 'Received friend request from $fromUser'
+            : description;
+      case 'friend_request_accepted':
+        return withUser != null
+            ? 'Friend request accepted with $withUser'
+            : description;
+      case 'friend_request_declined':
+        return withUser != null
+            ? 'Friend request declined with $withUser'
+            : description;
+      case 'friend_request_canceled':
+        return withUser != null
+            ? 'Friend request canceled with $withUser'
+            : description;
+      case 'friend_removed':
+        return withUser != null ? 'Friend removed: $withUser' : description;
+      case 'user_blocked':
+        return byUser != null ? 'Blocked by $byUser' : 'User blocked';
+      case 'user_unblocked':
+        return byUser != null ? 'Unblocked by $byUser' : 'User unblocked';
+      default:
+        return description;
     }
   }
 
@@ -931,6 +1036,7 @@ class _ActivityPageState extends State<ActivityPage> {
     final amount = activity['amount'];
     final currency = activity['currency'];
     final metadata = activity['metadata'];
+    final displayDescription = _formatActivityDescription(activity);
 
     // Custom highlight for rating activities
     final isRating = type == 'user_rated' || type == 'user_rating_received';
@@ -1035,7 +1141,7 @@ class _ActivityPageState extends State<ActivityPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    description,
+                    displayDescription,
                     style: TextStyle(
                       color: isRating ? Colors.amber[800] : Colors.grey[600],
                       fontSize: 14,
@@ -1164,7 +1270,7 @@ class _ActivityPageState extends State<ActivityPage> {
                 const SizedBox(height: 16),
                 Text('Type: ${_getActivityTypeDisplayName(activity['type'])}'),
                 const SizedBox(height: 8),
-                Text('Description: ${activity['description']}'),
+                Text('Description: ${_formatActivityDescription(activity)}'),
                 const SizedBox(height: 8),
                 Text('Date: ${_formatDate(activity['createdAt'], activityType: activity['type'])}'),
                 if (activity['amount'] != null) ...[
@@ -1738,6 +1844,17 @@ class _ActivityPageState extends State<ActivityPage> {
                               },
                               secondary: const Icon(Icons.bookmark, color: Colors.orange),
                             ),
+                            SwitchListTile(
+                              title: const Text('Friends Activity Only'),
+                              value: _showFriendOnly,
+                              onChanged: (value) {
+                                setState(() {
+                                  _showFriendOnly = value;
+                                });
+                              },
+                              secondary:
+                                  const Icon(Icons.people, color: Colors.teal),
+                            ),
 
                             const SizedBox(height: 24),
 
@@ -1879,6 +1996,7 @@ class _ActivityPageState extends State<ActivityPage> {
                                   selectedType = null;
                                   startDate = null;
                                   endDate = null;
+                                  _showFriendOnly = false;
                                 });
                               },
                               icon: const Icon(Icons.clear_all, color: Colors.red),

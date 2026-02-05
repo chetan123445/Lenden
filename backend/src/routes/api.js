@@ -31,6 +31,7 @@ module.exports = (io) => {
   const subscriptionController = require('../controllers/subscriptionController');
   const adminFeatureController = require('../controllers/adminFeatureController');
   const giftCardController = require('../controllers/giftCardController');
+  const friendController = require('../controllers/friendController');
   const handleUsage = require('../middleware/handleUsage');
 
   // Middleware to check for admin role
@@ -80,6 +81,21 @@ module.exports = (io) => {
   router.get('/users/devices', auth, sessionTimeout, userController.listDevices);
   router.post('/users/logout-device', auth, sessionTimeout, userController.logoutDevice);
   router.get('/users/:id', auth, userController.getUserById);
+
+  // Friends routes
+  router.get('/friends', auth, friendController.getFriends);
+  router.get('/friends/search', auth, friendController.searchUsers);
+  router.get('/friends/mutual', auth, friendController.getMutualFriends);
+  router.post('/friends/mutual-counts', auth, friendController.getMutualFriendCounts);
+  router.get('/friends/requests', auth, friendController.getFriendRequests);
+  router.post('/friends/request', auth, friendController.sendFriendRequest);
+  router.post('/friends/add', auth, friendController.sendFriendRequest);
+  router.post('/friends/requests/:requestId/accept', auth, friendController.acceptFriendRequest);
+  router.post('/friends/requests/:requestId/decline', auth, friendController.declineFriendRequest);
+  router.post('/friends/requests/:requestId/cancel', auth, friendController.cancelFriendRequest);
+  router.post('/friends/block', auth, friendController.blockUser);
+  router.post('/friends/unblock', auth, friendController.unblockUser);
+  router.delete('/friends/:friendId', auth, friendController.removeFriend);
 
   // Quick Transaction routes
   router.get('/quick-transactions', auth, quickTransactionController.getQuickTransactions);

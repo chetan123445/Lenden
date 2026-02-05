@@ -11,6 +11,11 @@ const PDFDocument = require('pdfkit');
 
 const { sendReceiptEmail } = require('../utils/receiptEmail');
 
+const isBlockedBy = (user, other) =>
+  (user.blockedUsers || []).some(
+    (id) => id.toString() === other._id.toString()
+  );
+
 // Generate and send/download a transaction receipt
 // Generate and send/download a transaction receipt
 exports.generateReceipt = async (req, res) => {
@@ -322,7 +327,9 @@ exports.createTransactionWithCoins = async (req, res) => {
       description
     } = req.body;
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select(
+      'email blockedUsers lenDenCoins'
+    );
     if (!user) return res.status(400).json({ error: 'User not found' });
 
     if (user.lenDenCoins < TRANSACTION_COST) {
@@ -356,8 +363,20 @@ exports.createTransactionWithCoins = async (req, res) => {
     const finalCompoundingFrequency = (finalInterestType === 'none') ? null : compoundingFrequency;
 
     // Check if both emails exist
-    const counterparty = await User.findOne({ email: counterpartyEmail });
+    const counterparty = await User.findOne({ email: counterpartyEmail }).select(
+      'email blockedUsers'
+    );
     if (!counterparty) return res.status(400).json({ error: 'Counterparty email not registered' });
+    if (isBlockedBy(user, counterparty)) {
+      return res.status(403).json({
+        error: 'You have blocked this user. Unblock to proceed.',
+      });
+    }
+    if (isBlockedBy(counterparty, user)) {
+      return res.status(403).json({
+        error: 'You cannot add this user because they have blocked you.',
+      });
+    }
 
     // Handle photos (images only)
     let photos = [];
@@ -465,7 +484,7 @@ exports.createTransaction = async (req, res) => {
       description
     } = req.body;
 
-    const user = req.user;
+    const user = await User.findById(req.user._id).select('email blockedUsers');
     if (!user) return res.status(400).json({ error: 'User not found' });
 
     if (user.email !== userEmail) {
@@ -495,8 +514,20 @@ exports.createTransaction = async (req, res) => {
     const finalCompoundingFrequency = (finalInterestType === 'none') ? null : compoundingFrequency;
 
     // Check if both emails exist
-    const counterparty = await User.findOne({ email: counterpartyEmail });
+    const counterparty = await User.findOne({ email: counterpartyEmail }).select(
+      'email blockedUsers'
+    );
     if (!counterparty) return res.status(400).json({ error: 'Counterparty email not registered' });
+    if (isBlockedBy(user, counterparty)) {
+      return res.status(403).json({
+        error: 'You have blocked this user. Unblock to proceed.',
+      });
+    }
+    if (isBlockedBy(counterparty, user)) {
+      return res.status(403).json({
+        error: 'You cannot add this user because they have blocked you.',
+      });
+    }
 
     // Handle photos (images only)
     let photos = [];

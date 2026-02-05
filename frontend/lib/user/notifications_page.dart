@@ -4,6 +4,7 @@ import '../user/session.dart';
 import 'dart:convert';
 import '../api_config.dart';
 import '../utils/api_client.dart';
+import 'friends_page.dart';
 
 class UserNotificationsPage extends StatefulWidget {
   const UserNotificationsPage({Key? key}) : super(key: key);
@@ -14,6 +15,7 @@ class UserNotificationsPage extends StatefulWidget {
 
 class _UserNotificationsPageState extends State<UserNotificationsPage> {
   List<dynamic> _notifications = [];
+  List<Map<String, dynamic>> _incomingRequests = [];
   bool _isLoading = true;
   bool _isShowingAll = false;
   int _unreadCount = 0;
@@ -22,6 +24,7 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
   void initState() {
     super.initState();
     _fetchNotifications();
+    _fetchFriendRequests();
     _markNotificationsAsRead();
   }
 
@@ -67,6 +70,33 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _fetchFriendRequests() async {
+    final res = await ApiClient.get('/api/friends/requests');
+    if (res.statusCode == 200) {
+      final data = json.decode(res.body);
+      setState(() {
+        _incomingRequests =
+            List<Map<String, dynamic>>.from(data['incoming'] ?? []);
+      });
+    }
+  }
+
+  Future<void> _acceptRequest(String requestId) async {
+    final res =
+        await ApiClient.post('/api/friends/requests/$requestId/accept');
+    if (res.statusCode == 200) {
+      await _fetchFriendRequests();
+    }
+  }
+
+  Future<void> _declineRequest(String requestId) async {
+    final res =
+        await ApiClient.post('/api/friends/requests/$requestId/decline');
+    if (res.statusCode == 200) {
+      await _fetchFriendRequests();
     }
   }
 
@@ -174,10 +204,90 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                   Expanded(
                                     child: ListView.builder(
                                       padding: const EdgeInsets.all(8.0),
-                                      itemCount: _notifications.length,
+                                      itemCount: _notifications.length +
+                                          (_incomingRequests.isNotEmpty
+                                              ? 1
+                                              : 0),
                                       itemBuilder: (context, index) {
+                                        if (_incomingRequests.isNotEmpty &&
+                                            index == 0) {
+                                          return Container(
+                                            margin: const EdgeInsets.symmetric(
+                                                vertical: 8.0,
+                                                horizontal: 16.0),
+                                            padding: const EdgeInsets.all(12),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.06),
+                                                  blurRadius: 6,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                const Text(
+                                                  'Friend Requests',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                ..._incomingRequests
+                                                    .map((r) {
+                                                  final from =
+                                                      r['from'] ?? {};
+                                                  final name = from['name'] ??
+                                                      from['username'] ??
+                                                      '';
+                                                  final email =
+                                                      from['email'] ?? '';
+                                                  return ListTile(
+                                                    contentPadding:
+                                                        EdgeInsets.zero,
+                                                    title: Text(
+                                                        name.toString()),
+                                                    subtitle:
+                                                        Text(email.toString()),
+                                                    trailing: Wrap(
+                                                      spacing: 8,
+                                                      children: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              _declineRequest(
+                                                                  r['_id']),
+                                                          child: const Text(
+                                                              'Decline'),
+                                                        ),
+                                                        ElevatedButton(
+                                                          onPressed: () =>
+                                                              _acceptRequest(
+                                                                  r['_id']),
+                                                          child: const Text(
+                                                              'Accept'),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                }).toList(),
+                                              ],
+                                            ),
+                                          );
+                                        }
+                                        final actualIndex =
+                                            _incomingRequests.isNotEmpty
+                                                ? index - 1
+                                                : index;
                                         final notification =
-                                            _notifications[index];
+                                            _notifications[actualIndex];
                                         final bool isRead =
                                             notification['readBy'].contains(userId);
                                         return Container(
@@ -203,6 +313,19 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                             ),
                                             child: ListTile(
                                               title: Text(notification['message']),
+                                              onTap: () {
+                                                final msg = (notification['message'] ?? '')
+                                                    .toString()
+                                                    .toLowerCase();
+                                                if (msg.contains('friend request')) {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                        builder: (_) =>
+                                                            const FriendsPage()),
+                                                  );
+                                                }
+                                              },
                                               trailing: isRead
                                                   ? null
                                                   : Container(

@@ -49,6 +49,11 @@ class TopWaveClipper extends CustomClipper<Path> {
 }
 
 class TransactionPage extends StatefulWidget {
+  final String? prefillCounterpartyEmail;
+
+  const TransactionPage({Key? key, this.prefillCounterpartyEmail})
+      : super(key: key);
+
   @override
   _TransactionPageState createState() => _TransactionPageState();
 }
@@ -84,6 +89,9 @@ class _TransactionPageState extends State<TransactionPage> {
   DateTime? _expectedReturnDate;
   int _compoundingFrequency = 1; // default annually
   final TextEditingController _descriptionController = TextEditingController();
+  List<Map<String, dynamic>> _friends = [];
+  List<Map<String, dynamic>> _friendSuggestions = [];
+  Set<String> _blockedEmails = {};
 
   // Computed property to check if both users are verified
   bool get _bothUsersVerified => _counterpartyVerified && _userVerified;
@@ -107,6 +115,12 @@ class _TransactionPageState extends State<TransactionPage> {
     _picker = ImagePicker();
     _compoundingFrequency = 1;
     _descriptionController.text = '';
+    if ((widget.prefillCounterpartyEmail ?? '').isNotEmpty) {
+      _counterpartyEmailController.text =
+          widget.prefillCounterpartyEmail!.trim();
+    }
+    _loadFriends();
+    _counterpartyEmailController.addListener(_updateFriendSuggestions);
     // Prefill user email from session
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = Provider.of<SessionProvider>(context, listen: false).user;
@@ -116,8 +130,119 @@ class _TransactionPageState extends State<TransactionPage> {
     });
   }
 
+  Future<void> _pickFriendForCounterparty() async {
+    try {
+      final res = await ApiClient.get('/api/friends');
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body);
+      final friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
+      final blocked = List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
+      _blockedEmails = blocked
+          .map((u) => (u['email'] ?? '').toString().toLowerCase().trim())
+          .where((e) => e.isNotEmpty)
+          .toSet();
+      if (!mounted) return;
+      showModalBottomSheet(
+        context: context,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) => Container(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: _getFriendNoteColor(0),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Text('Select Friend',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  if (friends.isEmpty)
+                    const Text('No friends found')
+                  else
+                    ...friends.map((f) {
+                      final email = f['email'] ?? '';
+                      final name = f['name'] ?? f['username'] ?? '';
+                      final isBlocked =
+                          _blockedEmails.contains(email.toString().toLowerCase().trim());
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          gradient: const LinearGradient(
+                            colors: [Colors.orange, Colors.white, Colors.green],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color:
+                                _getFriendNoteColor(email.hashCode.abs() % 6),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ListTile(
+                            title: Text(name.toString()),
+                            subtitle: Text(email.toString()),
+                            trailing: isBlocked
+                                ? const Text('Blocked',
+                                    style: TextStyle(
+                                        color: Colors.red,
+                                        fontWeight: FontWeight.w600))
+                                : null,
+                            onTap: () {
+                              if (isBlocked) {
+                                showBlockedUserDialog(context);
+                                return;
+                              }
+                              setState(() {
+                                _counterpartyEmailController.text =
+                                    email.toString();
+                              });
+                              Navigator.pop(context);
+                            },
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    } catch (_) {}
+  }
+
+  Color _getFriendNoteColor(int index) {
+    final colors = [
+      Color(0xFFFFF4E6),
+      Color(0xFFE8F5E9),
+      Color(0xFFFCE4EC),
+      Color(0xFFE3F2FD),
+      Color(0xFFFFF9C4),
+      Color(0xFFF3E5F5),
+    ];
+    return colors[index % colors.length];
+  }
+
   @override
   void dispose() {
+    _counterpartyEmailController.removeListener(_updateFriendSuggestions);
     _amountController.dispose();
     _placeController.dispose();
     _counterpartyEmailController.dispose();
@@ -125,6 +250,46 @@ class _TransactionPageState extends State<TransactionPage> {
     _interestRateController.dispose();
     _descriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadFriends() async {
+    try {
+      final res = await ApiClient.get('/api/friends');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          _friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
+          final blocked =
+              List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
+          _blockedEmails = blocked
+              .map((u) => (u['email'] ?? '').toString().toLowerCase().trim())
+              .where((e) => e.isNotEmpty)
+              .toSet();
+        });
+        _updateFriendSuggestions();
+      }
+    } catch (_) {}
+  }
+
+  bool _isBlockedEmail(String? email) {
+    final target = email?.toLowerCase().trim();
+    if (target == null || target.isEmpty) return false;
+    return _blockedEmails.contains(target);
+  }
+
+  void _updateFriendSuggestions() {
+    final query = _counterpartyEmailController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      setState(() => _friendSuggestions = []);
+      return;
+    }
+    final matches = _friends.where((f) {
+      final email = (f['email'] ?? '').toString().toLowerCase();
+      final name = (f['name'] ?? f['username'] ?? '').toString().toLowerCase();
+      if (_isBlockedEmail(email)) return false;
+      return email.contains(query) || name.contains(query);
+    }).toList();
+    setState(() => _friendSuggestions = matches.take(5).toList());
   }
 
   Future<void> _pickFiles() async {
@@ -317,6 +482,10 @@ class _TransactionPageState extends State<TransactionPage> {
 
   Future<void> _submit() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
+    if (_isBlockedEmail(_counterpartyEmailController.text)) {
+      showBlockedUserDialog(context);
+      return;
+    }
     if (session.isSubscribed ||
         (session.freeUserTransactionsRemaining ?? 0) > 0) {
       _submitWithApi();
@@ -638,6 +807,15 @@ class _TransactionPageState extends State<TransactionPage> {
           ),
         );
       } else if (res.statusCode == 403) {
+        String errorMsg = 'Forbidden';
+        try {
+          final data = jsonDecode(res.body);
+          errorMsg = data['error'] ?? data['message'] ?? errorMsg;
+        } catch (_) {}
+        if (errorMsg.toLowerCase().contains('blocked')) {
+          showBlockedUserDialog(context, message: errorMsg);
+          return;
+        }
         showInsufficientCoinsDialog(context);
       } else {
         final errBody = (res.body.isNotEmpty) ? res.body : 'Unknown error';
@@ -844,6 +1022,10 @@ class _TransactionPageState extends State<TransactionPage> {
           errorMsg = data['error'] ?? data['message'] ?? errBody;
         } catch (_) {
           errorMsg = errBody;
+        }
+        if (errorMsg.toLowerCase().contains('blocked')) {
+          showBlockedUserDialog(context, message: errorMsg);
+          return;
         }
         _showStylishErrorDialog('Transaction Failed', errorMsg);
       }
@@ -1058,6 +1240,9 @@ class _TransactionPageState extends State<TransactionPage> {
     required bool enabled,
     required String? emailError,
     bool readOnlyEmail = false,
+    VoidCallback? onPickFriend,
+    List<Map<String, dynamic>>? friendSuggestions,
+    void Function(String email)? onSelectFriend,
   }) {
     return Card(
       margin: EdgeInsets.symmetric(vertical: 8),
@@ -1077,6 +1262,12 @@ class _TransactionPageState extends State<TransactionPage> {
                 labelText: 'Email',
                 border: OutlineInputBorder(),
                 errorText: emailError,
+                suffixIcon: onPickFriend != null
+                    ? IconButton(
+                        icon: const Icon(Icons.people),
+                        onPressed: onPickFriend,
+                      )
+                    : null,
               ),
               validator: (val) {
                 if (val == null || val.isEmpty) return 'Email required';
@@ -1133,6 +1324,43 @@ class _TransactionPageState extends State<TransactionPage> {
                   SizedBox(width: 8),
                   Text('Verified', style: TextStyle(color: Colors.green)),
                 ],
+              ),
+            ],
+            if (!verified &&
+                (friendSuggestions ?? []).isNotEmpty &&
+                onSelectFriend != null) ...[
+              SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: (friendSuggestions ?? []).map((f) {
+                  final email = (f['email'] ?? '').toString();
+                  final name =
+                      (f['name'] ?? f['username'] ?? '').toString();
+                  return Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      gradient: const LinearGradient(
+                        colors: [Colors.orange, Colors.white, Colors.green],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _getFriendNoteColor(
+                            email.hashCode.abs() % 6),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ActionChip(
+                        label:
+                            Text(name.isNotEmpty ? '$name ($email)' : email),
+                        onPressed: () => onSelectFriend(email),
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
             ],
           ],
@@ -1468,6 +1696,10 @@ class _TransactionPageState extends State<TransactionPage> {
                       otpSeconds: _counterpartyOtpSeconds,
                       onSendOtp: () async {
                         final email = _counterpartyEmailController.text;
+                        if (_isBlockedEmail(email)) {
+                          showBlockedUserDialog(context);
+                          return;
+                        }
                         if (email.trim() == _userEmailController.text.trim()) {
                           setState(() => _counterpartyEmailError =
                               'Your email and counterparty email cannot be the same.');
@@ -1493,6 +1725,15 @@ class _TransactionPageState extends State<TransactionPage> {
                       },
                       enabled: !_counterpartyVerified,
                       emailError: _counterpartyEmailError,
+                      onPickFriend: _counterpartyVerified
+                          ? null
+                          : _pickFriendForCounterparty,
+                      friendSuggestions: _friendSuggestions,
+                      onSelectFriend: (email) {
+                        setState(() {
+                          _counterpartyEmailController.text = email;
+                        });
+                      },
                     ),
                     SizedBox(height: 12),
                     _buildOtpSection(

@@ -10,6 +10,11 @@ const { awardGiftCard, shouldAwardGiftCard } = require('./userGiftCardController
 const PDFDocument = require('pdfkit');
 const { sendGroupReceiptEmail } = require('../utils/groupReceiptEmail');
 
+const isBlockedBy = (user, other) =>
+  (user.blockedUsers || []).some(
+    (id) => id.toString() === other._id.toString()
+  );
+
 // Helper function to process expenses and convert Object IDs to emails in addedBy field
 async function processExpenses(expenses) {
   return await Promise.all((expenses || []).map(async expense => {
@@ -28,7 +33,9 @@ exports.createGroupWithCoins = async (req, res) => {
   const GROUP_COST = 20;
   try {
     const { title, memberEmails, color } = req.body;
-    const creator = await User.findById(req.user._id);
+    const creator = await User.findById(req.user._id).select(
+      'email blockedUsers lenDenCoins'
+    );
 
     if (!creator) {
       return res.status(400).json({ error: 'Creator not found' });
@@ -46,9 +53,23 @@ exports.createGroupWithCoins = async (req, res) => {
     const filteredMemberEmails = memberEmails.filter(email => email !== creator.email);
     
     // Find users by email
-    const users = await User.find({ email: { $in: filteredMemberEmails } });
+    const users = await User.find({ email: { $in: filteredMemberEmails } }).select(
+      'email blockedUsers'
+    );
     if (users.length !== filteredMemberEmails.length) {
       return res.status(400).json({ error: 'One or more members do not exist' });
+    }
+    for (const member of users) {
+      if (isBlockedBy(creator, member)) {
+        return res.status(403).json({
+          error: `You have blocked ${member.email}. Unblock to proceed.`,
+        });
+      }
+      if (isBlockedBy(member, creator)) {
+        return res.status(403).json({
+          error: `You cannot add ${member.email} because they have blocked you.`,
+        });
+      }
     }
     
     creator.lenDenCoins -= GROUP_COST;
@@ -115,7 +136,9 @@ exports.createGroupWithCoins = async (req, res) => {
 exports.createGroup = async (req, res) => {
   try {
     const { title, memberEmails, color } = req.body;
-    const creator = await User.findById(req.user._id);
+    const creator = await User.findById(req.user._id).select(
+      'email blockedUsers'
+    );
 
     if (!creator) {
       return res.status(400).json({ error: 'Creator not found' });
@@ -132,9 +155,23 @@ exports.createGroup = async (req, res) => {
     const filteredMemberEmails = memberEmails.filter(email => email !== creator.email);
     
     // Find users by email
-    const users = await User.find({ email: { $in: filteredMemberEmails } });
+    const users = await User.find({ email: { $in: filteredMemberEmails } }).select(
+      'email blockedUsers'
+    );
     if (users.length !== filteredMemberEmails.length) {
       return res.status(400).json({ error: 'One or more members do not exist' });
+    }
+    for (const member of users) {
+      if (isBlockedBy(creator, member)) {
+        return res.status(403).json({
+          error: `You have blocked ${member.email}. Unblock to proceed.`,
+        });
+      }
+      if (isBlockedBy(member, creator)) {
+        return res.status(403).json({
+          error: `You cannot add ${member.email} because they have blocked you.`,
+        });
+      }
     }
     
     const memberIds = users.map(u => u._id.toString());
