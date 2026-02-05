@@ -20,7 +20,7 @@ import 'admin/admin_ratings_page.dart';
 import 'admin/admin_feedbacks_page.dart';
 import 'user/notifications_page.dart';
 import 'admin/notifications_page.dart';
-import 'Transaction/gift_card_page.dart';
+import 'user/gift_card_page.dart';
 import 'dart:convert';
 import 'api_config.dart';
 import 'widgets/notification_icon.dart';

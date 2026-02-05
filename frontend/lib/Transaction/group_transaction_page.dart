@@ -9,7 +9,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../widgets/subscription_prompt.dart';
 import '../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
-import 'gift_card_page.dart';
+import '../user/gift_card_page.dart';
 
 class GroupTransactionPage extends StatefulWidget {
   const GroupTransactionPage({Key? key}) : super(key: key);

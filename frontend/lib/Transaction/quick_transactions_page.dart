@@ -8,7 +8,7 @@ import '../utils/api_client.dart';
 import '../widgets/subscription_prompt.dart';
 import '../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
-import 'gift_card_page.dart';
+import '../user/gift_card_page.dart';
 
 class QuickTransactionsPage extends StatefulWidget {
   const QuickTransactionsPage({Key? key}) : super(key: key);

@@ -13,7 +13,7 @@ import '../utils/api_client.dart';
 import '../Transaction/transaction_page.dart';
 import '../Transaction/user_transactions_page.dart';
 import '../Transaction/analytics_page.dart';
-import '../Transaction/gift_card_page.dart';
+import 'gift_card_page.dart';
 import '../user/notes_page.dart';
 import '../Transaction/group_transaction_page.dart';
 import '../Transaction/view_group_transactions_page.dart';

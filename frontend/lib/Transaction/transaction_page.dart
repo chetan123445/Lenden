@@ -18,7 +18,7 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'user_transactions_page.dart';
 import '../widgets/subscription_prompt.dart';
-import 'gift_card_page.dart';
+import '../user/gift_card_page.dart';
 import '../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
 
