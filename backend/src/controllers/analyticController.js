@@ -1,4 +1,6 @@
 const Transaction = require('../models/transaction');
+const QuickTransaction = require('../models/quickTransaction');
+const GroupTransaction = require('../models/groupTransaction');
 const User = require('../models/user'); // Add this
 
 exports.getUserAnalytics = async (req, res) => {
@@ -19,6 +21,14 @@ exports.getUserAnalytics = async (req, res) => {
         { counterpartyEmail: email }
       ]
     });
+    const quickTransactions = await QuickTransaction.find({
+      users: email,
+    }).lean();
+    const groups = await GroupTransaction.find({
+      'members.user': user._id,
+    })
+      .populate('members.user', 'email')
+      .lean();
     const now = new Date();
     const months = Array.from({ length: 12 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
@@ -73,6 +83,20 @@ exports.getUserAnalytics = async (req, res) => {
       // Counterparties
       const cp = t.counterpartyEmail;
       if (cp) counterparties[cp] = (counterparties[cp] || 0) + 1;
+    });
+    quickTransactions.forEach(t => {
+      const others = (t.users || []).filter(u => u && u !== email);
+      others.forEach(cp => {
+        counterparties[cp] = (counterparties[cp] || 0) + 1;
+      });
+    });
+    groups.forEach(g => {
+      const members = (g.members || [])
+        .map(m => m.user?.email)
+        .filter(e => e && e !== email);
+      members.forEach(cp => {
+        counterparties[cp] = (counterparties[cp] || 0) + 1;
+      });
     });
     const topCounterparties = Object.entries(counterparties)
       .map(([k, v]) => ({ email: k, count: v }))

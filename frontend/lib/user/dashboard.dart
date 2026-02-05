@@ -41,6 +41,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
   List<Map<String, dynamic>> transactions = [];
   List<Map<String, dynamic>> counterparties = [];
   List<Map<String, dynamic>> friends = [];
+  final Set<String> _friendEmails = {};
+  final Set<String> _outgoingRequestEmails = {};
   int _pendingFriendRequests = 0;
   bool _friendToastShown = false;
   bool loading = true;
@@ -329,11 +331,25 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         final data = jsonDecode(res.body);
         setState(() {
           friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
+          _friendEmails
+            ..clear()
+            ..addAll(friends
+                .map((f) => (f['email'] ?? '').toString().toLowerCase().trim())
+                .where((e) => e.isNotEmpty));
         });
       }
       if (reqRes.statusCode == 200) {
         final data = jsonDecode(reqRes.body);
         final pending = (data['incoming'] as List? ?? []).length;
+        final outgoing = (data['outgoing'] as List? ?? []);
+        _outgoingRequestEmails
+          ..clear()
+          ..addAll(outgoing
+              .map((r) => (r['to']?['email'] ?? r['toEmail'] ?? '')
+                  .toString()
+                  .toLowerCase()
+                  .trim())
+              .where((e) => e.isNotEmpty));
         setState(() {
           _pendingFriendRequests = pending;
         });
@@ -1715,6 +1731,10 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     final gender = counterparty['gender'] ?? 'Other';
     final isPrivate = counterparty['profileIsPrivate'] == true;
     final isDeactivated = counterparty['deactivatedAccount'] == true;
+    final currentUserEmail =
+        Provider.of<SessionProvider>(context, listen: false).user?['email'];
+    final counterpartyEmail =
+        counterparty['email']?.toString().toLowerCase().trim() ?? '';
 
     ImageProvider avatarImage;
     if (imageUrl != null &&
@@ -1754,6 +1774,17 @@ class _UserDashboardPageState extends State<UserDashboardPage>
               email: counterparty['email'],
               phone: counterparty['phone']?.toString(),
               gender: gender,
+              canAddFriend: counterpartyEmail.isNotEmpty &&
+                  counterpartyEmail !=
+                      (currentUserEmail ?? '').toString().toLowerCase().trim() &&
+                  !_friendEmails.contains(counterpartyEmail) &&
+                  !_outgoingRequestEmails.contains(counterpartyEmail),
+              isFriend: _friendEmails.contains(counterpartyEmail),
+              requestPending: _outgoingRequestEmails.contains(counterpartyEmail),
+              onAddFriend: () => _sendFriendRequest(
+                userId: counterparty['_id']?.toString(),
+                email: counterparty['email']?.toString(),
+              ),
             ),
           );
         }
@@ -1812,6 +1843,39 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       }
     } catch (_) {}
     return null;
+  }
+
+  Future<void> _sendFriendRequest(
+      {String? userId, String? email, bool closeDialogOnSuccess = true}) async {
+    try {
+      final body = userId != null
+          ? {'userId': userId}
+          : {'query': email};
+      final res = await ApiClient.post('/api/friends/request', body: body);
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        if (email != null && email.isNotEmpty) {
+          _outgoingRequestEmails.add(email.toLowerCase().trim());
+        }
+        ElegantNotification.success(
+          title: Text('Request Sent'),
+          description: Text('Friend request sent successfully.'),
+        ).show(context);
+        if (closeDialogOnSuccess) {
+          Navigator.of(context, rootNavigator: true).maybePop();
+        }
+      } else {
+        final err = jsonDecode(res.body)['error'] ?? 'Failed to send request';
+        ElegantNotification.error(
+          title: Text('Error'),
+          description: Text(err.toString()),
+        ).show(context);
+      }
+    } catch (e) {
+      ElegantNotification.error(
+        title: Text('Error'),
+        description: Text(e.toString()),
+      ).show(context);
+    }
   }
 
   Future<void> _confirmLogout(BuildContext context) async {
@@ -2152,13 +2216,21 @@ class _StylishProfileDialog extends StatelessWidget {
   final String? email;
   final String? phone;
   final String? gender;
+  final bool canAddFriend;
+  final bool isFriend;
+  final bool requestPending;
+  final VoidCallback? onAddFriend;
   const _StylishProfileDialog(
       {required this.title,
       required this.name,
       required this.avatarProvider,
       this.email,
       this.phone,
-      this.gender});
+      this.gender,
+      this.canAddFriend = false,
+      this.isFriend = false,
+      this.requestPending = false,
+      this.onAddFriend});
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -2217,18 +2289,51 @@ class _StylishProfileDialog extends StatelessWidget {
                   ]),
                   SizedBox(height: 10),
                 ],
+                if (isFriend) ...[
+                  Row(children: [
+                    Icon(Icons.check_circle, size: 18, color: Colors.green),
+                    SizedBox(width: 8),
+                    Text('Already a friend',
+                        style: TextStyle(fontSize: 16, color: Colors.green)),
+                  ]),
+                ] else if (requestPending) ...[
+                  Row(children: [
+                    Icon(Icons.hourglass_top,
+                        size: 18, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Request pending',
+                        style: TextStyle(fontSize: 16, color: Colors.orange)),
+                  ]),
+                ],
               ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.only(bottom: 16),
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Close'),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF00B4D8),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12))),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (canAddFriend)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: ElevatedButton(
+                      onPressed: onAddFriend,
+                      child: Text('Add Friend'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12))),
+                    ),
+                  ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Close'),
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFF00B4D8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12))),
+                ),
+              ],
             ),
           ),
         ],

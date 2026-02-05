@@ -215,11 +215,18 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                             margin: const EdgeInsets.symmetric(
                                                 vertical: 8.0,
                                                 horizontal: 16.0),
-                                            padding: const EdgeInsets.all(12),
                                             decoration: BoxDecoration(
-                                              color: Colors.white,
                                               borderRadius:
-                                                  BorderRadius.circular(16),
+                                                  BorderRadius.circular(18),
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  Colors.orange,
+                                                  Colors.white,
+                                                  Colors.green
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
                                               boxShadow: [
                                                 BoxShadow(
                                                   color: Colors.black
@@ -229,56 +236,65 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                                 ),
                                               ],
                                             ),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                const Text(
-                                                  'Friend Requests',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                ..._incomingRequests
-                                                    .map((r) {
-                                                  final from =
-                                                      r['from'] ?? {};
-                                                  final name = from['name'] ??
-                                                      from['username'] ??
-                                                      '';
-                                                  final email =
-                                                      from['email'] ?? '';
-                                                  return ListTile(
-                                                    contentPadding:
-                                                        EdgeInsets.zero,
-                                                    title: Text(
-                                                        name.toString()),
-                                                    subtitle:
-                                                        Text(email.toString()),
-                                                    trailing: Wrap(
-                                                      spacing: 8,
-                                                      children: [
-                                                        TextButton(
-                                                          onPressed: () =>
-                                                              _declineRequest(
-                                                                  r['_id']),
-                                                          child: const Text(
-                                                              'Decline'),
-                                                        ),
-                                                        ElevatedButton(
-                                                          onPressed: () =>
-                                                              _acceptRequest(
-                                                                  r['_id']),
-                                                          child: const Text(
-                                                              'Accept'),
-                                                        ),
-                                                      ],
+                                            child: Container(
+                                              padding: const EdgeInsets.all(12),
+                                              decoration: BoxDecoration(
+                                                color: _getNoteColor(index),
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  const Text(
+                                                    'Friend Requests',
+                                                    style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                      fontSize: 16,
                                                     ),
-                                                  );
-                                                }).toList(),
-                                              ],
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  ..._incomingRequests
+                                                      .map((r) {
+                                                    final from =
+                                                        r['from'] ?? {};
+                                                    final name = from['name'] ??
+                                                        from['username'] ??
+                                                        '';
+                                                    final email =
+                                                        from['email'] ?? '';
+                                                    return ListTile(
+                                                      contentPadding:
+                                                          EdgeInsets.zero,
+                                                      title: Text(
+                                                          name.toString()),
+                                                      subtitle: Text(
+                                                          email.toString()),
+                                                      trailing: Wrap(
+                                                        spacing: 8,
+                                                        children: [
+                                                          TextButton(
+                                                            onPressed: () =>
+                                                                _declineRequest(
+                                                                    r['_id']),
+                                                            child: const Text(
+                                                                'Decline'),
+                                                          ),
+                                                          ElevatedButton(
+                                                            onPressed: () =>
+                                                                _acceptRequest(
+                                                                    r['_id']),
+                                                            child: const Text(
+                                                                'Accept'),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    );
+                                                  }).toList(),
+                                                ],
+                                              ),
                                             ),
                                           );
                                         }
