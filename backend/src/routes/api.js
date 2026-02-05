@@ -18,6 +18,7 @@ module.exports = (io) => {
   });
   const transactionController = require('../controllers/transactionController');
   const analyticController = require('../controllers/analyticController');
+  const counterpartyController = require('../controllers/counterpartyController');
   const noteController = require('../controllers/noteController');
   const groupTransactionController = require('../controllers/groupTransactionController');
   const activityController = require('../controllers/activityController');
@@ -192,6 +193,8 @@ module.exports = (io) => {
 
   // Analytics routes
   router.get('/analytics/user', analyticController.getUserAnalytics);
+  // Counterparty routes
+  router.get('/counterparties/user', auth, counterpartyController.getUserCounterparties);
 
   // Notes routes
   router.post('/notes', auth, noteController.createNote);

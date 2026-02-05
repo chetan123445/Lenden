@@ -281,25 +281,25 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       return;
     }
     try {
-      final res = await ApiClient.get('/api/analytics/user?email=$email');
+      final res = await ApiClient.get('/api/counterparties/user?email=$email');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
-        if (data['topCounterparties'] != null) {
-          List<Map<String, dynamic>> topCounterparties =
-              List<Map<String, dynamic>>.from(data['topCounterparties']);
+        if (data['counterparties'] != null) {
+          List<Map<String, dynamic>> counterpartiesList =
+              List<Map<String, dynamic>>.from(data['counterparties']);
 
           // Fetch all profiles in parallel
-          final profiles = await Future.wait(topCounterparties
+          final profiles = await Future.wait(counterpartiesList
               .map((cp) => _fetchCounterpartyProfile(cp['email'])));
 
           List<Map<String, dynamic>> populatedCounterparties = [];
-          for (int i = 0; i < topCounterparties.length; i++) {
+          for (int i = 0; i < counterpartiesList.length; i++) {
             final profile = profiles[i];
             if (profile != null) {
               populatedCounterparties.add(profile);
             } else {
               populatedCounterparties.add(
-                  {'email': topCounterparties[i]['email'], 'name': 'Unknown'});
+                  {'email': counterpartiesList[i]['email'], 'name': 'Unknown'});
             }
           }
 
