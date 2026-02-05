@@ -521,6 +521,7 @@ class _TransactionPageState extends State<TransactionPage> {
       setState(() => _isLoading = false);
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body);
+        final giftCardAwarded = data['giftCardAwarded'] == true;
         setState(() {
           _transactionId = data['transactionId'];
         });
@@ -605,6 +606,32 @@ class _TransactionPageState extends State<TransactionPage> {
                           style: TextStyle(fontSize: 16, color: Colors.white)),
                     ),
                   ),
+                  if (giftCardAwarded) ...[
+                    SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Close the success dialog
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => GiftCardPage(),
+                            ),
+                          );
+                        },
+                        child: Text('View Gift Card (You Earned)',
+                            style:
+                                TextStyle(fontSize: 16, color: Colors.white)),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -692,6 +719,7 @@ class _TransactionPageState extends State<TransactionPage> {
       setState(() => _isLoading = false);
       if (res.statusCode == 200 || res.statusCode == 201) {
         final data = jsonDecode(res.body);
+        final giftCardAwarded = data['giftCardAwarded'] == true;
         setState(() {
           _transactionId = data['transactionId'];
         });
@@ -777,6 +805,32 @@ class _TransactionPageState extends State<TransactionPage> {
                           style: TextStyle(fontSize: 16, color: Colors.white)),
                     ),
                   ),
+                  if (giftCardAwarded) ...[
+                    SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Close the success dialog
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => GiftCardPage(),
+                            ),
+                          );
+                        },
+                        child: Text('View Gift Card (You Earned)',
+                            style:
+                                TextStyle(fontSize: 16, color: Colors.white)),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

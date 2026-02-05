@@ -65,9 +65,6 @@ class _GiftCardPageState extends State<GiftCardPage>
       });
     }
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-
       List<Map<String, dynamic>> nextUnscratched = [];
       List<Map<String, dynamic>> nextScratched = [];
       int nextUnscratchedCount = 0;
@@ -75,17 +72,14 @@ class _GiftCardPageState extends State<GiftCardPage>
 
       final unscrachedResponse = await ApiClient.get(
         '/api/gift-cards/unscratched',
-        headers: {'Authorization': 'Bearer $token'},
       );
 
       final scratchedResponse = await ApiClient.get(
         '/api/gift-cards/scratched',
-        headers: {'Authorization': 'Bearer $token'},
       );
 
       final countsResponse = await ApiClient.get(
         '/api/gift-cards/counts',
-        headers: {'Authorization': 'Bearer $token'},
       );
 
       if (unscrachedResponse.statusCode == 200) {
@@ -130,12 +124,8 @@ class _GiftCardPageState extends State<GiftCardPage>
         isScratching = true;
       });
 
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final token = session.token;
-
       final response = await ApiClient.post(
         '/api/gift-cards/$cardId/scratch',
-        headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
