@@ -59,9 +59,19 @@ class _GiftCardPageState extends State<GiftCardPage>
   }
 
   Future<void> _fetchGiftCards() async {
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+      });
+    }
     try {
       final session = Provider.of<SessionProvider>(context, listen: false);
       final token = session.token;
+
+      List<Map<String, dynamic>> nextUnscratched = [];
+      List<Map<String, dynamic>> nextScratched = [];
+      int nextUnscratchedCount = 0;
+      int nextScratchedCount = 0;
 
       final unscrachedResponse = await ApiClient.get(
         '/api/gift-cards/unscratched',
@@ -78,28 +88,38 @@ class _GiftCardPageState extends State<GiftCardPage>
         headers: {'Authorization': 'Bearer $token'},
       );
 
-      if (unscrachedResponse.statusCode == 200 &&
-          scratchedResponse.statusCode == 200 &&
-          countsResponse.statusCode == 200) {
+      if (unscrachedResponse.statusCode == 200) {
         final unscrachedData = jsonDecode(unscrachedResponse.body);
+        nextUnscratched =
+            List<Map<String, dynamic>>.from(unscrachedData['cards'] ?? []);
+      }
+      if (scratchedResponse.statusCode == 200) {
         final scratchedData = jsonDecode(scratchedResponse.body);
+        nextScratched =
+            List<Map<String, dynamic>>.from(scratchedData['cards'] ?? []);
+      }
+      if (countsResponse.statusCode == 200) {
         final countsData = jsonDecode(countsResponse.body);
+        nextUnscratchedCount = countsData['unscratched'] ?? 0;
+        nextScratchedCount = countsData['scratched'] ?? 0;
+      }
 
+      if (mounted) {
         setState(() {
-          unscrachedCards =
-              List<Map<String, dynamic>>.from(unscrachedData['cards'] ?? []);
-          scratchedCards =
-              List<Map<String, dynamic>>.from(scratchedData['cards'] ?? []);
-          unscrachedCount = countsData['unscratched'] ?? 0;
-          scratchedCount = countsData['scratched'] ?? 0;
-          isLoading = false;
+          unscrachedCards = nextUnscratched;
+          scratchedCards = nextScratched;
+          unscrachedCount = nextUnscratchedCount;
+          scratchedCount = nextScratchedCount;
         });
       }
     } catch (e) {
       print('Error fetching gift cards: $e');
-      setState(() {
-        isLoading = false;
-      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
