@@ -1,3 +1,4 @@
+import 'package:elegant_notification/elegant_notification.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../api_config.dart';
@@ -287,6 +288,32 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         });
         final session = Provider.of<SessionProvider>(context, listen: false);
         session.loadFreebieCounts();
+        final giftCardAwarded = data['giftCardAwarded'] as bool?;
+        final awardedCard = data['awardedCard'];
+
+        if (giftCardAwarded == true && awardedCard != null) {
+          ElegantNotification.success(
+            title: Text("Congratulations!"),
+            description: Text("You've won a gift card!"),
+            action: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => GiftCardPage()),
+                );
+              },
+              child: Text(
+                'View',
+                style: TextStyle(color: Colors.blue),
+              ),
+            ),
+          ).show(context);
+        } else {
+          ElegantNotification.success(
+            title: Text("Success"),
+            description: Text("Group has been successfully created!"),
+          ).show(context);
+        }
       } else if (res.statusCode == 403) {
         showInsufficientCoinsDialog(context);
       } else {
@@ -475,6 +502,32 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           isCreator = true;
         });
         session.loadFreebieCounts();
+        final giftCardAwarded = data['giftCardAwarded'] as bool?;
+        final awardedCard = data['awardedCard'];
+
+        if (giftCardAwarded == true && awardedCard != null) {
+          ElegantNotification.success(
+            title: Text("Congratulations!"),
+            description: Text("You've won a gift card!"),
+            action: GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => GiftCardPage()),
+                );
+              },
+              child: Text(
+                'View',
+                style: TextStyle(color: Colors.blue),
+              ),
+            ),
+          ).show(context);
+        } else {
+          ElegantNotification.success(
+            title: Text("Success"),
+            description: Text("Group has been successfully created!"),
+          ).show(context);
+        }
       } else {
         setState(() {
           error = data['error'] ?? 'Failed to create group';

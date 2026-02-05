@@ -294,14 +294,36 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
         title: Text("Error"),
         description: Text(result),
       ).show(context);
-    } else if (result == true) {
+    } else if (result is Map<String, dynamic>) {
       fetchQuickTransactions();
       session.loadFreebieCounts();
-      ElegantNotification.success(
-        title: Text("Success"),
-        description: Text(
-            "Transaction has been successfully ${transaction != null ? 'updated' : 'created'}!"),
-      ).show(context);
+      final giftCardAwarded = result['giftCardAwarded'] as bool?;
+      final awardedCard = result['awardedCard'];
+
+      if (giftCardAwarded == true && awardedCard != null) {
+        ElegantNotification.success(
+          title: Text("Congratulations!"),
+          description: Text("You've won a gift card!"),
+          action: GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => GiftCardPage()),
+              );
+            },
+            child: Text(
+              'View',
+              style: TextStyle(color: Colors.blue),
+            ),
+          ),
+        ).show(context);
+      } else {
+        ElegantNotification.success(
+          title: Text("Success"),
+          description: Text(
+              "Transaction has been successfully ${transaction != null ? 'updated' : 'created'}!"),
+        ).show(context);
+      }
     }
   }
 
@@ -1395,7 +1417,7 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
 
                                       if (res.statusCode == 200 ||
                                           res.statusCode == 201) {
-                                        Navigator.pop(context, true);
+                                        Navigator.pop(context, json.decode(res.body));
                                       } else {
                                         final error =
                                             json.decode(res.body)['error'] ??
