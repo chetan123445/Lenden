@@ -92,6 +92,7 @@ class _TransactionPageState extends State<TransactionPage> {
   List<Map<String, dynamic>> _friends = [];
   List<Map<String, dynamic>> _friendSuggestions = [];
   Set<String> _blockedEmails = {};
+  int? _dailyUserTxRemaining;
 
   // Computed property to check if both users are verified
   bool get _bothUsersVerified => _counterpartyVerified && _userVerified;
@@ -120,6 +121,7 @@ class _TransactionPageState extends State<TransactionPage> {
           widget.prefillCounterpartyEmail!.trim();
     }
     _loadFriends();
+    _loadDailyLimits();
     _counterpartyEmailController.addListener(_updateFriendSuggestions);
     // Prefill user email from session
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -267,6 +269,21 @@ class _TransactionPageState extends State<TransactionPage> {
               .toSet();
         });
         _updateFriendSuggestions();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadDailyLimits() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (session.isSubscribed) return;
+    try {
+      final res = await ApiClient.get('/api/limits/daily');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          _dailyUserTxRemaining =
+              data['limits']?['userTransactions']?['remaining'];
+        });
       }
     } catch (_) {}
   }
@@ -482,6 +499,14 @@ class _TransactionPageState extends State<TransactionPage> {
 
   Future<void> _submit() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
+    if (!session.isSubscribed &&
+        _dailyUserTxRemaining != null &&
+        _dailyUserTxRemaining! <= 0) {
+      showDailyLimitDialog(context,
+          message:
+              'Daily limit reached: You can create 2 user transactions per day.');
+      return;
+    }
     if (_isBlockedEmail(_counterpartyEmailController.text)) {
       showBlockedUserDialog(context);
       return;
@@ -817,6 +842,13 @@ class _TransactionPageState extends State<TransactionPage> {
           return;
         }
         showInsufficientCoinsDialog(context);
+      } else if (res.statusCode == 429) {
+        String errorMsg = 'Daily limit reached';
+        try {
+          final data = jsonDecode(res.body);
+          errorMsg = data['error'] ?? data['message'] ?? errorMsg;
+        } catch (_) {}
+        showDailyLimitDialog(context, message: errorMsg);
       } else {
         final errBody = (res.body.isNotEmpty) ? res.body : 'Unknown error';
         String errorMsg = 'Failed to create transaction';
@@ -1025,6 +1057,10 @@ class _TransactionPageState extends State<TransactionPage> {
         }
         if (errorMsg.toLowerCase().contains('blocked')) {
           showBlockedUserDialog(context, message: errorMsg);
+          return;
+        }
+        if (errorMsg.toLowerCase().contains('daily limit')) {
+          showDailyLimitDialog(context, message: errorMsg);
           return;
         }
         _showStylishErrorDialog('Transaction Failed', errorMsg);
@@ -1431,6 +1467,19 @@ class _TransactionPageState extends State<TransactionPage> {
                               color: Colors.white));
                     },
                   ),
+                  if (!Provider.of<SessionProvider>(context, listen: false)
+                          .isSubscribed &&
+                      _dailyUserTxRemaining != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Daily limit remaining: $_dailyUserTxRemaining',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white70),
+                      ),
+                    ),
                   if (_bothUsersVerified) ...[
                     SizedBox(height: 8),
                     Container(
@@ -1779,7 +1828,12 @@ class _TransactionPageState extends State<TransactionPage> {
                         child: ElevatedButton(
                           onPressed: (_counterpartyVerified &&
                                   _userVerified &&
-                                  !_isLoading)
+                                  !_isLoading &&
+                                  !(!Provider.of<SessionProvider>(context,
+                                          listen: false)
+                                      .isSubscribed &&
+                                      _dailyUserTxRemaining != null &&
+                                      _dailyUserTxRemaining! <= 0))
                               ? _submit
                               : null,
                           child: Text('Submit Transaction'),

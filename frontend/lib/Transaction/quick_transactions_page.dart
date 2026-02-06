@@ -33,12 +33,14 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   String filterBy = 'all'; // 'all', 'cleared', 'not_cleared'
   bool _showAll = false;
   Set<String> _blockedEmails = {};
+  Map<String, dynamic>? _dailyLimits;
 
   @override
   void initState() {
     super.initState();
     fetchQuickTransactions();
     _loadBlockedUsers();
+    _loadDailyLimits();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.openCreateOnLoad &&
           (widget.prefillCounterpartyEmail ?? '').isNotEmpty) {
@@ -66,6 +68,19 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     } catch (_) {}
   }
 
+  Future<void> _loadDailyLimits() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (session.isSubscribed) return;
+    try {
+      final res = await ApiClient.get('/api/limits/daily');
+      if (res.statusCode == 200) {
+        setState(() {
+          _dailyLimits = jsonDecode(res.body);
+        });
+      }
+    } catch (_) {}
+  }
+
   bool _isBlockedEmail(String? email) {
     final target = email?.toLowerCase().trim();
     if (target == null || target.isEmpty) return false;
@@ -79,6 +94,9 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     if (_blockedEmails.isEmpty) {
       await _loadBlockedUsers();
+    }
+    if (!session.isSubscribed && _dailyLimits == null) {
+      await _loadDailyLimits();
     }
     if (_isBlockedEmail(prefillEmail)) {
       showBlockedUserDialog(context);
@@ -117,12 +135,20 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
             (session.freeQuickTransactionsRemaining ?? 0) <= 0,
         prefillCounterpartyEmail: prefillEmail,
         blockedEmails: _blockedEmails,
+        dailyRemaining: _dailyLimits?['limits']?['quickTransactions']
+                ?['remaining'] ??
+            null,
+        isSubscribed: session.isSubscribed,
       ),
     );
 
     if (result is String) {
       if (result.toLowerCase().contains('blocked')) {
         showBlockedUserDialog(context, message: result);
+        return;
+      }
+      if (result.toLowerCase().contains('daily limit')) {
+        showDailyLimitDialog(context, message: result);
         return;
       }
       ElegantNotification.error(
@@ -267,6 +293,9 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     if (_blockedEmails.isEmpty) {
       await _loadBlockedUsers();
+    }
+    if (!session.isSubscribed && _dailyLimits == null) {
+      await _loadDailyLimits();
     }
     if (!session.isSubscribed &&
         (session.freeQuickTransactionsRemaining ?? 0) <= 0 &&
@@ -420,7 +449,11 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
           transaction: transaction,
           useCoins: !session.isSubscribed &&
               (session.freeQuickTransactionsRemaining ?? 0) <= 0,
-          blockedEmails: _blockedEmails),
+          blockedEmails: _blockedEmails,
+          dailyRemaining: _dailyLimits?['limits']?['quickTransactions']
+                  ?['remaining'] ??
+              null,
+          isSubscribed: session.isSubscribed),
     );
 
     if (result is String) {
@@ -1221,13 +1254,17 @@ class _QuickTransactionDialog extends StatefulWidget {
   final bool useCoins;
   final String? prefillCounterpartyEmail;
   final Set<String> blockedEmails;
+  final int? dailyRemaining;
+  final bool isSubscribed;
 
   const _QuickTransactionDialog(
       {Key? key,
       this.transaction,
       this.useCoins = false,
       this.prefillCounterpartyEmail,
-      this.blockedEmails = const {}})
+      this.blockedEmails = const {},
+      this.dailyRemaining,
+      this.isSubscribed = false})
       : super(key: key);
 
   @override
@@ -1438,6 +1475,10 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
   Widget build(BuildContext context) {
     final userEmail = _userEmail;
     final isEditing = widget.transaction != null;
+    final limitReached = !widget.isSubscribed &&
+        (widget.dailyRemaining != null) &&
+        (widget.dailyRemaining! <= 0) &&
+        !isEditing;
 
     if (userEmail == null) {
       return Dialog(
@@ -1511,6 +1552,30 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                   key: _formKey,
                   child: Column(
                     children: [
+                      if (!widget.isSubscribed && widget.dailyRemaining != null)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE3F2FD),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.timer, color: Colors.blue),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Daily quick transactions remaining: ${widget.dailyRemaining}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       // Amount field
                       _buildStylishField(
                         child: TextFormField(
@@ -1719,9 +1784,15 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                     child: StatefulBuilder(
                       builder: (BuildContext context, StateSetter setState) {
                         return ElevatedButton(
-                          onPressed: _isLoading
+                          onPressed: _isLoading || limitReached
                               ? null
                               : () async {
+                                  if (limitReached) {
+                                    showDailyLimitDialog(context,
+                                        message:
+                                            'Daily limit reached: You can create 3 quick transactions per day.');
+                                    return;
+                                  }
                                   if (_formKey.currentState!.validate()) {
                                     if (_isBlockedEmail(
                                         _counterpartyEmailController.text)) {
@@ -1767,6 +1838,15 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                                         if (res.statusCode == 403 &&
                                             errorText.contains('blocked')) {
                                           showBlockedUserDialog(context,
+                                              message: error.toString());
+                                          setState(() {
+                                            _isLoading = false;
+                                          });
+                                          return;
+                                        }
+                                        if (res.statusCode == 429 &&
+                                            errorText.contains('daily limit')) {
+                                          showDailyLimitDialog(context,
                                               message: error.toString());
                                           setState(() {
                                             _isLoading = false;

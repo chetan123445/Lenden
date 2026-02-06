@@ -9,6 +9,26 @@ const isBlockedBy = (user, other) =>
     (id) => id.toString() === other._id.toString()
   );
 
+const isSubscribed = async (userId) => {
+  const subscription = await Subscription.findOne({
+    user: userId,
+    status: 'active',
+  });
+  return (
+    subscription &&
+    subscription.subscribed &&
+    subscription.endDate >= new Date()
+  );
+};
+
+const getTodayRange = () => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+};
+
 exports.createQuickTransaction = async (req, res) => {
   try {
     const { amount, currency, date, time, description, counterpartyEmail, role } = req.body;
@@ -34,6 +54,19 @@ exports.createQuickTransaction = async (req, res) => {
       return res.status(403).json({
         error: 'You cannot add this user because they have blocked you.',
       });
+    }
+
+    if (!(await isSubscribed(user._id))) {
+      const { start, end } = getTodayRange();
+      const todayCount = await QuickTransaction.countDocuments({
+        creatorEmail: userEmail,
+        createdAt: { $gte: start, $lte: end },
+      });
+      if (todayCount >= 3) {
+        return res.status(429).json({
+          error: 'Daily limit reached: You can create 3 quick transactions per day.',
+        });
+      }
     }
 
     const quickTransaction = new QuickTransaction({
@@ -103,6 +136,19 @@ exports.createQuickTransactionWithCoins = async (req, res) => {
       return res.status(403).json({
         error: 'You cannot add this user because they have blocked you.',
       });
+    }
+
+    if (!(await isSubscribed(user._id))) {
+      const { start, end } = getTodayRange();
+      const todayCount = await QuickTransaction.countDocuments({
+        creatorEmail: userEmail,
+        createdAt: { $gte: start, $lte: end },
+      });
+      if (todayCount >= 3) {
+        return res.status(429).json({
+          error: 'Daily limit reached: You can create 3 quick transactions per day.',
+        });
+      }
     }
 
     user.lenDenCoins -= QUICK_TRANSACTION_COST;

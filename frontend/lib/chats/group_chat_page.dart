@@ -30,6 +30,8 @@ class GroupChatPage extends StatefulWidget {
 class _GroupChatPageState extends State<GroupChatPage> {
   List<dynamic> _messages = [];
   Map<String, int> _messageCounts = {};
+  int _dailyMessageUsed = 0;
+  int _dailyMessageLimit = 3;
   bool _isLoading = true;
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
@@ -57,7 +59,26 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
 
     _fetchMessages();
+    _fetchDailyMessageLimit();
     _initSocket();
+  }
+
+  Future<void> _fetchDailyMessageLimit() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (session.isSubscribed) return;
+    try {
+      final res = await ApiClient.get(
+          '/api/limits/group/${widget.groupTransactionId}/messages');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (mounted) {
+          setState(() {
+            _dailyMessageLimit = data['limit'] ?? 3;
+            _dailyMessageUsed = data['used'] ?? 0;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   Color _getUserColor(String userId) {
@@ -106,11 +127,17 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   _messageCounts[item['user']['_id']] = item['count'];
                 }
               }
+              if (!Provider.of<SessionProvider>(context, listen: false)
+                      .isSubscribed &&
+                  chat['senderId']?['_id'] == _currentUserId) {
+                _dailyMessageUsed = (_dailyMessageUsed + 1);
+              }
             });
             if (data['lenDenCoins'] != null) {
               final session =
                   Provider.of<SessionProvider>(context, listen: false);
               session.loadFreebieCounts();
+              _fetchDailyMessageLimit();
             }
           }
         }
@@ -118,7 +145,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
     });
 
     socket.on('createGroupMessageError', (data) {
-      if (data['error'].contains('Insufficient LenDen coins')) {
+      final errorText = (data['error'] ?? '').toString();
+      if (errorText.toLowerCase().contains('daily limit')) {
+        showDailyLimitDialog(context, message: errorText);
+      } else if (errorText.toLowerCase().contains('total limit')) {
+        showTotalLimitDialog(context, message: errorText);
+      } else if (errorText.contains('Insufficient LenDen coins')) {
         showInsufficientCoinsDialog(context);
       } else {
         if (mounted) {
@@ -152,21 +184,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
           setState(() {
             _messages.removeWhere((m) => m['_id'] == data['messageId']);
           });
-        }
-      }
-    });
-
-    // Handle error events
-    socket.on('createGroupMessageError', (data) {
-      if (data['groupTransactionId'] == widget.groupTransactionId) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(data['error'] ?? 'Failed to send message'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
         }
       }
     });
@@ -266,12 +283,14 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
 
     final session = Provider.of<SessionProvider>(context, listen: false);
+    final dailyLimitReached =
+        !session.isSubscribed && _dailyMessageUsed >= _dailyMessageLimit;
 
-    // Allow if subscribed OR free messages remaining OR sufficient coins
+    // Allow if subscribed OR free messages remaining
     final remainingFree = 5 - (_messageCounts[_currentUserId] ?? 0);
     const int messageCost = 7;
 
-    if (!session.isSubscribed && remainingFree <= 0) {
+    if (!session.isSubscribed && (dailyLimitReached || remainingFree <= 0)) {
       final coins = session.lenDenCoins ?? 0;
       if (coins < messageCost) {
         if (coins == 0) {
@@ -281,6 +300,10 @@ class _GroupChatPageState extends State<GroupChatPage> {
         }
         return;
       }
+
+      final reasonText = dailyLimitReached
+          ? 'Daily limit reached. Would you like to use $messageCost LenDen coins to send this message?'
+          : 'You have no free messages remaining. Would you like to use $messageCost LenDen coins to send this message?';
 
       final useCoins = await showDialog<bool>(
         context: context,
@@ -318,7 +341,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   ),
                   SizedBox(height: 16),
                   Text(
-                    'You have no free messages remaining. Would you like to use $messageCost LenDen coins to send this message?',
+                    reasonText,
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, color: Colors.grey[800]),
                   ),
@@ -407,6 +430,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
           ),
         ),
       );
+      if (useCoins != true) {
+        return;
+      }
     }
 
     if (_editingMessage != null) {
@@ -576,7 +602,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 ),
                               ),
                               subtitle: Text(
-                                'Messages: $messageCount',
+                                'Total messages (lifetime): $messageCount',
                                 style: TextStyle(
                                   color: Colors.grey[600],
                                   fontSize: 12,
@@ -823,9 +849,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   if (session.isSubscribed) {
                     return SizedBox.shrink();
                   }
-                  final remaining = 5 - (_messageCounts[_currentUserId] ?? 0);
                   return Text(
-                    'Free messages remaining: ${remaining > 0 ? remaining : 0}',
+                    'Daily message limit: 3',
                     style: TextStyle(fontSize: 12, color: Colors.white70),
                   );
                 },
@@ -879,6 +904,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                   if (_replyingTo != null) _buildReplyingToBanner(),
                 if (_isActiveMember)
                   if (_editingMessage != null) _buildEditingBanner(),
+                if (_isActiveMember) _buildDailyLimitPill(),
                 if (_isActiveMember) _buildMessageInput(),
                 if (_isActiveMember)
                   if (_showEmojiPicker) _buildEmojiPicker(),
@@ -1153,6 +1179,31 @@ class _GroupChatPageState extends State<GroupChatPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDailyLimitPill() {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (session.isSubscribed) return SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE3F2FD),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.timer, size: 16, color: Colors.blue),
+          const SizedBox(width: 6),
+          Text(
+            'Daily: $_dailyMessageUsed/$_dailyMessageLimit',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }

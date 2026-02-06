@@ -1,7 +1,7 @@
-const Chat = require('../models/chat');
 const Transaction = require('../models/transaction');
 const User = require('../models/user');
 const Subscription = require('../models/subscription');
+const Chat = require('../models/chat');
 
 module.exports = (io) => {
     let users = {};
@@ -43,29 +43,48 @@ module.exports = (io) => {
                 const subscription = await Subscription.findOne({ user: senderId, status: 'active' });
                 const isSubscribed = subscription && subscription.subscribed && subscription.endDate >= new Date();
 
+                let start;
+                let end;
+                let todayCount = 0;
                 if (!isSubscribed) {
-                    const userMessageCount = transaction.messageCounts.find(mc => mc.user.toString() === senderId);
-                    if (userMessageCount && userMessageCount.count >= 5) {
-                        const MESSAGE_COST = 5;
+                    start = new Date();
+                    start.setHours(0, 0, 0, 0);
+                    end = new Date();
+                    end.setHours(23, 59, 59, 999);
+                    todayCount = await Chat.countDocuments({
+                        transactionId,
+                        senderId,
+                        createdAt: { $gte: start, $lte: end },
+                    });
+                }
+
+                const userMessageCount = transaction.messageCounts.find(mc => mc.user.toString() === senderId);
+                if (!isSubscribed) {
+                    const MESSAGE_COST = 5;
+                    const dailyLimitReached = todayCount >= 3;
+                    const totalFreeUsed = userMessageCount && userMessageCount.count >= 5;
+                    const needsCoins = dailyLimitReached || totalFreeUsed;
+
+                    if (needsCoins) {
                         if (sender.lenDenCoins < MESSAGE_COST) {
                             socket.emit('createMessageError', { ...data, error: 'Insufficient LenDen coins to send a message. Please subscribe or earn more coins.' });
                             return;
                         }
                         sender.lenDenCoins -= MESSAGE_COST;
                         await sender.save();
-                    } else {
-                        if (userMessageCount) {
-                            await Transaction.updateOne(
-                                { _id: transactionId, 'messageCounts.user': senderId },
-                                { $inc: { 'messageCounts.$.count': 1 } }
-                            );
-                        } else {
-                            await Transaction.updateOne(
-                                { _id: transactionId },
-                                { $push: { messageCounts: { user: senderId, count: 1 } } }
-                            );
-                        }
                     }
+                }
+
+                if (userMessageCount) {
+                    await Transaction.updateOne(
+                        { _id: transactionId, 'messageCounts.user': senderId },
+                        { $inc: { 'messageCounts.$.count': 1 } }
+                    );
+                } else {
+                    await Transaction.updateOne(
+                        { _id: transactionId },
+                        { $push: { messageCounts: { user: senderId, count: 1 } } }
+                    );
                 }
 
                 let chat = new Chat({

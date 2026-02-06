@@ -32,6 +32,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   List<Map<String, dynamic>> _friends = [];
   List<Map<String, dynamic>> _friendSuggestions = [];
   Set<String> _blockedEmails = {};
+  int? _dailyGroupRemaining;
+  int? _dailyExpenseRemaining;
 
   // State for group details
   Map<String, dynamic>? group; // Real group data
@@ -74,6 +76,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       showCreateGroupForm = true;
     }
     _loadFriends();
+    _loadDailyLimits();
     _memberEmailController.addListener(_updateFriendSuggestions);
     _fetchUserGroups();
   }
@@ -298,6 +301,37 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               .toSet();
         });
         _updateFriendSuggestions();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadDailyLimits() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (session.isSubscribed) return;
+    try {
+      final res = await ApiClient.get('/api/limits/daily');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          _dailyGroupRemaining =
+              data['limits']?['groupCreations']?['remaining'];
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadGroupExpenseLimit() async {
+    if (group == null) return;
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (session.isSubscribed) return;
+    try {
+      final res = await ApiClient.get(
+          '/api/limits/group/${group!['_id']}/expenses');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          _dailyExpenseRemaining = data['remaining'];
+        });
       }
     } catch (_) {}
   }
@@ -536,6 +570,14 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       showBlockedUserDialog(context);
       return;
     }
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (!session.isSubscribed &&
+        _dailyGroupRemaining != null &&
+        _dailyGroupRemaining! <= 0) {
+      showDailyLimitDialog(context,
+          message: 'Daily limit reached: You can create 1 group per day.');
+      return;
+    }
     setState(() {
       creatingGroup = true;
       error = null;
@@ -593,6 +635,10 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           return;
         }
         showInsufficientCoinsDialog(context);
+      } else if (res.statusCode == 429) {
+        final errorMsg =
+            (data['error'] ?? 'Daily limit reached').toString();
+        showDailyLimitDialog(context, message: errorMsg);
       } else {
         setState(() {
           error = data['error'] ?? 'Failed to create group';
@@ -613,6 +659,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     if (_hasBlockedMembers()) {
       showBlockedUserDialog(context);
+      return;
+    }
+    if (!session.isSubscribed &&
+        _dailyGroupRemaining != null &&
+        _dailyGroupRemaining! <= 0) {
+      showDailyLimitDialog(context,
+          message: 'Daily limit reached: You can create 1 group per day.');
       return;
     }
     if (!session.isSubscribed && (session.freeGroupsRemaining ?? 0) <= 0) {
@@ -813,6 +866,10 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         final errorMsg = (data['error'] ?? 'Failed to create group').toString();
         if (errorMsg.toLowerCase().contains('blocked')) {
           showBlockedUserDialog(context, message: errorMsg);
+          return;
+        }
+        if (errorMsg.toLowerCase().contains('daily limit')) {
+          showDailyLimitDialog(context, message: errorMsg);
           return;
         }
         setState(() {
@@ -1204,8 +1261,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           ),
         );
       } else {
+        final errorMsg = (data['error'] ?? 'Failed to add expense').toString();
+        if (res.statusCode == 429 &&
+            errorMsg.toLowerCase().contains('daily limit')) {
+          throw Exception('DAILY_LIMIT:$errorMsg');
+        }
         // Throw exception instead of setting error state
-        throw Exception(data['error'] ?? 'Failed to add expense');
+        throw Exception(errorMsg);
       }
     } catch (e) {
       print('Error adding expense: $e');
@@ -5560,6 +5622,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   final bool canCreate = session.isSubscribed ||
                       (session.freeGroupsRemaining ?? 0) > 0 ||
                       (session.lenDenCoins ?? 0) >= 20;
+                  final bool dailyLimitReached = !session.isSubscribed &&
+                      _dailyGroupRemaining != null &&
+                      _dailyGroupRemaining! <= 0;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -5573,9 +5638,20 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             style: TextStyle(color: Colors.green),
                           ),
                         ),
+                      if (!session.isSubscribed && _dailyGroupRemaining != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Text(
+                            'Daily limit remaining: $_dailyGroupRemaining',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.orange),
+                          ),
+                        ),
                       ElevatedButton(
                         onPressed:
-                            creatingGroup || !canCreate ? null : _createGroup,
+                            creatingGroup || !canCreate || dailyLimitReached
+                                ? null
+                                : _createGroup,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFF00B4D8),
                           shape: RoundedRectangleBorder(
@@ -7098,7 +7174,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     );
   }
 
-  void _showAddExpenseDialog() {
+  void _showAddExpenseDialog() async {
+    await _loadGroupExpenseLimit();
     // Initialize selected members with all active members
     _initializeSelectedMembers();
 
@@ -7109,7 +7186,12 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+        builder: (context, setDialogState) {
+          final session = Provider.of<SessionProvider>(context, listen: false);
+          final limitReached = !session.isSubscribed &&
+              _dailyExpenseRemaining != null &&
+              _dailyExpenseRemaining! <= 0;
+          return AlertDialog(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           backgroundColor: Colors.white,
@@ -7144,6 +7226,32 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (!session.isSubscribed && _dailyExpenseRemaining != null)
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(12),
+                      margin: EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFE3F2FD),
+                        borderRadius: BorderRadius.circular(12),
+                        border:
+                            Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.timer,
+                              color: Color(0xFF1E3A8A), size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Daily expense remaining: $_dailyExpenseRemaining',
+                              style: TextStyle(
+                                  fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   Container(
                     padding: EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -7666,6 +7774,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     margin: EdgeInsets.only(left: 8, right: 16),
                     child: ElevatedButton(
                       onPressed: dialogAddingExpense
+                          || limitReached
                           ? null
                           : () async {
                               // Clear previous error
@@ -7703,12 +7812,31 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 dialogAddingExpense = true;
                               });
                               try {
+                                if (limitReached) {
+                                  showDailyLimitDialog(context,
+                                      message:
+                                          'Daily limit reached: You can add 3 expenses per day in a group.');
+                                  setDialogState(() {
+                                    dialogAddingExpense = false;
+                                  });
+                                  return;
+                                }
                                 await _addExpense();
                                 setDialogState(() {
                                   dialogAddingExpense = false;
                                 });
                                 Navigator.of(context).pop();
                               } catch (e) {
+                                final errText = e.toString();
+                                if (errText.contains('DAILY_LIMIT:')) {
+                                  final msg =
+                                      errText.replaceFirst('Exception: ', '').replaceFirst('DAILY_LIMIT:', '');
+                                  showDailyLimitDialog(context, message: msg);
+                                  setDialogState(() {
+                                    dialogAddingExpense = false;
+                                  });
+                                  return;
+                                }
                                 setDialogState(() {
                                   dialogAddingExpense = false;
                                   dialogError = e.toString();
@@ -7721,8 +7849,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             borderRadius: BorderRadius.circular(12)),
                         padding: EdgeInsets.symmetric(vertical: 12),
                       ),
-                      child: dialogAddingExpense
-                          ? SizedBox(
+                        child: dialogAddingExpense
+                            ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
@@ -7745,7 +7873,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               ],
             ),
           ],
-        ),
+        );
+        },
       ),
     );
   }

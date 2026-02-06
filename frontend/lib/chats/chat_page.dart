@@ -27,6 +27,8 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   List<dynamic> _messages = [];
   Map<String, int> _messageCounts = {};
+  int _dailyMessageUsed = 0;
+  int _dailyMessageLimit = 3;
   bool _isLoading = true;
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _messageFocusNode = FocusNode();
@@ -43,8 +45,27 @@ class _ChatPageState extends State<ChatPage> {
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     _currentUserId = user?['_id'];
     _fetchMessages();
+    _fetchDailyMessageLimit();
     _initSocket();
     _fetchOtherUserDetails();
+  }
+
+  Future<void> _fetchDailyMessageLimit() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (session.isSubscribed) return;
+    try {
+      final res = await ApiClient.get(
+          '/api/limits/transaction/${widget.transactionId}/messages');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (mounted) {
+          setState(() {
+            _dailyMessageLimit = data['limit'] ?? 3;
+            _dailyMessageUsed = data['used'] ?? 0;
+          });
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _fetchOtherUserDetails() async {
@@ -85,11 +106,17 @@ class _ChatPageState extends State<ChatPage> {
                   _messageCounts[item['user']['_id']] = item['count'];
                 }
               }
+              if (!Provider.of<SessionProvider>(context, listen: false)
+                      .isSubscribed &&
+                  chat['senderId']?['_id'] == _currentUserId) {
+                _dailyMessageUsed = (_dailyMessageUsed + 1);
+              }
             });
             if (data['lenDenCoins'] != null) {
               final session =
                   Provider.of<SessionProvider>(context, listen: false);
               session.loadFreebieCounts();
+              _fetchDailyMessageLimit();
             }
           }
         }
@@ -97,7 +124,12 @@ class _ChatPageState extends State<ChatPage> {
     });
 
     socket.on('createMessageError', (data) {
-      if (data['error'].contains('Insufficient LenDen coins')) {
+      final errorText = (data['error'] ?? '').toString();
+      if (errorText.toLowerCase().contains('daily limit')) {
+        showDailyLimitDialog(context, message: errorText);
+      } else if (errorText.toLowerCase().contains('total limit')) {
+        showTotalLimitDialog(context, message: errorText);
+      } else if (errorText.contains('Insufficient LenDen coins')) {
         showInsufficientCoinsDialog(context);
       }
     });
@@ -164,12 +196,14 @@ class _ChatPageState extends State<ChatPage> {
     if (_messageController.text.trim().isEmpty) return;
 
     final session = Provider.of<SessionProvider>(context, listen: false);
+    final dailyLimitReached =
+        !session.isSubscribed && _dailyMessageUsed >= _dailyMessageLimit;
 
-    // Allow if subscribed OR free messages remaining OR sufficient coins
+    // Allow if subscribed OR free messages remaining
     final remainingFree = 5 - (_messageCounts[_currentUserId] ?? 0);
     const int messageCost = 5;
 
-    if (!session.isSubscribed && remainingFree <= 0) {
+    if (!session.isSubscribed && (dailyLimitReached || remainingFree <= 0)) {
       final coins = session.lenDenCoins ?? 0;
       if (coins < messageCost) {
         if (coins == 0) {
@@ -179,6 +213,10 @@ class _ChatPageState extends State<ChatPage> {
         }
         return;
       }
+
+      final reasonText = dailyLimitReached
+          ? 'Daily limit reached. Would you like to use $messageCost LenDen coins to send this message?'
+          : 'You have no free messages remaining. Would you like to use $messageCost LenDen coins to send this message?';
 
       // Ask user whether to use coins or subscribe
       final useCoins = await showDialog<bool>(
@@ -217,7 +255,7 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                   SizedBox(height: 16),
                   Text(
-                    'You have no free messages remaining. Would you like to use $messageCost LenDen coins to send this message?',
+                    reasonText,
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, color: Colors.grey[800]),
                   ),
@@ -306,6 +344,9 @@ class _ChatPageState extends State<ChatPage> {
           ),
         ),
       );
+      if (useCoins != true) {
+        return;
+      }
     }
 
     if (_editingMessage != null) {
@@ -612,7 +653,7 @@ class _ChatPageState extends State<ChatPage> {
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Text(
-                      'Message Counts',
+                      'Total messages (lifetime)',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -744,10 +785,8 @@ class _ChatPageState extends State<ChatPage> {
                               if (session.isSubscribed) {
                                 return SizedBox.shrink();
                               }
-                              final remaining =
-                                  5 - (_messageCounts[_currentUserId] ?? 0);
                               return Text(
-                                'Free messages remaining: ${remaining > 0 ? remaining : 0}',
+                                'Daily message limit: 3',
                                 style: TextStyle(
                                     fontSize: 12, color: Colors.white70),
                               );
@@ -793,6 +832,7 @@ class _ChatPageState extends State<ChatPage> {
             ),
             if (_replyingTo != null) _buildReplyingToBanner(),
             if (_editingMessage != null) _buildEditingBanner(),
+            _buildDailyLimitPill(),
             _buildMessageInput(),
             if (_showEmojiPicker) _buildEmojiPicker(),
           ],
@@ -1006,6 +1046,31 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDailyLimitPill() {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (session.isSubscribed) return SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE3F2FD),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.timer, size: 16, color: Colors.blue),
+          const SizedBox(width: 6),
+          Text(
+            'Daily: $_dailyMessageUsed/$_dailyMessageLimit',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }

@@ -16,6 +16,7 @@ class UserNotificationsPage extends StatefulWidget {
 class _UserNotificationsPageState extends State<UserNotificationsPage> {
   List<dynamic> _notifications = [];
   List<Map<String, dynamic>> _incomingRequests = [];
+  final Set<String> _removingRequestIds = {};
   bool _isLoading = true;
   bool _isShowingAll = false;
   int _unreadCount = 0;
@@ -85,18 +86,28 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
   }
 
   Future<void> _acceptRequest(String requestId) async {
+    setState(() => _removingRequestIds.add(requestId));
     final res =
         await ApiClient.post('/api/friends/requests/$requestId/accept');
     if (res.statusCode == 200) {
-      await _fetchFriendRequests();
+      await Future.delayed(const Duration(milliseconds: 250));
+      setState(() {
+        _incomingRequests.removeWhere((r) => r['_id'] == requestId);
+        _removingRequestIds.remove(requestId);
+      });
     }
   }
 
   Future<void> _declineRequest(String requestId) async {
+    setState(() => _removingRequestIds.add(requestId));
     final res =
         await ApiClient.post('/api/friends/requests/$requestId/decline');
     if (res.statusCode == 200) {
-      await _fetchFriendRequests();
+      await Future.delayed(const Duration(milliseconds: 250));
+      setState(() {
+        _incomingRequests.removeWhere((r) => r['_id'] == requestId);
+        _removingRequestIds.remove(requestId);
+      });
     }
   }
 
@@ -265,31 +276,56 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                                         '';
                                                     final email =
                                                         from['email'] ?? '';
-                                                    return ListTile(
-                                                      contentPadding:
-                                                          EdgeInsets.zero,
-                                                      title: Text(
-                                                          name.toString()),
-                                                      subtitle: Text(
-                                                          email.toString()),
-                                                      trailing: Wrap(
-                                                        spacing: 8,
-                                                        children: [
-                                                          TextButton(
-                                                            onPressed: () =>
-                                                                _declineRequest(
-                                                                    r['_id']),
-                                                            child: const Text(
-                                                                'Decline'),
+                                                    final isRemoving =
+                                                        _removingRequestIds
+                                                            .contains(r['_id']);
+                                                    return AnimatedSize(
+                                                      duration:
+                                                          const Duration(
+                                                              milliseconds:
+                                                                  250),
+                                                      child: AnimatedOpacity(
+                                                        duration:
+                                                            const Duration(
+                                                                milliseconds:
+                                                                    250),
+                                                        opacity:
+                                                            isRemoving ? 0 : 1,
+                                                        child: ListTile(
+                                                          contentPadding:
+                                                              EdgeInsets.zero,
+                                                          title: Text(
+                                                              name.toString()),
+                                                          subtitle: Text(
+                                                              email.toString()),
+                                                          trailing: Wrap(
+                                                            spacing: 8,
+                                                            children: [
+                                                              TextButton(
+                                                                onPressed:
+                                                                    isRemoving
+                                                                        ? null
+                                                                        : () =>
+                                                                            _declineRequest(
+                                                                                r['_id']),
+                                                                child:
+                                                                    const Text(
+                                                                        'Decline'),
+                                                              ),
+                                                              ElevatedButton(
+                                                                onPressed:
+                                                                    isRemoving
+                                                                        ? null
+                                                                        : () =>
+                                                                            _acceptRequest(
+                                                                                r['_id']),
+                                                                child:
+                                                                    const Text(
+                                                                        'Accept'),
+                                                              ),
+                                                            ],
                                                           ),
-                                                          ElevatedButton(
-                                                            onPressed: () =>
-                                                                _acceptRequest(
-                                                                    r['_id']),
-                                                            child: const Text(
-                                                                'Accept'),
-                                                          ),
-                                                        ],
+                                                        ),
                                                       ),
                                                     );
                                                   }).toList(),

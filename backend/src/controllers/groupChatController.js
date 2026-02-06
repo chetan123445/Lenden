@@ -28,34 +28,6 @@ module.exports = (io) => {
                     socket.emit('createGroupMessageError', { ...data, error: 'User not found' });
                     return;
                 }
-                
-                const subscription = await Subscription.findOne({ user: senderId, status: 'active' });
-                const isSubscribed = subscription && subscription.subscribed && subscription.endDate >= new Date();
-
-                if (!isSubscribed) {
-                    const userMessageCount = groupTransaction.messageCounts.find(mc => mc.user.toString() === senderId);
-                    if (userMessageCount && userMessageCount.count >= 5) {
-                        const MESSAGE_COST = 7;
-                        if (sender.lenDenCoins < MESSAGE_COST) {
-                            socket.emit('createGroupMessageError', { ...data, error: 'Insufficient LenDen coins to send a message. Please subscribe or earn more coins.' });
-                            return;
-                        }
-                        sender.lenDenCoins -= MESSAGE_COST;
-                        await sender.save();
-                    } else {
-                        if (userMessageCount) {
-                            await GroupTransaction.updateOne(
-                                { _id: groupTransactionId, 'messageCounts.user': senderId },
-                                { $inc: { 'messageCounts.$.count': 1 } }
-                            );
-                        } else {
-                            await GroupTransaction.updateOne(
-                                { _id: groupTransactionId },
-                                { $push: { messageCounts: { user: senderId, count: 1 } } }
-                            );
-                        }
-                    }
-                }
 
                 // Check if user is still an active member of the group
                 const isActiveMember = groupTransaction.members.some(member => 
@@ -68,6 +40,53 @@ module.exports = (io) => {
                         error: 'You are no longer an active member of this group. Chat is disabled.' 
                     });
                     return;
+                }
+                
+                const subscription = await Subscription.findOne({ user: senderId, status: 'active' });
+                const isSubscribed = subscription && subscription.subscribed && subscription.endDate >= new Date();
+
+                let start;
+                let end;
+                let todayCount = 0;
+                if (!isSubscribed) {
+                    start = new Date();
+                    start.setHours(0, 0, 0, 0);
+                    end = new Date();
+                    end.setHours(23, 59, 59, 999);
+                    todayCount = await GroupChat.countDocuments({
+                        groupTransactionId,
+                        senderId,
+                        createdAt: { $gte: start, $lte: end },
+                    });
+                }
+
+                const userMessageCount = groupTransaction.messageCounts.find(mc => mc.user.toString() === senderId);
+                if (!isSubscribed) {
+                    const MESSAGE_COST = 7;
+                    const dailyLimitReached = todayCount >= 3;
+                    const totalFreeUsed = userMessageCount && userMessageCount.count >= 5;
+                    const needsCoins = dailyLimitReached || totalFreeUsed;
+
+                    if (needsCoins) {
+                        if (sender.lenDenCoins < MESSAGE_COST) {
+                            socket.emit('createGroupMessageError', { ...data, error: 'Insufficient LenDen coins to send a message. Please subscribe or earn more coins.' });
+                            return;
+                        }
+                        sender.lenDenCoins -= MESSAGE_COST;
+                        await sender.save();
+                    }
+                }
+
+                if (userMessageCount) {
+                    await GroupTransaction.updateOne(
+                        { _id: groupTransactionId, 'messageCounts.user': senderId },
+                        { $inc: { 'messageCounts.$.count': 1 } }
+                    );
+                } else {
+                    await GroupTransaction.updateOne(
+                        { _id: groupTransactionId },
+                        { $push: { messageCounts: { user: senderId, count: 1 } } }
+                    );
                 }
 
                 let chat = new GroupChat({

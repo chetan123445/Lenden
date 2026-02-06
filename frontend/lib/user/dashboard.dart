@@ -1753,7 +1753,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     }
 
     return GestureDetector(
-      onTap: () {
+      onTap: () async {
         if (isPrivate || isDeactivated) {
           showDialog(
             context: context,
@@ -1765,6 +1765,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
             ),
           );
         } else {
+          final stats = await _fetchCounterpartyStats(
+              counterparty['email']?.toString() ?? '');
           showDialog(
             context: context,
             builder: (_) => _StylishProfileDialog(
@@ -1774,13 +1776,18 @@ class _UserDashboardPageState extends State<UserDashboardPage>
               email: counterparty['email'],
               phone: counterparty['phone']?.toString(),
               gender: gender,
+              stats: stats,
               canAddFriend: counterpartyEmail.isNotEmpty &&
                   counterpartyEmail !=
-                      (currentUserEmail ?? '').toString().toLowerCase().trim() &&
+                      (currentUserEmail ?? '')
+                          .toString()
+                          .toLowerCase()
+                          .trim() &&
                   !_friendEmails.contains(counterpartyEmail) &&
                   !_outgoingRequestEmails.contains(counterpartyEmail),
               isFriend: _friendEmails.contains(counterpartyEmail),
-              requestPending: _outgoingRequestEmails.contains(counterpartyEmail),
+              requestPending:
+                  _outgoingRequestEmails.contains(counterpartyEmail),
               onAddFriend: () => _sendFriendRequest(
                 userId: counterparty['_id']?.toString(),
                 email: counterparty['email']?.toString(),
@@ -1845,12 +1852,24 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     return null;
   }
 
+  Future<Map<String, dynamic>?> _fetchCounterpartyStats(String email) async {
+    try {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      final myEmail = session.user?['email'];
+      if (myEmail == null) return null;
+      final res = await ApiClient.get(
+          '/api/counterparties/stats?email=$myEmail&counterpartyEmail=$email');
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _sendFriendRequest(
       {String? userId, String? email, bool closeDialogOnSuccess = true}) async {
     try {
-      final body = userId != null
-          ? {'userId': userId}
-          : {'query': email};
+      final body = userId != null ? {'userId': userId} : {'query': email};
       final res = await ApiClient.post('/api/friends/request', body: body);
       if (res.statusCode == 200 || res.statusCode == 201) {
         if (email != null && email.isNotEmpty) {
@@ -2216,6 +2235,7 @@ class _StylishProfileDialog extends StatelessWidget {
   final String? email;
   final String? phone;
   final String? gender;
+  final Map<String, dynamic>? stats;
   final bool canAddFriend;
   final bool isFriend;
   final bool requestPending;
@@ -2227,6 +2247,7 @@ class _StylishProfileDialog extends StatelessWidget {
       this.email,
       this.phone,
       this.gender,
+      this.stats,
       this.canAddFriend = false,
       this.isFriend = false,
       this.requestPending = false,
@@ -2289,6 +2310,23 @@ class _StylishProfileDialog extends StatelessWidget {
                   ]),
                   SizedBox(height: 10),
                 ],
+                if (stats != null) ...[
+                  Row(children: [
+                    Icon(Icons.insights, size: 18, color: Colors.teal),
+                    SizedBox(width: 8),
+                    Text(
+                      'Interactions',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ]),
+                  SizedBox(height: 6),
+                  Text(
+                    'Trxns: ${stats?['userTransactions'] ?? 0} • Quick: ${stats?['quickTransactions'] ?? 0} • Groups: ${stats?['groups'] ?? 0}',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                  ),
+                  SizedBox(height: 10),
+                ],
                 if (isFriend) ...[
                   Row(children: [
                     Icon(Icons.check_circle, size: 18, color: Colors.green),
@@ -2298,8 +2336,7 @@ class _StylishProfileDialog extends StatelessWidget {
                   ]),
                 ] else if (requestPending) ...[
                   Row(children: [
-                    Icon(Icons.hourglass_top,
-                        size: 18, color: Colors.orange),
+                    Icon(Icons.hourglass_top, size: 18, color: Colors.orange),
                     SizedBox(width: 8),
                     Text('Request pending',
                         style: TextStyle(fontSize: 16, color: Colors.orange)),

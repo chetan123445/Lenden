@@ -14,6 +14,7 @@ class NotificationIcon extends StatefulWidget {
 class _NotificationIconState extends State<NotificationIcon> {
   int _notificationCount = 0;
   bool _displayNotificationCount = true;
+  int _friendRequestCount = 0;
 
   @override
   void didChangeDependencies() {
@@ -43,6 +44,14 @@ class _NotificationIconState extends State<NotificationIcon> {
         final settings = json.decode(settingsResp.body);
         _displayNotificationCount =
             settings['displayNotificationCount'] ?? true;
+      }
+
+      if (!session.isAdmin) {
+        final reqRes = await ApiClient.get('/api/friends/requests');
+        if (reqRes.statusCode == 200) {
+          final data = json.decode(reqRes.body);
+          _friendRequestCount = (data['incoming'] as List? ?? []).length;
+        }
       }
 
       if (mounted) setState(() {});
@@ -139,6 +148,30 @@ class _NotificationIconState extends State<NotificationIcon> {
                 ),
                 child: Text(
                   '$_notificationCount',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 8,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          if (_friendRequestCount > 0)
+            Positioned(
+              left: 11,
+              top: 11,
+              child: Container(
+                padding: EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                constraints: BoxConstraints(
+                  minWidth: 14,
+                  minHeight: 14,
+                ),
+                child: Text(
+                  '$_friendRequestCount',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 8,

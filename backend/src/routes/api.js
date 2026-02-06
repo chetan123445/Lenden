@@ -19,6 +19,7 @@ module.exports = (io) => {
   const transactionController = require('../controllers/transactionController');
   const analyticController = require('../controllers/analyticController');
   const counterpartyController = require('../controllers/counterpartyController');
+  const limitsController = require('../controllers/limitsController');
   const noteController = require('../controllers/noteController');
   const groupTransactionController = require('../controllers/groupTransactionController');
   const activityController = require('../controllers/activityController');
@@ -195,6 +196,14 @@ module.exports = (io) => {
   router.get('/analytics/user', analyticController.getUserAnalytics);
   // Counterparty routes
   router.get('/counterparties/user', auth, counterpartyController.getUserCounterparties);
+  router.get('/counterparties/stats', auth, counterpartyController.getCounterpartyStats);
+  router.post('/counterparties/stats-batch', auth, counterpartyController.getCounterpartyStatsBatch);
+
+  // Daily limits routes
+  router.get('/limits/daily', auth, limitsController.getDailyLimits);
+  router.get('/limits/transaction/:transactionId/messages', auth, limitsController.getTransactionMessageLimit);
+  router.get('/limits/group/:groupId/messages', auth, limitsController.getGroupMessageLimit);
+  router.get('/limits/group/:groupId/expenses', auth, limitsController.getGroupExpenseLimit);
 
   // Notes routes
   router.post('/notes', auth, noteController.createNote);

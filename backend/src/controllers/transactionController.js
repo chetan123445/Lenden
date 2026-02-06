@@ -16,6 +16,26 @@ const isBlockedBy = (user, other) =>
     (id) => id.toString() === other._id.toString()
   );
 
+const isSubscribed = async (userId) => {
+  const subscription = await Subscription.findOne({
+    user: userId,
+    status: 'active',
+  });
+  return (
+    subscription &&
+    subscription.subscribed &&
+    subscription.endDate >= new Date()
+  );
+};
+
+const getTodayRange = () => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+};
+
 // Generate and send/download a transaction receipt
 // Generate and send/download a transaction receipt
 exports.generateReceipt = async (req, res) => {
@@ -378,6 +398,19 @@ exports.createTransactionWithCoins = async (req, res) => {
       });
     }
 
+    if (!(await isSubscribed(user._id))) {
+      const { start, end } = getTodayRange();
+      const todayCount = await Transaction.countDocuments({
+        userEmail: user.email,
+        createdAt: { $gte: start, $lte: end },
+      });
+      if (todayCount >= 2) {
+        return res.status(429).json({
+          error: 'Daily limit reached: You can create 2 user transactions per day.',
+        });
+      }
+    }
+
     // Handle photos (images only)
     let photos = [];
     if (req.files && req.files.length > 0) {
@@ -527,6 +560,19 @@ exports.createTransaction = async (req, res) => {
       return res.status(403).json({
         error: 'You cannot add this user because they have blocked you.',
       });
+    }
+
+    if (!(await isSubscribed(user._id))) {
+      const { start, end } = getTodayRange();
+      const todayCount = await Transaction.countDocuments({
+        userEmail: user.email,
+        createdAt: { $gte: start, $lte: end },
+      });
+      if (todayCount >= 2) {
+        return res.status(429).json({
+          error: 'Daily limit reached: You can create 2 user transactions per day.',
+        });
+      }
     }
 
     // Handle photos (images only)

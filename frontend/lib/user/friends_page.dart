@@ -31,6 +31,7 @@ class _FriendsPageState extends State<FriendsPage> {
   String _blockedQuery = '';
   int _blockedVisibleCount = 10;
   Map<String, int> _mutualCounts = {};
+  Map<String, int> _interactionCounts = {};
   bool _showBlockedOnly = false;
 
   @override
@@ -56,15 +57,44 @@ class _FriendsPageState extends State<FriendsPage> {
         _blocked = List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
         _friendsVisibleCount = 10;
         _blockedVisibleCount = 10;
+        _interactionCounts = {};
       }
       if (reqRes.statusCode == 200) {
         final data = jsonDecode(reqRes.body);
         _incoming = List<Map<String, dynamic>>.from(data['incoming'] ?? []);
         _outgoing = List<Map<String, dynamic>>.from(data['outgoing'] ?? []);
       }
+      await _loadInteractionCounts();
     } finally {
       setState(() => _loading = false);
     }
+  }
+
+  Future<void> _loadInteractionCounts() async {
+    try {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      final myEmail = session.user?['email'];
+      if (myEmail == null || _friends.isEmpty) return;
+      final emails = _friends
+          .map((f) => (f['email'] ?? '').toString().toLowerCase().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+      if (emails.isEmpty) return;
+      final res = await ApiClient.post('/api/counterparties/stats-batch', body: {
+        'email': myEmail,
+        'counterparties': emails,
+      });
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final counts = Map<String, dynamic>.from(data['counts'] ?? {});
+        setState(() {
+          _interactionCounts = counts.map(
+            (k, v) => MapEntry(k.toString().toLowerCase().trim(),
+                (v as num?)?.toInt() ?? 0),
+          );
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _searchUsers() async {
@@ -350,12 +380,29 @@ class _FriendsPageState extends State<FriendsPage> {
     final selected = _selectedForGroup.contains(email);
     final friendId = friend['_id'] ?? '';
     final isBlocked = _blocked.any((u) => u['_id'] == friendId);
+    final isBlockedByThem = friend['blockedByThem'] == true;
+    final interactions =
+        _interactionCounts[email.toString().toLowerCase().trim()] ?? 0;
 
     return _tricolorWrapper(
       index: index,
       child: ListTile(
         title: Text(name.isNotEmpty ? name : username),
-        subtitle: Text(email),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(email),
+            if (interactions > 0)
+              Text('Interactions: $interactions',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            if (isBlockedByThem)
+              const Text('Blocked you',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.red,
+                      fontWeight: FontWeight.w600)),
+          ],
+        ),
         leading: _mutualCounts.containsKey(friendId)
             ? Container(
                 padding:
@@ -380,6 +427,11 @@ class _FriendsPageState extends State<FriendsPage> {
             IconButton(
               tooltip: 'Quick',
               onPressed: () {
+                if (isBlockedByThem) {
+                  showBlockedUserDialog(context,
+                      message: 'You cannot add this user because they have blocked you.');
+                  return;
+                }
                 if (isBlocked) {
                   showBlockedUserDialog(context);
                   return;
@@ -391,6 +443,11 @@ class _FriendsPageState extends State<FriendsPage> {
             IconButton(
               tooltip: 'Transaction',
               onPressed: () {
+                if (isBlockedByThem) {
+                  showBlockedUserDialog(context,
+                      message: 'You cannot add this user because they have blocked you.');
+                  return;
+                }
                 if (isBlocked) {
                   showBlockedUserDialog(context);
                   return;
@@ -413,6 +470,11 @@ class _FriendsPageState extends State<FriendsPage> {
             Checkbox(
               value: selected,
               onChanged: (val) {
+                if (val == true && isBlockedByThem) {
+                  showBlockedUserDialog(context,
+                      message: 'You cannot add this user because they have blocked you.');
+                  return;
+                }
                 if (val == true && isBlocked) {
                   showBlockedUserDialog(context);
                   return;

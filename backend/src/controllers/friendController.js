@@ -51,12 +51,20 @@ exports.searchUsers = async (req, res) => {
 exports.getFriends = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
-      .populate('friends', 'name username email')
+      .populate('friends', 'name username email blockedUsers')
       .populate('blockedUsers', 'name username email')
       .select('friends blockedUsers');
 
     res.status(200).json({
-      friends: user?.friends || [],
+      friends: (user?.friends || []).map((f) => ({
+        _id: f._id,
+        name: f.name,
+        username: f.username,
+        email: f.email,
+        blockedByThem: (f.blockedUsers || []).some(
+          (id) => id.toString() === req.user._id.toString()
+        ),
+      })),
       blockedUsers: user?.blockedUsers || [],
     });
   } catch (error) {

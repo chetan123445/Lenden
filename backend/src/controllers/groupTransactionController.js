@@ -15,6 +15,26 @@ const isBlockedBy = (user, other) =>
     (id) => id.toString() === other._id.toString()
   );
 
+const isSubscribed = async (userId) => {
+  const subscription = await Subscription.findOne({
+    user: userId,
+    status: 'active',
+  });
+  return (
+    subscription &&
+    subscription.subscribed &&
+    subscription.endDate >= new Date()
+  );
+};
+
+const getTodayRange = () => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+};
+
 // Helper function to process expenses and convert Object IDs to emails in addedBy field
 async function processExpenses(expenses) {
   return await Promise.all((expenses || []).map(async expense => {
@@ -43,6 +63,19 @@ exports.createGroupWithCoins = async (req, res) => {
 
     if (creator.lenDenCoins < GROUP_COST) {
       return res.status(403).json({ error: 'Insufficient LenDen coins.' });
+    }
+
+    if (!(await isSubscribed(creator._id))) {
+      const { start, end } = getTodayRange();
+      const todayCount = await GroupTransaction.countDocuments({
+        creator: creator._id,
+        createdAt: { $gte: start, $lte: end },
+      });
+      if (todayCount >= 1) {
+        return res.status(429).json({
+          error: 'Daily limit reached: You can create 1 group per day.',
+        });
+      }
     }
 
     if (!title) {
@@ -149,6 +182,19 @@ exports.createGroup = async (req, res) => {
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
+    }
+
+    if (!(await isSubscribed(creator._id))) {
+      const { start, end } = getTodayRange();
+      const todayCount = await GroupTransaction.countDocuments({
+        creator: creator._id,
+        createdAt: { $gte: start, $lte: end },
+      });
+      if (todayCount >= 1) {
+        return res.status(429).json({
+          error: 'Daily limit reached: You can create 1 group per day.',
+        });
+      }
     }
     
     // Filter out creator's email from memberEmails (they're added automatically)
@@ -407,6 +453,25 @@ exports.addExpense = async (req, res) => {
     
     if (!group.members.some(m => m.user.toString() === userId.toString() && !m.leftAt)) return res.status(403).json({ error: 'Not a group member' });
     if (!description || !amount || amount <= 0) return res.status(400).json({ error: 'Description and positive amount required' });
+
+    if (!(await isSubscribed(userId))) {
+      const { start, end } = getTodayRange();
+      const todayExpenseCount = (group.expenses || []).filter((e) => {
+        if (!e || !e.addedBy || !e.date) return false;
+        const expenseDate = new Date(e.date);
+        return (
+          e.addedBy === userEmail &&
+          expenseDate >= start &&
+          expenseDate <= end
+        );
+      }).length;
+      if (todayExpenseCount >= 3) {
+        return res.status(429).json({
+          error:
+            'Daily limit reached: You can add 3 expenses per group per day.',
+        });
+      }
+    }
     
     // Validate selected members
     if (!selectedMembers || !Array.isArray(selectedMembers) || selectedMembers.length === 0) {
