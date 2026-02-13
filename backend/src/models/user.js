@@ -52,7 +52,30 @@ const userSchema = new mongoose.Schema({
   },
   lenDenCoins: {
     type: Number,
-    default: 200
+    default: 20
+  },
+  referralCode: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+  },
+  referredByUser: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  referredByCode: {
+    type: String,
+    default: null,
+  },
+  referralRewardGranted: {
+    type: Boolean,
+    default: false,
+  },
+  referralConvertedAt: {
+    type: Date,
+    default: null,
   },
   friends: [
     {
@@ -117,5 +140,6 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ email: 1 });
 userSchema.index({ username: 1 });
 userSchema.index({ phone: 1 });
+userSchema.index({ referralCode: 1 });
 
 module.exports = mongoose.model('User', userSchema);

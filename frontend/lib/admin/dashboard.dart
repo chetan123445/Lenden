@@ -14,6 +14,7 @@ import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
 import 'admin_features_page.dart';
 import 'manage_gift_cards_page.dart';
+import 'referral_settings_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -145,6 +146,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.share),
+                title: const Text('Referral Settings'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ReferralSettingsPage()),
+                  );
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.logout),
                 title: const Text('Logout'),
                 onTap: () => _confirmLogout(context),
@@ -235,6 +247,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => ManageGiftCardsPage()),
+                      );
+                    },
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.share,
+                    label: 'Referral Settings',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ReferralSettingsPage()),
                       );
                     },
                   ),

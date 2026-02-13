@@ -3,6 +3,7 @@ const User = require('../models/user');
 const Subscription = require('../models/subscription');
 const { logQuickTransactionActivity } = require('./activityController');
 const { awardGiftCard, shouldAwardGiftCard } = require('./userGiftCardController');
+const { processReferralRewardOnFirstCreation } = require('../utils/referralService');
 
 const isBlockedBy = (user, other) =>
   (user.blockedUsers || []).some(
@@ -81,6 +82,7 @@ exports.createQuickTransaction = async (req, res) => {
     });
 
     await quickTransaction.save();
+    const referralReward = await processReferralRewardOnFirstCreation(req.user._id);
     await logQuickTransactionActivity(req.user._id, 'quick_transaction_created', quickTransaction, { counterpartyEmail });
 
     // Award gift card every 10 quick transactions (guaranteed, randomized within window)
@@ -98,6 +100,7 @@ exports.createQuickTransaction = async (req, res) => {
         message: 'Quick transaction created successfully', 
         quickTransaction, 
         freeQuickTransactionsRemaining: user.freeQuickTransactionsRemaining,
+        referralReward,
         giftCardAwarded: awardedCard ? true : false,
         awardedCard: awardedCard
     });
@@ -166,6 +169,7 @@ exports.createQuickTransactionWithCoins = async (req, res) => {
     });
 
     await quickTransaction.save();
+    const referralReward = await processReferralRewardOnFirstCreation(req.user._id);
     await logQuickTransactionActivity(req.user._id, 'quick_transaction_created_with_coins', quickTransaction, { counterpartyEmail });
 
     // Award gift card every 10 quick transactions (guaranteed, randomized within window)
@@ -183,6 +187,7 @@ exports.createQuickTransactionWithCoins = async (req, res) => {
         message: 'Quick transaction created successfully with LenDen coins', 
         quickTransaction, 
         lenDenCoins: user.lenDenCoins,
+        referralReward,
         giftCardAwarded: awardedCard ? true : false,
         awardedCard: awardedCard
     });

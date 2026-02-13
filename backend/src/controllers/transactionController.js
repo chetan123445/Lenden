@@ -10,6 +10,7 @@ const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/jpg'];
 const PDFDocument = require('pdfkit');
 
 const { sendReceiptEmail } = require('../utils/receiptEmail');
+const { processReferralRewardOnFirstCreation } = require('../utils/referralService');
 
 const isBlockedBy = (user, other) =>
   (user.blockedUsers || []).some(
@@ -456,6 +457,7 @@ exports.createTransactionWithCoins = async (req, res) => {
       remainingAmount: totalAmountWithInterest,
       totalAmountWithInterest: totalAmountWithInterest
     });
+    const referralReward = await processReferralRewardOnFirstCreation(req.user._id);
     
     // Log activity for both users with creator context
     try {
@@ -483,7 +485,8 @@ exports.createTransactionWithCoins = async (req, res) => {
       message: "Transaction created successfully with LenDen coins",
       transactionId: transaction.transactionId, 
       transaction,
-      lenDenCoins: user.lenDenCoins
+      lenDenCoins: user.lenDenCoins,
+      referralReward
     });
 
     // Send receipt emails to both parties (fire and forget)
@@ -617,6 +620,7 @@ exports.createTransaction = async (req, res) => {
       remainingAmount: totalAmountWithInterest,
       totalAmountWithInterest: totalAmountWithInterest
     });
+    const referralReward = await processReferralRewardOnFirstCreation(req.user._id);
     
     // Log activity for both users with creator context
     try {
@@ -656,6 +660,7 @@ exports.createTransaction = async (req, res) => {
       transactionId: transaction.transactionId, 
       transaction,
       freeUserTransactionsRemaining: user.freeUserTransactionsRemaining,
+      referralReward,
       giftCardAwarded: awardedCard ? true : false,
       awardedCard: awardedCard
     });

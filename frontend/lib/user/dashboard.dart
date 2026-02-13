@@ -24,6 +24,7 @@ import 'help_support_page.dart';
 import 'feedback.dart';
 import 'notifications_page.dart';
 import 'leaderboard_page.dart';
+import 'referral_page.dart';
 import '../widgets/notification_icon.dart';
 import '../Digitise/subscriptions_page.dart';
 import '../Transaction/quick_transactions_page.dart';
@@ -817,8 +818,9 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         );
         break;
       case 'refer':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Refer a friend coming soon!')),
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ReferralPage()),
         );
         break;
       case 'ratings':

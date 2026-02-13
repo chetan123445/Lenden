@@ -35,6 +35,7 @@ module.exports = (io) => {
   const giftCardController = require('../controllers/giftCardController');
   const friendController = require('../controllers/friendController');
   const leaderboardController = require('../controllers/leaderboardController');
+  const referralController = require('../controllers/referralController');
   const handleUsage = require('../middleware/handleUsage');
 
   // Middleware to check for admin role
@@ -209,6 +210,12 @@ module.exports = (io) => {
   // Leaderboard routes
   router.get('/leaderboard', auth, leaderboardController.getDailyLeaderboard);
   router.get('/leaderboard/rewards/me', auth, leaderboardController.getMyMonthlyRewardSummary);
+
+  // Referral routes
+  router.get('/referral/me', auth, referralController.getReferralInfo);
+  router.post('/referral/share', auth, referralController.logReferralShare);
+  router.get('/admin/referral-config', auth, isAdmin, referralController.getReferralConfigForAdmin);
+  router.put('/admin/referral-config', auth, isAdmin, referralController.updateReferralConfigForAdmin);
 
   // Notes routes
   router.post('/notes', auth, noteController.createNote);

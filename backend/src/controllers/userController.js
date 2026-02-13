@@ -8,6 +8,9 @@ const jwt = require('jsonwebtoken');
 const { logProfileActivity } = require('./activityController');
 const { v4: uuidv4 } = require('uuid');
 const TokenService = require('../utils/tokenService');
+const {
+  generateUniqueReferralCode,
+} = require('../utils/referralService');
 
 // In-memory OTP store (for demo; use DB or cache in production)
 const otpStore = {};
@@ -24,7 +27,7 @@ function isPasswordValid(password) {
 // Register user with OTP
 exports.register = async (req, res) => {
   try {
-  let { name, username, email, password, gender } = req.body;
+  let { name, username, email, password, gender, referralCode } = req.body;
     email = email.trim().toLowerCase();
     if (!name || !username || !email || !password || !gender || !['Male', 'Female', 'Other'].includes(gender)) {
       return res.status(400).json({ error: 'All fields including gender are required and must be valid.' });
@@ -49,7 +52,14 @@ exports.register = async (req, res) => {
     }
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  otpStore[email] = { otp, data: { name, username, password, email, gender }, created: Date.now() };
+    referralCode = referralCode ? referralCode.toString().trim().toUpperCase() : null;
+    if (referralCode) {
+      const referrer = await User.findOne({ referralCode }).select('_id');
+      if (!referrer) {
+        return res.status(400).json({ error: 'Invalid referral code.' });
+      }
+    }
+  otpStore[email] = { otp, data: { name, username, password, email, gender, referralCode }, created: Date.now() };
     await sendRegistrationOTP(email, otp);
     res.status(200).json({ message: 'OTP sent to email' });
   } catch (err) {
@@ -92,14 +102,23 @@ exports.verifyOtp = async (req, res) => {
       return res.status(400).json({ error: 'Invalid OTP' });
     }
     // Register user
-  const { name, username, password, gender } = entry.data;
+  const { name, username, password, gender, referralCode } = entry.data;
     const hashedPassword = await bcrypt.hash(password, 10);
+    let referredByUser = null;
+    if (referralCode) {
+      const referrer = await User.findOne({ referralCode }).select('_id');
+      if (referrer) referredByUser = referrer._id;
+    }
+    const uniqueReferralCode = await generateUniqueReferralCode();
     const newUser = new User({
       name,
       username,
       email,
       password: hashedPassword,
       gender,
+      referralCode: uniqueReferralCode,
+      referredByUser,
+      referredByCode: referralCode || null,
       memberSince: new Date(), // Set member since date
     });
     await newUser.save();

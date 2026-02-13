@@ -9,6 +9,7 @@ const { logGroupActivity, logGroupActivityForAllMembers } = require('./activityC
 const { awardGiftCard, shouldAwardGiftCard } = require('./userGiftCardController');
 const PDFDocument = require('pdfkit');
 const { sendGroupReceiptEmail } = require('../utils/groupReceiptEmail');
+const { processReferralRewardOnFirstCreation } = require('../utils/referralService');
 
 const isBlockedBy = (user, other) =>
   (user.blockedUsers || []).some(
@@ -114,6 +115,7 @@ exports.createGroupWithCoins = async (req, res) => {
     
     const members = memberIds.map(id => ({ user: id }));
     const group = await GroupTransaction.create({ title, creator: creator._id, members, color });
+    const referralReward = await processReferralRewardOnFirstCreation(creator._id);
     // Populate members and creator for response
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
@@ -146,6 +148,7 @@ exports.createGroupWithCoins = async (req, res) => {
         message: "Group created successfully with LenDen coins",
         group: groupObj, 
         lenDenCoins: creator.lenDenCoins,
+        referralReward,
         giftCardAwarded: awardedCardWithCoins ? true : false,
         awardedCard: awardedCardWithCoins
     });
@@ -226,6 +229,7 @@ exports.createGroup = async (req, res) => {
     
     const members = memberIds.map(id => ({ user: id }));
     const group = await GroupTransaction.create({ title, creator: creator._id, members, color });
+    const referralReward = await processReferralRewardOnFirstCreation(creator._id);
     
     // freeGroupsRemaining is handled by the `handleUsage('group')` middleware
     // so we avoid decrementing it again here to prevent double-counting.
@@ -262,6 +266,7 @@ exports.createGroup = async (req, res) => {
         message: "Group created successfully",
         group: groupObj, 
         freeGroupsRemaining: creator.freeGroupsRemaining,
+        referralReward,
         giftCardAwarded: awardedCard ? true : false,
         awardedCard: awardedCard
     });
