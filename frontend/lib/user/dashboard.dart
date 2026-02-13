@@ -23,6 +23,7 @@ import 'activity_page.dart';
 import 'help_support_page.dart';
 import 'feedback.dart';
 import 'notifications_page.dart';
+import 'leaderboard_page.dart';
 import '../widgets/notification_icon.dart';
 import '../Digitise/subscriptions_page.dart';
 import '../Transaction/quick_transactions_page.dart';
@@ -1552,6 +1553,19 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                           Row(
                             children: [
                               NotificationIcon(),
+                              IconButton(
+                                icon: const Icon(Icons.emoji_events,
+                                    color: Color(0xFF005F73), size: 26),
+                                tooltip: 'Leaderboard',
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const LeaderboardPage(),
+                                    ),
+                                  );
+                                },
+                              ),
                               GestureDetector(
                                 onTap: () {
                                   final session = Provider.of<SessionProvider>(

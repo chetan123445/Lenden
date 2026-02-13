@@ -34,6 +34,7 @@ module.exports = (io) => {
   const adminFeatureController = require('../controllers/adminFeatureController');
   const giftCardController = require('../controllers/giftCardController');
   const friendController = require('../controllers/friendController');
+  const leaderboardController = require('../controllers/leaderboardController');
   const handleUsage = require('../middleware/handleUsage');
 
   // Middleware to check for admin role
@@ -204,6 +205,9 @@ module.exports = (io) => {
   router.get('/limits/transaction/:transactionId/messages', auth, limitsController.getTransactionMessageLimit);
   router.get('/limits/group/:groupId/messages', auth, limitsController.getGroupMessageLimit);
   router.get('/limits/group/:groupId/expenses', auth, limitsController.getGroupExpenseLimit);
+
+  // Leaderboard routes
+  router.get('/leaderboard', auth, leaderboardController.getDailyLeaderboard);
 
   // Notes routes
   router.post('/notes', auth, noteController.createNote);
