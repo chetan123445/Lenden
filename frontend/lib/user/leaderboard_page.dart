@@ -29,6 +29,7 @@ class _LeaderboardPageState extends State<LeaderboardPage>
   String _activeType = 'quick';
   String _range = 'daily';
   String? _fetchError;
+  String? _lastRewardMonthKey;
 
   @override
   void initState() {
@@ -66,8 +67,11 @@ class _LeaderboardPageState extends State<LeaderboardPage>
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         final users = List<dynamic>.from(data['users'] ?? []);
+        final rewards = data['rewards'] ?? {};
         setState(() {
           _rowsByType[_activeType] = users;
+          _lastRewardMonthKey =
+              rewards['lastProcessedMonthKey']?.toString();
           _fetchError = null;
           _loading = false;
         });
@@ -275,6 +279,7 @@ class _LeaderboardPageState extends State<LeaderboardPage>
   }
 
   Widget _buildLegendBanner() {
+    final lastRewardLabel = _formatMonthKey(_lastRewardMonthKey);
     return _triBorderCard(
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -283,14 +288,16 @@ class _LeaderboardPageState extends State<LeaderboardPage>
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.tune_rounded, size: 16, color: Color(0xFF00B4D8)),
-            SizedBox(width: 8),
+            const Icon(Icons.tune_rounded, size: 16, color: Color(0xFF00B4D8)),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Legend: Q = Quick, G = Group, T = Trxns',
-                style: TextStyle(
+                _lastRewardMonthKey == null
+                    ? 'Legend: Q = Quick, G = Group, T = Trxns'
+                    : 'Legend: Q = Quick, G = Group, T = Trxns | Last rewards: $lastRewardLabel',
+                style: const TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 12,
                   color: Colors.black87,
@@ -301,6 +308,32 @@ class _LeaderboardPageState extends State<LeaderboardPage>
         ),
       ),
     );
+  }
+
+  String _formatMonthKey(String? monthKey) {
+    if (monthKey == null || monthKey.isEmpty) return '-';
+    final parts = monthKey.split('-');
+    if (parts.length != 2) return monthKey;
+    final year = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    if (year == null || month == null || month < 1 || month > 12) {
+      return monthKey;
+    }
+    const monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${monthNames[month - 1]} $year';
   }
 
   Widget _buildPodium(List<dynamic> rows) {

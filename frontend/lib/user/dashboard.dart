@@ -123,10 +123,30 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
   bool _isShowingLenDenCoin = false;
 
-  void _showLenDenCoinsDialog(int coins) {
+  Future<void> _showLenDenCoinsDialog(int coins) async {
+    List<dynamic> recentRewards = [];
+    try {
+      final res = await ApiClient.get('/api/leaderboard/rewards/me');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        recentRewards = List<dynamic>.from(data['rewards'] ?? []);
+      }
+    } catch (_) {}
+
+    String rankText(int rank) {
+      if (rank == 1) return '1st';
+      if (rank == 2) return '2nd';
+      if (rank == 3) return '3rd';
+      return '${rank}th';
+    }
+
     showDialog(
       context: context,
       builder: (context) {
+        final mq = MediaQuery.of(context);
+        final viewportWidth = mq.size.width * 0.78;
+        final viewportHeight = mq.size.height * 0.72;
+        final contentWidth = math.max(360.0, mq.size.width * 0.72);
         return Dialog(
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -141,46 +161,184 @@ class _UserDashboardPageState extends State<UserDashboardPage>
               ),
             ),
             child: Container(
-              padding: EdgeInsets.all(24),
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Color(0xFFFCE4EC), // Light pink background
+                color: const Color(0xFFFAFDFC),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'LenDen Coins',
+              child: SizedBox(
+                width: viewportWidth,
+                height: viewportHeight,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: contentWidth,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.vertical,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                  const Text(
+                    'LenDen Coins Wallet',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF00B4D8),
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.monetization_on,
+                      const Icon(Icons.monetization_on,
                           color: Colors.amber, size: 40),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Text(
                         '$coins',
-                        style: TextStyle(
-                          fontSize: 48,
+                        style: const TextStyle(
+                          fontSize: 46,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
-                  SizedBox(height: 16),
-                  TextButton(
+                  const SizedBox(height: 14),
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Monthly leaderboard rewards are auto-distributed after month-end.\n1st rank: +20 coins, 2nd rank: +10 coins, 3rd rank: +5 coins.\nAll tied users at each rank receive the same reward.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1B4332),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8E7),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'You can also earn LenDen coins randomly from gift cards when creating Quick transactions, Group transactions, and User transactions.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF7A4F01),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Recent Monthly Rewards',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if (recentRewards.isEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'No monthly rewards received yet.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      height: 130,
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount:
+                            recentRewards.length > 3 ? 3 : recentRewards.length,
+                        itemBuilder: (context, index) {
+                          final r = recentRewards[index];
+                          final rank = (r['rank'] ?? 0) as int;
+                          final coinsAwarded = (r['coinsAwarded'] ?? 0);
+                          final monthKey = (r['monthKey'] ?? '').toString();
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.emoji_events,
+                                    size: 16, color: Color(0xFF00B4D8)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '$monthKey - ${rankText(rank)} rank',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '+$coinsAwarded',
+                                  style: const TextStyle(
+                                    color: Color(0xFF2E7D32),
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
                     onPressed: () {
                       Navigator.of(context).pop();
                     },
-                    child: Text('OK'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00B4D8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
-                ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

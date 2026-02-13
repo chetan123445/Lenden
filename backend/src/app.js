@@ -128,6 +128,10 @@ mongoose.connect(process.env.MONGODB_URI, {
 
 // Initialize reminder scheduler
 require('./utils/reminderScheduler');
+const {
+  initializeMonthlyLeaderboardRewardScheduler,
+} = require('./utils/monthlyLeaderboardRewardScheduler');
+initializeMonthlyLeaderboardRewardScheduler();
 
 io.on('connection', (socket) => {
   // Transaction chat

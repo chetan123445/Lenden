@@ -2,6 +2,7 @@ const User = require('../models/user');
 const Transaction = require('../models/transaction');
 const QuickTransaction = require('../models/quickTransaction');
 const GroupTransaction = require('../models/groupTransaction');
+const MonthlyLeaderboardReward = require('../models/monthlyLeaderboardReward');
 
 const normalizeType = (type) => {
   if (type === 'quick') return 'quick';
@@ -282,6 +283,11 @@ exports.getDailyLeaderboard = async (req, res) => {
       };
     });
 
+    const latestRewardBatch = await MonthlyLeaderboardReward.findOne({})
+      .sort({ periodEnd: -1 })
+      .select('monthKey periodEnd')
+      .lean();
+
     res.json({
       type,
       range,
@@ -294,8 +300,42 @@ exports.getDailyLeaderboard = async (req, res) => {
         start: prevStart.toISOString(),
         end: prevEnd.toISOString(),
       },
+      rewards: {
+        lastProcessedMonthKey: latestRewardBatch?.monthKey || null,
+        lastProcessedAt: latestRewardBatch?.periodEnd || null,
+      },
       users: enrichedRows,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getMyMonthlyRewardSummary = async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const rewards = await MonthlyLeaderboardReward.find({
+      'rewardedUsers.user': req.user._id,
+    })
+      .sort({ periodEnd: -1 })
+      .limit(6)
+      .lean();
+
+    const summary = rewards.map((entry) => {
+      const my = (entry.rewardedUsers || []).find(
+        (r) => r.user?.toString() === userId
+      );
+      return {
+        monthKey: entry.monthKey,
+        rank: my?.rank || null,
+        points: my?.points || 0,
+        coinsAwarded: my?.coinsAwarded || 0,
+        periodStart: entry.periodStart,
+        periodEnd: entry.periodEnd,
+      };
+    });
+
+    res.json({ rewards: summary });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

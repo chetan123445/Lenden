@@ -208,6 +208,7 @@ module.exports = (io) => {
 
   // Leaderboard routes
   router.get('/leaderboard', auth, leaderboardController.getDailyLeaderboard);
+  router.get('/leaderboard/rewards/me', auth, leaderboardController.getMyMonthlyRewardSummary);
 
   // Notes routes
   router.post('/notes', auth, noteController.createNote);
