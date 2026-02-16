@@ -76,6 +76,7 @@ class _ActivityPageState extends State<ActivityPage> {
     'friend_removed',
     'user_blocked',
     'user_unblocked',
+    'offer_accepted',
   ];
 
   final Set<String> _friendActivityTypes = {
@@ -351,6 +352,8 @@ class _ActivityPageState extends State<ActivityPage> {
         return 'User Blocked';
       case 'user_unblocked':
         return 'User Unblocked';
+      case 'offer_accepted':
+        return 'Offer Accepted';
       default:
         return type.replaceAll('_', ' ').toUpperCase();
     }
@@ -415,6 +418,8 @@ class _ActivityPageState extends State<ActivityPage> {
         return Icons.block;
       case 'user_unblocked':
         return Icons.check_circle;
+      case 'offer_accepted':
+        return Icons.local_offer;
       default:
         return Icons.info;
     }
@@ -484,6 +489,8 @@ class _ActivityPageState extends State<ActivityPage> {
         return Colors.red;
       case 'user_unblocked':
         return Colors.green;
+      case 'offer_accepted':
+        return Colors.indigo;
       default:
         return Colors.grey;
     }

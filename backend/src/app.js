@@ -131,7 +131,9 @@ require('./utils/reminderScheduler');
 const {
   initializeMonthlyLeaderboardRewardScheduler,
 } = require('./utils/monthlyLeaderboardRewardScheduler');
+const { initializeOfferCleanupScheduler } = require('./utils/offerCleanupScheduler');
 initializeMonthlyLeaderboardRewardScheduler();
+initializeOfferCleanupScheduler();
 
 io.on('connection', (socket) => {
   // Transaction chat

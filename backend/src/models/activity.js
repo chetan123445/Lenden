@@ -65,7 +65,8 @@ const activitySchema = new mongoose.Schema({
       'friend_request_canceled',
       'friend_removed',
       'user_blocked',
-      'user_unblocked'
+      'user_unblocked',
+      'offer_accepted'
         ],    required: true
   },
   title: {

@@ -36,6 +36,7 @@ module.exports = (io) => {
   const friendController = require('../controllers/friendController');
   const leaderboardController = require('../controllers/leaderboardController');
   const referralController = require('../controllers/referralController');
+  const offerController = require('../controllers/offerController');
   const handleUsage = require('../middleware/handleUsage');
 
   // Middleware to check for admin role
@@ -216,6 +217,18 @@ module.exports = (io) => {
   router.post('/referral/share', auth, referralController.logReferralShare);
   router.get('/admin/referral-config', auth, isAdmin, referralController.getReferralConfigForAdmin);
   router.put('/admin/referral-config', auth, isAdmin, referralController.updateReferralConfigForAdmin);
+
+  // Offer routes (User)
+  router.get('/offers/available', auth, offerController.getAvailableOffers);
+  router.post('/offers/:offerId/accept', auth, offerController.acceptOffer);
+  router.get('/offers/my-claims', auth, offerController.getMyOfferClaims);
+
+  // Offer routes (Admin)
+  router.post('/admin/offers', auth, isAdmin, offerController.createOffer);
+  router.get('/admin/offers', auth, isAdmin, offerController.getAdminOffers);
+  router.get('/admin/offers/users', auth, isAdmin, offerController.searchUsersForOffers);
+  router.put('/admin/offers/:offerId', auth, isAdmin, offerController.updateOffer);
+  router.delete('/admin/offers/:offerId', auth, isAdmin, offerController.deleteOffer);
 
   // Notes routes
   router.post('/notes', auth, noteController.createNote);

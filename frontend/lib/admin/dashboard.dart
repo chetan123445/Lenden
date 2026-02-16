@@ -15,6 +15,7 @@ import '../widgets/notification_icon.dart';
 import 'admin_features_page.dart';
 import 'manage_gift_cards_page.dart';
 import 'referral_settings_page.dart';
+import 'manage_offers_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -157,6 +158,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.local_offer),
+                title: const Text('Manage Offers'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ManageOffersPage()),
+                  );
+                },
+              ),
+              ListTile(
                 leading: const Icon(Icons.logout),
                 title: const Text('Logout'),
                 onTap: () => _confirmLogout(context),
@@ -258,6 +270,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const ReferralSettingsPage()),
+                      );
+                    },
+                  ),
+                  _buildDashboardCard(
+                    context,
+                    icon: Icons.local_offer,
+                    label: 'Manage Offers',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const ManageOffersPage()),
                       );
                     },
                   ),

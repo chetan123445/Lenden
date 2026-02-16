@@ -15,6 +15,7 @@ const {
 // In-memory OTP store (for demo; use DB or cache in production)
 const otpStore = {};
 const OTP_EXPIRY_MS = 2 * 60 * 1000; // 2 minutes
+const DAILY_LOGIN_COINS = 1;
 
 function isPasswordValid(password) {
   const lengthValid = password.length >= 8 && password.length <= 30;
@@ -22,6 +23,22 @@ function isPasswordValid(password) {
   const hasLower = /[a-z]/.test(password);
   const hasSpecial = /[^A-Za-z0-9]/.test(password);
   return lengthValid && hasUpper && hasLower && hasSpecial;
+}
+
+function getUtcDateKey(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function applyDailyLoginReward(user) {
+  const todayKey = getUtcDateKey();
+  if (user.lastDailyLoginRewardDate === todayKey) {
+    return { awarded: false, coinsAwarded: 0 };
+  }
+
+  user.lenDenCoins = (user.lenDenCoins || 0) + DAILY_LOGIN_COINS;
+  user.lastDailyLoginRewardDate = todayKey;
+  user.lastDailyLoginRewardAt = new Date();
+  return { awarded: true, coinsAwarded: DAILY_LOGIN_COINS };
 }
 
 // Register user with OTP
@@ -254,6 +271,7 @@ exports.login = async (req, res) => {
         lastActive: now,
         createdAt: now
       });
+      const dailyReward = applyDailyLoginReward(user);
       await user.save();
 
       res.json({ 
@@ -261,7 +279,8 @@ exports.login = async (req, res) => {
         user, 
         accessToken, 
         refreshToken,
-        deviceId 
+        deviceId,
+        dailyLoginReward: dailyReward,
       });
       return;
     }
@@ -494,6 +513,9 @@ exports.verifyLoginOtp = async (req, res) => {
       console.log('✅ OTP login successful for user:', email);
       console.log('🎫 Access token generated successfully');
       console.log('🎫 Refresh token generated and saved');
+
+      const dailyReward = applyDailyLoginReward(user);
+      await user.save();
       
       delete otpStore[email];
       return res.status(200).json({ 
@@ -502,7 +524,8 @@ exports.verifyLoginOtp = async (req, res) => {
         user, 
         accessToken,
         refreshToken,
-        deviceId 
+        deviceId,
+        dailyLoginReward: dailyReward,
       });
     } else if (entry.userType === 'admin') {
       admin = await Admin.findOne({ email });

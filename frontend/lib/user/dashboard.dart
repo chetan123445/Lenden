@@ -29,6 +29,7 @@ import '../widgets/notification_icon.dart';
 import '../Digitise/subscriptions_page.dart';
 import '../Transaction/quick_transactions_page.dart';
 import 'friends_page.dart';
+import 'offers_page.dart';
 import 'package:elegant_notification/elegant_notification.dart';
 
 class UserDashboardPage extends StatefulWidget {
@@ -813,8 +814,9 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         _showFavouritesDialog();
         break;
       case 'offers':
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Offers coming soon!')),
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const UserOffersPage()),
         );
         break;
       case 'refer':

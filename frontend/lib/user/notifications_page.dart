@@ -5,6 +5,7 @@ import 'dart:convert';
 import '../api_config.dart';
 import '../utils/api_client.dart';
 import 'friends_page.dart';
+import 'offers_page.dart';
 
 class UserNotificationsPage extends StatefulWidget {
   const UserNotificationsPage({Key? key}) : super(key: key);
@@ -375,6 +376,13 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
                                                     MaterialPageRoute(
                                                         builder: (_) =>
                                                             const FriendsPage()),
+                                                  );
+                                                } else if (msg.contains('offer')) {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                        builder: (_) =>
+                                                            const UserOffersPage()),
                                                   );
                                                 }
                                               },

@@ -54,6 +54,14 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 20
   },
+  lastDailyLoginRewardDate: {
+    type: String,
+    default: null,
+  },
+  lastDailyLoginRewardAt: {
+    type: Date,
+    default: null,
+  },
   referralCode: {
     type: String,
     unique: true,
