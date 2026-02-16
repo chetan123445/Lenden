@@ -227,6 +227,8 @@ module.exports = (io) => {
   router.post('/admin/offers', auth, isAdmin, offerController.createOffer);
   router.get('/admin/offers', auth, isAdmin, offerController.getAdminOffers);
   router.get('/admin/offers/users', auth, isAdmin, offerController.searchUsersForOffers);
+  router.get('/admin/offers/:offerId/analytics', auth, isAdmin, offerController.getOfferAnalytics);
+  router.get('/admin/offers/:offerId/claims', auth, isAdmin, offerController.getOfferClaimsAudit);
   router.put('/admin/offers/:offerId', auth, isAdmin, offerController.updateOffer);
   router.delete('/admin/offers/:offerId', auth, isAdmin, offerController.deleteOffer);
 

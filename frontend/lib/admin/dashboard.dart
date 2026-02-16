@@ -8,9 +8,6 @@ import 'manage_and_track_users/user_management_page.dart';
 import 'manage_group_transactions_page.dart';
 import 'track_user_activity_page.dart';
 import 'manage_support_queries_page.dart';
-import 'admin_ratings_page.dart';
-import 'admin_feedbacks_page.dart';
-import 'notifications_page.dart';
 import '../widgets/notification_icon.dart';
 import 'admin_features_page.dart';
 import 'manage_gift_cards_page.dart';
@@ -79,10 +76,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        Navigator.pushReplacementNamed(context, '/');
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          Navigator.pushReplacementNamed(context, '/');
+        }
       },
       child: Scaffold(
         drawer: Drawer(
@@ -449,7 +448,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 20,
                 offset: Offset(0, 10),
               ),
@@ -550,7 +549,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 ),
                                 padding: EdgeInsets.symmetric(vertical: 16),
                                 elevation: 2,
-                                shadowColor: Color(0xFF00B4D8).withOpacity(0.3),
+                                shadowColor: Color(0xFF00B4D8).withValues(alpha: 0.3),
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
