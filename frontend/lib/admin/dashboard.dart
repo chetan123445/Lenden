@@ -13,6 +13,9 @@ import 'admin_features_page.dart';
 import 'manage_gift_cards_page.dart';
 import 'referral_settings_page.dart';
 import 'manage_offers_page.dart';
+import 'admin_ratings_page.dart';
+import 'admin_feedbacks_page.dart';
+import 'notifications_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
