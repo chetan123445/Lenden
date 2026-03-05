@@ -153,7 +153,8 @@ class _RatingsPageState extends State<RatingsPage> {
       _searchedEmail = null;
     });
     try {
-      final res = await ApiClient.get('/api/ratings/user-avg?usernameOrEmail=$input');
+      final res =
+          await ApiClient.get('/api/ratings/user-avg?usernameOrEmail=$input');
       if (res.statusCode == 200) {
         final data = json.decode(res.body);
         setState(() {
@@ -209,7 +210,8 @@ class _RatingsPageState extends State<RatingsPage> {
 
   Future<void> fetchRatingActivities() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final res = await ApiClient.get('/api/activities?type=user_rated,user_rating_received&limit=10');
+    final res = await ApiClient.get(
+        '/api/activities?type=user_rated,user_rating_received&limit=10');
     if (res.statusCode == 200) {
       final data = json.decode(res.body);
       setState(() {
@@ -276,416 +278,530 @@ class _RatingsPageState extends State<RatingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ratings')),
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
+      backgroundColor: const Color(0xFFFAF9F6),
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 140,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 120,
+            child: Transform.rotate(
+              angle: 3.1416,
+              child: CustomPaint(
+                painter: _WavyPainter(),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
               children: [
-                // Blue wavy background at top
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 120,
-                  child: CustomPaint(
-                    painter: _WavyPainter(),
-                  ),
-                ),
-                // Blue wavy background at bottom
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: 120,
-                  child: Transform.rotate(
-                    angle: 3.1416,
-                    child: CustomPaint(
-                      painter: _WavyPainter(),
-                    ),
-                  ),
-                ),
-                Center(
-                  child: SingleChildScrollView(
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(
-                          vertical: 32, horizontal: 0),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 24, horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.07),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.black),
+                        onPressed: () => Navigator.pop(context),
                       ),
-                      width: 430,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Consumer<SessionProvider>(
-                            builder: (context, session, child) {
-                              if (session.isSubscribed) {
-                                return Column(
-                                  children: [
-                                    Text('Search User Rating',
-                                        style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF0077B6))),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextField(
-                                            controller: _searchController,
-                                            decoration: InputDecoration(
-                                              hintText: 'Enter username or email',
-                                              prefixIcon: const Icon(Icons.search),
-                                              border: OutlineInputBorder(
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
-                                              filled: true,
-                                              fillColor: Colors.white,
-                                            ),
-                                            onSubmitted: (_) => _searchUserRating(),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        ElevatedButton(
-                                          onPressed:
-                                              _searching ? null : _searchUserRating,
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF00B4D8),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(10),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                                vertical: 14, horizontal: 16),
-                                          ),
-                                          child: _searching
-                                              ? const SizedBox(
-                                                  width: 18,
-                                                  height: 18,
-                                                  child: CircularProgressIndicator(
-                                                      strokeWidth: 2))
-                                              : const Text('Search'),
-                                        ),
-                                      ],
-                                    ),
-                                    if (_searchError != null)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 8),
-                                        child: _StylishPopup(
-                                          message: _searchError!,
-                                          color: Colors.red,
-                                        ),
-                                      ),
-                                    if (_searchedAvgRating != null)
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(top: 12, bottom: 8),
-                                        child: Column(
-                                          children: [
-                                            Text(
-                                              _searchedName != null &&
-                                                      _searchedName!.isNotEmpty
-                                                  ? '${_searchedName!} (@${_searchedUsername ?? ''})'
-                                                  : _searchedUsername ?? '',
-                                              style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
-                                                  color: Color(0xFF023E8A)),
-                                            ),
-                                            if (_searchedEmail != null)
-                                              Text(_searchedEmail!,
-                                                  style: const TextStyle(
-                                                      fontSize: 13, color: Colors.grey)),
-                                            const SizedBox(height: 6),
-                                            _StarDisplay(value: _searchedAvgRating ?? 0),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              _searchedAvgRating!.toStringAsFixed(2),
-                                              style: const TextStyle(
-                                                  fontSize: 22,
-                                                  color: Color(0xFF023E8A),
-                                                  fontWeight: FontWeight.bold),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
-                                );
-                              } else {
-                                return Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(22),
-                                    gradient: const LinearGradient(
-                                      colors: [Colors.orange, Colors.white, Colors.green],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'Ratings',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : Center(
+                          child: SingleChildScrollView(
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(
+                                  vertical: 32, horizontal: 0),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 24, horizontal: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(28),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.07),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8),
                                   ),
-                                  child: Container(
+                                ],
+                              ),
+                              width: 430,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Consumer<SessionProvider>(
+                                    builder: (context, session, child) {
+                                      if (session.isSubscribed) {
+                                        return Column(
+                                          children: [
+                                            Text('Search User Rating',
+                                                style: const TextStyle(
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: Color(0xFF0077B6))),
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: TextField(
+                                                    controller:
+                                                        _searchController,
+                                                    decoration: InputDecoration(
+                                                      hintText:
+                                                          'Enter username or email',
+                                                      prefixIcon: const Icon(
+                                                          Icons.search),
+                                                      border:
+                                                          OutlineInputBorder(
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(12),
+                                                      ),
+                                                      filled: true,
+                                                      fillColor: Colors.white,
+                                                    ),
+                                                    onSubmitted: (_) =>
+                                                        _searchUserRating(),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                ElevatedButton(
+                                                  onPressed: _searching
+                                                      ? null
+                                                      : _searchUserRating,
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        const Color(0xFF00B4D8),
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              10),
+                                                    ),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        vertical: 14,
+                                                        horizontal: 16),
+                                                  ),
+                                                  child: _searching
+                                                      ? const SizedBox(
+                                                          width: 18,
+                                                          height: 18,
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2))
+                                                      : const Text('Search'),
+                                                ),
+                                              ],
+                                            ),
+                                            if (_searchError != null)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                    top: 8),
+                                                child: _StylishPopup(
+                                                  message: _searchError!,
+                                                  color: Colors.red,
+                                                ),
+                                              ),
+                                            if (_searchedAvgRating != null)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                    top: 12, bottom: 8),
+                                                child: Column(
+                                                  children: [
+                                                    Text(
+                                                      _searchedName != null &&
+                                                              _searchedName!
+                                                                  .isNotEmpty
+                                                          ? '${_searchedName!} (@${_searchedUsername ?? ''})'
+                                                          : _searchedUsername ??
+                                                              '',
+                                                      style: const TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                          fontSize: 16,
+                                                          color: Color(
+                                                              0xFF023E8A)),
+                                                    ),
+                                                    if (_searchedEmail != null)
+                                                      Text(_searchedEmail!,
+                                                          style:
+                                                              const TextStyle(
+                                                                  fontSize: 13,
+                                                                  color: Colors
+                                                                      .grey)),
+                                                    const SizedBox(height: 6),
+                                                    _StarDisplay(
+                                                        value:
+                                                            _searchedAvgRating ??
+                                                                0),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      _searchedAvgRating!
+                                                          .toStringAsFixed(2),
+                                                      style: const TextStyle(
+                                                          fontSize: 22,
+                                                          color:
+                                                              Color(0xFF023E8A),
+                                                          fontWeight:
+                                                              FontWeight.bold),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                          ],
+                                        );
+                                      } else {
+                                        return Container(
+                                          padding: const EdgeInsets.all(2),
+                                          decoration: BoxDecoration(
+                                            borderRadius:
+                                                BorderRadius.circular(22),
+                                            gradient: const LinearGradient(
+                                              colors: [
+                                                Colors.orange,
+                                                Colors.white,
+                                                Colors.green
+                                              ],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFFCE4EC),
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: Column(
+                                              children: [
+                                                Text(
+                                                  'Subscribe to Search User Ratings',
+                                                  style: const TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                      color: Color(0xFF0077B6)),
+                                                ),
+                                                const SizedBox(height: 10),
+                                                Text(
+                                                  'Unlock the ability to search for other users\' ratings by subscribing to our premium plan.',
+                                                  textAlign: TextAlign.center,
+                                                ),
+                                                const SizedBox(height: 10),
+                                                ElevatedButton(
+                                                  onPressed: () {
+                                                    showSubscriptionPrompt(
+                                                        context);
+                                                  },
+                                                  child: const Text(
+                                                      'Subscribe Now'),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        const Color(0xFF00B4D8),
+                                                  ),
+                                                )
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                  Divider(
+                                      thickness: 1.2,
+                                      color: Colors.blueGrey[100]),
+                                  const SizedBox(height: 10),
+                                  // Your Average Rating Section
+                                  Text('Your Average Rating',
+                                      style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF023E8A))),
+                                  const SizedBox(height: 10),
+                                  _StarDisplay(value: avgRating ?? 0),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                      avgRating != null
+                                          ? avgRating!.toStringAsFixed(2)
+                                          : '-',
+                                      style: const TextStyle(
+                                          fontSize: 28,
+                                          color: Color(0xFF023E8A),
+                                          fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 24),
+                                  Divider(
+                                      thickness: 1.2,
+                                      color: Colors.blueGrey[100]),
+                                  const SizedBox(height: 10),
+                                  // Stylish input for rating another user
+                                  Text('Rate Another User',
+                                      style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF0077B6))),
+                                  const SizedBox(height: 10),
+                                  Container(
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFFCE4EC),
-                                      borderRadius: BorderRadius.circular(20),
+                                      color: const Color(0xFFF8F6FA),
+                                      borderRadius: BorderRadius.circular(18),
+                                      border: Border.all(
+                                          color: const Color(0xFF90E0EF),
+                                          width: 1.2),
                                     ),
                                     child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          'Subscribe to Search User Ratings',
-                                          style: const TextStyle(
-                                              fontSize: 18,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF0077B6)),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Text(
-                                          'Unlock the ability to search for other users\' ratings by subscribing to our premium plan.',
-                                          textAlign: TextAlign.center,
-                                        ),
-                                        const SizedBox(height: 10),
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            showSubscriptionPrompt(context);
-                                          },
-                                          child: const Text('Subscribe Now'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF00B4D8),
+                                        if (_showSuccess)
+                                          _StylishPopup(
+                                              message:
+                                                  'Your rating has been stored.',
+                                              color: Colors.green),
+                                        Form(
+                                          key: _formKey,
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              TextFormField(
+                                                controller: _usernameController,
+                                                decoration: InputDecoration(
+                                                  labelText:
+                                                      'Username or Email',
+                                                  prefixIcon: const Icon(
+                                                      Icons.person_outline),
+                                                  filled: true,
+                                                  fillColor: Colors.white,
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            12),
+                                                  ),
+                                                ),
+                                                validator: (val) =>
+                                                    val == null || val.isEmpty
+                                                        ? 'Required'
+                                                        : null,
+                                              ),
+                                              const SizedBox(height: 16),
+                                              Row(
+                                                children: [
+                                                  const Text('Rating:'),
+                                                  _StarInput(
+                                                    value: _selectedRating,
+                                                    onChanged: (val) =>
+                                                        setState(() =>
+                                                            _selectedRating =
+                                                                val),
+                                                  ),
+                                                  Text(_selectedRating
+                                                      .toStringAsFixed(1)),
+                                                ],
+                                              ),
+                                              if (_submitError != null)
+                                                _StylishPopup(
+                                                    message: _submitError!,
+                                                    color: Colors.red),
+                                              const SizedBox(height: 12),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                child: ElevatedButton(
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        const Color(0xFF00B4D8),
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              10),
+                                                    ),
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        vertical: 14),
+                                                  ),
+                                                  onPressed: _submitting
+                                                      ? null
+                                                      : submitRating,
+                                                  child: _submitting
+                                                      ? const SizedBox(
+                                                          width: 20,
+                                                          height: 20,
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                                  strokeWidth:
+                                                                      2))
+                                                      : const Text(
+                                                          'Submit Rating',
+                                                          style: TextStyle(
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold)),
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        )
+                                        ),
                                       ],
                                     ),
                                   ),
-                                );
-                              }
-                            },
-                          ),
-                          Divider(thickness: 1.2, color: Colors.blueGrey[100]),
-                          const SizedBox(height: 10),
-                          // Your Average Rating Section
-                          Text('Your Average Rating',
-                              style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF023E8A))),
-                          const SizedBox(height: 10),
-                          _StarDisplay(value: avgRating ?? 0),
-                          const SizedBox(height: 6),
-                          Text(
-                              avgRating != null
-                                  ? avgRating!.toStringAsFixed(2)
-                                  : '-',
-                              style: const TextStyle(
-                                  fontSize: 28,
-                                  color: Color(0xFF023E8A),
-                                  fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 24),
-                          Divider(thickness: 1.2, color: Colors.blueGrey[100]),
-                          const SizedBox(height: 10),
-                          // Stylish input for rating another user
-                          Text('Rate Another User',
-                              style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF0077B6))),
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8F6FA),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                  color: const Color(0xFF90E0EF), width: 1.2),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (_showSuccess)
-                                  _StylishPopup(
-                                      message: 'Your rating has been stored.',
-                                      color: Colors.green),
-                                Form(
-                                  key: _formKey,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                  const SizedBox(height: 28),
+                                  // Your Ratings Section (if any)
+                                  Divider(
+                                      thickness: 1.2,
+                                      color: Colors.blueGrey[100]),
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
-                                      TextFormField(
-                                        controller: _usernameController,
-                                        decoration: InputDecoration(
-                                          labelText: 'Username or Email',
-                                          prefixIcon:
-                                              const Icon(Icons.person_outline),
-                                          filled: true,
-                                          fillColor: Colors.white,
-                                          border: OutlineInputBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                        ),
-                                        validator: (val) =>
-                                            val == null || val.isEmpty
-                                                ? 'Required'
-                                                : null,
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Row(
-                                        children: [
-                                          const Text('Rating:'),
-                                          _StarInput(
-                                            value: _selectedRating,
-                                            onChanged: (val) => setState(
-                                                () => _selectedRating = val),
-                                          ),
-                                          Text(_selectedRating
-                                              .toStringAsFixed(1)),
-                                        ],
-                                      ),
-                                      if (_submitError != null)
-                                        _StylishPopup(
-                                            message: _submitError!,
-                                            color: Colors.red),
-                                      const SizedBox(height: 12),
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor:
-                                                const Color(0xFF00B4D8),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(10),
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                                vertical: 14),
-                                          ),
-                                          onPressed:
-                                              _submitting ? null : submitRating,
-                                          child: _submitting
-                                              ? const SizedBox(
-                                                  width: 20,
-                                                  height: 20,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                          strokeWidth: 2))
-                                              : const Text('Submit Rating',
-                                                  style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold)),
-                                        ),
+                                      const Text('Ratings You Gave',
+                                          style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF0077B6))),
+                                      TextButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            _showGiven = !_showGiven;
+                                          });
+                                        },
+                                        child:
+                                            Text(_showGiven ? 'Hide' : 'View'),
                                       ),
                                     ],
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 28),
-                          // Your Ratings Section (if any)
-                          Divider(thickness: 1.2, color: Colors.blueGrey[100]),
-                          const SizedBox(height: 10),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Ratings You Gave',
-                                  style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF0077B6))),
-                              TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _showGiven = !_showGiven;
-                                  });
-                                },
-                                child: Text(_showGiven ? 'Hide' : 'View'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          if (_showGiven)
-                            _YourRatingsList(
-                              userRatings: ratingsGiven,
-                            ),
-                          const SizedBox(height: 28),
-                          Divider(thickness: 1.2, color: Colors.blueGrey[100]),
-                          const SizedBox(height: 10),
-                          // Ratings Received Section
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Ratings Received',
-                                  style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF023E8A))),
-                              TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _showReceived = !_showReceived;
-                                  });
-                                },
-                                child: Text(_showReceived ? 'Hide' : 'View'),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          if (_showReceived)
-                            _RatingsReceivedList(userRatings: ratingsReceived),
-                          // --- Recent Rating Activities ---
-                          if (ratingActivities.isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            Text('Recent Rating Activities',
-                                style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0077B6))),
-                            ...ratingActivities.map((activity) => Card(
-                                  color: Colors.white.withOpacity(0.95),
-                                  elevation: 2,
-                                  margin:
-                                      const EdgeInsets.symmetric(vertical: 4),
-                                  child: ListTile(
-                                    leading: Icon(
-                                      activity['type'] == 'user_rated'
-                                          ? Icons.star
-                                          : Icons.star_border,
-                                      color: Colors.amber,
-                                      size: 32,
+                                  const SizedBox(height: 10),
+                                  if (_showGiven)
+                                    _YourRatingsList(
+                                      userRatings: ratingsGiven,
                                     ),
-                                    title: Text(activity['title'] ?? '',
-                                        style: TextStyle(
-                                            color: Color(0xFF023E8A))),
-                                    subtitle: Text(
-                                        activity['description'] ?? '',
-                                        style: TextStyle(
-                                            color: Color(0xFF0077B6))),
-                                    trailing: activity['metadata'] != null &&
-                                            activity['metadata']['rating'] != null
-                                        ? Text(
-                                            '${activity['metadata']['rating']} ★',
-                                            style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.amber))
-                                        : null,
+                                  const SizedBox(height: 28),
+                                  Divider(
+                                      thickness: 1.2,
+                                      color: Colors.blueGrey[100]),
+                                  const SizedBox(height: 10),
+                                  // Ratings Received Section
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text('Ratings Received',
+                                          style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF023E8A))),
+                                      TextButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            _showReceived = !_showReceived;
+                                          });
+                                        },
+                                        child: Text(
+                                            _showReceived ? 'Hide' : 'View'),
+                                      ),
+                                    ],
                                   ),
-                                ))
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
+                                  const SizedBox(height: 10),
+                                  if (_showReceived)
+                                    _RatingsReceivedList(
+                                        userRatings: ratingsReceived),
+                                  // --- Recent Rating Activities ---
+                                  if (ratingActivities.isNotEmpty) ...[
+                                    const SizedBox(height: 16),
+                                    Text('Recent Rating Activities',
+                                        style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF0077B6))),
+                                    ...ratingActivities.map((activity) => Card(
+                                          color: Colors.white.withOpacity(0.95),
+                                          elevation: 2,
+                                          margin: const EdgeInsets.symmetric(
+                                              vertical: 4),
+                                          child: ListTile(
+                                            leading: Icon(
+                                              activity['type'] == 'user_rated'
+                                                  ? Icons.star
+                                                  : Icons.star_border,
+                                              color: Colors.amber,
+                                              size: 32,
+                                            ),
+                                            title: Text(activity['title'] ?? '',
+                                                style: TextStyle(
+                                                    color: Color(0xFF023E8A))),
+                                            subtitle: Text(
+                                                activity['description'] ?? '',
+                                                style: TextStyle(
+                                                    color: Color(0xFF0077B6))),
+                                            trailing: activity['metadata'] !=
+                                                        null &&
+                                                    activity['metadata']
+                                                            ['rating'] !=
+                                                        null
+                                                ? Text(
+                                                    '${activity['metadata']['rating']} ★',
+                                                    style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Colors.amber))
+                                                : null,
+                                          ),
+                                        ))
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -744,4 +860,32 @@ class _StylishPopup extends StatelessWidget {
       ),
     );
   }
+}
+
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+
+    path.lineTo(0, size.height * 0.4);
+    path.quadraticBezierTo(
+      size.width * 0.25,
+      size.height * 0.5,
+      size.width * 0.5,
+      size.height * 0.4,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75,
+      size.height * 0.3,
+      size.width,
+      size.height * 0.4,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

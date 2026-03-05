@@ -142,7 +142,7 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
             child: ClipPath(
               clipper: TopWaveClipper(),
               child: Container(
-                height: 70,
+                height: 150,
                 color: const Color(0xFF00B4D8),
               ),
             ),

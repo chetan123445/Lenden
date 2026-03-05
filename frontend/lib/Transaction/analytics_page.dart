@@ -80,25 +80,45 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(kToolbarHeight),
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.blue.shade300, Colors.blue.shade600],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            title: Text('Analytics', style: TextStyle(color: Colors.black)),
-          ),
+        child: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.black),
+          title: const Text('Analytics', style: TextStyle(color: Colors.black)),
         ),
       ),
-      backgroundColor: Color(0xFFF8F6FA),
-      body: _buildBody(),
+      backgroundColor: const Color(0xFFF8F6FA),
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 140,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 72),
+              child: _buildBody(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -214,9 +234,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     final monthlyCounts = List<double>.from(
         (a['monthlyCounts'] ?? []).map((e) => (e as num).toDouble()));
     final monthLabels = List<String>.from(a['months'] ?? []);
-    final topCounterparties =
-        List<Map<String, dynamic>>.from(a['topCounterparties'] ?? []);
-
     return SingleChildScrollView(
       padding: EdgeInsets.all(20),
       child: Column(
@@ -363,36 +380,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                         ),
                       ),
                     ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 24),
-          _buildTricolorCard(
-            color: _getNoteColor(3),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionHeader('Top Counterparties', Icons.people),
-                  SizedBox(height: 16),
-                  ...topCounterparties
-                      .take(5)
-                      .toList()
-                      .asMap()
-                      .entries
-                      .map((entry) {
-                    final index = entry.key;
-                    final counterparty = entry.value;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4.0),
-                      child: _buildCounterpartyTile(counterparty, index),
-                    );
-                  }),
-                  if (topCounterparties.isEmpty)
-                    Text('No counterparties found.',
-                        style: TextStyle(color: Colors.grey)),
                 ],
               ),
             ),
@@ -758,4 +745,32 @@ class _StylishProfileDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+
+    path.lineTo(0, size.height * 0.4);
+    path.quadraticBezierTo(
+      size.width * 0.25,
+      size.height * 0.5,
+      size.width * 0.5,
+      size.height * 0.4,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75,
+      size.height * 0.3,
+      size.width,
+      size.height * 0.4,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

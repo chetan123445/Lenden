@@ -446,142 +446,172 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
             : filteredQueries);
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text('Help & Support'),
-        backgroundColor: Color(0xFF00B4D8),
+        title: const Text('Help & Support'),
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.black,
+        elevation: 0,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Search bar
-              TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  labelText: 'Search by Topic',
-                  prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  filled: true,
-                  fillColor: Colors.white,
-                  suffixIcon: _searchTerm.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear),
-                          onPressed: () {
-                            setState(() {
-                              _searchTerm = '';
-                              _searchController.clear();
-                            });
-                          },
-                        )
-                      : null,
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchTerm = value;
-                  });
-                },
-              ),
-              SizedBox(height: 20),
-              Text(
-                'Other Support Options',
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF0077B5)),
-              ),
-              SizedBox(height: 8),
-              Card(
-                color: Colors.blue[50],
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                child: ListTile(
-                  leading: Icon(Icons.email, color: Color(0xFF00B4D8)),
-                  title: Text('Email us at',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text('chetandudi791@gmail.com',
-                      style: TextStyle(color: Color(0xFF0077B5))),
-                  onTap: () {
-                    // Optionally, launch email app
-                    // launchUrl(Uri.parse('mailto:chetandudi791@gmail.com'));
-                  },
-                ),
-              ),
-              SizedBox(height: 24),
-              Text(
-                'Submit a New Query',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 16),
-              TextField(
-                controller: _topicController,
-                decoration: InputDecoration(
-                  labelText: 'Topic',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              SizedBox(height: 16),
-              TextField(
-                controller: _descriptionController,
-                decoration: InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 5,
-              ),
-              SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _submitQuery,
-                child: Text('Submit Query'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF00B4D8),
-                  foregroundColor: Colors.white,
-                  minimumSize: Size(double.infinity, 50), // Full width button
-                ),
-              ),
-              SizedBox(height: 32),
-              Text(
-                'Your Queries',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 16),
-              _isLoading
-                  ? Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? Center(
-                          child: Text(_error!,
-                              style: TextStyle(color: Colors.red)))
-                      : filteredQueries.isEmpty
-                          ? Center(child: Text('No queries found.'))
-                          : ListView.builder(
-                              shrinkWrap: true,
-                              physics: NeverScrollableScrollPhysics(),
-                              itemCount: displayedQueries.length,
-                              itemBuilder: (context, index) {
-                                final query = displayedQueries[index];
-                                return _buildQueryCard(query);
-                              },
-                            ),
-              if (!_showAllQueries && filteredQueries.length > 3)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16.0),
-                  child: Center(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _showAllQueries = true;
-                        });
-                      },
-                      child: Text('View All Queries'),
-                    ),
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 140,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
-            ],
+              ),
+            ),
           ),
-        ),
+          SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 72, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Search bar
+                    TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        labelText: 'Search by Topic',
+                        prefixIcon:
+                            Icon(Icons.search, color: Color(0xFF00B4D8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        filled: true,
+                        fillColor: Colors.white,
+                        suffixIcon: _searchTerm.isNotEmpty
+                            ? IconButton(
+                                icon: Icon(Icons.clear),
+                                onPressed: () {
+                                  setState(() {
+                                    _searchTerm = '';
+                                    _searchController.clear();
+                                  });
+                                },
+                              )
+                            : null,
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          _searchTerm = value;
+                        });
+                      },
+                    ),
+                    SizedBox(height: 20),
+                    Text(
+                      'Other Support Options',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0077B5)),
+                    ),
+                    SizedBox(height: 8),
+                    Card(
+                      color: Colors.blue[50],
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      child: ListTile(
+                        leading: Icon(Icons.email, color: Color(0xFF00B4D8)),
+                        title: Text('Email us at',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('chetandudi791@gmail.com',
+                            style: TextStyle(color: Color(0xFF0077B5))),
+                        onTap: () {
+                          // Optionally, launch email app
+                          // launchUrl(Uri.parse('mailto:chetandudi791@gmail.com'));
+                        },
+                      ),
+                    ),
+                    SizedBox(height: 24),
+                    Text(
+                      'Submit a New Query',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 16),
+                    TextField(
+                      controller: _topicController,
+                      decoration: InputDecoration(
+                        labelText: 'Topic',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    TextField(
+                      controller: _descriptionController,
+                      decoration: InputDecoration(
+                        labelText: 'Description',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 5,
+                    ),
+                    SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: _submitQuery,
+                      child: Text('Submit Query'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFF00B4D8),
+                        foregroundColor: Colors.white,
+                        minimumSize:
+                            Size(double.infinity, 50), // Full width button
+                      ),
+                    ),
+                    SizedBox(height: 32),
+                    Text(
+                      'Your Queries',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 16),
+                    _isLoading
+                        ? Center(child: CircularProgressIndicator())
+                        : _error != null
+                            ? Center(
+                                child: Text(_error!,
+                                    style: TextStyle(color: Colors.red)))
+                            : filteredQueries.isEmpty
+                                ? Center(child: Text('No queries found.'))
+                                : ListView.builder(
+                                    shrinkWrap: true,
+                                    physics: NeverScrollableScrollPhysics(),
+                                    itemCount: displayedQueries.length,
+                                    itemBuilder: (context, index) {
+                                      final query = displayedQueries[index];
+                                      return _buildQueryCard(query);
+                                    },
+                                  ),
+                    if (!_showAllQueries && filteredQueries.length > 3)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16.0),
+                        child: Center(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              setState(() {
+                                _showAllQueries = true;
+                              });
+                            },
+                            child: Text('View All Queries'),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -743,4 +773,32 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
       ),
     );
   }
+}
+
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+
+    path.lineTo(0, size.height * 0.4);
+    path.quadraticBezierTo(
+      size.width * 0.25,
+      size.height * 0.5,
+      size.width * 0.5,
+      size.height * 0.4,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75,
+      size.height * 0.3,
+      size.width,
+      size.height * 0.4,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

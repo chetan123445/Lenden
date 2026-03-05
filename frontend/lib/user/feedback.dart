@@ -341,18 +341,6 @@ class _FeedbackPageState extends State<FeedbackPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FA),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF00B4D8),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-        ),
-        title: const Text('Feedback', style: TextStyle(color: Colors.black)),
-        centerTitle: true,
-      ),
       body: Stack(
         children: [
           // Top blue wave
@@ -371,61 +359,131 @@ class _FeedbackPageState extends State<FeedbackPage> {
           // Main content
           Positioned.fill(
             child: SafeArea(
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                    left: 28.0,
-                    right: 28.0,
-                    top: 24.0,
-                    bottom:
-                        100.0, // Increased bottom padding to avoid blue wave
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const SizedBox(height: 60),
-                      const Text('Feedback',
-                          style: TextStyle(
-                              fontSize: 32,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon:
+                              const Icon(Icons.arrow_back, color: Colors.black),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'Feedback',
+                            style: TextStyle(
+                              fontSize: 24,
                               fontWeight: FontWeight.bold,
-                              color: Colors.black),
-                          textAlign: TextAlign.center),
-                      const SizedBox(height: 8),
-                      const Text('Share your experience and rate the app',
-                          style: TextStyle(fontSize: 16, color: Colors.grey),
-                          textAlign: TextAlign.center),
-                      const SizedBox(height: 32),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                              color: Colors.black,
                             ),
-                          ],
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          left: 28.0,
+                          right: 28.0,
+                          top: 24.0,
+                          bottom: 100.0,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const SizedBox(height: 10),
-                            const Text('Rate the app:',
-                                style: TextStyle(fontSize: 18)),
-                            _buildAppRatingStars(),
+                            const SizedBox(height: 20),
+                            const Text('Feedback',
+                                style: TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black),
+                                textAlign: TextAlign.center),
                             const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton(
-                                    onPressed: _isLoading || _hasAppRated
-                                        ? null
-                                        : _submitAppRating,
+                            const Text('Share your experience and rate the app',
+                                style:
+                                    TextStyle(fontSize: 16, color: Colors.grey),
+                                textAlign: TextAlign.center),
+                            const SizedBox(height: 32),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(height: 10),
+                                  const Text('Rate the app:',
+                                      style: TextStyle(fontSize: 18)),
+                                  _buildAppRatingStars(),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          onPressed: _isLoading || _hasAppRated
+                                              ? null
+                                              : _submitAppRating,
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                const Color(0xFF00B4D8),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(24)),
+                                            padding: const EdgeInsets.symmetric(
+                                                vertical: 12),
+                                          ),
+                                          child: _isLoading
+                                              ? const SizedBox(
+                                                  height: 20,
+                                                  width: 20,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                          color: Colors.white))
+                                              : Text(
+                                                  _hasAppRated
+                                                      ? 'App Rated'
+                                                      : 'Submit App Rating',
+                                                  style: const TextStyle(
+                                                      fontSize: 16,
+                                                      color: Colors.white)),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  TextField(
+                                    controller: _feedbackController,
+                                    maxLines: 3,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Your feedback/suggestions',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ElevatedButton(
+                                    onPressed:
+                                        _isLoading ? null : _submitFeedback,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF00B4D8),
+                                      backgroundColor: Colors.deepPurple,
                                       shape: RoundedRectangleBorder(
                                           borderRadius:
                                               BorderRadius.circular(24)),
@@ -439,81 +497,49 @@ class _FeedbackPageState extends State<FeedbackPage> {
                                             child: CircularProgressIndicator(
                                                 strokeWidth: 2,
                                                 color: Colors.white))
-                                        : Text(
-                                            _hasAppRated
-                                                ? 'App Rated'
-                                                : 'Submit App Rating',
-                                            style: const TextStyle(
+                                        : const Text('Submit Feedback',
+                                            style: TextStyle(
                                                 fontSize: 16,
                                                 color: Colors.white)),
                                   ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            TextButton(
+                              onPressed: () async {
+                                setState(() {
+                                  _showFeedbacks = !_showFeedbacks;
+                                });
+                                if (_showFeedbacks) await _fetchUserFeedbacks();
+                              },
+                              child: Text(_showFeedbacks
+                                  ? 'Hide Your Feedbacks'
+                                  : 'View Your Feedbacks'),
+                            ),
+                            if (_showFeedbacks)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            TextField(
-                              controller: _feedbackController,
-                              maxLines: 3,
-                              decoration: const InputDecoration(
-                                labelText: 'Your feedback/suggestions',
-                                border: OutlineInputBorder(),
+                                child: _buildFeedbackList(),
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            ElevatedButton(
-                              onPressed: _isLoading ? null : _submitFeedback,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.deepPurple,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(24)),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2, color: Colors.white))
-                                  : const Text('Submit Feedback',
-                                      style: TextStyle(
-                                          fontSize: 16, color: Colors.white)),
-                            ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      TextButton(
-                        onPressed: () async {
-                          setState(() {
-                            _showFeedbacks = !_showFeedbacks;
-                          });
-                          if (_showFeedbacks) await _fetchUserFeedbacks();
-                        },
-                        child: Text(_showFeedbacks
-                            ? 'Hide Your Feedbacks'
-                            : 'View Your Feedbacks'),
-                      ),
-                      if (_showFeedbacks)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.05),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: _buildFeedbackList(),
-                        ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),

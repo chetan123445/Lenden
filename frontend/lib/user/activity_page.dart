@@ -140,18 +140,18 @@ class _ActivityPageState extends State<ActivityPage> {
 
       final uri = Uri.parse('$baseUrl/api/activities')
           .replace(queryParameters: queryParams);
-      final response = await ApiClient.get(uri.path + (uri.query.isNotEmpty ? '?' + uri.query : ''));
+      final response = await ApiClient.get(
+          uri.path + (uri.query.isNotEmpty ? '?' + uri.query : ''));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         // Filter out 'user_rating_received' activities
-        final filteredActivities =
-            List<Map<String, dynamic>>.from(data['activities'])
-                .where((a) => a['type'] != 'user_rating_received')
-                .where((a) =>
-                    !_showFriendOnly ||
-                    _friendActivityTypes.contains(a['type']))
-                .toList();
+        final filteredActivities = List<Map<String, dynamic>>.from(
+                data['activities'])
+            .where((a) => a['type'] != 'user_rating_received')
+            .where((a) =>
+                !_showFriendOnly || _friendActivityTypes.contains(a['type']))
+            .toList();
         setState(() {
           if (refresh) {
             activities = filteredActivities;
@@ -199,7 +199,8 @@ class _ActivityPageState extends State<ActivityPage> {
 
       final uri = Uri.parse('$baseUrl/api/activities/stats')
           .replace(queryParameters: queryParams);
-      final response = await ApiClient.get(uri.path + (uri.query.isNotEmpty ? '?' + uri.query : ''));
+      final response = await ApiClient.get(
+          uri.path + (uri.query.isNotEmpty ? '?' + uri.query : ''));
 
       if (response.statusCode == 200) {
         setState(() {
@@ -566,8 +567,9 @@ class _ActivityPageState extends State<ActivityPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF00B4D8),
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.black,
         title: const Text('Activity Log'),
         actions: [
@@ -585,53 +587,72 @@ class _ActivityPageState extends State<ActivityPage> {
         ],
       ),
       backgroundColor: const Color(0xFFF8F6FA),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          await fetchActivities(refresh: true);
-          await fetchStats();
-        },
-        child: CustomScrollView(
-          slivers: [
-            // Search Bar
-            SliverToBoxAdapter(child: _buildSearchBar()),
-
-            // Stats Section
-            if (!loadingStats) SliverToBoxAdapter(child: _buildStatsSection()),
-
-            // Activity Insights Section
-            if (!loading && allActivities.isNotEmpty)
-              SliverToBoxAdapter(child: _buildActivityInsights()),
-
-            // Filter chips
-            if (selectedType != null ||
-                startDate != null ||
-                endDate != null ||
-                searchQuery.isNotEmpty)
-              SliverToBoxAdapter(child: _buildFilterChips()),
-
-            // Activities List
-            if (loading)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: const Center(child: CircularProgressIndicator()),
-              )
-            else if (activities.isEmpty)
-              SliverFillRemaining(
-                hasScrollBody: false,
-                child: _buildEmptyState(),
-              )
-            else
-              SliverList.builder(
-                itemCount: activities.length + (hasNextPage ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == activities.length) {
-                    return _buildLoadMoreButton();
-                  }
-                  return _buildActivityListItem(activities[index]);
-                },
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 140,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
               ),
-          ],
-        ),
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 72),
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await fetchActivities(refresh: true);
+                  await fetchStats();
+                },
+                child: CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(child: _buildSearchBar()),
+                    if (!loadingStats)
+                      SliverToBoxAdapter(child: _buildStatsSection()),
+                    if (!loading && allActivities.isNotEmpty)
+                      SliverToBoxAdapter(child: _buildActivityInsights()),
+                    if (selectedType != null ||
+                        startDate != null ||
+                        endDate != null ||
+                        searchQuery.isNotEmpty)
+                      SliverToBoxAdapter(child: _buildFilterChips()),
+                    if (loading)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: const Center(child: CircularProgressIndicator()),
+                      )
+                    else if (activities.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _buildEmptyState(),
+                      )
+                    else
+                      SliverList.builder(
+                        itemCount: activities.length + (hasNextPage ? 1 : 0),
+                        itemBuilder: (context, index) {
+                          if (index == activities.length) {
+                            return _buildLoadMoreButton();
+                          }
+                          return _buildActivityListItem(activities[index]);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1033,8 +1054,6 @@ class _ActivityPageState extends State<ActivityPage> {
     );
   }
 
-
-
   Widget _buildActivityCard(Map<String, dynamic> activity) {
     final type = activity['type'] as String;
     final title = activity['title'] as String;
@@ -1190,8 +1209,12 @@ class _ActivityPageState extends State<ActivityPage> {
                             PopupMenuItem<String>(
                               value: 'bookmark',
                               child: ListTile(
-                                leading: Icon(Icons.bookmark, color: isBookmarked ? Colors.red : Colors.orange),
-                                title: Text(isBookmarked ? 'Unbookmark' : 'Bookmark'),
+                                leading: Icon(Icons.bookmark,
+                                    color: isBookmarked
+                                        ? Colors.red
+                                        : Colors.orange),
+                                title: Text(
+                                    isBookmarked ? 'Unbookmark' : 'Bookmark'),
                               ),
                             ),
                             const PopupMenuItem<String>(
@@ -1273,13 +1296,15 @@ class _ActivityPageState extends State<ActivityPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(activity['title'] ?? 'Activity Details',
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
                 Text('Type: ${_getActivityTypeDisplayName(activity['type'])}'),
                 const SizedBox(height: 8),
                 Text('Description: ${_formatActivityDescription(activity)}'),
                 const SizedBox(height: 8),
-                Text('Date: ${_formatDate(activity['createdAt'], activityType: activity['type'])}'),
+                Text(
+                    'Date: ${_formatDate(activity['createdAt'], activityType: activity['type'])}'),
                 if (activity['amount'] != null) ...[
                   const SizedBox(height: 8),
                   Text('Amount: ${activity['currency']}${activity['amount']}'),
@@ -1304,8 +1329,6 @@ class _ActivityPageState extends State<ActivityPage> {
     );
   }
 
-
-
   void _bookmarkActivity(Map<String, dynamic> activity) async {
     final activityId = activity['_id'];
     final isBookmarked = activity['bookmarked'] ?? false;
@@ -1328,7 +1351,9 @@ class _ActivityPageState extends State<ActivityPage> {
       if (response.statusCode == 200) {
         ElegantNotification.success(
           title: const Text("Success"),
-          description: Text(isBookmarked ? "Removed from bookmarks" : "Bookmarked successfully"),
+          description: Text(isBookmarked
+              ? "Removed from bookmarks"
+              : "Bookmarked successfully"),
         ).show(context);
       } else {
         setState(() {
@@ -1743,7 +1768,11 @@ class _ActivityPageState extends State<ActivityPage> {
                               padding: const EdgeInsets.all(2),
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
-                                  colors: [Colors.orange, Colors.white, Colors.green],
+                                  colors: [
+                                    Colors.orange,
+                                    Colors.white,
+                                    Colors.green
+                                  ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
@@ -1766,7 +1795,8 @@ class _ActivityPageState extends State<ActivityPage> {
                                       margin: const EdgeInsets.all(8),
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF00B4D8).withOpacity(0.1),
+                                        color: const Color(0xFF00B4D8)
+                                            .withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: const Icon(
@@ -1788,11 +1818,15 @@ class _ActivityPageState extends State<ActivityPage> {
                                           Container(
                                             padding: const EdgeInsets.all(6),
                                             decoration: BoxDecoration(
-                                              color: Colors.grey.withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(6),
+                                              color:
+                                                  Colors.grey.withOpacity(0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
                                             ),
-                                            child: const Icon(Icons.all_inclusive,
-                                                size: 16, color: Colors.grey),
+                                            child: const Icon(
+                                                Icons.all_inclusive,
+                                                size: 16,
+                                                color: Colors.grey),
                                           ),
                                           const SizedBox(width: 12),
                                           const Text('All Types',
@@ -1801,36 +1835,42 @@ class _ActivityPageState extends State<ActivityPage> {
                                         ],
                                       ),
                                     ),
-                                    ...activityTypes
-                                        .map((type) => DropdownMenuItem<String>(
-                                              value: type,
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  Container(
-                                                    padding: const EdgeInsets.all(6),
-                                                    decoration: BoxDecoration(
-                                                      color: _getActivityColor(type)
-                                                          .withOpacity(0.1),
-                                                      borderRadius:
-                                                          BorderRadius.circular(6),
-                                                    ),
-                                                    child: Icon(_getActivityIcon(type),
-                                                        size: 16,
-                                                        color: _getActivityColor(type)),
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Flexible(
-                                                    child: Text(
-                                                      _getActivityTypeDisplayName(type),
-                                                      style: const TextStyle(
-                                                          fontWeight: FontWeight.w500),
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ],
+                                    ...activityTypes.map((type) =>
+                                        DropdownMenuItem<String>(
+                                          value: type,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.all(6),
+                                                decoration: BoxDecoration(
+                                                  color: _getActivityColor(type)
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(6),
+                                                ),
+                                                child: Icon(
+                                                    _getActivityIcon(type),
+                                                    size: 16,
+                                                    color: _getActivityColor(
+                                                        type)),
                                               ),
-                                            )),
+                                              const SizedBox(width: 12),
+                                              Flexible(
+                                                child: Text(
+                                                  _getActivityTypeDisplayName(
+                                                      type),
+                                                  style: const TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w500),
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        )),
                                   ],
                                   onChanged: (value) {
                                     setState(() {
@@ -1849,7 +1889,8 @@ class _ActivityPageState extends State<ActivityPage> {
                                   _showBookmarkedOnly = value;
                                 });
                               },
-                              secondary: const Icon(Icons.bookmark, color: Colors.orange),
+                              secondary: const Icon(Icons.bookmark,
+                                  color: Colors.orange),
                             ),
                             SwitchListTile(
                               title: const Text('Friends Activity Only'),
@@ -1871,8 +1912,8 @@ class _ActivityPageState extends State<ActivityPage> {
                               decoration: BoxDecoration(
                                 color: Colors.grey.withOpacity(0.05),
                                 borderRadius: BorderRadius.circular(12),
-                                border:
-                                    Border.all(color: Colors.grey.withOpacity(0.2)),
+                                border: Border.all(
+                                    color: Colors.grey.withOpacity(0.2)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1883,7 +1924,8 @@ class _ActivityPageState extends State<ActivityPage> {
                                         padding: const EdgeInsets.all(8),
                                         decoration: BoxDecoration(
                                           color: Colors.orange.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
                                         ),
                                         child: const Icon(
                                           Icons.date_range,
@@ -1921,10 +1963,12 @@ class _ActivityPageState extends State<ActivityPage> {
                                               lastDate: DateTime.now(),
                                               builder: (context, child) {
                                                 return Theme(
-                                                  data: Theme.of(context).copyWith(
+                                                  data: Theme.of(context)
+                                                      .copyWith(
                                                     colorScheme:
                                                         const ColorScheme.light(
-                                                      primary: Color(0xFF00B4D8),
+                                                      primary:
+                                                          Color(0xFF00B4D8),
                                                       onPrimary: Colors.white,
                                                       surface: Colors.white,
                                                       onSurface: Colors.black,
@@ -1942,8 +1986,8 @@ class _ActivityPageState extends State<ActivityPage> {
                                       ),
                                       const SizedBox(width: 12),
                                       Container(
-                                        padding:
-                                            const EdgeInsets.symmetric(horizontal: 8),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8),
                                         child: const Icon(Icons.arrow_forward,
                                             color: Colors.grey),
                                       ),
@@ -1956,15 +2000,18 @@ class _ActivityPageState extends State<ActivityPage> {
                                           onPressed: () async {
                                             final date = await showDatePicker(
                                               context: context,
-                                              initialDate: endDate ?? DateTime.now(),
+                                              initialDate:
+                                                  endDate ?? DateTime.now(),
                                               firstDate: DateTime(2020),
                                               lastDate: DateTime.now(),
                                               builder: (context, child) {
                                                 return Theme(
-                                                  data: Theme.of(context).copyWith(
+                                                  data: Theme.of(context)
+                                                      .copyWith(
                                                     colorScheme:
                                                         const ColorScheme.light(
-                                                      primary: Color(0xFF00B4D8),
+                                                      primary:
+                                                          Color(0xFF00B4D8),
                                                       onPrimary: Colors.white,
                                                       surface: Colors.white,
                                                       onSurface: Colors.black,
@@ -1992,8 +2039,8 @@ class _ActivityPageState extends State<ActivityPage> {
 
                     // Action Buttons
                     Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 16),
                       child: Row(
                         children: [
                           Expanded(
@@ -2006,14 +2053,17 @@ class _ActivityPageState extends State<ActivityPage> {
                                   _showFriendOnly = false;
                                 });
                               },
-                              icon: const Icon(Icons.clear_all, color: Colors.red),
+                              icon: const Icon(Icons.clear_all,
+                                  color: Colors.red),
                               label: const Text(
                                 'Clear All',
                                 style: TextStyle(
-                                    color: Colors.red, fontWeight: FontWeight.w600),
+                                    color: Colors.red,
+                                    fontWeight: FontWeight.w600),
                               ),
                               style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   side: const BorderSide(color: Colors.red),
@@ -2029,16 +2079,19 @@ class _ActivityPageState extends State<ActivityPage> {
                                 fetchActivities(refresh: true);
                                 fetchStats();
                               },
-                              icon: const Icon(Icons.check, color: Colors.white),
+                              icon:
+                                  const Icon(Icons.check, color: Colors.white),
                               label: const Text(
                                 'Apply Filters',
                                 style: TextStyle(
-                                    color: Colors.white, fontWeight: FontWeight.w600),
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600),
                               ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF00B4D8),
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
@@ -2089,4 +2142,32 @@ class _ActivityPageState extends State<ActivityPage> {
       ),
     );
   }
+}
+
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+
+    path.lineTo(0, size.height * 0.4);
+    path.quadraticBezierTo(
+      size.width * 0.25,
+      size.height * 0.5,
+      size.width * 0.5,
+      size.height * 0.4,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75,
+      size.height * 0.3,
+      size.width,
+      size.height * 0.4,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
