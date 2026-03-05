@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  final bool autoNavigate;
+
+  const SplashScreen({super.key, this.autoNavigate = true});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -24,9 +26,12 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
     );
     _controller.forward();
-    Timer(const Duration(seconds: 2), () {
-      Navigator.of(context).pushReplacementNamed('/main');
-    });
+    if (widget.autoNavigate) {
+      Timer(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacementNamed('/main');
+      });
+    }
   }
 
   @override
@@ -99,7 +104,6 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
-
 }
 
 // Top wave clipper for splash

@@ -37,8 +37,49 @@ void main() {
   );
 }
 
-class AppInitializer extends StatelessWidget {
+class AppInitializer extends StatefulWidget {
   const AppInitializer({super.key});
+
+  @override
+  State<AppInitializer> createState() => _AppInitializerState();
+}
+
+class _AppInitializerState extends State<AppInitializer>
+    with WidgetsBindingObserver {
+  late Future<void> _bootstrapFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _bootstrapFuture = _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    await Future.wait([
+      session.initSession(),
+      Future.delayed(const Duration(seconds: 2)),
+    ]);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      if (session.token != null && session.user == null) {
+        setState(() {
+          _bootstrapFuture = session.initSession();
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,9 +96,16 @@ class AppInitializer extends StatelessWidget {
           foregroundColor: Colors.black,
         ),
       ),
-      initialRoute: '/',
+      home: FutureBuilder<void>(
+        future: _bootstrapFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SplashScreen(autoNavigate: false);
+          }
+          return const MyApp();
+        },
+      ),
       routes: {
-        '/': (context) => const SplashScreen(),
         '/main': (context) => const MyApp(),
         '/login': (context) => const UserLoginPage(),
         '/register': (context) => const UserRegisterPage(),
@@ -85,21 +133,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      future:
-          Provider.of<SessionProvider>(context, listen: false).initSession(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFF00B4D8),
-            body: Center(child: CircularProgressIndicator(color: Colors.white)),
-          );
-        }
-        final session = Provider.of<SessionProvider>(context);
-        // Always show HomePage (main.dart) as the root after splash
-        return HomePage();
-      },
-    );
+    return const HomePage();
   }
 }
 
