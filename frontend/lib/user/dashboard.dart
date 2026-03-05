@@ -30,6 +30,7 @@ import '../Digitise/subscriptions_page.dart';
 import '../Transaction/quick_transactions_page.dart';
 import 'friends_page.dart';
 import 'offers_page.dart';
+import 'counterparties_page.dart';
 import 'package:elegant_notification/elegant_notification.dart';
 
 class UserDashboardPage extends StatefulWidget {
@@ -42,15 +43,9 @@ class UserDashboardPage extends StatefulWidget {
 class _UserDashboardPageState extends State<UserDashboardPage>
     with TickerProviderStateMixin {
   List<Map<String, dynamic>> transactions = [];
-  List<Map<String, dynamic>> counterparties = [];
-  List<Map<String, dynamic>> friends = [];
-  final Set<String> _friendEmails = {};
-  final Set<String> _outgoingRequestEmails = {};
   int _pendingFriendRequests = 0;
   bool _friendToastShown = false;
   bool loading = true;
-  bool _counterpartiesLoading = true;
-  bool _friendsLoading = true;
   int _imageRefreshKey = 0;
   final ScrollController _scrollController = ScrollController();
 
@@ -180,162 +175,164 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                  const Text(
-                    'LenDen Coins Wallet',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF00B4D8),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.monetization_on,
-                          color: Colors.amber, size: 40),
-                      const SizedBox(width: 8),
-                      Text(
-                        '$coins',
-                        style: const TextStyle(
-                          fontSize: 46,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    width: double.infinity,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      'Monthly leaderboard rewards are auto-distributed after month-end.\n1st rank: +20 coins, 2nd rank: +10 coins, 3rd rank: +5 coins.\nAll tied users at each rank receive the same reward.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1B4332),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF8E7),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      'You can also earn LenDen coins randomly from gift cards when creating Quick transactions, Group transactions, and User transactions.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF7A4F01),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Recent Monthly Rewards',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  if (recentRewards.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'No monthly rewards received yet.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.black54,
-                        ),
-                      ),
-                    )
-                  else
-                    SizedBox(
-                      height: 130,
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount:
-                            recentRewards.length > 3 ? 3 : recentRewards.length,
-                        itemBuilder: (context, index) {
-                          final r = recentRewards[index];
-                          final rank = (r['rank'] ?? 0) as int;
-                          final coinsAwarded = (r['coinsAwarded'] ?? 0);
-                          final monthKey = (r['monthKey'] ?? '').toString();
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 6),
+                          const Text(
+                            'LenDen Coins Wallet',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF00B4D8),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.monetization_on,
+                                  color: Colors.amber, size: 40),
+                              const SizedBox(width: 8),
+                              Text(
+                                '$coins',
+                                style: const TextStyle(
+                                  fontSize: 46,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Container(
+                            width: double.infinity,
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 8),
+                                horizontal: 12, vertical: 10),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(10),
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Row(
-                              children: [
-                                const Icon(Icons.emoji_events,
-                                    size: 16, color: Color(0xFF00B4D8)),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    '$monthKey - ${rankText(rank)} rank',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
+                            child: const Text(
+                              'Monthly leaderboard rewards are auto-distributed after month-end.\n1st rank: +20 coins, 2nd rank: +10 coins, 3rd rank: +5 coins.\nAll tied users at each rank receive the same reward.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF1B4332),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF8E7),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'You can also earn LenDen coins randomly from gift cards when creating Quick transactions, Group transactions, and User transactions.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF7A4F01),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Recent Monthly Rewards',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          if (recentRewards.isEmpty)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                'No monthly rewards received yet.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                            )
+                          else
+                            SizedBox(
+                              height: 130,
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: recentRewards.length > 3
+                                    ? 3
+                                    : recentRewards.length,
+                                itemBuilder: (context, index) {
+                                  final r = recentRewards[index];
+                                  final rank = (r['rank'] ?? 0) as int;
+                                  final coinsAwarded = (r['coinsAwarded'] ?? 0);
+                                  final monthKey =
+                                      (r['monthKey'] ?? '').toString();
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 6),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(10),
                                     ),
-                                  ),
-                                ),
-                                Text(
-                                  '+$coinsAwarded',
-                                  style: const TextStyle(
-                                    color: Color(0xFF2E7D32),
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.emoji_events,
+                                            size: 16, color: Color(0xFF00B4D8)),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            '$monthKey - ${rankText(rank)} rank',
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          '+$coinsAwarded',
+                                          style: const TextStyle(
+                                            color: Color(0xFF2E7D32),
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00B4D8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    child: const Text(
-                      'Close',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
+                          const SizedBox(height: 12),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00B4D8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Close',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -353,7 +350,6 @@ class _UserDashboardPageState extends State<UserDashboardPage>
   void initState() {
     super.initState();
     fetchTransactions();
-    _fetchCounterparties();
     _fetchFriends();
     _checkAndShowRatingDialog();
 
@@ -421,96 +417,16 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     });
   }
 
-  Future<void> _fetchCounterparties({bool forceRefresh = false}) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final now = DateTime.now();
-    final lastFetched = session.counterpartiesLastFetched;
-
-    if (!forceRefresh &&
-        lastFetched != null &&
-        now.difference(lastFetched).inMinutes < 5 &&
-        session.counterparties != null) {
-      setState(() {
-        counterparties = session.counterparties!;
-        _counterpartiesLoading = false;
-      });
-      return;
-    }
-
-    final email = session.user?['email'];
-    if (email == null) {
-      return;
-    }
-    try {
-      final res = await ApiClient.get('/api/counterparties/user?email=$email');
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        if (data['counterparties'] != null) {
-          List<Map<String, dynamic>> counterpartiesList =
-              List<Map<String, dynamic>>.from(data['counterparties']);
-
-          // Fetch all profiles in parallel
-          final profiles = await Future.wait(counterpartiesList
-              .map((cp) => _fetchCounterpartyProfile(cp['email'])));
-
-          List<Map<String, dynamic>> populatedCounterparties = [];
-          for (int i = 0; i < counterpartiesList.length; i++) {
-            final profile = profiles[i];
-            if (profile != null) {
-              populatedCounterparties.add(profile);
-            } else {
-              populatedCounterparties.add(
-                  {'email': counterpartiesList[i]['email'], 'name': 'Unknown'});
-            }
-          }
-
-          setState(() {
-            counterparties = populatedCounterparties;
-          });
-          session.setCounterparties(populatedCounterparties);
-        }
-      }
-    } catch (e) {
-      // Handle error silently
-    } finally {
-      if (mounted) {
-        setState(() {
-          _counterpartiesLoading = false;
-        });
-      }
-    }
-  }
-
   Future<void> _fetchFriends() async {
-    setState(() {
-      _friendsLoading = true;
-    });
     try {
       final res = await ApiClient.get('/api/friends');
       final reqRes = await ApiClient.get('/api/friends/requests');
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        setState(() {
-          friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
-          _friendEmails
-            ..clear()
-            ..addAll(friends
-                .map((f) => (f['email'] ?? '').toString().toLowerCase().trim())
-                .where((e) => e.isNotEmpty));
-        });
+        // Keep the request warm-up so the friends module data is available.
       }
       if (reqRes.statusCode == 200) {
         final data = jsonDecode(reqRes.body);
         final pending = (data['incoming'] as List? ?? []).length;
-        final outgoing = (data['outgoing'] as List? ?? []);
-        _outgoingRequestEmails
-          ..clear()
-          ..addAll(outgoing
-              .map((r) => (r['to']?['email'] ?? r['toEmail'] ?? '')
-                  .toString()
-                  .toLowerCase()
-                  .trim())
-              .where((e) => e.isNotEmpty));
         setState(() {
           _pendingFriendRequests = pending;
         });
@@ -533,12 +449,6 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       }
     } catch (_) {
       // ignore
-    } finally {
-      if (mounted) {
-        setState(() {
-          _friendsLoading = false;
-        });
-      }
     }
   }
 
@@ -1260,7 +1170,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
                     const SizedBox(height: 16),
 
-                    // Counterparties section with tricolor border
+                    // Counterparties entry card
                     Container(
                       margin: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
@@ -1276,7 +1186,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: _getBoxColor(0),
+                          color: const Color(0xFFE0F7FA),
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Column(
@@ -1291,7 +1201,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                         color: Color(0xFF00B4D8)),
                                     SizedBox(width: 8),
                                     const Text(
-                                      'Top Counterparties',
+                                      'Counterparties',
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.bold,
@@ -1300,16 +1210,29 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                     ),
                                   ],
                                 ),
-                                IconButton(
-                                  icon: Icon(Icons.refresh,
-                                      color: Color(0xFF00B4D8)),
-                                  onPressed: () =>
-                                      _fetchCounterparties(forceRefresh: true),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            const CounterpartiesPage(),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF00B4D8),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: const Text('View'),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 12),
-                            _buildCounterpartiesGrid(userId),
                           ],
                         ),
                       ),
@@ -1852,227 +1775,6 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     );
   }
 
-  Widget _buildCounterpartiesGrid(String? userId) {
-    if (_counterpartiesLoading) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 8),
-              Text(
-                'Fetching counterparties...',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (counterparties.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text(
-            'No counterparties yet',
-            style: TextStyle(color: Colors.grey, fontSize: 14),
-          ),
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 150.0, // Height for two rows
-      child: SingleChildScrollView(
-        child: Wrap(
-          spacing: 8.0,
-          runSpacing: 8.0,
-          alignment: WrapAlignment.center,
-          children: counterparties.map((counterparty) {
-            return SizedBox(
-              width: (MediaQuery.of(context).size.width - 64) / 3 - 8,
-              child: _buildCounterpartyCard(counterparty),
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCounterpartyCard(Map<String, dynamic> counterparty) {
-    final name = counterparty['name'] ?? 'Unknown';
-    final imageUrl = counterparty['profileImage'];
-    final gender = counterparty['gender'] ?? 'Other';
-    final isPrivate = counterparty['profileIsPrivate'] == true;
-    final isDeactivated = counterparty['deactivatedAccount'] == true;
-    final currentUserEmail =
-        Provider.of<SessionProvider>(context, listen: false).user?['email'];
-    final counterpartyEmail =
-        counterparty['email']?.toString().toLowerCase().trim() ?? '';
-
-    ImageProvider avatarImage;
-    if (imageUrl != null &&
-        imageUrl is String &&
-        imageUrl.trim().isNotEmpty &&
-        imageUrl != 'null') {
-      avatarImage = NetworkImage(imageUrl);
-    } else {
-      avatarImage = AssetImage(
-        gender == 'Male'
-            ? 'assets/Male.png'
-            : gender == 'Female'
-                ? 'assets/Female.png'
-                : 'assets/Other.png',
-      );
-    }
-
-    return GestureDetector(
-      onTap: () async {
-        if (isPrivate || isDeactivated) {
-          showDialog(
-            context: context,
-            builder: (_) => _PrivateProfileDialog(
-              name: name,
-              isPrivate: isPrivate,
-              isDeactivated: isDeactivated,
-              avatarProvider: avatarImage,
-            ),
-          );
-        } else {
-          final stats = await _fetchCounterpartyStats(
-              counterparty['email']?.toString() ?? '');
-          showDialog(
-            context: context,
-            builder: (_) => _StylishProfileDialog(
-              title: 'Counterparty',
-              name: name,
-              avatarProvider: avatarImage,
-              email: counterparty['email'],
-              phone: counterparty['phone']?.toString(),
-              gender: gender,
-              stats: stats,
-              canAddFriend: counterpartyEmail.isNotEmpty &&
-                  counterpartyEmail !=
-                      (currentUserEmail ?? '')
-                          .toString()
-                          .toLowerCase()
-                          .trim() &&
-                  !_friendEmails.contains(counterpartyEmail) &&
-                  !_outgoingRequestEmails.contains(counterpartyEmail),
-              isFriend: _friendEmails.contains(counterpartyEmail),
-              requestPending:
-                  _outgoingRequestEmails.contains(counterpartyEmail),
-              onAddFriend: () => _sendFriendRequest(
-                userId: counterparty['_id']?.toString(),
-                email: counterparty['email']?.toString(),
-              ),
-            ),
-          );
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: const LinearGradient(
-            colors: [Colors.orange, Colors.white, Colors.green],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.grey[300],
-                backgroundImage: avatarImage,
-                onBackgroundImageError: (_, __) {},
-              ),
-              const SizedBox(height: 4),
-              Text(
-                name.length > 8 ? '${name.substring(0, 8)}...' : name,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<Map<String, dynamic>?> _fetchCounterpartyProfile(String email) async {
-    if (email.isEmpty) return null;
-    try {
-      final res = await ApiClient.get(
-        '/api/users/profile-by-email?email=$email',
-      );
-      if (res.statusCode == 200) {
-        return jsonDecode(res.body);
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<Map<String, dynamic>?> _fetchCounterpartyStats(String email) async {
-    try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final myEmail = session.user?['email'];
-      if (myEmail == null) return null;
-      final res = await ApiClient.get(
-          '/api/counterparties/stats?email=$myEmail&counterpartyEmail=$email');
-      if (res.statusCode == 200) {
-        return jsonDecode(res.body);
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  Future<void> _sendFriendRequest(
-      {String? userId, String? email, bool closeDialogOnSuccess = true}) async {
-    try {
-      final body = userId != null ? {'userId': userId} : {'query': email};
-      final res = await ApiClient.post('/api/friends/request', body: body);
-      if (res.statusCode == 200 || res.statusCode == 201) {
-        if (email != null && email.isNotEmpty) {
-          _outgoingRequestEmails.add(email.toLowerCase().trim());
-        }
-        ElegantNotification.success(
-          title: Text('Request Sent'),
-          description: Text('Friend request sent successfully.'),
-        ).show(context);
-        if (closeDialogOnSuccess) {
-          Navigator.of(context, rootNavigator: true).maybePop();
-        }
-      } else {
-        final err = jsonDecode(res.body)['error'] ?? 'Failed to send request';
-        ElegantNotification.error(
-          title: Text('Error'),
-          description: Text(err.toString()),
-        ).show(context);
-      }
-    } catch (e) {
-      ElegantNotification.error(
-        title: Text('Error'),
-        description: Text(e.toString()),
-      ).show(context);
-    }
-  }
-
   Future<void> _confirmLogout(BuildContext context) async {
     bool isLoggingOut = false;
 
@@ -2317,242 +2019,6 @@ class LogoutWaveClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-class _PrivateProfileDialog extends StatelessWidget {
-  final String name;
-  final bool isPrivate;
-  final bool isDeactivated;
-  final ImageProvider avatarProvider;
-
-  const _PrivateProfileDialog({
-    required this.name,
-    required this.isPrivate,
-    required this.isDeactivated,
-    required this.avatarProvider,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    String message;
-    IconData icon;
-
-    if (isDeactivated) {
-      message = 'This user account is deactivated.';
-      icon = Icons.visibility_off;
-    } else if (isPrivate) {
-      message = 'This user\'s profile is private.';
-      icon = Icons.lock;
-    } else {
-      message = 'This profile is not available.';
-      icon = Icons.error;
-    }
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Color(0xFF00B4D8),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Column(
-              children: [
-                CircleAvatar(radius: 36, backgroundImage: avatarProvider),
-                SizedBox(height: 12),
-                Text(name,
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 22,
-                        color: Colors.white)),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Icon(icon, size: 40, color: Colors.teal),
-                SizedBox(height: 12),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Close'),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF00B4D8),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12))),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StylishProfileDialog extends StatelessWidget {
-  final String title;
-  final String name;
-  final ImageProvider avatarProvider;
-  final String? email;
-  final String? phone;
-  final String? gender;
-  final Map<String, dynamic>? stats;
-  final bool canAddFriend;
-  final bool isFriend;
-  final bool requestPending;
-  final VoidCallback? onAddFriend;
-  const _StylishProfileDialog(
-      {required this.title,
-      required this.name,
-      required this.avatarProvider,
-      this.email,
-      this.phone,
-      this.gender,
-      this.stats,
-      this.canAddFriend = false,
-      this.isFriend = false,
-      this.requestPending = false,
-      this.onAddFriend});
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: Color(0xFF00B4D8),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Column(
-              children: [
-                CircleAvatar(radius: 36, backgroundImage: avatarProvider),
-                SizedBox(height: 12),
-                Text(name,
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 22,
-                        color: Colors.white)),
-                SizedBox(height: 4),
-                Text(title,
-                    style: TextStyle(fontSize: 14, color: Colors.white70)),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (email != null) ...[
-                  Row(children: [
-                    Icon(Icons.email, size: 18, color: Colors.teal),
-                    SizedBox(width: 8),
-                    Text(email!, style: TextStyle(fontSize: 16))
-                  ]),
-                  SizedBox(height: 10),
-                ],
-                if (phone != null && phone!.isNotEmpty) ...[
-                  Row(children: [
-                    Icon(Icons.phone, size: 18, color: Colors.teal),
-                    SizedBox(width: 8),
-                    Text(phone!, style: TextStyle(fontSize: 16))
-                  ]),
-                  SizedBox(height: 10),
-                ],
-                if (gender != null) ...[
-                  Row(children: [
-                    Icon(Icons.transgender, size: 18, color: Colors.teal),
-                    SizedBox(width: 8),
-                    Text(gender!, style: TextStyle(fontSize: 16))
-                  ]),
-                  SizedBox(height: 10),
-                ],
-                if (stats != null) ...[
-                  Row(children: [
-                    Icon(Icons.insights, size: 18, color: Colors.teal),
-                    SizedBox(width: 8),
-                    Text(
-                      'Interactions',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                  ]),
-                  SizedBox(height: 6),
-                  Text(
-                    'Trxns: ${stats?['userTransactions'] ?? 0} • Quick: ${stats?['quickTransactions'] ?? 0} • Groups: ${stats?['groups'] ?? 0}',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
-                  ),
-                  SizedBox(height: 10),
-                ],
-                if (isFriend) ...[
-                  Row(children: [
-                    Icon(Icons.check_circle, size: 18, color: Colors.green),
-                    SizedBox(width: 8),
-                    Text('Already a friend',
-                        style: TextStyle(fontSize: 16, color: Colors.green)),
-                  ]),
-                ] else if (requestPending) ...[
-                  Row(children: [
-                    Icon(Icons.hourglass_top, size: 18, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Text('Request pending',
-                        style: TextStyle(fontSize: 16, color: Colors.orange)),
-                  ]),
-                ],
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (canAddFriend)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: ElevatedButton(
-                      onPressed: onAddFriend,
-                      child: Text('Add Friend'),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12))),
-                    ),
-                  ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Close'),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF00B4D8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12))),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 Color _getBoxColor(int index) {

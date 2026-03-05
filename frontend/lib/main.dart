@@ -21,6 +21,7 @@ import 'admin/admin_feedbacks_page.dart';
 import 'user/notifications_page.dart';
 import 'admin/notifications_page.dart';
 import 'user/gift_card_page.dart';
+import 'user/counterparties_page.dart';
 import 'dart:convert';
 import 'api_config.dart';
 import 'widgets/notification_icon.dart';
@@ -71,6 +72,7 @@ class AppInitializer extends StatelessWidget {
         '/admin/manage-group-transactions': (context) =>
             ManageGroupTransactionsPage(),
         '/feedback': (context) => const FeedbackPage(),
+        '/user/counterparties': (context) => const CounterpartiesPage(),
         '/admin/ratings': (context) => const AdminRatingsPage(),
         '/admin/feedbacks': (context) => const AdminFeedbacksPage(),
       },
