@@ -13,9 +13,6 @@ import 'admin_features_page.dart';
 import 'manage_gift_cards_page.dart';
 import 'referral_settings_page.dart';
 import 'manage_offers_page.dart';
-import 'admin_ratings_page.dart';
-import 'admin_feedbacks_page.dart';
-import 'notifications_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -26,6 +23,21 @@ class AdminDashboardPage extends StatefulWidget {
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   int _imageRefreshKey = 0; // Key to force avatar rebuild
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  final Map<String, GlobalKey> _sectionKeys = {
+    'manage_users': GlobalKey(),
+    'manage_transactions': GlobalKey(),
+    'notes': GlobalKey(),
+    'manage_groups': GlobalKey(),
+    'track_user_activity': GlobalKey(),
+    'manage_features': GlobalKey(),
+    'manage_gift_cards': GlobalKey(),
+    'referral_settings': GlobalKey(),
+    'manage_offers': GlobalKey(),
+    'app_ratings': GlobalKey(),
+    'user_feedbacks': GlobalKey(),
+  };
 
   @override
   void initState() {
@@ -42,6 +54,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   void dispose() {
     final session = Provider.of<SessionProvider>(context, listen: false);
     session.removeListener(_onSessionChanged);
+    _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -49,6 +63,218 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     setState(() {
       _imageRefreshKey++;
     });
+  }
+
+  List<_AdminDashboardItem> _dashboardItems(BuildContext context) => [
+        _AdminDashboardItem(
+          id: 'manage_users',
+          icon: Icons.people_alt_rounded,
+          label: 'Manage Users',
+          backgroundColor: const Color(0xFFEDEBFA),
+          iconColor: const Color(0xFF304E96),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const UserManagementPage()),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'manage_transactions',
+          icon: Icons.receipt_long_rounded,
+          label: 'Manage Transactions',
+          backgroundColor: const Color(0xFFE8F4EC),
+          iconColor: const Color(0xFF1E6B3B),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ManageTransactionsPage()),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'notes',
+          icon: Icons.route_rounded,
+          label: 'Notes',
+          backgroundColor: const Color(0xFFF5EAF4),
+          iconColor: const Color(0xFF8A2F7B),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AdminNotesPage()),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'manage_groups',
+          icon: Icons.group_work_rounded,
+          label: 'Manage Groups',
+          backgroundColor: const Color(0xFFF3F2E8),
+          iconColor: const Color(0xFF8B7A30),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ManageGroupTransactionsPage()),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'track_user_activity',
+          icon: Icons.insights_rounded,
+          label: 'Track User Activity',
+          backgroundColor: const Color(0xFFE8F2FB),
+          iconColor: const Color(0xFF1D5D91),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => TrackUserActivityPage()),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'manage_features',
+          icon: Icons.tune_rounded,
+          label: 'Manage Features',
+          backgroundColor: const Color(0xFFEAF6F0),
+          iconColor: const Color(0xFF296D4E),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => AdminFeaturesPage()),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'manage_gift_cards',
+          icon: Icons.card_giftcard_rounded,
+          label: 'Manage Gift Cards',
+          backgroundColor: const Color(0xFFFCEFE4),
+          iconColor: const Color(0xFF9B5B21),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ManageGiftCardsPage()),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'referral_settings',
+          icon: Icons.share_rounded,
+          label: 'Referral Settings',
+          backgroundColor: const Color(0xFFEAF0FF),
+          iconColor: const Color(0xFF405FB5),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ReferralSettingsPage(),
+              ),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'manage_offers',
+          icon: Icons.local_offer_rounded,
+          label: 'Manage Offers',
+          backgroundColor: const Color(0xFFF4EAF0),
+          iconColor: const Color(0xFF8C2C62),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ManageOffersPage()),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'app_ratings',
+          icon: Icons.star_rounded,
+          label: 'App Ratings',
+          backgroundColor: const Color(0xFFF7F2E8),
+          iconColor: const Color(0xFF8B6E24),
+          onTap: () {
+            Navigator.pushNamed(context, '/admin/ratings');
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'user_feedbacks',
+          icon: Icons.feedback_rounded,
+          label: 'User Feedbacks',
+          backgroundColor: const Color(0xFFEAF5F8),
+          iconColor: const Color(0xFF236D86),
+          onTap: () {
+            Navigator.pushNamed(context, '/admin/feedbacks');
+          },
+        ),
+      ];
+
+  String _normalizeSearch(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+  }
+
+  bool _isSubsequence(String query, String target) {
+    int qi = 0;
+    for (int i = 0; i < target.length && qi < query.length; i++) {
+      if (target[i] == query[qi]) {
+        qi++;
+      }
+    }
+    return qi == query.length;
+  }
+
+  int _matchScore(String query, String label) {
+    final normalizedQuery = _normalizeSearch(query);
+    final normalizedLabel = _normalizeSearch(label);
+    if (normalizedQuery.isEmpty) return -1;
+    if (normalizedLabel == normalizedQuery) return 100;
+    if (normalizedLabel.startsWith(normalizedQuery)) return 80;
+    if (normalizedLabel.contains(normalizedQuery)) return 70;
+
+    final queryWords = normalizedQuery.split(' ').where((w) => w.isNotEmpty);
+    int score = 0;
+    for (final word in queryWords) {
+      if (normalizedLabel.contains(word)) {
+        score += 20;
+      } else if (_isSubsequence(word, normalizedLabel.replaceAll(' ', ''))) {
+        score += 8;
+      }
+    }
+
+    if (_isSubsequence(
+      normalizedQuery.replaceAll(' ', ''),
+      normalizedLabel.replaceAll(' ', ''),
+    )) {
+      score += 12;
+    }
+
+    return score;
+  }
+
+  void _performSearch(String query) {
+    final items = _dashboardItems(context);
+    if (query.trim().isEmpty) return;
+
+    _AdminDashboardItem? bestMatch;
+    int bestScore = -1;
+
+    for (final item in items) {
+      final score = _matchScore(query, item.label);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = item;
+      }
+    }
+
+    if (bestMatch != null && bestScore >= 8) {
+      final targetContext = _sectionKeys[bestMatch.id]?.currentContext;
+      if (targetContext != null) {
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+          alignment: 0.15,
+        );
+      }
+    }
   }
 
   // Helper function to get admin's profile image
@@ -79,6 +305,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final dashboardItems = _dashboardItems(context);
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -113,31 +340,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 },
               ),
               ListTile(
-                leading: Icon(Icons.note),
-                title: Text('Notes'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => AdminNotesPage()));
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.star),
-                title: const Text('App Ratings'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.pushNamed(context, '/admin/ratings');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.feedback),
-                title: const Text('User Feedbacks'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.pushNamed(context, '/admin/feedbacks');
-                },
-              ),
-              ListTile(
                 leading: const Icon(Icons.help_center),
                 title: const Text('Help & Support'),
                 onTap: () {
@@ -146,28 +348,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       context,
                       MaterialPageRoute(
                           builder: (_) => ManageSupportQueriesPage()));
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.share),
-                title: const Text('Referral Settings'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ReferralSettingsPage()),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.local_offer),
-                title: const Text('Manage Offers'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ManageOffersPage()),
-                  );
                 },
               ),
               ListTile(
@@ -183,126 +363,81 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           children: [
             // Main content area
             SafeArea(
-              child: GridView.count(
-                crossAxisCount: 2,
-                padding: const EdgeInsets.fromLTRB(16.0, 80.0, 16.0, 16.0),
-                children: [
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.people,
-                    label: 'Manage Users',
-                    onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const UserManagementPage()));
-                    },
-                  ),
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.receipt,
-                    label: 'Manage Transactions',
-                    onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => ManageTransactionsPage()));
-                    },
-                  ),
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.note,
-                    label: 'Notes',
-                    onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const AdminNotesPage()));
-                    },
-                  ),
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.group,
-                    label: 'Manage Groups',
-                    onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => ManageGroupTransactionsPage()));
-                    },
-                  ),
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.track_changes,
-                    label: 'Track User Activity',
-                    onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => TrackUserActivityPage()));
-                    },
-                  ),
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.subscriptions,
-                    label: 'Manage Features',
-                    onTap: () {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => AdminFeaturesPage()));
-                    },
-                  ),
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.card_giftcard,
-                    label: 'Manage Gift Cards',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => ManageGiftCardsPage()),
-                      );
-                    },
-                  ),
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.share,
-                    label: 'Referral Settings',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ReferralSettingsPage()),
-                      );
-                    },
-                  ),
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.local_offer,
-                    label: 'Manage Offers',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ManageOffersPage()),
-                      );
-                    },
-                  ),
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.star,
-                    label: 'App Ratings',
-                    onTap: () {
-                      Navigator.pushNamed(context, '/admin/ratings');
-                    },
-                  ),
-                  _buildDashboardCard(
-                    context,
-                    icon: Icons.feedback,
-                    label: 'User Feedbacks',
-                    onTap: () {
-                      Navigator.pushNamed(context, '/admin/feedbacks');
-                    },
-                  ),
-                ],
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 80, 16, 24),
+                child: Column(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        gradient: const LinearGradient(
+                          colors: [Colors.orange, Colors.white, Colors.green],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        child: TextField(
+                          controller: _searchController,
+                          textInputAction: TextInputAction.search,
+                          onChanged: (value) {
+                            if (value.trim().length >= 2) {
+                              _performSearch(value);
+                            }
+                          },
+                          onSubmitted: _performSearch,
+                          decoration: InputDecoration(
+                            hintText: 'Search admin sections',
+                            prefixIcon: const Icon(
+                              Icons.search_rounded,
+                              color: Color(0xFF00B4D8),
+                            ),
+                            suffixIcon: _searchController.text.isEmpty
+                                ? null
+                                : IconButton(
+                                    icon: const Icon(Icons.clear_rounded),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() {});
+                                    },
+                                  ),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final itemWidth = (constraints.maxWidth - 16) / 2;
+                        return Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          children: dashboardItems.map((item) {
+                            return SizedBox(
+                              key: _sectionKeys[item.id],
+                              width: itemWidth,
+                              child: _buildDashboardCard(
+                                context,
+                                item: item,
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
             // Top blue shape (background)
@@ -313,7 +448,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               child: ClipPath(
                 clipper: TopWaveClipper(),
                 child: Container(
-                  height: 120,
+                  height: 60,
                   color: const Color(0xFF00B4D8),
                 ),
               ),
@@ -326,7 +461,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               child: ClipPath(
                 clipper: DashboardBottomWaveClipper(),
                 child: Container(
-                  height: 90,
+                  height: 45,
                   color: const Color(0xFF00B4D8),
                 ),
               ),
@@ -373,8 +508,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               await Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) =>
-                                        const ProfilePage()),
+                                    builder: (context) => const ProfilePage()),
                               );
                               final session = Provider.of<SessionProvider>(
                                   context,
@@ -389,8 +523,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                               radius: 16,
                               backgroundColor: Colors.white,
                               backgroundImage: _getAdminAvatar(),
-                              onBackgroundImageError: (exception, stackTrace) {
-                              },
+                              onBackgroundImageError:
+                                  (exception, stackTrace) {},
                               child: _getAdminAvatar() is AssetImage
                                   ? Icon(
                                       Icons.person,
@@ -419,21 +553,53 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  Widget _buildDashboardCard(BuildContext context,
-      {required IconData icon,
-      required String label,
-      required VoidCallback onTap}) {
-    return Card(
-      elevation: 4.0,
+  Widget _buildDashboardCard(
+    BuildContext context, {
+    required _AdminDashboardItem item,
+  }) {
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 48.0),
-            const SizedBox(height: 8.0),
-            Text(label, textAlign: TextAlign.center),
-          ],
+        borderRadius: BorderRadius.circular(30),
+        onTap: item.onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: item.backgroundColor,
+            borderRadius: BorderRadius.circular(30),
+            boxShadow: [
+              BoxShadow(
+                color: item.iconColor.withValues(alpha: 0.12),
+                blurRadius: 14,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: SizedBox(
+            height: 130,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    item.icon,
+                    size: 34,
+                    color: item.iconColor,
+                  ),
+                  const Spacer(),
+                  Text(
+                    item.label,
+                    style: TextStyle(
+                      color: item.iconColor,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      height: 1.15,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -552,7 +718,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 ),
                                 padding: EdgeInsets.symmetric(vertical: 16),
                                 elevation: 2,
-                                shadowColor: Color(0xFF00B4D8).withValues(alpha: 0.3),
+                                shadowColor:
+                                    Color(0xFF00B4D8).withValues(alpha: 0.3),
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -586,6 +753,24 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
       Navigator.pushReplacementNamed(context, '/login');
     }
   }
+}
+
+class _AdminDashboardItem {
+  final String id;
+  final IconData icon;
+  final String label;
+  final Color backgroundColor;
+  final Color iconColor;
+  final VoidCallback onTap;
+
+  const _AdminDashboardItem({
+    required this.id,
+    required this.icon,
+    required this.label,
+    required this.backgroundColor,
+    required this.iconColor,
+    required this.onTap,
+  });
 }
 
 class TopWaveClipper extends CustomClipper<Path> {
