@@ -1330,7 +1330,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 child: SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
                                   child: Text(
-                                    'Create Transactions',
+                                    'Create Secure Transactions',
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 22),
@@ -1382,7 +1382,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                 child: SingleChildScrollView(
                                   scrollDirection: Axis.horizontal,
                                   child: Text(
-                                    'Your Transactions',
+                                    'View Secure Transactions',
                                     style: TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 22),
@@ -1444,7 +1444,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                     SingleChildScrollView(
                                       scrollDirection: Axis.horizontal,
                                       child: Text(
-                                        '(for individual transactions)',
+                                        '(for Secure transactions only)',
                                         style: TextStyle(
                                             fontSize: 12,
                                             color: Colors.grey[600]),

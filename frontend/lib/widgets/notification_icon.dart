@@ -16,6 +16,8 @@ class _NotificationIconState extends State<NotificationIcon> {
   bool _displayNotificationCount = true;
   int _friendRequestCount = 0;
 
+  int get _combinedUserCount => _notificationCount + _friendRequestCount;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -26,14 +28,19 @@ class _NotificationIconState extends State<NotificationIcon> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     if (session.token == null) return;
 
-    final token = session.token;
     try {
-      final unreadResp = await ApiClient.get('/api/notifications/unread-count');
-      final settingsResp = await ApiClient.get(
-        session.isAdmin
-            ? '/api/admin/notification-settings'
-            : '/api/users/notification-settings',
-      );
+      final responses = await Future.wait([
+        ApiClient.get('/api/notifications/unread-count'),
+        ApiClient.get(
+          session.isAdmin
+              ? '/api/admin/notification-settings'
+              : '/api/users/notification-settings',
+        ),
+        if (!session.isAdmin) ApiClient.get('/api/friends/requests'),
+      ]);
+
+      final unreadResp = responses[0];
+      final settingsResp = responses[1];
 
       if (unreadResp.statusCode == 200) {
         final data = json.decode(unreadResp.body);
@@ -46,12 +53,14 @@ class _NotificationIconState extends State<NotificationIcon> {
             settings['displayNotificationCount'] ?? true;
       }
 
-      if (!session.isAdmin) {
-        final reqRes = await ApiClient.get('/api/friends/requests');
+      if (!session.isAdmin && responses.length > 2) {
+        final reqRes = responses[2];
         if (reqRes.statusCode == 200) {
           final data = json.decode(reqRes.body);
           _friendRequestCount = (data['incoming'] as List? ?? []).length;
         }
+      } else {
+        _friendRequestCount = 0;
       }
 
       if (mounted) setState(() {});
@@ -132,7 +141,9 @@ class _NotificationIconState extends State<NotificationIcon> {
               }
             },
           ),
-          if (_notificationCount > 0 && _displayNotificationCount)
+          if (((session.isAdmin ? _notificationCount : _combinedUserCount) >
+                  0) &&
+              _displayNotificationCount)
             Positioned(
               right: 11,
               top: 11,
@@ -147,31 +158,7 @@ class _NotificationIconState extends State<NotificationIcon> {
                   minHeight: 14,
                 ),
                 child: Text(
-                  '$_notificationCount',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 8,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-          if (_friendRequestCount > 0)
-            Positioned(
-              left: 11,
-              top: 11,
-              child: Container(
-                padding: EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                constraints: BoxConstraints(
-                  minWidth: 14,
-                  minHeight: 14,
-                ),
-                child: Text(
-                  '$_friendRequestCount',
+                  '${session.isAdmin ? _notificationCount : _combinedUserCount}',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 8,
