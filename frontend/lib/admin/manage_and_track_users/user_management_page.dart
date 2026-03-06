@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'dart:convert';
-import '../../user/session.dart';
-import '../../api_config.dart';
 import 'user_details_page.dart';
 import 'user_edit_page.dart';
 import '../../utils/api_client.dart';
@@ -217,444 +214,513 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
   }
 
+  Color _getNoteColor(int index) {
+    final colors = [
+      const Color(0xFFFFF4E6),
+      const Color(0xFFE8F5E9),
+      const Color(0xFFFCE4EC),
+      const Color(0xFFE3F2FD),
+      const Color(0xFFFFF9C4),
+      const Color(0xFFF3E5F5),
+    ];
+    return colors[index % colors.length];
+  }
+
+  Widget _buildTriBorder({
+    required Widget child,
+    double radius = 16,
+    EdgeInsets padding = const EdgeInsets.all(2),
+  }) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FA),
-      appBar: AppBar(
-        title: const Text(
-          'User Management',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.black),
-            onPressed: _loadUsers,
-          ),
-        ],
-      ),
-      body: Column(
+      body: Stack(
         children: [
-          // Search and Filter Section
-          Container(
-            padding: const EdgeInsets.all(16),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 60,
+                color: const Color(0xFF00B4D8),
+              ),
+            ),
+          ),
+          SafeArea(
             child: Column(
               children: [
-                // Search Bar
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search users by name, email, or username...',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _searchQuery.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {
-                                _searchQuery = '';
-                              });
-                              _applyFilters();
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: Colors.white,
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value;
-                    });
-                    _applyFilters();
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
-                // Filters Row
-                Row(
-                  children: [
-                    // Status Filter
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade300),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.black),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'User Management',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 24,
+                          ),
                         ),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: _statusFilter,
-                            isExpanded: true,
-                            items: ['All', 'Active', 'Inactive', 'Pending']
-                                .map((status) => DropdownMenuItem(
-                                      value: status,
-                                      child: Text(status),
-                                    ))
-                                .toList(),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.black),
+                        onPressed: _loadUsers,
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildTriBorder(
+                        radius: 16,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText:
+                                  'Search users by name, email, or username...',
+                              prefixIcon: const Icon(Icons.search,
+                                  color: Color(0xFF00B4D8)),
+                              suffixIcon: _searchQuery.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear),
+                                      onPressed: () {
+                                        _searchController.clear();
+                                        setState(() {
+                                          _searchQuery = '';
+                                        });
+                                        _applyFilters();
+                                      },
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 16,
+                              ),
+                            ),
                             onChanged: (value) {
                               setState(() {
-                                _statusFilter = value!;
+                                _searchQuery = value;
                               });
                               _applyFilters();
                             },
                           ),
                         ),
                       ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    // Sort Button
-                    PopupMenuButton<String>(
-                      onSelected: (value) {
-                        setState(() {
-                          if (_sortBy == value) {
-                            _sortAscending = !_sortAscending;
-                          } else {
-                            _sortBy = value;
-                            _sortAscending = true;
-                          }
-                        });
-                        _applyFilters();
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'name',
-                          child: Text('Sort by Name'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'email',
-                          child: Text('Sort by Email'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'createdAt',
-                          child: Text('Sort by Date'),
-                        ),
-                      ],
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.sort, size: 20),
-                            const SizedBox(width: 4),
-                            Text(_sortBy == 'name'
-                                ? 'Name'
-                                : _sortBy == 'email'
-                                    ? 'Email'
-                                    : 'Date'),
-                            Icon(
-                              _sortAscending
-                                  ? Icons.arrow_upward
-                                  : Icons.arrow_downward,
-                              size: 16,
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTriBorder(
+                              radius: 12,
+                              child: Container(
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: _statusFilter,
+                                    isExpanded: true,
+                                    items:
+                                        ['All', 'Active', 'Inactive', 'Pending']
+                                            .map((status) => DropdownMenuItem(
+                                                  value: status,
+                                                  child: Text(status),
+                                                ))
+                                            .toList(),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _statusFilter = value!;
+                                      });
+                                      _applyFilters();
+                                    },
+                                  ),
+                                ),
+                              ),
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 12),
+                          PopupMenuButton<String>(
+                            onSelected: (value) {
+                              setState(() {
+                                if (_sortBy == value) {
+                                  _sortAscending = !_sortAscending;
+                                } else {
+                                  _sortBy = value;
+                                  _sortAscending = true;
+                                }
+                              });
+                              _applyFilters();
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'name',
+                                child: Text('Sort by Name'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'email',
+                                child: Text('Sort by Email'),
+                              ),
+                              const PopupMenuItem(
+                                value: 'createdAt',
+                                child: Text('Sort by Date'),
+                              ),
+                            ],
+                            child: _buildTriBorder(
+                              radius: 12,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.sort,
+                                        size: 20, color: Color(0xFF00B4D8)),
+                                    const SizedBox(width: 4),
+                                    Text(_sortBy == 'name'
+                                        ? 'Name'
+                                        : _sortBy == 'email'
+                                            ? 'Email'
+                                            : 'Date'),
+                                    Icon(
+                                      _sortAscending
+                                          ? Icons.arrow_upward
+                                          : Icons.arrow_downward,
+                                      size: 16,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                ),
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      _buildStatCard('Total Users', _users.length.toString(),
+                          Icons.people, 0),
+                      const SizedBox(width: 12),
+                      _buildStatCard(
+                          'Active Users',
+                          _users
+                              .where((u) => u['isActive'] == true)
+                              .length
+                              .toString(),
+                          Icons.check_circle,
+                          1),
+                      const SizedBox(width: 12),
+                      _buildStatCard(
+                          'Pending',
+                          _users
+                              .where((u) => u['isVerified'] == false)
+                              .length
+                              .toString(),
+                          Icons.pending,
+                          2),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _filteredUsers.isEmpty
+                          ? const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.people_outline,
+                                      size: 64, color: Colors.grey),
+                                  SizedBox(height: 16),
+                                  Text(
+                                    'No users found',
+                                    style: TextStyle(
+                                        fontSize: 18, color: Colors.grey),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: _filteredUsers.length,
+                              itemBuilder: (context, index) {
+                                final user = _filteredUsers[index];
+                                return _buildUserCard(user, index);
+                              },
+                            ),
                 ),
               ],
             ),
-          ),
-
-          // Statistics
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _buildStatCard(
-                    'Total Users', _users.length.toString(), Icons.people),
-                const SizedBox(width: 12),
-                _buildStatCard(
-                    'Active Users',
-                    _users
-                        .where((u) => u['isActive'] == true)
-                        .length
-                        .toString(),
-                    Icons.check_circle),
-                const SizedBox(width: 12),
-                _buildStatCard(
-                    'Pending',
-                    _users
-                        .where((u) => u['isVerified'] == false)
-                        .length
-                        .toString(),
-                    Icons.pending),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Users List
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredUsers.isEmpty
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.people_outline,
-                                size: 64, color: Colors.grey),
-                            SizedBox(height: 16),
-                            Text(
-                              'No users found',
-                              style:
-                                  TextStyle(fontSize: 18, color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _filteredUsers.length,
-                        itemBuilder: (context, index) {
-                          final user = _filteredUsers[index];
-                          return _buildUserCard(user);
-                        },
-                      ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon) {
+  Widget _buildStatCard(String title, String value, IconData icon, int index) {
     return Expanded(
+      child: _buildTriBorder(
+        radius: 14,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _getNoteColor(index),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.grey.withValues(alpha: 0.1),
+                spreadRadius: 1,
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: const Color(0xFF00B4D8), size: 24),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserCard(Map<String, dynamic> user, int index) {
+    final isActive = user['isActive'] ?? false;
+    final isVerified = user['isVerified'] ?? false;
+
+    return _buildTriBorder(
+      radius: 14,
+      padding: const EdgeInsets.all(1),
       child: Container(
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: _getNoteColor(index),
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.grey.withValues(alpha: 0.1),
               spreadRadius: 1,
               blurRadius: 5,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: Column(
-          children: [
-            Icon(icon, color: const Color(0xFF00B4D8), size: 24),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
-            ),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildUserCard(Map<String, dynamic> user) {
-    final isActive = user['isActive'] ?? false;
-    final isVerified = user['isVerified'] ?? false;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, 2),
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(16),
+          leading: CircleAvatar(
+            radius: 25,
+            backgroundColor: const Color(0xFF00B4D8),
+            child: _buildProfileImage(user),
           ),
-        ],
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: CircleAvatar(
-          radius: 25,
-          backgroundColor: const Color(0xFF00B4D8),
-          child: _buildProfileImage(user),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                user['name'] ?? 'Unknown User',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  user['name'] ?? 'Unknown User',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
                 ),
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? Colors.green.withOpacity(0.1)
-                    : Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                isActive ? 'Active' : 'Inactive',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: isActive ? Colors.green : Colors.red,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? Colors.green.withValues(alpha: 0.1)
+                      : Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  isActive ? 'Active' : 'Inactive',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: isActive ? Colors.green : Colors.red,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              user['email'] ?? 'No email',
-              style: const TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                Text(
-                  '@${user['username'] ?? 'unknown'}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(width: 8),
-                if (!isVerified)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'Pending',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.orange,
-                        fontWeight: FontWeight.bold,
+            ],
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              Text(
+                user['email'] ?? 'No email',
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+              const SizedBox(height: 2),
+              Row(
+                children: [
+                  Text(
+                    '@${user['username'] ?? 'unknown'}',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(width: 8),
+                  if (!isVerified)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'Pending',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            switch (value) {
-              case 'view':
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => UserDetailsPage(user: user),
-                  ),
-                );
-                break;
-              case 'edit':
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => UserEditPage(user: user),
-                  ),
-                ).then((_) => _loadUsers());
-                break;
-              case 'toggle':
-                _toggleUserStatus(user['_id'], isActive);
-                break;
-              case 'delete':
-                _deleteUser(user['_id'], user['name']);
-                break;
-            }
+                ],
+              ),
+            ],
+          ),
+          trailing: PopupMenuButton<String>(
+            onSelected: (value) {
+              switch (value) {
+                case 'view':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => UserDetailsPage(user: user),
+                    ),
+                  );
+                  break;
+                case 'edit':
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => UserEditPage(user: user),
+                    ),
+                  ).then((_) => _loadUsers());
+                  break;
+                case 'toggle':
+                  _toggleUserStatus(user['_id'], isActive);
+                  break;
+                case 'delete':
+                  _deleteUser(user['_id'], user['name']);
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'view',
+                child: Row(
+                  children: [
+                    Icon(Icons.visibility, size: 16),
+                    SizedBox(width: 8),
+                    Text('View Details'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit, size: 16),
+                    SizedBox(width: 8),
+                    Text('Edit User'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'toggle',
+                child: Row(
+                  children: [
+                    Icon(isActive ? Icons.block : Icons.check_circle, size: 16),
+                    const SizedBox(width: 8),
+                    Text(isActive ? 'Deactivate' : 'Activate'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete, size: 16, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Delete User', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+            child: const Icon(Icons.more_vert),
+          ),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => UserDetailsPage(user: user),
+              ),
+            );
           },
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'view',
-              child: Row(
-                children: [
-                  Icon(Icons.visibility, size: 16),
-                  SizedBox(width: 8),
-                  Text('View Details'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'edit',
-              child: Row(
-                children: [
-                  Icon(Icons.edit, size: 16),
-                  SizedBox(width: 8),
-                  Text('Edit User'),
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'toggle',
-              child: Row(
-                children: [
-                  Icon(isActive ? Icons.block : Icons.check_circle, size: 16),
-                  const SizedBox(width: 8),
-                  Text(isActive ? 'Deactivate' : 'Activate'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete, size: 16, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Delete User', style: TextStyle(color: Colors.red)),
-                ],
-              ),
-            ),
-          ],
-          child: const Icon(Icons.more_vert),
         ),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => UserDetailsPage(user: user),
-            ),
-          );
-        },
       ),
     );
   }
@@ -726,4 +792,30 @@ class _UserManagementPageState extends State<UserManagementPage> {
       );
     }
   }
+}
+
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height * 0.4);
+    path.quadraticBezierTo(
+      size.width * 0.25,
+      size.height * 0.5,
+      size.width * 0.5,
+      size.height * 0.4,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75,
+      size.height * 0.3,
+      size.width,
+      size.height * 0.4,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

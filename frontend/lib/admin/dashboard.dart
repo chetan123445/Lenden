@@ -557,46 +557,57 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     BuildContext context, {
     required _AdminDashboardItem item,
   }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(30),
-        onTap: item.onTap,
-        child: Ink(
-          decoration: BoxDecoration(
-            color: item.backgroundColor,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                color: item.iconColor.withValues(alpha: 0.12),
-                blurRadius: 14,
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: SizedBox(
-            height: 130,
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    item.icon,
-                    size: 34,
-                    color: item.iconColor,
-                  ),
-                  const Spacer(),
-                  Text(
-                    item.label,
-                    style: TextStyle(
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(32),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(30),
+          onTap: item.onTap,
+          child: Ink(
+            decoration: BoxDecoration(
+              color: item.backgroundColor,
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: [
+                BoxShadow(
+                  color: item.iconColor.withValues(alpha: 0.12),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              height: 130,
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      item.icon,
+                      size: 34,
                       color: item.iconColor,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      height: 1.15,
                     ),
-                  ),
-                ],
+                    const Spacer(),
+                    Text(
+                      item.label,
+                      style: TextStyle(
+                        color: item.iconColor,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        height: 1.15,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
