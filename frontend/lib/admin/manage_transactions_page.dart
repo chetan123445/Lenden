@@ -4,8 +4,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 
 import '../utils/api_client.dart';
+import '../utils/http_interceptor.dart';
 
 class ManageTransactionsPage extends StatefulWidget {
   const ManageTransactionsPage({super.key});
@@ -49,6 +52,20 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
     super.dispose();
   }
 
+  List<String> get _filterCurrencyOptions {
+    final values = {
+      'All',
+      ..._supportedCurrencies,
+      ..._transactions.map((t) => t['currency']?.toString() ?? '').where((c) => c.isNotEmpty)
+    }.toList()
+      ..sort((a, b) {
+        if (a == 'All') return -1;
+        if (b == 'All') return 1;
+        return a.compareTo(b);
+      });
+    return values;
+  }
+
   Future<void> _fetchTransactions() async {
     setState(() {
       _loading = true;
@@ -80,38 +97,82 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
     }
   }
 
+  void _showStylishSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(isError ? Icons.error : Icons.check_circle,
+                color: Colors.white, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: isError ? Colors.red : const Color(0xFF00B4D8),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        duration: const Duration(seconds: 3),
+        margin: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+      ),
+    );
+  }
+
   Future<void> _updateTransaction(
     String transactionId,
-    Map<String, dynamic> updateData,
-  ) async {
+    Map<String, dynamic> updateData, {
+    List<Uint8List> newPhotos = const [],
+  }) async {
     try {
-      final response = await ApiClient.put(
+      final request = await HttpInterceptor.multipartRequest(
+        'PUT',
         '/api/admin/transactions/$transactionId',
-        body: updateData,
       );
 
+      updateData.forEach((key, value) {
+        if (value != null) {
+          if (value is List || value is Map) {
+            request.fields[key] = jsonEncode(value);
+          } else {
+            request.fields[key] = value.toString();
+          }
+        }
+      });
+
+      for (var i = 0; i < newPhotos.length; i++) {
+        request.files.add(http.MultipartFile.fromBytes(
+          'photos',
+          newPhotos[i],
+          filename: 'photo_$i.jpg',
+        ));
+      }
+
+      final response = await request.send();
+
       if (response.statusCode == 200) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Transaction updated successfully.')),
-        );
+        _showStylishSnackBar('Transaction updated successfully.');
         await _fetchTransactions();
       } else {
-        final data = jsonDecode(response.body);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              data['error']?.toString() ?? 'Failed to update transaction.',
-            ),
-          ),
+        final respStr = await response.stream.bytesToString();
+        final data = jsonDecode(respStr);
+        _showStylishSnackBar(
+          data['message']?.toString() ?? 'Failed to update transaction.',
+          isError: true,
         );
       }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred: $e')),
-      );
+      _showStylishSnackBar('An error occurred: $e', isError: true);
     }
   }
 
@@ -121,27 +182,17 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
           await ApiClient.delete('/api/admin/transactions/$transactionId');
 
       if (response.statusCode == 200) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Transaction deleted successfully.')),
-        );
+        _showStylishSnackBar('Transaction deleted successfully.');
         await _fetchTransactions();
       } else {
         final data = jsonDecode(response.body);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              data['error']?.toString() ?? 'Failed to delete transaction.',
-            ),
-          ),
+        _showStylishSnackBar(
+          data['error']?.toString() ?? 'Failed to delete transaction.',
+          isError: true,
         );
       }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred: $e')),
-      );
+      _showStylishSnackBar('An error occurred: $e', isError: true);
     }
   }
 
@@ -257,24 +308,25 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
     }
   }
 
-  Future<List<String>> _pickAdditionalPhotos() async {
-    final result = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: ['png', 'jpg', 'jpeg'],
-      withData: true,
+  Future<List<Uint8List>> _pickAdditionalPhotos() async {
+    final picker = ImagePicker();
+    final result = await picker.pickMultiImage(
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
     );
 
-    if (result == null) return const [];
+    if (result.isEmpty) return const [];
 
-    return result.files
-        .where((file) => file.bytes != null)
-        .map((file) => base64Encode(file.bytes!))
-        .toList();
+    final byteList = <Uint8List>[];
+    for (final file in result) {
+      byteList.add(await file.readAsBytes());
+    }
+    return byteList;
   }
 
   Widget _buildPhotosSection({
-    required List<String> photos,
+    required List<dynamic> photos,
     required bool editable,
     void Function(int index)? onRemove,
     VoidCallback? onAdd,
@@ -320,7 +372,14 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
               spacing: 10,
               runSpacing: 10,
               children: photos.asMap().entries.map((entry) {
-                final bytes = _decodePhoto(entry.value);
+                final photo = entry.value;
+                Uint8List? bytes;
+                if (photo is String) {
+                  bytes = _decodePhoto(photo);
+                } else if (photo is Uint8List) {
+                  bytes = photo;
+                }
+
                 return Stack(
                   children: [
                     Container(
@@ -371,8 +430,14 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
     );
   }
 
-  Widget _buildPartialPaymentsSection(List<Map<String, dynamic>> payments) {
-    if (payments.isEmpty) {
+  Widget _buildPartialPaymentsSection({
+    required List<Map<String, dynamic>> payments,
+    required bool editable,
+    void Function(int index, Map<String, dynamic> payment)? onEdit,
+    void Function(int index)? onRemove,
+    VoidCallback? onAdd,
+  }) {
+    if (payments.isEmpty && !editable) {
       return _buildDetailTile(
         'Partial Payment History',
         'No partial payments available.',
@@ -391,14 +456,27 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Partial Payment History',
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF00B4D8),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Partial Payment History',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF00B4D8),
+                ),
+              ),
+              if (editable)
+                TextButton.icon(
+                  onPressed: onAdd,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add'),
+                ),
+            ],
           ),
           const SizedBox(height: 10),
+          if (payments.isEmpty)
+            const Text('No partial payments recorded.'),
           ...payments.asMap().entries.map((entry) {
             final payment = entry.value;
             final amount = _displayValue(payment['amount']);
@@ -417,12 +495,30 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Payment ${entry.key + 1}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 15,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Payment ${entry.key + 1}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                      if (editable)
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, size: 20),
+                              onPressed: () => onEdit?.call(entry.key, payment),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, size: 20, color: Colors.red),
+                              onPressed: () => onRemove?.call(entry.key),
+                            ),
+                          ],
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 6),
                   Text('Amount: $amount'),
@@ -508,6 +604,7 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
     required TextEditingController controller,
     TextInputType keyboardType = TextInputType.text,
     int maxLines = 1,
+    bool readOnly = false,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -522,6 +619,7 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
             controller: controller,
             keyboardType: keyboardType,
             maxLines: maxLines,
+            readOnly: readOnly,
             decoration: InputDecoration(
               labelText: label,
               border: InputBorder.none,
@@ -773,12 +871,15 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
                               );
                             }),
                             _buildPhotosSection(
-                              photos: photos,
+                              photos: photos.map((p) => p.toString()).toList(),
                               editable: false,
                             ),
                             if ((transaction['isPartiallyPaid'] == true) ||
                                 partialPayments.isNotEmpty)
-                              _buildPartialPaymentsSection(partialPayments),
+                              _buildPartialPaymentsSection(
+                                payments: partialPayments,
+                                editable: false,
+                              ),
                           ],
                         ),
                       ),
@@ -808,6 +909,8 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
       'partialPayments',
       'photos',
       'favourite',
+      'createdAt',
+      'updatedAt',
     };
 
     for (final entry in transaction.entries) {
@@ -841,8 +944,10 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
     DateTime? selectedExpectedReturnDate =
         DateTime.tryParse('${transaction['expectedReturnDate'] ?? ''}')
             ?.toLocal();
-    final partialPayments = _partialPaymentsFor(transaction);
-    final editablePhotos = List<String>.from(_photosFor(transaction));
+    
+    final List<Map<String, dynamic>> partialPayments = List<Map<String, dynamic>>.from(_partialPaymentsFor(transaction));
+    final List<String> existingPhotos = _photosFor(transaction);
+    final List<Uint8List> newPhotos = [];
 
     await showDialog(
       context: context,
@@ -890,6 +995,16 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
                         child: SingleChildScrollView(
                           child: Column(
                             children: [
+                              _buildTextField(
+                                label: 'Created At',
+                                controller: TextEditingController(text: _formatDate(transaction['createdAt'])),
+                                readOnly: true,
+                              ),
+                              _buildTextField(
+                                label: 'Updated At',
+                                controller: TextEditingController(text: _formatDate(transaction['updatedAt'])),
+                                readOnly: true,
+                              ),
                               if (_currencyOptions.isNotEmpty)
                                 _buildDropdownField(
                                   label: 'Currency',
@@ -1005,19 +1120,23 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
                                 },
                               ),
                               _buildPhotosSection(
-                                photos: editablePhotos,
+                                photos: [...existingPhotos, ...newPhotos],
                                 editable: true,
                                 onRemove: (index) {
                                   setDialogState(() {
-                                    editablePhotos.removeAt(index);
+                                    if (index < existingPhotos.length) {
+                                      existingPhotos.removeAt(index);
+                                    } else {
+                                      newPhotos.removeAt(index - existingPhotos.length);
+                                    }
                                   });
                                 },
                                 onAdd: () async {
-                                  final newPhotos =
+                                  final photos =
                                       await _pickAdditionalPhotos();
-                                  if (newPhotos.isEmpty) return;
+                                  if (photos.isEmpty) return;
                                   setDialogState(() {
-                                    editablePhotos.addAll(newPhotos);
+                                    newPhotos.addAll(photos);
                                   });
                                 },
                               ),
@@ -1043,9 +1162,40 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
                                   maxLines: isComplex ? 5 : 1,
                                 );
                               }),
-                              if (isPartiallyPaidValue == 'true' ||
-                                  partialPayments.isNotEmpty)
-                                _buildPartialPaymentsSection(partialPayments),
+                              _buildPartialPaymentsSection(
+                                payments: partialPayments,
+                                editable: true,
+                                onAdd: () async {
+                                  final newPayment = await _showEditPartialPaymentDialog(
+                                    context: context,
+                                    lenderEmail: transaction['role'] == 'lender' ? transaction['userEmail'] : transaction['counterpartyEmail'],
+                                    borrowerEmail: transaction['role'] == 'borrower' ? transaction['userEmail'] : transaction['counterpartyEmail'],
+                                  );
+                                  if (newPayment != null) {
+                                    setDialogState(() {
+                                      partialPayments.add(newPayment);
+                                    });
+                                  }
+                                },
+                                onEdit: (index, payment) async {
+                                  final updatedPayment = await _showEditPartialPaymentDialog(
+                                    context: context,
+                                    payment: payment,
+                                    lenderEmail: transaction['role'] == 'lender' ? transaction['userEmail'] : transaction['counterpartyEmail'],
+                                    borrowerEmail: transaction['role'] == 'borrower' ? transaction['userEmail'] : transaction['counterpartyEmail'],
+                                  );
+                                  if (updatedPayment != null) {
+                                    setDialogState(() {
+                                      partialPayments[index] = updatedPayment;
+                                    });
+                                  }
+                                },
+                                onRemove: (index) {
+                                  setDialogState(() {
+                                    partialPayments.removeAt(index);
+                                  });
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -1065,49 +1215,21 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
                               onPressed: () {
                                 final updateData = <String, dynamic>{
                                   'currency': selectedCurrency,
-                                  'userCleared': userClearedValue == 'true',
+                                  'userCleared': userClearedValue,
                                   'counterpartyCleared':
-                                      counterpartyClearedValue == 'true',
+                                      counterpartyClearedValue,
                                   'isPartiallyPaid':
-                                      isPartiallyPaidValue == 'true',
+                                      isPartiallyPaidValue,
                                   'date': selectedDate?.toIso8601String(),
                                   'expectedReturnDate':
                                       selectedExpectedReturnDate
                                           ?.toIso8601String(),
-                                  'photos': editablePhotos,
+                                  'photos': existingPhotos,
+                                  'partialPayments': partialPayments,
                                 };
 
                                 for (final entry in textControllers.entries) {
                                   final text = entry.value.text.trim();
-                                  if (text.isEmpty &&
-                                      entry.key != 'description' &&
-                                      entry.key != 'place' &&
-                                      entry.key != 'time') {
-                                    updateData[entry.key] = null;
-                                    continue;
-                                  }
-
-                                  if ({
-                                    'amount',
-                                    'interestRate',
-                                    'compoundingFrequency',
-                                    'remainingAmount',
-                                    'totalAmountWithInterest',
-                                  }.contains(entry.key)) {
-                                    updateData[entry.key] =
-                                        double.tryParse(text) ??
-                                            transaction[entry.key];
-                                    continue;
-                                  }
-
-                                  if (text.startsWith('{') ||
-                                      text.startsWith('[')) {
-                                    try {
-                                      updateData[entry.key] = jsonDecode(text);
-                                      continue;
-                                    } catch (_) {}
-                                  }
-
                                   updateData[entry.key] = text;
                                 }
 
@@ -1115,6 +1237,7 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
                                 _updateTransaction(
                                   transaction['_id'].toString(),
                                   updateData,
+                                  newPhotos: newPhotos,
                                 );
                               },
                               style: ElevatedButton.styleFrom(
@@ -1139,6 +1262,94 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
     for (final controller in textControllers.values) {
       controller.dispose();
     }
+  }
+
+  Future<Map<String, dynamic>?> _showEditPartialPaymentDialog({
+    required BuildContext context,
+    Map<String, dynamic>? payment,
+    required String lenderEmail,
+    required String borrowerEmail,
+  }) async {
+    final amountController = TextEditingController(text: payment?['amount']?.toString() ?? '');
+    final descriptionController = TextEditingController(text: payment?['description']?.toString() ?? '');
+    DateTime? paidAt = DateTime.tryParse(payment?['paidAt']?.toString() ?? '');
+    String? paidBy = payment?['paidBy'];
+
+    return showDialog<Map<String, dynamic>?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(payment == null ? 'Add Partial Payment' : 'Edit Partial Payment'),
+        content: StatefulBuilder(
+          builder: (context, setDialogState) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: amountController,
+                  decoration: const InputDecoration(labelText: 'Amount'),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
+                DropdownButtonFormField<String>(
+                  value: paidBy,
+                  decoration: const InputDecoration(labelText: 'Paid By'),
+                  items: [
+                    DropdownMenuItem(
+                      value: 'lender',
+                      child: Text('Lender ($lenderEmail)'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'borrower',
+                      child: Text('Borrower ($borrowerEmail)'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() {
+                      paidBy = value;
+                    });
+                  },
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Description'),
+                ),
+                ListTile(
+                  title: const Text('Paid At'),
+                  subtitle: Text(paidAt == null
+                      ? 'Select Date'
+                      : _formatDate(paidAt!.toIso8601String())),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final picked = await _pickDate(context, paidAt);
+                    if (picked != null) {
+                      setDialogState(() {
+                        paidAt = picked;
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context, {
+                'amount': double.tryParse(amountController.text) ?? 0,
+                'paidBy': paidBy,
+                'description': descriptionController.text,
+                'paidAt': paidAt?.toIso8601String(),
+              });
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildStatsRow() {
@@ -1237,88 +1448,92 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
     final borrower = _displayValue(transaction['counterpartyEmail']);
     final createdAt = _formatDate(transaction['createdAt']);
 
-    return Card(
-      elevation: 4,
-      margin: const EdgeInsets.only(bottom: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: () => _showFullDetailsDialog(transaction),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '$amount $currency',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF00B4D8),
+    return _triBorder(
+      radius: 18,
+      padding: const EdgeInsets.all(1.5),
+      child: Card(
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: InkWell(
+          onTap: () => _showFullDetailsDialog(transaction),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '$amount $currency',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF00B4D8),
+                      ),
                     ),
-                  ),
-                  _buildStatusChip(transaction),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Divider(),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(Icons.arrow_upward_rounded, color: Colors.red, size: 20),
-                  const SizedBox(width: 8),
-                  const Text('From:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(lender, overflow: TextOverflow.ellipsis)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.arrow_downward_rounded, color: Colors.green, size: 20),
-                  const SizedBox(width: 8),
-                  const Text('To:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(borrower, overflow: TextOverflow.ellipsis)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.calendar_today_rounded, color: Colors.grey[600], size: 16),
-                  const SizedBox(width: 8),
-                  Text('Created: $createdAt'),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton.icon(
-                    onPressed: () => _showFullDetailsDialog(transaction),
-                    icon: const Icon(Icons.visibility_rounded),
-                    label: const Text('View'),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: () => _showEditTransactionDialog(transaction),
-                    icon: const Icon(Icons.edit_rounded),
-                    label: const Text('Edit'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.orange),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton.icon(
-                    onPressed: () => _showDeleteConfirmationDialog(transaction),
-                    icon: const Icon(Icons.delete_rounded),
-                    label: const Text('Delete'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                  ),
-                ],
-              ),
-            ],
+                    _buildStatusChip(transaction),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Divider(),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.arrow_upward_rounded, color: Colors.red, size: 20),
+                    const SizedBox(width: 8),
+                    const Text('From:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(lender, overflow: TextOverflow.ellipsis)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.arrow_downward_rounded, color: Colors.green, size: 20),
+                    const SizedBox(width: 8),
+                    const Text('To:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(borrower, overflow: TextOverflow.ellipsis)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.calendar_today_rounded, color: Colors.grey[600], size: 16),
+                    const SizedBox(width: 8),
+                    Text('Created: $createdAt'),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () => _showFullDetailsDialog(transaction),
+                      icon: const Icon(Icons.visibility_rounded),
+                      label: const Text('View'),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: () => _showEditTransactionDialog(transaction),
+                      icon: const Icon(Icons.edit_rounded),
+                      label: const Text('Edit'),
+                      style: TextButton.styleFrom(foregroundColor: Colors.orange),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton.icon(
+                      onPressed: () => _showDeleteConfirmationDialog(transaction),
+                      icon: const Icon(Icons.delete_rounded),
+                      label: const Text('Delete'),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1445,7 +1660,7 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
                                               child: DropdownButton<String>(
                                                 value: _currencyFilter,
                                                 isExpanded: true,
-                                                items: _currencies
+                                                items: _filterCurrencyOptions
                                                     .map(
                                                       (currency) =>
                                                           DropdownMenuItem(

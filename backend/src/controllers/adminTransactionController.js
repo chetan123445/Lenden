@@ -167,6 +167,9 @@ const getAllTransactions = async (req, res) => {
   }
 };
 
+const User = require('../models/user');
+const { logTransactionActivity } = require('./activityController');
+
 const updateTransaction = async (req, res) => {
   try {
     const { transactionId } = req.params;
@@ -193,30 +196,54 @@ const updateTransaction = async (req, res) => {
       }
     }
     
-    // When photos are uploaded, they might come as separate fields.
-    // Multer's `any()` should handle this. If `photos` is still a string, parse it.
-    if (body.photos && typeof body.photos === 'string') {
-      try {
-        body.photos = JSON.parse(body.photos)
-      } catch(e) {
-        // if it's not a json array, maybe it's a single photo. wrap it in an array
-        body.photos = [body.photos];
+    let existingPhotos = [];
+    if (body.photos) {
+      if (typeof body.photos === 'string') {
+        try {
+          existingPhotos = JSON.parse(body.photos);
+        } catch (e) {
+          existingPhotos = [body.photos];
+        }
+      } else if (Array.isArray(body.photos)) {
+        existingPhotos = body.photos;
       }
     }
 
+    const newPhotos = (req.files || []).map(file => file.buffer.toString('base64'));
+    body.photos = [...existingPhotos, ...newPhotos];
+
 
     const updateData = normalizeAdminTransactionUpdate(body);
-    const transaction = await Transaction.findById(transactionId);
+    const originalTransaction = await Transaction.findById(transactionId);
 
-    if (!transaction) {
+    if (!originalTransaction) {
       return res.status(404).json({
         success: false,
         message: 'Transaction not found',
       });
     }
 
-    Object.assign(transaction, updateData);
-    await transaction.save();
+    const originalPartialPaymentsCount = originalTransaction.partialPayments.length;
+
+    Object.assign(originalTransaction, updateData);
+    const transaction = await originalTransaction.save();
+
+    // Log activity if partial payment was made
+    if (transaction.partialPayments.length > originalPartialPaymentsCount) {
+      const user = await User.findOne({ email: transaction.userEmail });
+      const counterparty = await User.findOne({ email: transaction.counterpartyEmail });
+      const payment = transaction.partialPayments[transaction.partialPayments.length - 1];
+
+      if (user && counterparty) {
+        const lender = transaction.role === 'lender' ? user : counterparty;
+        const borrower = transaction.role === 'borrower' ? user : counterparty;
+        const paidBy = payment.paidBy === 'lender' ? lender : borrower;
+        const receivedBy = payment.paidBy === 'lender' ? borrower : lender;
+
+        await logTransactionActivity(paidBy._id, 'partial_payment_made', transaction, { paymentAmount: payment.amount }, { creatorId: req.user._id, creatorEmail: req.user.email });
+        await logTransactionActivity(receivedBy._id, 'partial_payment_received', transaction, { paymentAmount: payment.amount }, { creatorId: req.user._id, creatorEmail: req.user.email });
+      }
+    }
 
     res.json({
       success: true,
