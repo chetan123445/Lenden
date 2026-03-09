@@ -7,6 +7,7 @@ module.exports = (io) => {
   const userController = require('../controllers/userController');
   const quickTransactionController = require('../controllers/quickTransactionController');
   const adminController = require('../controllers/adminController');
+  const adminTransactionController = require('../controllers/adminTransactionController');
   const forgotPasswordController = require('../controllers/forgotPasswordController');
   const profileController = require('../controllers/profileController');
   const editProfileController = require('../controllers/editProfileController');
@@ -306,9 +307,9 @@ module.exports = (io) => {
   router.delete('/admin/users/:userId', auth, isAdmin, adminController.deleteUser);
 
   // Transaction Management (Admin)
-  router.get('/admin/transactions', auth, isAdmin, adminController.getAllTransactions);
-  router.put('/admin/transactions/:transactionId', auth, isAdmin, adminController.updateTransaction);
-  router.delete('/admin/transactions/:transactionId', auth, isAdmin, adminController.deleteTransaction);
+  router.get('/admin/transactions', auth, isAdmin, adminTransactionController.getAllTransactions);
+  router.put('/admin/transactions/:transactionId', auth, isAdmin, upload.any(), adminTransactionController.updateTransaction);
+  router.delete('/admin/transactions/:transactionId', auth, isAdmin, adminTransactionController.deleteTransaction);
 
   // Group Transaction Management (Admin)
   router.get('/admin/group-transactions', auth, isAdmin, adminController.getAllGroupTransactions);

@@ -1,143 +1,118 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../user/session.dart';
-import '../api_config.dart';
 import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+
 import '../utils/api_client.dart';
 
 class ManageTransactionsPage extends StatefulWidget {
+  const ManageTransactionsPage({super.key});
+
   @override
-  _ManageTransactionsPageState createState() => _ManageTransactionsPageState();
+  State<ManageTransactionsPage> createState() => _ManageTransactionsPageState();
 }
 
 class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
-  List<dynamic> transactions = [];
-  bool loading = true;
-  String? error;
+  final TextEditingController _searchController = TextEditingController();
+  static const List<String> _supportedCurrencies = [
+    'INR',
+    'USD',
+    'EUR',
+    'GBP',
+    'JPY',
+    'CNY',
+    'CAD',
+    'AUD',
+    'CHF',
+    'RUB',
+  ];
+
+  List<Map<String, dynamic>> _transactions = [];
+  bool _loading = true;
+  bool _showAll = false;
+  String? _error;
+  String _searchQuery = '';
+  String _currencyFilter = 'All';
+  String _sortBy = 'latest';
 
   @override
   void initState() {
     super.initState();
-    fetchTransactions();
+    _fetchTransactions();
   }
 
-  Future<void> fetchTransactions() async {
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchTransactions() async {
     setState(() {
-      loading = true;
-      error = null;
+      _loading = true;
+      _error = null;
     });
 
     try {
       final response = await ApiClient.get('/api/admin/transactions');
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final transactions =
+            List<Map<String, dynamic>>.from(data['transactions'] ?? []);
         setState(() {
-          transactions = data['transactions'] ?? [];
-          loading = false;
+          _transactions = transactions;
+          _loading = false;
         });
       } else {
         final data = jsonDecode(response.body);
         setState(() {
-          error = data['error'] ?? 'Failed to load transactions.';
-          loading = false;
+          _error = data['error']?.toString() ?? 'Failed to load transactions.';
+          _loading = false;
         });
       }
     } catch (e) {
       setState(() {
-        error = 'An error occurred: $e';
-        loading = false;
+        _error = 'An error occurred: $e';
+        _loading = false;
       });
     }
   }
 
   Future<void> _updateTransaction(
-      String transactionId, Map<String, dynamic> updateData) async {
+    String transactionId,
+    Map<String, dynamic> updateData,
+  ) async {
     try {
       final response = await ApiClient.put(
-          '/api/admin/transactions/$transactionId',
-          body: updateData);
+        '/api/admin/transactions/$transactionId',
+        body: updateData,
+      );
 
       if (response.statusCode == 200) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Transaction updated successfully.')),
+          const SnackBar(content: Text('Transaction updated successfully.')),
         );
-        fetchTransactions();
+        await _fetchTransactions();
       } else {
         final data = jsonDecode(response.body);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(data['error'] ?? 'Failed to update transaction.')),
+            content: Text(
+              data['error']?.toString() ?? 'Failed to update transaction.',
+            ),
+          ),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('An error occurred: $e')),
       );
     }
-  }
-
-  void _showEditTransactionDialog(Map<String, dynamic> transaction) {
-    final _amountController =
-        TextEditingController(text: transaction['amount'].toString());
-    final _currencyController =
-        TextEditingController(text: transaction['currency']);
-    final _userEmailController =
-        TextEditingController(text: transaction['userEmail']);
-    final _counterpartyEmailController =
-        TextEditingController(text: transaction['counterpartyEmail']);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Edit Transaction'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _amountController,
-                decoration: InputDecoration(labelText: 'Amount'),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: _currencyController,
-                decoration: InputDecoration(labelText: 'Currency'),
-              ),
-              TextField(
-                controller: _userEmailController,
-                decoration: InputDecoration(labelText: 'Lender Email'),
-              ),
-              TextField(
-                controller: _counterpartyEmailController,
-                decoration: InputDecoration(labelText: 'Borrower Email'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final updateData = {
-                'amount': double.tryParse(_amountController.text) ??
-                    transaction['amount'],
-                'currency': _currencyController.text,
-                'userEmail': _userEmailController.text,
-                'counterpartyEmail': _counterpartyEmailController.text,
-              };
-              Navigator.of(context).pop();
-              _updateTransaction(transaction['_id'], updateData);
-            },
-            child: Text('Save'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _deleteTransaction(String transactionId) async {
@@ -146,88 +121,1475 @@ class _ManageTransactionsPageState extends State<ManageTransactionsPage> {
           await ApiClient.delete('/api/admin/transactions/$transactionId');
 
       if (response.statusCode == 200) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Transaction deleted successfully.')),
+          const SnackBar(content: Text('Transaction deleted successfully.')),
         );
-        fetchTransactions();
+        await _fetchTransactions();
       } else {
         final data = jsonDecode(response.body);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(data['error'] ?? 'Failed to delete transaction.')),
+            content: Text(
+              data['error']?.toString() ?? 'Failed to delete transaction.',
+            ),
+          ),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('An error occurred: $e')),
       );
     }
   }
 
-  void _showDeleteConfirmationDialog(String transactionId) {
+  String _displayValue(dynamic value) {
+    if (value == null) return 'N/A';
+    if (value is String && value.trim().isEmpty) return 'N/A';
+    if (value is Map || value is List) {
+      return const JsonEncoder.withIndent('  ').convert(value);
+    }
+    return value.toString();
+  }
+
+  String _formatDate(dynamic value) {
+    if (value == null) return 'N/A';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return value.toString();
+    return DateFormat('dd MMM yyyy, hh:mm a').format(parsed.toLocal());
+  }
+
+  String _formatDateOnly(dynamic value) {
+    if (value == null) return 'N/A';
+    final parsed = DateTime.tryParse(value.toString());
+    if (parsed == null) return value.toString();
+    return DateFormat('dd MMM yyyy').format(parsed.toLocal());
+  }
+
+  String _labelForKey(String key) {
+    final buffer = StringBuffer();
+    for (var i = 0; i < key.length; i++) {
+      final char = key[i];
+      if (i > 0 && char.toUpperCase() == char && char != '_') {
+        buffer.write(' ');
+      }
+      buffer.write(char == '_' ? ' ' : char);
+    }
+    final label = buffer.toString().trim();
+    if (label.isEmpty) return key;
+    return label[0].toUpperCase() + label.substring(1);
+  }
+
+  bool _isDateOnlyField(String key) =>
+      key == 'date' || key == 'expectedReturnDate';
+
+  bool _isDateTimeField(String key) =>
+      key == 'createdAt' || key == 'updatedAt' || key == 'paidAt';
+
+  bool _shouldHideFromDialogs(String key) =>
+      key == '_id' ||
+      key == '__v' ||
+      key == 'messageCounts' ||
+      key == 'favourite';
+
+  List<String> get _currencyOptions {
+    final values = {
+      ..._supportedCurrencies,
+      ..._currencies.where((currency) => currency != 'All'),
+    }.toList()
+      ..sort();
+    return values;
+  }
+
+  List<Map<String, dynamic>> _partialPaymentsFor(
+    Map<String, dynamic> transaction,
+  ) {
+    final raw = transaction['partialPayments'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
+  Widget _buildDetailTile(String label, String value, Color color) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF00B4D8),
+            ),
+          ),
+          const SizedBox(height: 6),
+          SelectableText(value, style: const TextStyle(height: 1.35)),
+        ],
+      ),
+    );
+  }
+
+  List<String> _photosFor(Map<String, dynamic> transaction) {
+    final raw = transaction['photos'];
+    if (raw is! List) return const [];
+    return raw
+        .map((item) => item?.toString() ?? '')
+        .where((item) => item.trim().isNotEmpty)
+        .toList();
+  }
+
+  Uint8List? _decodePhoto(String encoded) {
+    try {
+      return base64Decode(encoded);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<String>> _pickAdditionalPhotos() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      type: FileType.custom,
+      allowedExtensions: ['png', 'jpg', 'jpeg'],
+      withData: true,
+    );
+
+    if (result == null) return const [];
+
+    return result.files
+        .where((file) => file.bytes != null)
+        .map((file) => base64Encode(file.bytes!))
+        .toList();
+  }
+
+  Widget _buildPhotosSection({
+    required List<String> photos,
+    required bool editable,
+    void Function(int index)? onRemove,
+    VoidCallback? onAdd,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _getNoteColor(3),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Photos',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF00B4D8),
+                  ),
+                ),
+              ),
+              if (editable)
+                TextButton.icon(
+                  onPressed: onAdd,
+                  icon: const Icon(Icons.add_photo_alternate_outlined),
+                  label: const Text('Add'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (photos.isEmpty)
+            Text(
+              editable ? 'No photos selected.' : 'No photos available.',
+              style: TextStyle(color: Colors.grey[700]),
+            )
+          else
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: photos.asMap().entries.map((entry) {
+                final bytes = _decodePhoto(entry.value);
+                return Stack(
+                  children: [
+                    Container(
+                      width: 110,
+                      height: 110,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0x2200B4D8)),
+                      ),
+                      child: bytes == null
+                          ? Center(
+                              child: Text(
+                                'Invalid image',
+                                style: TextStyle(color: Colors.grey[700]),
+                                textAlign: TextAlign.center,
+                              ),
+                            )
+                          : Image.memory(bytes, fit: BoxFit.cover),
+                    ),
+                    if (editable)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: GestureDetector(
+                          onTap: () => onRemove?.call(entry.key),
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.close,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPartialPaymentsSection(List<Map<String, dynamic>> payments) {
+    if (payments.isEmpty) {
+      return _buildDetailTile(
+        'Partial Payment History',
+        'No partial payments available.',
+        _getNoteColor(4),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _getNoteColor(4),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Partial Payment History',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF00B4D8),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...payments.asMap().entries.map((entry) {
+            final payment = entry.value;
+            final amount = _displayValue(payment['amount']);
+            final paidBy = _displayValue(payment['paidBy']);
+            final paidAt = _formatDate(payment['paidAt']);
+            final description = _displayValue(payment['description']);
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(235),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0x3300B4D8)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Payment ${entry.key + 1}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text('Amount: $amount'),
+                  Text('Paid By: $paidBy'),
+                  Text('Paid At: $paidAt'),
+                  if (description != 'N/A') Text('Description: $description'),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Future<DateTime?> _pickDate(
+    BuildContext context,
+    DateTime? initialDate,
+  ) async {
+    final now = DateTime.now();
+    return showDatePicker(
+      context: context,
+      initialDate: initialDate ?? now,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+  }
+
+  Widget _buildDropdownField({
+    required String label,
+    required String value,
+    required List<String> options,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _triBorder(
+        radius: 14,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 2),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ),
+              DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: options.contains(value) ? value : options.first,
+                  isExpanded: true,
+                  items: options
+                      .map(
+                        (option) => DropdownMenuItem<String>(
+                          value: option,
+                          child: Text(option),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: onChanged,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required String label,
+    required TextEditingController controller,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: _triBorder(
+        radius: 14,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            maxLines: maxLines,
+            decoration: InputDecoration(
+              labelText: label,
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 14,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getNoteColor(int index) {
+    final colors = [
+      const Color(0xFFFFF4E6),
+      const Color(0xFFE8F5E9),
+      const Color(0xFFFCE4EC),
+      const Color(0xFFE3F2FD),
+      const Color(0xFFFFF9C4),
+      const Color(0xFFF3E5F5),
+    ];
+    return colors[index % colors.length];
+  }
+
+  Widget _triBorder({
+    required Widget child,
+    double radius = 18,
+    EdgeInsets padding = const EdgeInsets.all(2),
+  }) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: child,
+    );
+  }
+
+  List<String> get _currencies {
+    final values = _transactions
+        .map((t) => (t['currency'] ?? '').toString().trim())
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return ['All', ...values];
+  }
+
+  List<Map<String, dynamic>> get _filteredTransactions {
+    final query = _searchQuery.trim().toLowerCase();
+    final filtered = _transactions.where((transaction) {
+      final matchesQuery = query.isEmpty ||
+          jsonEncode(transaction).toLowerCase().contains(query);
+      final matchesCurrency = _currencyFilter == 'All' ||
+          (transaction['currency']?.toString() ?? '') == _currencyFilter;
+      return matchesQuery && matchesCurrency;
+    }).toList();
+
+    filtered.sort((a, b) {
+      if (_sortBy == 'amount_desc') {
+        final aAmount = (a['amount'] as num?)?.toDouble() ??
+            double.tryParse('${a['amount']}') ??
+            0;
+        final bAmount = (b['amount'] as num?)?.toDouble() ??
+            double.tryParse('${b['amount']}') ??
+            0;
+        return bAmount.compareTo(aAmount);
+      }
+      if (_sortBy == 'amount_asc') {
+        final aAmount = (a['amount'] as num?)?.toDouble() ??
+            double.tryParse('${a['amount']}') ??
+            0;
+        final bAmount = (b['amount'] as num?)?.toDouble() ??
+            double.tryParse('${b['amount']}') ??
+            0;
+        return aAmount.compareTo(bAmount);
+      }
+
+      final aDate = DateTime.tryParse('${a['createdAt'] ?? ''}') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      final bDate = DateTime.tryParse('${b['createdAt'] ?? ''}') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+      return bDate.compareTo(aDate);
+    });
+
+    return filtered;
+  }
+
+  List<Map<String, dynamic>> get _visibleTransactions {
+    final filtered = _filteredTransactions;
+    if (_showAll || filtered.length <= 5) return filtered;
+    return filtered.take(5).toList();
+  }
+
+  Future<void> _showDeleteConfirmationDialog(
+    Map<String, dynamic> transaction,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipPath(
+                clipper: TopWaveClipper(),
+                child: Container(
+                  height: 70,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFFE53935), Color(0xFFFF7043)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+                child: Column(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded,
+                        color: Colors.red, size: 44),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Delete Transaction',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'This will permanently delete the transaction for ${_displayValue(transaction['userEmail'])}.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[700], fontSize: 15),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Delete'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteTransaction(transaction['_id'].toString());
+    }
+  }
+
+  Future<void> _showFullDetailsDialog(Map<String, dynamic> transaction) async {
+    final partialPayments = _partialPaymentsFor(transaction);
+    final photos = _photosFor(transaction);
+    final detailEntries = transaction.entries
+        .where(
+          (entry) =>
+              !_shouldHideFromDialogs(entry.key) &&
+              entry.key != 'partialPayments' &&
+              entry.key != 'photos',
+        )
+        .toList();
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete Transaction'),
-        content: Text('Are you sure you want to delete this transaction?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
+      builder: (context) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _deleteTransaction(transactionId);
-            },
-            child: Text('Delete'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipPath(
+                clipper: TopWaveClipper(),
+                child: Container(
+                  height: 70,
+                  color: const Color(0xFF00B4D8),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Full Transaction Details',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.55,
+                      ),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          children: [
+                            ...detailEntries.asMap().entries.map((entry) {
+                              final key = entry.value.key;
+                              final value = entry.value.value;
+                              final displayValue = _isDateOnlyField(key)
+                                  ? _formatDateOnly(value)
+                                  : _isDateTimeField(key)
+                                      ? _formatDate(value)
+                                      : _displayValue(value);
+                              return _buildDetailTile(
+                                _labelForKey(key),
+                                displayValue,
+                                _getNoteColor(entry.key),
+                              );
+                            }),
+                            _buildPhotosSection(
+                              photos: photos,
+                              editable: false,
+                            ),
+                            if ((transaction['isPartiallyPaid'] == true) ||
+                                partialPayments.isNotEmpty)
+                              _buildPartialPaymentsSection(partialPayments),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showEditTransactionDialog(
+      Map<String, dynamic> transaction) async {
+    final textControllers = <String, TextEditingController>{};
+    const excludedKeys = {
+      '_id',
+      '__v',
+      'messageCounts',
+      'partialPayments',
+      'photos',
+      'favourite',
+    };
+
+    for (final entry in transaction.entries) {
+      if (excludedKeys.contains(entry.key)) continue;
+      if (entry.value is bool) continue;
+      if (_isDateOnlyField(entry.key)) continue;
+      if (entry.key == 'currency') continue;
+      if (entry.key == 'userCleared' ||
+          entry.key == 'counterpartyCleared' ||
+          entry.key == 'isPartiallyPaid') {
+        continue;
+      }
+
+      textControllers[entry.key] = TextEditingController(
+        text: entry.value is Map || entry.value is List
+            ? const JsonEncoder.withIndent('  ').convert(entry.value)
+            : '${entry.value ?? ''}',
+      );
+    }
+
+    String selectedCurrency =
+        (transaction['currency']?.toString().trim().isNotEmpty ?? false)
+            ? transaction['currency'].toString().trim()
+            : (_currencyOptions.isNotEmpty ? _currencyOptions.first : '');
+    String userClearedValue = '${transaction['userCleared'] == true}';
+    String counterpartyClearedValue =
+        '${transaction['counterpartyCleared'] == true}';
+    String isPartiallyPaidValue = '${transaction['isPartiallyPaid'] == true}';
+    DateTime? selectedDate =
+        DateTime.tryParse('${transaction['date'] ?? ''}')?.toLocal();
+    DateTime? selectedExpectedReturnDate =
+        DateTime.tryParse('${transaction['expectedReturnDate'] ?? ''}')
+            ?.toLocal();
+    final partialPayments = _partialPaymentsFor(transaction);
+    final editablePhotos = List<String>.from(_photosFor(transaction));
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ClipPath(
+                  clipper: TopWaveClipper(),
+                  child: Container(
+                    height: 70,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Edit Transaction',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.58,
+                        ),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            children: [
+                              if (_currencyOptions.isNotEmpty)
+                                _buildDropdownField(
+                                  label: 'Currency',
+                                  value: selectedCurrency,
+                                  options: _currencyOptions,
+                                  onChanged: (value) {
+                                    if (value == null) return;
+                                    setDialogState(() {
+                                      selectedCurrency = value;
+                                    });
+                                  },
+                                ),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _triBorder(
+                                  radius: 14,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: ListTile(
+                                      title: const Text('Date'),
+                                      subtitle: Text(
+                                        selectedDate == null
+                                            ? 'Select date'
+                                            : _formatDateOnly(
+                                                selectedDate!.toIso8601String(),
+                                              ),
+                                      ),
+                                      trailing:
+                                          const Icon(Icons.calendar_today),
+                                      onTap: () async {
+                                        final picked = await _pickDate(
+                                          context,
+                                          selectedDate,
+                                        );
+                                        if (picked == null) return;
+                                        setDialogState(() {
+                                          selectedDate = picked;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _triBorder(
+                                  radius: 14,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: ListTile(
+                                      title: const Text('Expected Return Date'),
+                                      subtitle: Text(
+                                        selectedExpectedReturnDate == null
+                                            ? 'Not set'
+                                            : _formatDateOnly(
+                                                selectedExpectedReturnDate!
+                                                    .toIso8601String(),
+                                              ),
+                                      ),
+                                      trailing:
+                                          const Icon(Icons.event_available),
+                                      onTap: () async {
+                                        final picked = await _pickDate(
+                                          context,
+                                          selectedExpectedReturnDate,
+                                        );
+                                        if (picked == null) return;
+                                        setDialogState(() {
+                                          selectedExpectedReturnDate = picked;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              _buildDropdownField(
+                                label: 'User Cleared',
+                                value: userClearedValue,
+                                options: const ['true', 'false'],
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setDialogState(() {
+                                    userClearedValue = value;
+                                  });
+                                },
+                              ),
+                              _buildDropdownField(
+                                label: 'Counterparty Cleared',
+                                value: counterpartyClearedValue,
+                                options: const ['true', 'false'],
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setDialogState(() {
+                                    counterpartyClearedValue = value;
+                                  });
+                                },
+                              ),
+                              _buildDropdownField(
+                                label: 'Is Partially Paid',
+                                value: isPartiallyPaidValue,
+                                options: const ['true', 'false'],
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setDialogState(() {
+                                    isPartiallyPaidValue = value;
+                                  });
+                                },
+                              ),
+                              _buildPhotosSection(
+                                photos: editablePhotos,
+                                editable: true,
+                                onRemove: (index) {
+                                  setDialogState(() {
+                                    editablePhotos.removeAt(index);
+                                  });
+                                },
+                                onAdd: () async {
+                                  final newPhotos =
+                                      await _pickAdditionalPhotos();
+                                  if (newPhotos.isEmpty) return;
+                                  setDialogState(() {
+                                    editablePhotos.addAll(newPhotos);
+                                  });
+                                },
+                              ),
+                              ...textControllers.entries.map((entry) {
+                                final isComplex =
+                                    entry.value.text.trim().startsWith('{') ||
+                                        entry.value.text.trim().startsWith('[');
+                                final isNumberField = {
+                                  'amount',
+                                  'interestRate',
+                                  'compoundingFrequency',
+                                  'remainingAmount',
+                                  'totalAmountWithInterest',
+                                }.contains(entry.key);
+                                return _buildTextField(
+                                  label: _labelForKey(entry.key),
+                                  controller: entry.value,
+                                  keyboardType: isNumberField
+                                      ? const TextInputType.numberWithOptions(
+                                          decimal: true,
+                                        )
+                                      : TextInputType.text,
+                                  maxLines: isComplex ? 5 : 1,
+                                );
+                              }),
+                              if (isPartiallyPaidValue == 'true' ||
+                                  partialPayments.isNotEmpty)
+                                _buildPartialPaymentsSection(partialPayments),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () {
+                                final updateData = <String, dynamic>{
+                                  'currency': selectedCurrency,
+                                  'userCleared': userClearedValue == 'true',
+                                  'counterpartyCleared':
+                                      counterpartyClearedValue == 'true',
+                                  'isPartiallyPaid':
+                                      isPartiallyPaidValue == 'true',
+                                  'date': selectedDate?.toIso8601String(),
+                                  'expectedReturnDate':
+                                      selectedExpectedReturnDate
+                                          ?.toIso8601String(),
+                                  'photos': editablePhotos,
+                                };
+
+                                for (final entry in textControllers.entries) {
+                                  final text = entry.value.text.trim();
+                                  if (text.isEmpty &&
+                                      entry.key != 'description' &&
+                                      entry.key != 'place' &&
+                                      entry.key != 'time') {
+                                    updateData[entry.key] = null;
+                                    continue;
+                                  }
+
+                                  if ({
+                                    'amount',
+                                    'interestRate',
+                                    'compoundingFrequency',
+                                    'remainingAmount',
+                                    'totalAmountWithInterest',
+                                  }.contains(entry.key)) {
+                                    updateData[entry.key] =
+                                        double.tryParse(text) ??
+                                            transaction[entry.key];
+                                    continue;
+                                  }
+
+                                  if (text.startsWith('{') ||
+                                      text.startsWith('[')) {
+                                    try {
+                                      updateData[entry.key] = jsonDecode(text);
+                                      continue;
+                                    } catch (_) {}
+                                  }
+
+                                  updateData[entry.key] = text;
+                                }
+
+                                Navigator.pop(context);
+                                _updateTransaction(
+                                  transaction['_id'].toString(),
+                                  updateData,
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00B4D8),
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Save'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    for (final controller in textControllers.values) {
+      controller.dispose();
+    }
+  }
+
+  Widget _buildStatsRow() {
+    final total = _transactions.length;
+    final visible = _visibleTransactions.length;
+    final totalAmount = _filteredTransactions.fold<double>(
+      0,
+      (sum, item) =>
+          sum +
+          ((item['amount'] as num?)?.toDouble() ??
+              double.tryParse('${item['amount']}') ??
+              0),
+    );
+
+    final items = [
+      ('Total', '$total', Icons.receipt_long_rounded),
+      ('Showing', '$visible', Icons.visibility_rounded),
+      ('Amount', totalAmount.toStringAsFixed(2), Icons.payments_rounded),
+    ];
+
+    return Row(
+      children: List.generate(items.length, (index) {
+        final item = items[index];
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: index == items.length - 1 ? 0 : 12),
+            child: _triBorder(
+              radius: 16,
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _getNoteColor(index),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  children: [
+                    Icon(item.$3, color: const Color(0xFF00B4D8)),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.$2,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      item.$1,
+                      style: TextStyle(color: Colors.grey[700], fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildStatusChip(Map<String, dynamic> transaction) {
+    final bool userCleared = transaction['userCleared'] == true;
+    final bool counterpartyCleared = transaction['counterpartyCleared'] == true;
+    final bool isPartiallyPaid = transaction['isPartiallyPaid'] == true;
+
+    String label;
+    Color color;
+    IconData icon;
+
+    if (userCleared && counterpartyCleared) {
+      label = 'Cleared';
+      color = Colors.green;
+      icon = Icons.check_circle_rounded;
+    } else if (isPartiallyPaid) {
+      label = 'Partially Paid';
+      color = Colors.orange;
+      icon = Icons.donut_large_rounded;
+    } else {
+      label = 'Pending';
+      color = Colors.grey;
+      icon = Icons.hourglass_empty_rounded;
+    }
+
+    return Chip(
+      avatar: Icon(icon, color: Colors.white, size: 16),
+      label: Text(label),
+      backgroundColor: color,
+      labelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+    );
+  }
+
+  Widget _buildTransactionCard(Map<String, dynamic> transaction, int index) {
+    final amount = _displayValue(transaction['amount']);
+    final currency = _displayValue(transaction['currency']);
+    final lender = _displayValue(transaction['userEmail']);
+    final borrower = _displayValue(transaction['counterpartyEmail']);
+    final createdAt = _formatDate(transaction['createdAt']);
+
+    return Card(
+      elevation: 4,
+      margin: const EdgeInsets.only(bottom: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: () => _showFullDetailsDialog(transaction),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '$amount $currency',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00B4D8),
+                    ),
+                  ),
+                  _buildStatusChip(transaction),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.arrow_upward_rounded, color: Colors.red, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('From:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(lender, overflow: TextOverflow.ellipsis)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.arrow_downward_rounded, color: Colors.green, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('To:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(borrower, overflow: TextOverflow.ellipsis)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.calendar_today_rounded, color: Colors.grey[600], size: 16),
+                  const SizedBox(width: 8),
+                  Text('Created: $createdAt'),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _showFullDetailsDialog(transaction),
+                    icon: const Icon(Icons.visibility_rounded),
+                    label: const Text('View'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () => _showEditTransactionDialog(transaction),
+                    icon: const Icon(Icons.edit_rounded),
+                    label: const Text('Edit'),
+                    style: TextButton.styleFrom(foregroundColor: Colors.orange),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton.icon(
+                    onPressed: () => _showDeleteConfirmationDialog(transaction),
+                    icon: const Icon(Icons.delete_rounded),
+                    label: const Text('Delete'),
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final visibleTransactions = _visibleTransactions;
+    final filteredTransactions = _filteredTransactions;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Manage Transactions'),
-      ),
-      body: loading
-          ? Center(child: CircularProgressIndicator())
-          : error != null
-              ? Center(child: Text(error!, style: TextStyle(color: Colors.red)))
-              : ListView.builder(
-                  itemCount: transactions.length,
-                  itemBuilder: (context, index) {
-                    final t = transactions[index];
-                    return Card(
-                      margin: EdgeInsets.all(8.0),
-                      child: ListTile(
-                        title: Text('Amount: ${t['amount']} ${t['currency']}'),
-                        subtitle: Text(
-                            'Lender: ${t['userEmail']}\nBorrower: ${t['counterpartyEmail']}'),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: Icon(Icons.edit),
-                              onPressed: () {
-                                _showEditTransactionDialog(t);
-                              },
-                            ),
-                            IconButton(
-                              icon: Icon(Icons.delete),
-                              onPressed: () {
-                                _showDeleteConfirmationDialog(t['_id']);
-                              },
-                            ),
-                          ],
+      backgroundColor: const Color(0xFFF8F6FA),
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 60,
+                color: const Color(0xFF00B4D8),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.black),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'Manage Transactions',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                         ),
                       ),
-                    );
-                  },
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.black),
+                        onPressed: _fetchTransactions,
+                      ),
+                    ],
+                  ),
                 ),
+                Expanded(
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _error != null
+                          ? Center(
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(color: Colors.red),
+                              ),
+                            )
+                          : SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                              child: Column(
+                                children: [
+                                  _triBorder(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      child: TextField(
+                                        controller: _searchController,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _searchQuery = value;
+                                            _showAll = false;
+                                          });
+                                        },
+                                        decoration: InputDecoration(
+                                          border: InputBorder.none,
+                                          hintText:
+                                              'Search amount, lender, borrower, id, notes...',
+                                          prefixIcon: const Icon(
+                                            Icons.search_rounded,
+                                            color: Color(0xFF00B4D8),
+                                          ),
+                                          suffixIcon: _searchQuery.isEmpty
+                                              ? null
+                                              : IconButton(
+                                                  icon: const Icon(Icons.clear),
+                                                  onPressed: () {
+                                                    _searchController.clear();
+                                                    setState(() {
+                                                      _searchQuery = '';
+                                                    });
+                                                  },
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _triBorder(
+                                          radius: 14,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: DropdownButtonHideUnderline(
+                                              child: DropdownButton<String>(
+                                                value: _currencyFilter,
+                                                isExpanded: true,
+                                                items: _currencies
+                                                    .map(
+                                                      (currency) =>
+                                                          DropdownMenuItem(
+                                                        value: currency,
+                                                        child: Text(currency),
+                                                      ),
+                                                    )
+                                                    .toList(),
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    _currencyFilter = value!;
+                                                    _showAll = false;
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: _triBorder(
+                                          radius: 14,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: DropdownButtonHideUnderline(
+                                              child: DropdownButton<String>(
+                                                value: _sortBy,
+                                                isExpanded: true,
+                                                items: const [
+                                                  DropdownMenuItem(
+                                                    value: 'latest',
+                                                    child: Text('Latest'),
+                                                  ),
+                                                  DropdownMenuItem(
+                                                    value: 'amount_desc',
+                                                    child: Text('Amount High'),
+                                                  ),
+                                                  DropdownMenuItem(
+                                                    value: 'amount_asc',
+                                                    child: Text('Amount Low'),
+                                                  ),
+                                                ],
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    _sortBy = value!;
+                                                  });
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+                                  _buildStatsRow(),
+                                  const SizedBox(height: 16),
+                                  if (filteredTransactions.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 80),
+                                      child: Column(
+                                        children: [
+                                          Icon(Icons.receipt_long_outlined,
+                                              size: 72, color: Colors.grey),
+                                          SizedBox(height: 12),
+                                          Text(
+                                            'No transactions found',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  else ...[
+                                    ...visibleTransactions.asMap().entries.map(
+                                          (entry) => _buildTransactionCard(
+                                            entry.value,
+                                            entry.key,
+                                          ),
+                                        ),
+                                    if (!_showAll &&
+                                        filteredTransactions.length > 5)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 8),
+                                        child: TextButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _showAll = true;
+                                            });
+                                          },
+                                          child: Text(
+                                            'View All (${filteredTransactions.length})',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF00B4D8),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
+
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height * 0.4);
+    path.quadraticBezierTo(
+      size.width * 0.25,
+      size.height * 0.5,
+      size.width * 0.5,
+      size.height * 0.4,
+    );
+    path.quadraticBezierTo(
+      size.width * 0.75,
+      size.height * 0.3,
+      size.width,
+      size.height * 0.4,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

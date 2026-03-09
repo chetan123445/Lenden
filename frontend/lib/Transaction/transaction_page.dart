@@ -3,21 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import '../otp_input.dart';
-import '../api_config.dart';
 import 'package:provider/provider.dart';
+import 'package:http_parser/http_parser.dart';
 import '../user/session.dart';
 import '../utils/api_client.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 // Add for wavy background
-import 'dart:math' as math;
-import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'user_transactions_page.dart';
-import '../widgets/subscription_prompt.dart';
 import '../user/gift_card_page.dart';
 import '../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
@@ -81,7 +76,6 @@ class _TransactionPageState extends State<TransactionPage> {
   String? _sameEmailError;
   int _counterpartyOtpSeconds = 0;
   int _userOtpSeconds = 0;
-  late final ImagePicker _picker;
   bool _counterpartyVerified = false;
   bool _userVerified = false;
   String _interestType = 'none';
@@ -113,7 +107,6 @@ class _TransactionPageState extends State<TransactionPage> {
   @override
   void initState() {
     super.initState();
-    _picker = ImagePicker();
     _compoundingFrequency = 1;
     _descriptionController.text = '';
     if ((widget.prefillCounterpartyEmail ?? '').isNotEmpty) {
@@ -138,7 +131,8 @@ class _TransactionPageState extends State<TransactionPage> {
       if (res.statusCode != 200) return;
       final data = jsonDecode(res.body);
       final friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
-      final blocked = List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
+      final blocked =
+          List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
       _blockedEmails = blocked
           .map((u) => (u['email'] ?? '').toString().toLowerCase().trim())
           .where((e) => e.isNotEmpty)
@@ -178,8 +172,8 @@ class _TransactionPageState extends State<TransactionPage> {
                     ...friends.map((f) {
                       final email = f['email'] ?? '';
                       final name = f['name'] ?? f['username'] ?? '';
-                      final isBlocked =
-                          _blockedEmails.contains(email.toString().toLowerCase().trim());
+                      final isBlocked = _blockedEmails
+                          .contains(email.toString().toLowerCase().trim());
                       return Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.all(2),
@@ -313,7 +307,7 @@ class _TransactionPageState extends State<TransactionPage> {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       type: FileType.custom,
-      allowedExtensions: ['png', 'jpg', 'jpeg', 'pdf'],
+      allowedExtensions: ['png', 'jpg', 'jpeg'],
       withData: true,
     );
     if (result != null && result.files.isNotEmpty) {
@@ -403,25 +397,40 @@ class _TransactionPageState extends State<TransactionPage> {
                                 child: Icon(Icons.close,
                                     size: 16, color: Colors.white)),
                           ),
-                        if (_pickedFiles[i].extension == 'pdf')
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              color: Colors.white70,
-                              child: Text(_pickedFiles[i].name,
-                                  style: TextStyle(
-                                      fontSize: 10, color: Colors.black),
-                                  textAlign: TextAlign.center),
-                            ),
-                          ),
                       ],
                     ),
                   )),
         ),
       ],
     );
+  }
+
+  MediaType? _mediaTypeForFile(PlatformFile file) {
+    final ext = (file.extension ?? '').toLowerCase();
+    switch (ext) {
+      case 'png':
+        return MediaType('image', 'png');
+      case 'jpg':
+      case 'jpeg':
+        return MediaType('image', 'jpeg');
+      default:
+        return null;
+    }
+  }
+
+  List<ApiMultipartFile> _buildMultipartFiles() {
+    return _pickedFiles
+        .where((file) => file.bytes != null || (file.path?.isNotEmpty ?? false))
+        .map(
+          (file) => ApiMultipartFile(
+            field: 'files',
+            filename: file.name,
+            bytes: file.bytes,
+            path: file.bytes == null ? file.path : null,
+            contentType: _mediaTypeForFile(file),
+          ),
+        )
+        .toList();
   }
 
   Future<bool> _checkEmailExists(String email) async {
@@ -691,27 +700,11 @@ class _TransactionPageState extends State<TransactionPage> {
           body['compoundingFrequency'] = _compoundingFrequency;
         }
       }
-
-      // Attach files as base64 payloads to avoid multipart complexity.
-      if (_pickedFiles.isNotEmpty) {
-        body['files'] = _pickedFiles.where((f) => f.bytes != null).map((f) {
-          final ext = (f.extension ?? '').toLowerCase();
-          String mime = 'application/octet-stream';
-          if (ext == 'png')
-            mime = 'image/png';
-          else if (ext == 'jpg' || ext == 'jpeg')
-            mime = 'image/jpeg';
-          else if (ext == 'pdf') mime = 'application/pdf';
-          return {
-            'name': f.name,
-            'mime': mime,
-            'data': base64Encode(f.bytes!),
-          };
-        }).toList();
-      }
-
-      final res =
-          await ApiClient.post('/api/transactions/with-coins', body: body);
+      final res = await ApiClient.postMultipart(
+        '/api/transactions/with-coins',
+        fields: body,
+        files: _buildMultipartFiles(),
+      );
       setState(() => _isLoading = false);
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body);
@@ -812,7 +805,8 @@ class _TransactionPageState extends State<TransactionPage> {
                           padding: EdgeInsets.symmetric(vertical: 14),
                         ),
                         onPressed: () {
-                          Navigator.of(context).pop(); // Close the success dialog
+                          Navigator.of(context)
+                              .pop(); // Close the success dialog
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
@@ -906,26 +900,11 @@ class _TransactionPageState extends State<TransactionPage> {
           body['compoundingFrequency'] = _compoundingFrequency;
         }
       }
-
-      // Attach files as base64 payloads to avoid multipart complexity.
-      if (_pickedFiles.isNotEmpty) {
-        body['files'] = _pickedFiles.where((f) => f.bytes != null).map((f) {
-          final ext = (f.extension ?? '').toLowerCase();
-          String mime = 'application/octet-stream';
-          if (ext == 'png')
-            mime = 'image/png';
-          else if (ext == 'jpg' || ext == 'jpeg')
-            mime = 'image/jpeg';
-          else if (ext == 'pdf') mime = 'application/pdf';
-          return {
-            'name': f.name,
-            'mime': mime,
-            'data': base64Encode(f.bytes!),
-          };
-        }).toList();
-      }
-
-      final res = await ApiClient.post('/api/transactions/create', body: body);
+      final res = await ApiClient.postMultipart(
+        '/api/transactions/create',
+        fields: body,
+        files: _buildMultipartFiles(),
+      );
       setState(() => _isLoading = false);
       if (res.statusCode == 200 || res.statusCode == 201) {
         final data = jsonDecode(res.body);
@@ -1027,7 +1006,8 @@ class _TransactionPageState extends State<TransactionPage> {
                           padding: EdgeInsets.symmetric(vertical: 14),
                         ),
                         onPressed: () {
-                          Navigator.of(context).pop(); // Close the success dialog
+                          Navigator.of(context)
+                              .pop(); // Close the success dialog
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
@@ -1146,8 +1126,6 @@ class _TransactionPageState extends State<TransactionPage> {
     );
   }
 
-
-
   Widget _buildCurrencyDropdown() {
     return DropdownButtonFormField<String>(
       value: _currency,
@@ -1189,7 +1167,9 @@ class _TransactionPageState extends State<TransactionPage> {
                         surface: Colors.teal.shade50,
                         onSurface: Colors.black,
                       ),
-                      dialogBackgroundColor: Colors.white,
+                      dialogTheme: const DialogThemeData(
+                        backgroundColor: Colors.white,
+                      ),
                     ),
                     child: child!,
                   );
@@ -1235,7 +1215,9 @@ class _TransactionPageState extends State<TransactionPage> {
                         surface: Colors.teal.shade50,
                         onSurface: Colors.black,
                       ),
-                      dialogBackgroundColor: Colors.white,
+                      dialogTheme: const DialogThemeData(
+                        backgroundColor: Colors.white,
+                      ),
                     ),
                     child: child!,
                   );
@@ -1327,7 +1309,7 @@ class _TransactionPageState extends State<TransactionPage> {
                       padding:
                           EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.teal.withOpacity(0.1),
+                        color: Colors.teal.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text('Resend OTP (${otpSeconds}s)',
@@ -1371,8 +1353,7 @@ class _TransactionPageState extends State<TransactionPage> {
                 runSpacing: 8,
                 children: (friendSuggestions ?? []).map((f) {
                   final email = (f['email'] ?? '').toString();
-                  final name =
-                      (f['name'] ?? f['username'] ?? '').toString();
+                  final name = (f['name'] ?? f['username'] ?? '').toString();
                   return Container(
                     padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
@@ -1385,13 +1366,11 @@ class _TransactionPageState extends State<TransactionPage> {
                     ),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: _getFriendNoteColor(
-                            email.hashCode.abs() % 6),
+                        color: _getFriendNoteColor(email.hashCode.abs() % 6),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: ActionChip(
-                        label:
-                            Text(name.isNotEmpty ? '$name ($email)' : email),
+                        label: Text(name.isNotEmpty ? '$name ($email)' : email),
                         onPressed: () => onSelectFriend(email),
                       ),
                     ),
@@ -1486,10 +1465,11 @@ class _TransactionPageState extends State<TransactionPage> {
                       padding:
                           EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
-                        border:
-                            Border.all(color: Colors.white.withOpacity(0.3)),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1830,8 +1810,8 @@ class _TransactionPageState extends State<TransactionPage> {
                                   _userVerified &&
                                   !_isLoading &&
                                   !(!Provider.of<SessionProvider>(context,
-                                          listen: false)
-                                      .isSubscribed &&
+                                              listen: false)
+                                          .isSubscribed &&
                                       _dailyUserTxRemaining != null &&
                                       _dailyUserTxRemaining! <= 0))
                               ? _submit

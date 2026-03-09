@@ -1,7 +1,24 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../api_config.dart';
+
+class ApiMultipartFile {
+  final String field;
+  final String filename;
+  final List<int>? bytes;
+  final String? path;
+  final MediaType? contentType;
+
+  const ApiMultipartFile({
+    required this.field,
+    required this.filename,
+    this.bytes,
+    this.path,
+    this.contentType,
+  });
+}
 
 class ApiClient {
   static final http.Client _client = http.Client();
@@ -119,8 +136,8 @@ class ApiClient {
     if (refreshToken == null) return false;
 
     try {
-      final uri =
-          Uri.parse('$_baseUrl/api/users/refresh-token'); // adjust if endpoint differs
+      final uri = Uri.parse(
+          '$_baseUrl/api/users/refresh-token'); // adjust if endpoint differs
       final response = await _client.post(uri,
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'refreshToken': refreshToken}));
@@ -168,5 +185,82 @@ class ApiClient {
   static Future<http.Response> delete(String path,
       {Map<String, String>? headers}) {
     return _request('DELETE', path, extraHeaders: headers);
+  }
+
+  static Future<http.Response> postMultipart(
+    String path, {
+    Map<String, dynamic>? fields,
+    List<ApiMultipartFile>? files,
+    Map<String, String>? headers,
+  }) async {
+    return _multipartRequest(
+      'POST',
+      path,
+      fields: fields,
+      files: files,
+      extraHeaders: headers,
+    );
+  }
+
+  static Future<http.Response> _multipartRequest(
+    String method,
+    String path, {
+    Map<String, dynamic>? fields,
+    List<ApiMultipartFile>? files,
+    Map<String, String>? extraHeaders,
+  }) async {
+    final uri = Uri.parse('$_baseUrl$path');
+    String? token = await _getAccessToken();
+
+    Future<http.Response> sendRequest(String? accessToken) async {
+      final request = http.MultipartRequest(method, uri);
+      request.headers.addAll({
+        'Accept': 'application/json',
+        if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+        if (extraHeaders != null) ...extraHeaders,
+      });
+
+      (fields ?? {}).forEach((key, value) {
+        if (value != null) {
+          request.fields[key] = value.toString();
+        }
+      });
+
+      for (final file in files ?? const <ApiMultipartFile>[]) {
+        if (file.bytes != null) {
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              file.field,
+              file.bytes!,
+              filename: file.filename,
+              contentType: file.contentType,
+            ),
+          );
+        } else if (file.path != null && file.path!.isNotEmpty) {
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              file.field,
+              file.path!,
+              filename: file.filename,
+              contentType: file.contentType,
+            ),
+          );
+        }
+      }
+
+      final streamed = await _client.send(request);
+      return http.Response.fromStream(streamed);
+    }
+
+    var response = await sendRequest(token);
+    if (response.statusCode == 401) {
+      final refreshed = await _refreshTokens();
+      if (refreshed) {
+        token = await _getAccessToken();
+        response = await sendRequest(token);
+      }
+    }
+
+    return response;
   }
 }

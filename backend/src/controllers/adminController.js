@@ -1,10 +1,10 @@
 const User = require('../models/user');
 const Admin = require('../models/admin');
-const Transaction = require('../models/transaction');
 const GroupTransaction = require('../models/groupTransaction');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { sendAdminWelcomeEmail, sendAdminRemovalEmail } = require('../utils/adminEmailNotifications');
+
 
 // Admin registration
 const register = async (req, res) => {
@@ -660,85 +660,6 @@ const removeAdmin = async (req, res) => {
   }
 };
 
-// Get all transactions (for admin)
-const getAllTransactions = async (req, res) => {
-  try {
-    const { page = 1, limit = 10, sortBy = 'date', order = 'desc' } = req.query;
-    const sortOrder = order === 'asc' ? 1 : -1;
-    const transactions = await Transaction.find({})
-      .sort({ [sortBy]: sortOrder })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
-    const totalTransactions = await Transaction.countDocuments();
-    res.json({
-      success: true,
-      transactions,
-      totalPages: Math.ceil(totalTransactions / limit),
-      currentPage: parseInt(page),
-    });
-  } catch (error) {
-    console.error('Error fetching transactions:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch transactions'
-    });
-  }
-};
-
-// Update a transaction (for admin)
-const updateTransaction = async (req, res) => {
-  try {
-    const { transactionId } = req.params;
-    const updateData = req.body;
-    const transaction = await Transaction.findByIdAndUpdate(
-      transactionId,
-      updateData,
-      { new: true }
-    );
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
-    }
-    res.json({
-      success: true,
-      message: 'Transaction updated successfully',
-      transaction
-    });
-  } catch (error) {
-    console.error('Error updating transaction:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update transaction'
-    });
-  }
-};
-
-// Delete a transaction (for admin)
-const deleteTransaction = async (req, res) => {
-  try {
-    const { transactionId } = req.params;
-    const transaction = await Transaction.findByIdAndDelete(transactionId);
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found'
-      });
-    }
-    res.json({
-      success: true,
-      message: 'Transaction deleted successfully'
-    });
-  } catch (error) {
-    console.error('Error deleting transaction:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete transaction'
-    });
-  }
-};
-
 // Get all group transactions (for admin)
 const getAllGroupTransactions = async (req, res) => {
   try {
@@ -1310,9 +1231,6 @@ module.exports = {
   getAllAdmins,
   addAdmin,
   removeAdmin,
-  getAllTransactions,
-  updateTransaction,
-  deleteTransaction,
   getAllGroupTransactions,
   updateGroupTransaction,
   deleteGroupTransaction,

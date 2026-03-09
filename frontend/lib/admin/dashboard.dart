@@ -82,7 +82,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         _AdminDashboardItem(
           id: 'manage_transactions',
           icon: Icons.receipt_long_rounded,
-          label: 'Manage Transactions',
+          label: 'Manage Secure Transactions',
           backgroundColor: const Color(0xFFE8F4EC),
           iconColor: const Color(0xFF1E6B3B),
           onTap: () {

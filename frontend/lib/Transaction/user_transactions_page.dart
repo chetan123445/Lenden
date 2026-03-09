@@ -487,34 +487,34 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       fileWidgets.add(
         SizedBox(
           height: 60,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: t['photos'].length,
-            separatorBuilder: (_, __) => SizedBox(width: 8),
-            itemBuilder: (context, idx) {
-              final bytes = base64Decode(t['photos'][idx]);
-              return GestureDetector(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (_) => Dialog(
-                      backgroundColor: Colors.black,
-                      child: GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: InteractiveViewer(
-                          child: Image.memory(bytes, fit: BoxFit.contain),
+          child: Row(
+            children: (t['photos'] as List).map<Widget>((photo) {
+              final bytes = base64Decode(photo);
+              return Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: GestureDetector(
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => Dialog(
+                        backgroundColor: Colors.black,
+                        child: GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: InteractiveViewer(
+                            child: Image.memory(bytes, fit: BoxFit.contain),
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(bytes,
-                      width: 60, height: 60, fit: BoxFit.cover),
+                    );
+                  },
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(bytes,
+                        width: 60, height: 60, fit: BoxFit.cover),
+                  ),
                 ),
               );
-            },
+            }).toList(),
           ),
         ),
       );
@@ -1046,24 +1046,26 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                               ),
                             ),
                             SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                isLending
-                                    ? 'Lending (You gave money)'
-                                    : 'Borrowing (You took money)',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: isLending
-                                        ? Colors.green
-                                        : Colors.orange,
-                                    fontSize: 16),
-                              ),
+                            Text(
+                              isLending
+                                  ? 'Lending (You gave money)'
+                                  : 'Borrowing (You took money)',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isLending
+                                      ? Colors.green
+                                      : Colors.orange,
+                                  fontSize: 16),
                             ),
                             // Expand/collapse arrow
                             GestureDetector(
                               onTap: () {
-                                setState(() {
-                                  isExpanded = !isExpanded;
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  if (mounted) {
+                                    setState(() {
+                                      isExpanded = !isExpanded;
+                                    });
+                                  }
                                 });
                               },
                               child: Container(
@@ -1179,11 +1181,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                               ),
                             ),
                             SizedBox(width: 8),
-                            Expanded(
-                              child: Text('Counterparty: $counterpartyEmail',
+                            Text('Counterparty: $counterpartyEmail',
                                   style: TextStyle(
-                                      fontSize: 15, color: Colors.black87)),
-                            ),
+                                      fontSize: 15, color: Colors.black87),
+                                  softWrap: false,
+                                  overflow: TextOverflow.fade),
                           ],
                         ),
                         SizedBox(height: 6),
@@ -1295,12 +1297,12 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                     Icon(Icons.confirmation_number,
                                         color: Colors.grey, size: 18),
                                     SizedBox(width: 6),
-                                    Expanded(
-                                        child: Text(
-                                            'Transaction ID: ${t['transactionId']}',
-                                            style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey[700]))),
+                                    Text(
+                                        'Transaction ID: ${t['transactionId']}',
+                                        style: TextStyle(
+                                            fontSize: 12, color: Colors.grey[700]),
+                                        softWrap: false,
+                                        overflow: TextOverflow.fade),
                                   ],
                                 ),
 
@@ -1442,8 +1444,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                   children: [
                                     // Delete button - only show if both parties have cleared
                                     if (fullyCleared) ...[
-                                      Expanded(
-                                        child: ElevatedButton.icon(
+                                      ElevatedButton.icon(
                                           icon: Icon(Icons.delete_forever,
                                               color: Colors.white),
                                           label: Text('Delete',
@@ -1460,43 +1461,40 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                                 t['transactionId']);
                                           },
                                         ),
-                                      ),
                                       SizedBox(width: 8),
                                     ],
-                                    Expanded(
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              Color(0xFFFF9933),
-                                              Color(0xFFFFFFFF),
-                                              Color(0xFF138808)
-                                            ],
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(8),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Color(0xFFFF9933),
+                                            Color(0xFFFFFFFF),
+                                            Color(0xFF138808)
+                                          ],
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
                                         ),
-                                        child: ElevatedButton.icon(
-                                          icon: Icon(Icons.receipt,
-                                              color: Colors.black),
-                                          label: Text('Generate Receipt',
-                                              style: TextStyle(
-                                                  color: Colors.black)),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.transparent,
-                                            shadowColor: Colors.transparent,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
+                                        borderRadius:
+                                            BorderRadius.circular(8),
+                                      ),
+                                      child: ElevatedButton.icon(
+                                        icon: Icon(Icons.receipt,
+                                            color: Colors.black),
+                                        label: Text('Generate Receipt',
+                                            style: TextStyle(
+                                                color: Colors.black)),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.transparent,
+                                          shadowColor: Colors.transparent,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
                                           ),
-                                          onPressed: () {
-                                            _showReceiptOptionsDialog(
-                                                Map<String, dynamic>.from(t));
-                                          },
                                         ),
+                                        onPressed: () {
+                                          _showReceiptOptionsDialog(
+                                              Map<String, dynamic>.from(t));
+                                        },
                                       ),
                                     ),
                                   ],
@@ -1504,13 +1502,12 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                               ],
                             ),
                           )
-                        : null,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
+                                                : null,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),        );
       },
     );
   }
@@ -3159,7 +3156,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                             child: ElevatedButton(
                               onPressed: (lenderEmail != null &&
                                       !isSendingLenderOtp &&
-                                      !lenderOtpVerified)
+                                      !lenderOtpVerified &&
+                                      (!lenderOtpSent || lenderOtpExpired))
                                   ? () => _sendOtp(lenderEmail!, true)
                                   : null,
                               child: isSendingLenderOtp
@@ -3355,7 +3353,8 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
                             child: ElevatedButton(
                               onPressed: (borrowerEmail != null &&
                                       !isSendingBorrowerOtp &&
-                                      !borrowerOtpVerified)
+                                      !borrowerOtpVerified &&
+                                      (!borrowerOtpSent || borrowerOtpExpired))
                                   ? () => _sendOtp(borrowerEmail!, false)
                                   : null,
                               child: isSendingBorrowerOtp
