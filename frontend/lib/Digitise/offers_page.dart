@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../utils/api_client.dart';
-import 'session.dart';
+import '../user/session.dart';
 
 class UserOffersPage extends StatefulWidget {
   const UserOffersPage({super.key});

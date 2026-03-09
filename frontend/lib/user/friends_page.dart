@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../user/session.dart';
 import '../utils/api_client.dart';
 import '../Transaction/quick_transactions_page.dart';
-import '../Transaction/transaction_page.dart';
+import '../Transaction/secure_transaction_page.dart';
 import '../Transaction/group_transaction_page.dart';
 import '../widgets/stylish_dialog.dart';
 
