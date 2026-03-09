@@ -223,25 +223,21 @@ const updateTransaction = async (req, res) => {
       });
     }
 
-    const originalPartialPaymentsCount = originalTransaction.partialPayments.length;
+    const originalPartialPaymentsJSON = JSON.stringify(originalTransaction.partialPayments);
 
     Object.assign(originalTransaction, updateData);
     const transaction = await originalTransaction.save();
 
-    // Log activity if partial payment was made
-    if (transaction.partialPayments.length > originalPartialPaymentsCount) {
+    const newPartialPaymentsJSON = JSON.stringify(transaction.partialPayments);
+
+    // Log activity if partial payment was made, edited or deleted
+    if (originalPartialPaymentsJSON !== newPartialPaymentsJSON) {
       const user = await User.findOne({ email: transaction.userEmail });
       const counterparty = await User.findOne({ email: transaction.counterpartyEmail });
-      const payment = transaction.partialPayments[transaction.partialPayments.length - 1];
-
+      
       if (user && counterparty) {
-        const lender = transaction.role === 'lender' ? user : counterparty;
-        const borrower = transaction.role === 'borrower' ? user : counterparty;
-        const paidBy = payment.paidBy === 'lender' ? lender : borrower;
-        const receivedBy = payment.paidBy === 'lender' ? borrower : lender;
-
-        await logTransactionActivity(paidBy._id, 'partial_payment_made', transaction, { paymentAmount: payment.amount }, { creatorId: req.user._id, creatorEmail: req.user.email });
-        await logTransactionActivity(receivedBy._id, 'partial_payment_received', transaction, { paymentAmount: payment.amount }, { creatorId: req.user._id, creatorEmail: req.user.email });
+        await logTransactionActivity(user._id, 'transaction_updated_by_admin', transaction, {}, { creatorId: req.user._id, creatorEmail: req.user.email });
+        await logTransactionActivity(counterparty._id, 'transaction_updated_by_admin', transaction, {}, { creatorId: req.user._id, creatorEmail: req.user.email });
       }
     }
 

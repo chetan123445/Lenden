@@ -205,6 +205,10 @@ exports.logTransactionActivity = async (userId, type, transaction, metadata = {}
       activityData.title = 'Receipt Generated';
       activityData.description = `Generated a receipt for transaction with ${transaction.counterpartyEmail}`;
       break;
+    case 'transaction_updated_by_admin':
+      activityData.title = 'Transaction Updated';
+      activityData.description = `A transaction of ${transaction.currency}${transaction.amount} was updated by an admin.`;
+      break;
   }
   
   return await createActivityLog(userId, type, activityData.title, activityData.description, metadata, {
