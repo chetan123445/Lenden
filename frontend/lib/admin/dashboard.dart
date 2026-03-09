@@ -6,7 +6,7 @@ import '../profile/profile_page.dart';
 import 'manage_transactions_page.dart';
 import 'manage_and_track_users/user_management_page.dart';
 import 'manage_group_transactions_page.dart';
-import 'track_user_activity_page.dart';
+import 'manage_and_track_users/track_user_activity_page.dart';
 import 'manage_support_queries_page.dart';
 import '../widgets/notification_icon.dart';
 import 'admin_features_page.dart';

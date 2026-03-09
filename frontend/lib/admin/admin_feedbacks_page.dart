@@ -3,9 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:flutter/cupertino.dart';
 import '../user/session.dart';
 import 'dart:convert';
-import 'admin_ratings_page_helpers.dart';
-import '../profile/profile_page.dart' hide TopWaveClipper, BottomWaveClipper;
+import '../profile/profile_page.dart' hide TopWaveClipper;
 import '../utils/api_client.dart';
+import 'widgets/top_wave_clipper.dart';
 
 class AdminFeedbacksPage extends StatefulWidget {
   const AdminFeedbacksPage({Key? key}) : super(key: key);
@@ -24,18 +24,14 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
     });
     try {
       final response = await ApiClient.get('/api/feedbacks/all');
-      print('DEBUG: Status code: ${response.statusCode}');
-      print('DEBUG: Response body: ${response.body}');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
           _feedbacks = List<Map<String, dynamic>>.from(data['feedbacks'] ?? []);
         });
-      } else {
-        print('DEBUG: Non-200 response received');
       }
     } catch (e) {
-      print('DEBUG: Exception in _fetchFeedbacks: $e');
+      // handle error
     }
     setState(() {
       _isLoading = false;
@@ -123,21 +119,9 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF00B4D8),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title:
-            const Text('User Feedbacks', style: TextStyle(color: Colors.black)),
-        centerTitle: true,
-      ),
+      backgroundColor: const Color(0xFFFAF9F6),
       body: Stack(
         children: [
-          // Top blue wave
           Positioned(
             top: 0,
             left: 0,
@@ -145,67 +129,83 @@ class _AdminFeedbacksPageState extends State<AdminFeedbacksPage> {
             child: ClipPath(
               clipper: TopWaveClipper(),
               child: Container(
-                height: 70,
-                color: const Color(0xFF00B4D8),
+                height: 140,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                  ),
+                ),
               ),
             ),
           ),
-          // Bottom blue wave
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: ClipPath(
-              clipper: BottomWaveClipper(),
-              child: Container(
-                height: 50,
-                color: const Color(0xFF00B4D8),
-              ),
-            ),
-          ),
-          // Main content
           SafeArea(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _feedbacks.isEmpty
-                    ? Column(
-                        children: [
-                          const SizedBox(height: 110),
-                          Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 24, vertical: 18),
-                              margin:
-                                  const EdgeInsets.symmetric(horizontal: 24),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.07),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: const Text(
-                                'No feedbacks yet.',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  color: Color(0xFF00B4D8),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.only(bottom: 80, top: 48),
-                        itemCount: _feedbacks.length,
-                        itemBuilder: (context, idx) =>
-                            _buildFeedbackCard(_feedbacks[idx]),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
                       ),
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'User Feedbacks',
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _feedbacks.isEmpty
+                          ? Column(
+                              children: [
+                                const SizedBox(height: 110),
+                                Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 24, vertical: 18),
+                                    margin:
+                                        const EdgeInsets.symmetric(horizontal: 24),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.07),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Text(
+                                      'No feedbacks yet.',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Color(0xFF00B4D8),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.only(bottom: 80, top: 20),
+                              itemCount: _feedbacks.length,
+                              itemBuilder: (context, idx) =>
+                                  _buildFeedbackCard(_feedbacks[idx]),
+                            ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

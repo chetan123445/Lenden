@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../utils/api_client.dart';
+import 'widgets/top_wave_clipper.dart';
 
 class ReferralSettingsPage extends StatefulWidget {
   const ReferralSettingsPage({super.key});
@@ -200,167 +201,210 @@ class _ReferralSettingsPageState extends State<ReferralSettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FA),
-      appBar: AppBar(
-        title: const Text('Referral Settings'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 140,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
               children: [
-                _card(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
                     children: [
-                      const Text('Invite Link', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _inviteBaseUrlController,
-                        decoration: const InputDecoration(
-                          labelText: 'Invite Base URL',
-                          hintText: 'https://your-domain.com/app',
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'Referral Settings',
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 48),
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                _card(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Referral Reward Coins', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: _inviterRewardController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Inviter Reward Coins'),
-                      ),
-                      const SizedBox(height: 10),
-                      TextField(
-                        controller: _refereeRewardController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'Referee Reward Coins'),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _card(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Share Options', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                          ElevatedButton.icon(
-                            onPressed: () => _editOption(),
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      if (_shareOptions.isEmpty)
-                        const Text('No share options configured.')
-                      else
-                        ..._shareOptions.asMap().entries.map((entry) {
-                          final i = entry.key;
-                          final opt = entry.value;
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(10),
+                Expanded(
+                  child: _loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: [
+                            _card(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Invite Link', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: _inviteBaseUrlController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Invite Base URL',
+                                      hintText: 'https://your-domain.com/app',
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                            const SizedBox(height: 12),
+                            _card(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Referral Reward Coins', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 8),
+                                  TextField(
+                                    controller: _inviterRewardController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(labelText: 'Inviter Reward Coins'),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  TextField(
+                                    controller: _refereeRewardController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(labelText: 'Referee Reward Coins'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _card(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(
-                                        '${opt['label']} (${opt['key']})',
-                                        style: const TextStyle(fontWeight: FontWeight.w700),
-                                      ),
-                                      Text(
-                                        '${opt['icon']} | ${opt['urlTemplate']}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.black54),
-                                      ),
-                                      Text(
-                                        (opt['enabled'] != false) ? 'Enabled' : 'Disabled',
-                                        style: TextStyle(
-                                          color: (opt['enabled'] != false) ? Colors.green : Colors.orange,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                      const Text('Share Options', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                                      ElevatedButton.icon(
+                                        onPressed: () => _editOption(),
+                                        icon: const Icon(Icons.add),
+                                        label: const Text('Add'),
                                       ),
                                     ],
                                   ),
-                                ),
-                                IconButton(
-                                  onPressed: i == 0
-                                      ? null
-                                      : () {
-                                          setState(() {
-                                            final temp = _shareOptions[i - 1];
-                                            _shareOptions[i - 1] = _shareOptions[i];
-                                            _shareOptions[i] = temp;
-                                          });
-                                        },
-                                  icon: const Icon(Icons.arrow_upward),
-                                ),
-                                IconButton(
-                                  onPressed: i == _shareOptions.length - 1
-                                      ? null
-                                      : () {
-                                          setState(() {
-                                            final temp = _shareOptions[i + 1];
-                                            _shareOptions[i + 1] = _shareOptions[i];
-                                            _shareOptions[i] = temp;
-                                          });
-                                        },
-                                  icon: const Icon(Icons.arrow_downward),
-                                ),
-                                IconButton(
-                                  onPressed: () => _editOption(existing: opt, index: i),
-                                  icon: const Icon(Icons.edit),
-                                ),
-                                IconButton(
-                                  onPressed: () => setState(() => _shareOptions.removeAt(i)),
-                                  icon: const Icon(Icons.delete, color: Colors.redAccent),
-                                ),
-                              ],
+                                  const SizedBox(height: 8),
+                                  if (_shareOptions.isEmpty)
+                                    const Text('No share options configured.')
+                                  else
+                                    ..._shareOptions.asMap().entries.map((entry) {
+                                      final i = entry.key;
+                                      final opt = entry.value;
+                                      return Container(
+                                        margin: const EdgeInsets.only(bottom: 8),
+                                        padding: const EdgeInsets.all(10),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    '${opt['label']} (${opt['key']})',
+                                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                                  ),
+                                                  Text(
+                                                    '${opt['icon']} | ${opt['urlTemplate']}',
+                                                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                                                  ),
+                                                  Text(
+                                                    (opt['enabled'] != false) ? 'Enabled' : 'Disabled',
+                                                    style: TextStyle(
+                                                      color: (opt['enabled'] != false) ? Colors.green : Colors.orange,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            IconButton(
+                                              onPressed: i == 0
+                                                  ? null
+                                                  : () {
+                                                      setState(() {
+                                                        final temp = _shareOptions[i - 1];
+                                                        _shareOptions[i - 1] = _shareOptions[i];
+                                                        _shareOptions[i] = temp;
+                                                      });
+                                                    },
+                                              icon: const Icon(Icons.arrow_upward),
+                                            ),
+                                            IconButton(
+                                              onPressed: i == _shareOptions.length - 1
+                                                  ? null
+                                                  : () {
+                                                      setState(() {
+                                                        final temp = _shareOptions[i + 1];
+                                                        _shareOptions[i + 1] = _shareOptions[i];
+                                                        _shareOptions[i] = temp;
+                                                      });
+                                                    },
+                                              icon: const Icon(Icons.arrow_downward),
+                                            ),
+                                            IconButton(
+                                              onPressed: () => _editOption(existing: opt, index: i),
+                                              icon: const Icon(Icons.edit),
+                                            ),
+                                            IconButton(
+                                              onPressed: () => setState(() => _shareOptions.removeAt(i)),
+                                              icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }),
+                                ],
+                              ),
                             ),
-                          );
-                        }),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    onPressed: _saving ? null : _saveConfig,
-                    icon: _saving
-                        ? const SizedBox(
-                            height: 18,
-                            width: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : const Icon(Icons.save),
-                    label: Text(_saving ? 'Saving...' : 'Save Referral Settings'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00B4D8),
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              height: 48,
+                              child: ElevatedButton.icon(
+                                onPressed: _saving ? null : _saveConfig,
+                                icon: _saving
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      )
+                                    : const Icon(Icons.save),
+                                label: Text(_saving ? 'Saving...' : 'Save Referral Settings'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF00B4D8),
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
     );
   }
 

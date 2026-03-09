@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../user/session.dart';
+import '../../user/session.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import '../utils/api_client.dart';
+import '../../utils/api_client.dart';
 
 class TrackUserActivityPage extends StatefulWidget {
   @override
@@ -218,6 +218,25 @@ class _TrackUserActivityPageState extends State<TrackUserActivityPage> {
     }
   }
 
+  Widget _triBorder({
+    required Widget child,
+    double radius = 18,
+    EdgeInsets padding = const EdgeInsets.all(2),
+  }) {
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -255,60 +274,58 @@ class _TrackUserActivityPageState extends State<TrackUserActivityPage> {
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: _triBorder(
+        radius: 25,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(23),
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.search,
-            color: Colors.grey[600],
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              onSubmitted: (value) {
-                if (value.isNotEmpty) {
-                  _fetchUserActivity(value);
-                }
-              },
-              decoration: InputDecoration(
-                hintText: 'Search by Email or Username...',
-                hintStyle: TextStyle(color: Colors.grey[400]),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.search,
+                color: Colors.grey[600],
+                size: 20,
               ),
-              style: const TextStyle(fontSize: 16),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onSubmitted: (value) {
+                    if (value.isNotEmpty) {
+                      _fetchUserActivity(value);
+                    }
+                  },
+                  decoration: InputDecoration(
+                    hintText: 'Search by Email or Username...',
+                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ),
+              if (_searchController.text.isNotEmpty)
+                IconButton(
+                  icon: Icon(Icons.clear, color: Colors.grey[600], size: 20),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _activities = [];
+                      _searchedTerm = null;
+                      _error = null;
+                    });
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+            ],
           ),
-          if (_searchController.text.isNotEmpty)
-            IconButton(
-              icon: Icon(Icons.clear, color: Colors.grey[600], size: 20),
-              onPressed: () {
-                _searchController.clear();
-                setState(() {
-                  _activities = [];
-                  _searchedTerm = null;
-                  _error = null;
-                });
-              },
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-        ],
+        ),
       ),
     );
   }

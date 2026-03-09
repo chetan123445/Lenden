@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../user/session.dart';
 import 'dart:convert';
-import 'admin_ratings_page_helpers.dart';
+import 'admin_ratings_page_helpers.dart' hide TopWaveClipper, BottomWaveClipper;
 import '../profile/profile_page.dart' hide TopWaveClipper, BottomWaveClipper;
 import '../utils/api_client.dart';
+import 'widgets/top_wave_clipper.dart';
 
 class AdminRatingsPage extends StatefulWidget {
   const AdminRatingsPage({Key? key}) : super(key: key);
@@ -23,18 +24,14 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
     });
     try {
       final response = await ApiClient.get('/api/rating/all');
-      print('DEBUG: Status code: [33m${response.statusCode}[0m');
-      print('DEBUG: Response body: [36m${response.body}[0m');
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
           _ratings = List<Map<String, dynamic>>.from(data['ratings'] ?? []);
         });
-      } else {
-        print('DEBUG: Non-200 response received');
       }
     } catch (e) {
-      print('DEBUG: Exception in _fetchRatings: $e');
+      // handle error
     }
     setState(() {
       _isLoading = false;
@@ -126,15 +123,9 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF00B4D8),
-        title:
-            const Text('User Ratings', style: TextStyle(color: Colors.black)),
-        centerTitle: true,
-      ),
+      backgroundColor: const Color(0xFFFAF9F6),
       body: Stack(
         children: [
-          // Top blue wave
           Positioned(
             top: 0,
             left: 0,
@@ -142,34 +133,50 @@ class _AdminRatingsPageState extends State<AdminRatingsPage> {
             child: ClipPath(
               clipper: TopWaveClipper(),
               child: Container(
-                height: 150,
-                color: const Color(0xFF00B4D8),
-              ),
-            ),
-          ),
-          // Bottom blue wave
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: ClipPath(
-              clipper: BottomWaveClipper(),
-              child: Container(
-                height: 50,
-                color: const Color(0xFF00B4D8),
-              ),
-            ),
-          ),
-          // Main content
-          SafeArea(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.builder(
-                    padding: const EdgeInsets.only(bottom: 80, top: 48),
-                    itemCount: _ratings.length,
-                    itemBuilder: (context, idx) =>
-                        _buildRatingCard(_ratings[idx]),
+                height: 140,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
                   ),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'User Ratings',
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ListView.builder(
+                          padding: const EdgeInsets.only(bottom: 80, top: 20),
+                          itemCount: _ratings.length,
+                          itemBuilder: (context, idx) =>
+                              _buildRatingCard(_ratings[idx]),
+                        ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

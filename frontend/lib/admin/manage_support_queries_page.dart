@@ -6,6 +6,7 @@ import '../api_config.dart';
 import 'package:intl/intl.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import '../utils/api_client.dart';
+import 'widgets/top_wave_clipper.dart';
 
 class ManageSupportQueriesPage extends StatefulWidget {
   @override
@@ -314,86 +315,120 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
             .toList();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Manage Support Queries'),
-        backgroundColor: Color(0xFF00B4D8),
-        foregroundColor: Colors.black,
-        elevation: 2,
-      ),
-      body: Container(
-        color: Color(0xFFF6FBFF),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  labelText: 'Search by Topic',
-                  prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  filled: true,
-                  fillColor: Colors.white,
-                  suffixIcon: _searchTerm.isNotEmpty
-                      ? IconButton(
-                          icon: Icon(Icons.clear),
-                          onPressed: () {
-                            setState(() {
-                              _searchTerm = '';
-                              _searchController.clear();
-                            });
-                          },
-                        )
-                      : null,
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchTerm = value;
-                  });
-                },
-              ),
-            ),
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 4),
-              child: Row(
-                children: [
-                  Icon(Icons.support_agent, color: Color(0xFF00B4D8)),
-                  SizedBox(width: 8),
-                  Text(
-                    'All Support Queries',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: Color(0xFF0077B5),
-                    ),
+      backgroundColor: const Color(0xFFFAF9F6),
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(
+                height: 140,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
                   ),
-                ],
+                ),
               ),
             ),
-            SizedBox(height: 8),
-            Expanded(
-              child: _isLoading
-                  ? Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? Center(
-                          child: Text(_error!,
-                              style: TextStyle(color: Colors.red)))
-                      : filteredQueries.isEmpty
-                          ? Center(child: Text('No support queries found.'))
-                          : ListView.builder(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              itemCount: filteredQueries.length,
-                              itemBuilder: (context, index) {
-                                final query = filteredQueries[index];
-                                return _buildQueryCard(query);
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Expanded(
+                        child: Center(
+                          child: Text(
+                            'Manage Support Queries',
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      labelText: 'Search by Topic',
+                      prefixIcon: Icon(Icons.search, color: Color(0xFF00B4D8)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      filled: true,
+                      fillColor: Colors.white,
+                      suffixIcon: _searchTerm.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(Icons.clear),
+                              onPressed: () {
+                                setState(() {
+                                  _searchTerm = '';
+                                  _searchController.clear();
+                                });
                               },
-                            ),
+                            )
+                          : null,
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchTerm = value;
+                      });
+                    },
+                  ),
+                ),
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20.0, vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.support_agent, color: Color(0xFF00B4D8)),
+                      SizedBox(width: 8),
+                      Text(
+                        'All Support Queries',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Color(0xFF0077B5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 8),
+                Expanded(
+                  child: _isLoading
+                      ? Center(child: CircularProgressIndicator())
+                      : _error != null
+                          ? Center(
+                              child: Text(_error!,
+                                  style: TextStyle(color: Colors.red)))
+                          : filteredQueries.isEmpty
+                              ? Center(child: Text('No support queries found.'))
+                              : ListView.builder(
+                                  padding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
+                                  itemCount: filteredQueries.length,
+                                  itemBuilder: (context, index) {
+                                    final query = filteredQueries[index];
+                                    return _buildQueryCard(query);
+                                  },
+                                ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
