@@ -4,6 +4,7 @@ import 'dart:convert';
 import '../../api_config.dart';
 import '../../utils/api_client.dart';
 import '../../session.dart';
+import 'contact_page.dart';
 import 'package:intl/intl.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'dart:math';
@@ -519,18 +520,38 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                     ),
                     SizedBox(height: 8),
                     Card(
-                      color: Colors.blue[50],
+                      color: const Color(0xFFE9F9FD),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                          borderRadius: BorderRadius.circular(18)),
+                      elevation: 0,
                       child: ListTile(
-                        leading: Icon(Icons.email, color: Color(0xFF00B4D8)),
-                        title: Text('Email us at',
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 8),
+                        leading: Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00B4D8).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(Icons.contact_support_rounded,
+                              color: Color(0xFF00B4D8)),
+                        ),
+                        title: const Text('Open Contact Page',
                             style: TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('chetandudi791@gmail.com',
-                            style: TextStyle(color: Color(0xFF0077B5))),
+                        subtitle: const Text(
+                          'View all support channels',
+                          style: TextStyle(color: Color(0xFF0077B5)),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded,
+                            size: 16, color: Color(0xFF0077B5)),
                         onTap: () {
-                          // Optionally, launch email app
-                          // launchUrl(Uri.parse('mailto:chetandudi791@gmail.com'));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ContactPage(),
+                            ),
+                          );
                         },
                       ),
                     ),

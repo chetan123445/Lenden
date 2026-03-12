@@ -7,6 +7,7 @@ import '../Transactions/manage_secure_transactions_page.dart';
 import '../Manage_users/user_management_page.dart';
 import '../Transactions/manage_group_transactions_page.dart';
 import '../Track user/track_user_activity_page.dart';
+import '../Support/manage_contact_page.dart';
 import '../Support/manage_support_queries_page.dart';
 import '../../widgets/notification_icon.dart';
 import '../Digitise/manage_subscriptions_page.dart';
@@ -35,6 +36,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     'manage_gift_cards': GlobalKey(),
     'referral_settings': GlobalKey(),
     'manage_offers': GlobalKey(),
+    'contact_settings': GlobalKey(),
     'app_ratings': GlobalKey(),
     'user_feedbacks': GlobalKey(),
   };
@@ -182,6 +184,19 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const ManageOffersPage()),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'contact_settings',
+          icon: Icons.contact_phone_rounded,
+          label: 'Contact Settings',
+          backgroundColor: const Color(0xFFE8F7FA),
+          iconColor: const Color(0xFF0B8FAC),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ManageContactPage()),
             );
           },
         ),

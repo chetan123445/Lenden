@@ -38,6 +38,7 @@ module.exports = (io) => {
   const leaderboardController = require('../controllers/leaderboardController');
   const referralController = require('../controllers/referralController');
   const offerController = require('../controllers/offerController');
+  const contactConfigController = require('../controllers/contactConfigController');
   const handleUsage = require('../middleware/handleUsage');
 
   // Middleware to check for admin role
@@ -113,6 +114,7 @@ module.exports = (io) => {
   router.delete('/quick-transactions', auth, quickTransactionController.clearAllQuickTransactions);
 
   // Support routes (User)
+  router.get('/contact-info', contactConfigController.getPublicContactConfig);
   router.post('/support/queries', auth, supportController.createSupportQuery);
   router.get('/support/queries/me', auth, supportController.getUserSupportQueries);
   router.put('/support/queries/:queryId', auth, supportController.updateSupportQuery);
@@ -352,6 +354,8 @@ module.exports = (io) => {
   router.put('/admin/support/queries/:queryId/replies/:replyId', auth, isAdmin, supportController.editReply);
   router.delete('/admin/support/queries/:queryId/replies/:replyId', auth, isAdmin, supportController.deleteReply);
   router.patch('/admin/support/queries/:queryId/status', auth, isAdmin, supportController.updateQueryStatus);
+  router.get('/admin/contact-info', auth, isAdmin, contactConfigController.getAdminContactConfig);
+  router.put('/admin/contact-info', auth, isAdmin, contactConfigController.updateAdminContactConfig);
 
   // Feedback routes
   router.post('/feedback', auth, feedbackController.submitFeedback);
