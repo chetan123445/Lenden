@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../user/session.dart';
-import '../Digitise/subscriptions_page.dart';
+import '../session.dart';
+import '../User/Digitise/subscriptions_page.dart';
 
 void showInsufficientCoinsDialog(BuildContext context) {
   showDialog(

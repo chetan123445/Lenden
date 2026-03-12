@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import '../user/session.dart';
-import '../admin/notifications_page.dart';
-import '../user/notifications_page.dart';
+import '../session.dart';
+import '../Admin/Notifications/notifications_page.dart';
+import '../User/Notifications/notifications_page.dart';
 import '../utils/api_client.dart';
 
 class NotificationIcon extends StatefulWidget {

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'dart:math';
-import '../user/session.dart';
+import '../session.dart';
 import '../utils/api_client.dart';
 
 class AdminManagementPage extends StatefulWidget {

@@ -2,7 +2,7 @@ import '../api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import '../user/session.dart';
+import '../session.dart';
 import '../utils/api_client.dart';
 
 class AdminSystemSettingsPage extends StatefulWidget {

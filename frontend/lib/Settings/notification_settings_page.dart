@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
-import '../user/session.dart';
+import '../user/basic/session.dart';
 import 'custom_warning_widget.dart';
 import '../utils/api_client.dart';
 

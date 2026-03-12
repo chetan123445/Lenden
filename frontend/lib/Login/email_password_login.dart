@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../api_config.dart';
 import 'package:provider/provider.dart';
-import '../user/session.dart';
+import '../user/basic/session.dart';
 import '../utils/api_client.dart';
 
 import 'package:device_info_plus/device_info_plus.dart';

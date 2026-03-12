@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:convert';
 import '../utils/api_client.dart';
-import '../user/session.dart';
+import '../session.dart';
 
 class AdminAnalyticsSettingsPage extends StatefulWidget {
   const AdminAnalyticsSettingsPage({super.key});

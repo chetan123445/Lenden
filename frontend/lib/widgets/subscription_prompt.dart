@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../Digitise/subscriptions_page.dart';
+import '../User/Digitise/subscriptions_page.dart';
 
 void showSubscriptionPrompt(BuildContext context) {
   showDialog(

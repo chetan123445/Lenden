@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../user/session.dart';
+import '../session.dart';
 import 'admin_system_settings_page.dart';
 import 'admin_analytics_settings_page.dart';
 import 'admin_security_settings_page.dart';

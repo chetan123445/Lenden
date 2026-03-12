@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../user/session.dart';
+import '../user/basic/session.dart';
 import 'dart:convert';
 import '../utils/api_client.dart';
-import './edit_profile_page.dart';
+import 'edit_profile_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final String? email;
