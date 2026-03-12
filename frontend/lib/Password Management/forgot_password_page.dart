@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../api_config.dart';
-import '../user/basic/otp_input.dart';
+import '../otp_input.dart';
 import '../utils/api_client.dart';
 
 class UserForgotPasswordPage extends StatefulWidget {

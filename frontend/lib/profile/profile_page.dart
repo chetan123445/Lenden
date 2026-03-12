@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../user/basic/session.dart';
+import '../session.dart';
 import 'dart:convert';
 import '../utils/api_client.dart';
 import 'edit_profile_page.dart';

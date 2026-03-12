@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../user/basic/session.dart';
+import '../session.dart';
 import '../Password Management/change_password_page.dart';
 import '../Alternative Email/alternative_email_page.dart';
 import 'notification_settings_page.dart';
 import 'privacy_settings_page.dart';
 import 'account_settings_page.dart';
-import '../user/basic/help_support_page.dart';
+import '../user/support/help_support_page.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});

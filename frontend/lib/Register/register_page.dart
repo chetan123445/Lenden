@@ -3,7 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:convert';
 import 'dart:async';
 import '../api_config.dart';
-import '../user/basic/otp_input.dart';
+import '../otp_input.dart';
 import '../widgets/tricolor_border_text_field.dart';
 import 'dart:ui' as ui;
 import '../utils/api_client.dart';

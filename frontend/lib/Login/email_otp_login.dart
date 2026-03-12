@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../api_config.dart';
-import '../user/basic/otp_input.dart';
+import '../otp_input.dart';
 import '../utils/api_client.dart';
-
 import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';

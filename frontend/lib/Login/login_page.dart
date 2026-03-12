@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-
 import 'dart:convert';
 import '../api_config.dart';
 import '../otp_input.dart';
 import 'package:provider/provider.dart';
-import '../user/basic/session.dart';
+import '../session.dart';
 import 'email_password_login.dart';
 import 'username_password_login.dart';
 import 'email_otp_login.dart';
