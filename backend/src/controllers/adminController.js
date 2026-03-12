@@ -5,6 +5,100 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { sendAdminWelcomeEmail, sendAdminRemovalEmail } = require('../utils/adminEmailNotifications');
 
+const ensureGroupBalanceEntries = (group) => {
+  if (!group) return false;
+
+  let changed = false;
+  const existingUserIds = new Set(
+    (group.balances || []).map((entry) => entry.user.toString())
+  );
+
+  for (const member of group.members || []) {
+    const memberId = member.user?.toString();
+    if (!memberId || existingUserIds.has(memberId)) continue;
+
+    group.balances.push({ user: member.user, balance: 0 });
+    existingUserIds.add(memberId);
+    changed = true;
+  }
+
+  return changed;
+};
+
+const formatAdminGroupResponse = (group) => {
+  const groupObj = group.toObject();
+  groupObj.members = (groupObj.members || []).map((member) => ({
+    _id: member.user._id,
+    email: member.user.email,
+    joinedAt: member.joinedAt,
+    leftAt: member.leftAt
+  }));
+  groupObj.creator = groupObj.creator
+    ? {
+        _id: groupObj.creator._id,
+        email: groupObj.creator.email
+      }
+    : null;
+
+  return groupObj;
+};
+
+const rebuildGroupBalances = async (group) => {
+  if (!group) return false;
+
+  let changed = ensureGroupBalanceEntries(group);
+  const balanceMap = new Map();
+
+  for (const entry of group.balances || []) {
+    balanceMap.set(entry.user.toString(), 0);
+  }
+
+  const payerCache = new Map();
+
+  for (const expense of group.expenses || []) {
+    for (const splitItem of expense.split || []) {
+      const userId = splitItem.user?.toString();
+      if (!userId) continue;
+      balanceMap.set(
+        userId,
+        (balanceMap.get(userId) || 0) + Number(splitItem.amount || 0)
+      );
+    }
+
+    if (expense.addedBy) {
+      let payerId = payerCache.get(expense.addedBy);
+      if (payerId === undefined) {
+        const payer = await User.findOne({ email: expense.addedBy }).select('_id');
+        payerId = payer?._id?.toString() || null;
+        payerCache.set(expense.addedBy, payerId);
+      }
+
+      if (payerId) {
+        if (!balanceMap.has(payerId)) {
+          group.balances.push({ user: payerId, balance: 0 });
+          balanceMap.set(payerId, 0);
+          changed = true;
+        }
+        balanceMap.set(
+          payerId,
+          (balanceMap.get(payerId) || 0) - Number(expense.amount || 0)
+        );
+      }
+    }
+  }
+
+  for (const entry of group.balances || []) {
+    const userId = entry.user.toString();
+    const nextBalance = Number((balanceMap.get(userId) || 0).toFixed(2));
+    if (Number(entry.balance || 0) !== nextBalance) {
+      entry.balance = nextBalance;
+      changed = true;
+    }
+  }
+
+  return changed;
+};
+
 
 // Admin registration
 const register = async (req, res) => {
@@ -673,20 +767,13 @@ const getAllGroupTransactions = async (req, res) => {
       .limit(parseInt(limit));
     const totalGroups = await GroupTransaction.countDocuments();
 
-    const groupSummaries = groups.map(g => {
-      const obj = g.toObject();
-      obj.members = obj.members.map(m => ({
-        _id: m.user._id,
-        email: m.user.email,
-        joinedAt: m.joinedAt,
-        leftAt: m.leftAt
-      }));
-      obj.creator = {
-        _id: obj.creator._id,
-        email: obj.creator.email
-      };
-      return obj;
-    });
+    for (const group of groups) {
+      if (await rebuildGroupBalances(group)) {
+        await group.save();
+      }
+    }
+
+    const groupSummaries = groups.map(formatAdminGroupResponse);
 
     res.json({
       success: true,
@@ -725,17 +812,10 @@ const updateGroupTransaction = async (req, res) => {
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
       .populate('creator', 'email');
-    const groupObj = populatedGroup.toObject();
-    groupObj.members = groupObj.members.map(m => ({
-      _id: m.user._id,
-      email: m.user.email,
-      joinedAt: m.joinedAt,
-      leftAt: m.leftAt
-    }));
-    groupObj.creator = {
-      _id: groupObj.creator._id,
-      email: groupObj.creator.email
-    };
+    if (await rebuildGroupBalances(populatedGroup)) {
+      await populatedGroup.save();
+    }
+    const groupObj = formatAdminGroupResponse(populatedGroup);
 
     res.json({
       success: true,
@@ -783,6 +863,7 @@ const addMemberToGroup = async (req, res) => {
 
     const group = await GroupTransaction.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
+    await rebuildGroupBalances(group);
 
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -814,17 +895,10 @@ const addMemberToGroup = async (req, res) => {
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
       .populate('creator', 'email');
-    const groupObj = populatedGroup.toObject();
-    groupObj.members = groupObj.members.map(m => ({
-      _id: m.user._id,
-      email: m.user.email,
-      joinedAt: m.joinedAt,
-      leftAt: m.leftAt
-    }));
-    groupObj.creator = {
-      _id: groupObj.creator._id,
-      email: groupObj.creator.email
-    };
+    if (await rebuildGroupBalances(populatedGroup)) {
+      await populatedGroup.save();
+    }
+    const groupObj = formatAdminGroupResponse(populatedGroup);
 
     res.json({ group: groupObj });
   } catch (error) {
@@ -840,6 +914,7 @@ const removeMemberFromGroup = async (req, res) => {
 
     const group = await GroupTransaction.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
+    await rebuildGroupBalances(group);
 
     const user = await User.findById(memberId);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -866,17 +941,10 @@ const removeMemberFromGroup = async (req, res) => {
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
       .populate('creator', 'email');
-    const groupObj = populatedGroup.toObject();
-    groupObj.members = groupObj.members.map(m => ({
-      _id: m.user._id,
-      email: m.user.email,
-      joinedAt: m.joinedAt,
-      leftAt: m.leftAt
-    }));
-    groupObj.creator = {
-      _id: groupObj.creator._id,
-      email: groupObj.creator.email
-    };
+    if (await rebuildGroupBalances(populatedGroup)) {
+      await populatedGroup.save();
+    }
+    const groupObj = formatAdminGroupResponse(populatedGroup);
 
     res.json({ group: groupObj });
   } catch (error) {
@@ -893,6 +961,7 @@ const addExpenseToGroup = async (req, res) => {
 
     const group = await GroupTransaction.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
+    await rebuildGroupBalances(group);
 
     const addedByUser = await User.findOne({ email: addedByEmail });
     if (!addedByUser) return res.status(404).json({ error: 'User who added expense not found' });
@@ -969,17 +1038,10 @@ const addExpenseToGroup = async (req, res) => {
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
       .populate('creator', 'email');
-    const groupObj = populatedGroup.toObject();
-    groupObj.members = groupObj.members.map(m => ({
-      _id: m.user._id,
-      email: m.user.email,
-      joinedAt: m.joinedAt,
-      leftAt: m.leftAt
-    }));
-    groupObj.creator = {
-      _id: groupObj.creator._id,
-      email: groupObj.creator.email
-    };
+    if (await rebuildGroupBalances(populatedGroup)) {
+      await populatedGroup.save();
+    }
+    const groupObj = formatAdminGroupResponse(populatedGroup);
 
     res.json({ group: groupObj });
   } catch (error) {
@@ -996,6 +1058,7 @@ const updateExpenseInGroup = async (req, res) => {
 
     const group = await GroupTransaction.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
+    await rebuildGroupBalances(group);
 
     const expenseIndex = group.expenses.findIndex(e => e._id.toString() === expenseId);
     if (expenseIndex === -1) return res.status(404).json({ error: 'Expense not found' });
@@ -1024,14 +1087,18 @@ const updateExpenseInGroup = async (req, res) => {
 
     // Remove old expense from balances
     const oldAmount = expense.amount;
-    const oldAddedBy = expense.addedBy;
+    const oldPayer = expense.addedBy
+      ? await User.findOne({ email: expense.addedBy }).select('_id')
+      : null;
     const oldSplit = expense.split;
 
     oldSplit.forEach(s => {
       const bal = group.balances.find(b => b.user.toString() === s.user.toString());
       if (bal) bal.balance -= s.amount;
     });
-    const oldPayerBal = group.balances.find(b => b.user.toString() === addedByUser._id.toString());
+    const oldPayerBal = oldPayer
+      ? group.balances.find(b => b.user.toString() === oldPayer._id.toString())
+      : null;
     if (oldPayerBal) oldPayerBal.balance += oldAmount;
 
     let splitArr = [];
@@ -1083,17 +1150,10 @@ const updateExpenseInGroup = async (req, res) => {
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
       .populate('creator', 'email');
-    const groupObj = populatedGroup.toObject();
-    groupObj.members = groupObj.members.map(m => ({
-      _id: m.user._id,
-      email: m.user.email,
-      joinedAt: m.joinedAt,
-      leftAt: m.leftAt
-    }));
-    groupObj.creator = {
-      _id: groupObj.creator._id,
-      email: groupObj.creator.email
-    };
+    if (await rebuildGroupBalances(populatedGroup)) {
+      await populatedGroup.save();
+    }
+    const groupObj = formatAdminGroupResponse(populatedGroup);
 
     res.json({ group: groupObj });
   } catch (error) {
@@ -1109,9 +1169,33 @@ const deleteExpenseFromGroup = async (req, res) => {
 
     const group = await GroupTransaction.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
+    await rebuildGroupBalances(group);
 
     const expenseIndex = group.expenses.findIndex(e => e._id.toString() === expenseId);
     if (expenseIndex === -1) return res.status(404).json({ error: 'Expense not found' });
+
+    const expense = group.expenses[expenseIndex];
+    const payer = expense?.addedBy
+      ? await User.findOne({ email: expense.addedBy }).select('_id')
+      : null;
+
+    for (const splitItem of expense.split || []) {
+      const balanceEntry = group.balances.find(
+        b => b.user.toString() === splitItem.user.toString()
+      );
+      if (balanceEntry) {
+        balanceEntry.balance -= Number(splitItem.amount || 0);
+      }
+    }
+
+    if (payer) {
+      const payerBalance = group.balances.find(
+        b => b.user.toString() === payer._id.toString()
+      );
+      if (payerBalance) {
+        payerBalance.balance += Number(expense.amount || 0);
+      }
+    }
 
     group.expenses.splice(expenseIndex, 1);
     await group.save();
@@ -1119,17 +1203,10 @@ const deleteExpenseFromGroup = async (req, res) => {
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
       .populate('creator', 'email');
-    const groupObj = populatedGroup.toObject();
-    groupObj.members = groupObj.members.map(m => ({
-      _id: m.user._id,
-      email: m.user.email,
-      joinedAt: m.joinedAt,
-      leftAt: m.leftAt
-    }));
-    groupObj.creator = {
-      _id: groupObj.creator._id,
-      email: groupObj.creator.email
-    };
+    if (await rebuildGroupBalances(populatedGroup)) {
+      await populatedGroup.save();
+    }
+    const groupObj = formatAdminGroupResponse(populatedGroup);
 
     res.json({ group: groupObj });
   } catch (error) {
@@ -1146,6 +1223,7 @@ const settleExpenseSplitsInGroup = async (req, res) => {
 
     const group = await GroupTransaction.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
+    await rebuildGroupBalances(group);
 
     const expense = group.expenses.id(expenseId);
     if (!expense) return res.status(404).json({ error: 'Expense not found' });
@@ -1183,17 +1261,10 @@ const settleExpenseSplitsInGroup = async (req, res) => {
     const populatedGroup = await GroupTransaction.findById(group._id)
       .populate('members.user', 'email')
       .populate('creator', 'email');
-    const groupObj = populatedGroup.toObject();
-    groupObj.members = groupObj.members.map(m => ({
-      _id: m.user._id,
-      email: m.user.email,
-      joinedAt: m.joinedAt,
-      leftAt: m.leftAt
-    }));
-    groupObj.creator = {
-      _id: groupObj.creator._id,
-      email: groupObj.creator.email
-    };
+    if (await rebuildGroupBalances(populatedGroup)) {
+      await populatedGroup.save();
+    }
+    const groupObj = formatAdminGroupResponse(populatedGroup);
 
     let message = `Successfully settled ${settledCount} split(s) in expense`;
     if (alreadySettledCount > 0) {

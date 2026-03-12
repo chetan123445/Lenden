@@ -1,11 +1,14 @@
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../session.dart';
 import 'dart:convert';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:intl/intl.dart';
 import '../../utils/api_client.dart';
 
 class ManageGroupTransactionsPage extends StatefulWidget {
+  const ManageGroupTransactionsPage({super.key});
+
   @override
   State<ManageGroupTransactionsPage> createState() =>
       _ManageGroupTransactionsPageState();
@@ -13,9 +16,14 @@ class ManageGroupTransactionsPage extends StatefulWidget {
 
 class _ManageGroupTransactionsPageState
     extends State<ManageGroupTransactionsPage> {
+  final _searchController = TextEditingController();
   List<dynamic> groups = [];
   bool loading = true;
   String? error;
+  bool _showAll = false;
+  String _searchQuery = '';
+  String _statusFilter = 'all';
+  String _sortBy = 'latest';
 
   @override
   void initState() {
@@ -23,23 +31,26 @@ class _ManageGroupTransactionsPageState
     _fetchGroups();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchGroups() async {
     setState(() {
       loading = true;
       error = null;
     });
-
     try {
       final response = await ApiClient.get('/api/admin/group-transactions');
-
+      final data = jsonDecode(response.body);
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
         setState(() {
           groups = data['groups'] ?? [];
           loading = false;
         });
       } else {
-        final data = jsonDecode(response.body);
         setState(() {
           error = data['error'] ?? 'Failed to load groups.';
           loading = false;
@@ -53,1190 +64,1486 @@ class _ManageGroupTransactionsPageState
     }
   }
 
-  // Helper function to format date and time
-  String _formatDateTime(dynamic dateTime) {
-    if (dateTime == null) return 'Unknown';
-
-    try {
-      DateTime date;
-      if (dateTime is String) {
-        date = DateTime.parse(dateTime);
-      } else if (dateTime is DateTime) {
-        date = dateTime;
-      } else {
-        return 'Invalid date';
-      }
-
-      // Format: "Dec 15, 2023 at 2:30 PM"
-      String month = DateFormat('MMM').format(date);
-      String day = date.day.toString();
-      String year = date.year.toString();
-      String hour =
-          date.hour > 12 ? (date.hour - 12).toString() : date.hour.toString();
-      if (hour == '0') hour = '12';
-      String minute = date.minute.toString().padLeft(2, '0');
-      String period = date.hour >= 12 ? 'PM' : 'AM';
-
-      return '$month $day, $year at $hour:$minute $period';
-    } catch (e) {
-      return 'Invalid date';
+  Future<void> _deleteGroup(String groupId) async {
+    final response =
+        await ApiClient.delete('/api/admin/group-transactions/$groupId');
+    if (response.statusCode == 200) {
+      _showSnackBar('Group deleted successfully.');
+      _fetchGroups();
+      return;
     }
+    final data = jsonDecode(response.body);
+    _showSnackBar(data['error'] ?? 'Failed to delete group.');
   }
 
-  Future<void> _deleteGroup(String groupId) async {
-    try {
-      final response =
-          await ApiClient.delete('/api/admin/group-transactions/$groupId');
-
-      if (response.statusCode == 200) {
-        _showSnackBar('Group deleted successfully.');
-        _fetchGroups();
-      } else {
-        final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to delete group.');
-      }
-    } catch (e) {
-      _showSnackBar('An error occurred: $e');
-    }
+  Future<void> _pickGroupColor({
+    required Color initialColor,
+    required ValueChanged<Color> onPicked,
+  }) async {
+    var picked = initialColor;
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: const Text('Pick Group Color'),
+        content: SingleChildScrollView(
+          child: BlockPicker(
+            pickerColor: picked,
+            onColorChanged: (color) {
+              picked = color;
+              onPicked(color);
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showDeleteConfirmationDialog(String groupId) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Delete Group'),
-        content: Text(
-            'Are you sure you want to delete this group and all its expenses?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _deleteGroup(groupId);
-            },
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _updateGroup(
-      String groupId, Map<String, dynamic> updateData) async {
-    try {
-      final response = await ApiClient.put(
-          '/api/admin/group-transactions/$groupId',
-          body: updateData);
-
-      if (response.statusCode == 200) {
-        _showSnackBar('Group updated successfully.');
-        _fetchGroups();
-      } else {
-        final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to update group.');
-      }
-    } catch (e) {
-      _showSnackBar('An error occurred: $e');
-    }
-  }
-
-  void _showEditGroupDialog(Map<String, dynamic> group) {
-    final _titleController = TextEditingController(text: group['title']);
-    final _colorController = TextEditingController(text: group['color']);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Edit Group'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _titleController,
-              decoration: InputDecoration(labelText: 'Group Title'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        contentPadding: EdgeInsets.zero,
+        content: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFF5F5), Color(0xFFFFFFFF)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
-            SizedBox(height: 10),
-            TextField(
-              controller: _colorController,
-              decoration: InputDecoration(
-                labelText: 'Group Color (Hex)',
-                hintText: '#FF5722',
+          ),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFE3E3),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Icon(
+                  Icons.delete_forever_rounded,
+                  color: Colors.red,
+                  size: 36,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 18),
+              const Text(
+                'Delete Group',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Are you sure you want to delete this group and all its expenses?',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black54, height: 1.4),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _deleteGroup(groupId);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('Delete'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (_titleController.text.trim().isEmpty) {
-                _showSnackBar('Group title cannot be empty.');
-                return;
-              }
-
-              final updateData = {
-                'title': _titleController.text.trim(),
-                'color': _colorController.text.trim(),
-              };
-              Navigator.of(context).pop();
-              _updateGroup(group['_id'], updateData);
-            },
-            child: Text('Save'),
-          ),
-        ],
       ),
     );
   }
 
-  Future<void> _addMember(String groupId, String email) async {
-    try {
-      final response = await ApiClient.post(
-          '/api/admin/group-transactions/$groupId/members',
-          body: {'email': email});
-
-      if (response.statusCode == 200) {
-        _showSnackBar('Member added successfully.');
-        _fetchGroups();
-      } else {
-        final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to add member.');
-      }
-    } catch (e) {
-      _showSnackBar('An error occurred: $e');
-    }
-  }
-
-  void _showAddMemberDialog(String groupId) {
-    final _emailController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Add Member'),
-        content: TextField(
-          controller: _emailController,
-          decoration: InputDecoration(
-            labelText: 'Member Email',
-            hintText: 'user@example.com',
-          ),
-          keyboardType: TextInputType.emailAddress,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final email = _emailController.text.trim();
-              if (email.isEmpty || !_isValidEmail(email)) {
-                _showSnackBar('Please enter a valid email address.');
-                return;
-              }
-              Navigator.of(context).pop();
-              _addMember(groupId, email);
-            },
-            child: Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  bool _isValidEmail(String email) {
-    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
-  }
-
-  Future<void> _removeMember(String groupId, String memberId) async {
-    try {
-      final response = await ApiClient.delete(
-          '/api/admin/group-transactions/$groupId/members/$memberId');
-
-      if (response.statusCode == 200) {
-        _showSnackBar('Member removed successfully.');
-        _fetchGroups();
-      } else {
-        final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to remove member.');
-      }
-    } catch (e) {
-      _showSnackBar('An error occurred: $e');
-    }
-  }
-
-  void _showRemoveMemberConfirmationDialog(
-      String groupId, String memberId, String memberEmail) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Remove Member'),
-        content: Text(
-            'Are you sure you want to remove $memberEmail from the group?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _removeMember(groupId, memberId);
-            },
-            child: Text('Remove', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _addExpense(
-      String groupId, Map<String, dynamic> expenseData) async {
-    try {
-      final response = await ApiClient.post(
-          '/api/admin/group-transactions/$groupId/expenses',
-          body: expenseData);
-
-      if (response.statusCode == 200) {
-        _showSnackBar('Expense added successfully.');
-        _fetchGroups();
-      } else {
-        final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to add expense.');
-      }
-    } catch (e) {
-      _showSnackBar('An error occurred: $e');
-    }
-  }
-
-  void _showAddExpenseDialog(String groupId, List<dynamic> members) {
+  Future<void> _showExpenseDialog({
+    required String groupId,
+    required List<dynamic> members,
+    Map<String, dynamic>? expense,
+  }) async {
     if (members.isEmpty) {
       _showSnackBar('Cannot add expense: Group has no members.');
       return;
     }
 
-    final _descController = TextEditingController();
-    final _amountController = TextEditingController();
-    String _splitType = 'equal';
-    List<String> _selectedMembers =
-        members.map((m) => m['email'].toString()).toList();
-    Map<String, TextEditingController> _customSplitControllers = {};
+    final descriptionController =
+        TextEditingController(text: '${expense?['description'] ?? ''}');
+    final amountController = TextEditingController(
+        text: expense == null ? '' : '${expense['amount'] ?? ''}');
+    final memberEmails = members
+        .map((m) => m['email'].toString())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    var paidBy = (expense?['addedBy'] ?? memberEmails.first).toString();
+    var splitType = (expense?['splitType'] ?? 'equal').toString();
+    final selectedMembers =
+        List<String>.from(expense?['selectedMembers'] ?? memberEmails);
+    final customSplitAmounts = <String, double>{
+      for (final email in memberEmails) email: 0,
+    };
 
-    members.forEach((m) {
-      _customSplitControllers[m['email'].toString()] = TextEditingController();
-    });
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: Text('Add Expense'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _descController,
-                    decoration: InputDecoration(
-                      labelText: 'Description',
-                      hintText: 'Dinner, groceries, etc.',
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  TextField(
-                    controller: _amountController,
-                    decoration: InputDecoration(
-                      labelText: 'Amount',
-                      prefixText: '\$',
-                    ),
-                    keyboardType:
-                        TextInputType.numberWithOptions(decimal: true),
-                  ),
-                  SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    value: _splitType,
-                    decoration: InputDecoration(labelText: 'Split Type'),
-                    items: ['equal', 'custom'].map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(
-                            value == 'equal' ? 'Equal Split' : 'Custom Split'),
-                      );
-                    }).toList(),
-                    onChanged: (newValue) {
-                      setDialogState(() {
-                        _splitType = newValue!;
-                      });
-                    },
-                  ),
-                  SizedBox(height: 10),
-                  if (_splitType == 'custom')
-                    ...members.map<Widget>((member) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: TextField(
-                          controller: _customSplitControllers[
-                              member['email'].toString()],
-                          decoration: InputDecoration(
-                            labelText: '${member['email']} Amount',
-                            prefixText: '\$',
-                          ),
-                          keyboardType:
-                              TextInputType.numberWithOptions(decimal: true),
-                        ),
-                      );
-                    }).toList(),
-                  SizedBox(height: 10),
-                  Text('Selected Members:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  ...members.map<Widget>((member) {
-                    return CheckboxListTile(
-                      title: Text(member['email']),
-                      value: _selectedMembers.contains(member['email']),
-                      onChanged: (bool? value) {
-                        setDialogState(() {
-                          if (value == true) {
-                            _selectedMembers.add(member['email']);
-                          } else {
-                            _selectedMembers.remove(member['email']);
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  if (_descController.text.trim().isEmpty) {
-                    _showSnackBar('Please enter a description.');
-                    return;
-                  }
-
-                  final amount = double.tryParse(_amountController.text);
-                  if (amount == null || amount <= 0) {
-                    _showSnackBar('Please enter a valid amount.');
-                    return;
-                  }
-
-                  if (_selectedMembers.isEmpty) {
-                    _showSnackBar('Please select at least one member.');
-                    return;
-                  }
-
-                  List<Map<String, dynamic>> splitData = [];
-
-                  if (_splitType == 'custom') {
-                    double totalCustomAmount = 0;
-                    for (String email in _selectedMembers) {
-                      final customAmount = double.tryParse(
-                              _customSplitControllers[email]!.text) ??
-                          0;
-                      splitData.add({'user': email, 'amount': customAmount});
-                      totalCustomAmount += customAmount;
-                    }
-
-                    if ((totalCustomAmount - amount).abs() > 0.01) {
-                      _showSnackBar(
-                          'Custom split amounts must sum to total amount.');
-                      return;
-                    }
-                  } else {
-                    final splitAmount = amount / _selectedMembers.length;
-                    _selectedMembers.forEach((email) {
-                      splitData.add({'user': email, 'amount': splitAmount});
-                    });
-                  }
-
-                  final expenseData = {
-                    'description': _descController.text.trim(),
-                    'amount': amount,
-                    'splitType': _splitType,
-                    'split': splitData,
-                    'selectedMembers': _selectedMembers,
-                    'addedByEmail':
-                        Provider.of<SessionProvider>(context, listen: false)
-                            .user?['email'],
-                  };
-
-                  Navigator.of(context).pop();
-                  _addExpense(groupId, expenseData);
-                },
-                child: Text('Add'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _editExpense(String groupId, String expenseId,
-      Map<String, dynamic> expenseData) async {
-    try {
-      final response = await ApiClient.put(
-          '/api/admin/group-transactions/$groupId/expenses/$expenseId',
-          body: expenseData);
-
-      if (response.statusCode == 200) {
-        _showSnackBar('Expense updated successfully.');
-        _fetchGroups();
-      } else {
-        final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to update expense.');
-      }
-    } catch (e) {
-      _showSnackBar('An error occurred: $e');
-    }
-  }
-
-  void _showEditExpenseDialog(
-      Map<String, dynamic> expense, String groupId, List<dynamic> members) {
-    final _descController = TextEditingController(text: expense['description']);
-    final _amountController =
-        TextEditingController(text: expense['amount'].toString());
-    String _splitType = expense['splitType'] ?? 'equal';
-    List<String> _selectedMembers =
-        List<String>.from(expense['selectedMembers'] ?? []);
-    Map<String, TextEditingController> _customSplitControllers = {};
-
-    // Initialize custom split controllers with existing split amounts
-    if (_splitType == 'custom' && expense['split'] != null) {
-      for (var splitItem in expense['split']) {
-        final member = members.firstWhere(
-          (m) => m['_id'] == splitItem['user'],
-          orElse: () => {'email': ''},
-        );
-        if (member['email'].isNotEmpty) {
-          _customSplitControllers[member['email']] =
-              TextEditingController(text: splitItem['amount'].toString());
+    if (expense != null && expense['split'] is List) {
+      for (final split in expense['split']) {
+        final member = members.cast<Map<String, dynamic>>().firstWhere(
+              (m) => '${m['_id']}' == '${split['user']}',
+              orElse: () => <String, dynamic>{'email': ''},
+            );
+        final email = (member['email'] ?? '').toString();
+        if (email.isNotEmpty) {
+          customSplitAmounts[email] =
+              (split['amount'] as num?)?.toDouble() ?? 0;
         }
       }
     }
 
-    // Initialize controllers for all members
-    members.forEach((m) {
-      if (!_customSplitControllers.containsKey(m['email'].toString())) {
-        _customSplitControllers[m['email'].toString()] =
-            TextEditingController();
-      }
-    });
-
-    showDialog(
+    await showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: Text('Edit Expense'),
-            content: SingleChildScrollView(
+        builder: (context, setDialogState) => Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: const Color(0xFF00B4D8).withOpacity(0.18),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 14),
+                ),
+              ],
+            ),
+            child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextField(
-                    controller: _descController,
-                    decoration: InputDecoration(labelText: 'Description'),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF003049), Color(0xFF00B4D8)],
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.receipt_long_rounded,
+                            color: Colors.white),
+                        const SizedBox(width: 10),
+                        Text(
+                          expense == null ? 'Add Expense' : 'Edit Expense',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 18),
                   TextField(
-                    controller: _amountController,
-                    decoration: InputDecoration(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      prefixIcon: Icon(Icons.description_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountController,
+                    decoration: const InputDecoration(
                       labelText: 'Amount',
-                      prefixText: '\$',
+                      prefixIcon: Icon(Icons.currency_rupee_rounded),
                     ),
                     keyboardType:
-                        TextInputType.numberWithOptions(decimal: true),
+                        const TextInputType.numberWithOptions(decimal: true),
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _splitType,
-                    decoration: InputDecoration(labelText: 'Split Type'),
-                    items: ['equal', 'custom'].map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(
-                            value == 'equal' ? 'Equal Split' : 'Custom Split'),
-                      );
-                    }).toList(),
-                    onChanged: (newValue) {
-                      setDialogState(() {
-                        _splitType = newValue!;
-                      });
-                    },
+                    value: paidBy,
+                    decoration: const InputDecoration(
+                      labelText: 'Paid By',
+                      prefixIcon: Icon(Icons.person_pin_circle_outlined),
+                    ),
+                    items: memberEmails
+                        .map((email) => DropdownMenuItem(
+                              value: email,
+                              child: Text(email),
+                            ))
+                        .toList(),
+                    onChanged: (value) =>
+                        setDialogState(() => paidBy = value ?? paidBy),
                   ),
-                  SizedBox(height: 10),
-                  if (_splitType == 'custom')
-                    ...members.map<Widget>((member) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: TextField(
-                          controller: _customSplitControllers[
-                              member['email'].toString()],
-                          decoration: InputDecoration(
-                            labelText: '${member['email']} Amount',
-                            prefixText: '\$',
-                          ),
-                          keyboardType:
-                              TextInputType.numberWithOptions(decimal: true),
-                        ),
-                      );
-                    }).toList(),
-                  SizedBox(height: 10),
-                  Text('Selected Members:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  ...members.map<Widget>((member) {
-                    return CheckboxListTile(
-                      title: Text(member['email']),
-                      value: _selectedMembers.contains(member['email']),
-                      onChanged: (bool? value) {
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: splitType,
+                    decoration: const InputDecoration(
+                      labelText: 'Split Type',
+                      prefixIcon: Icon(Icons.call_split_rounded),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'equal', child: Text('Equal')),
+                      DropdownMenuItem(value: 'custom', child: Text('Custom')),
+                    ],
+                    onChanged: (value) =>
+                        setDialogState(() => splitType = value ?? 'equal'),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Text(
+                        'Included Members',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const Spacer(),
+                      TextButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            selectedMembers
+                              ..clear()
+                              ..addAll(memberEmails);
+                          });
+                        },
+                        child: const Text('Select All'),
+                      ),
+                    ],
+                  ),
+                  ...memberEmails.map(
+                    (email) => CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(email),
+                      value: selectedMembers.contains(email),
+                      onChanged: (value) {
                         setDialogState(() {
                           if (value == true) {
-                            _selectedMembers.add(member['email']);
+                            selectedMembers.add(email);
                           } else {
-                            _selectedMembers.remove(member['email']);
+                            selectedMembers.remove(email);
                           }
                         });
                       },
-                    );
-                  }).toList(),
+                    ),
+                  ),
+                  if (splitType == 'custom') ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Custom split',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                  ...selectedMembers.map(
+                      (email) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: TextFormField(
+                          initialValue:
+                              (customSplitAmounts[email] ?? 0).toString(),
+                          decoration: InputDecoration(
+                            labelText: email,
+                            prefixIcon:
+                                const Icon(Icons.currency_rupee_rounded),
+                          ),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          onChanged: (value) {
+                            setDialogState(() {
+                              customSplitAmounts[email] =
+                                  double.tryParse(value) ?? 0;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (splitType == 'custom') ...[
+                    const SizedBox(height: 6),
+                    Builder(
+                      builder: (context) {
+                        final totalAmount =
+                            double.tryParse(amountController.text.trim()) ?? 0;
+                        final remaining = totalAmount -
+                            selectedMembers.fold<double>(
+                              0,
+                              (sum, email) =>
+                                  sum + (customSplitAmounts[email] ?? 0),
+                            );
+                        final balanced = remaining.abs() <= 0.01;
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: balanced
+                                ? Colors.green.withOpacity(0.08)
+                                : Colors.orange.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(
+                            'Left amount: ${remaining.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: balanced ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            final amount =
+                                double.tryParse(amountController.text.trim());
+                            if (descriptionController.text.trim().isEmpty) {
+                              _showSnackBar('Please enter a description.');
+                              return;
+                            }
+                            if (amount == null || amount <= 0) {
+                              _showSnackBar('Please enter a valid amount.');
+                              return;
+                            }
+                            if (selectedMembers.isEmpty) {
+                              _showSnackBar(
+                                  'Please select at least one member.');
+                              return;
+                            }
+
+                            dynamic splitPayload;
+                            Map<String, dynamic>? customSplitPayload;
+                            if (splitType == 'custom') {
+                              final total = selectedMembers.fold<double>(
+                                0,
+                                (sum, email) =>
+                                    sum + (customSplitAmounts[email] ?? 0),
+                              );
+                              if ((total - amount).abs() > 0.01) {
+                                _showSnackBar(
+                                  'Custom split amounts must match total amount.',
+                                );
+                                return;
+                              }
+                              splitPayload = selectedMembers
+                                  .map((email) => {
+                                        'user': email,
+                                        'amount':
+                                            customSplitAmounts[email] ?? 0,
+                                      })
+                                  .toList();
+                              customSplitPayload = {
+                                for (final email in selectedMembers)
+                                  email: customSplitAmounts[email] ?? 0,
+                              };
+                            } else {
+                              final per = amount / selectedMembers.length;
+                              splitPayload = selectedMembers
+                                  .map((email) => {
+                                        'user': email,
+                                        'amount': per,
+                                      })
+                                  .toList();
+                            }
+
+                            Navigator.pop(context);
+                            final payload = {
+                              'description': descriptionController.text.trim(),
+                              'amount': amount,
+                              'splitType': splitType,
+                              'selectedMembers': selectedMembers,
+                              'addedByEmail': paidBy,
+                              if (splitType == 'custom')
+                                'customSplitAmounts': customSplitPayload,
+                              if (splitType == 'custom' || expense == null)
+                                'split': splitPayload,
+                            };
+
+                            if (expense == null) {
+                              _addExpense(groupId, payload);
+                            } else {
+                              _editExpense(groupId, expense['_id'], payload);
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00B4D8),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: Text(expense == null ? 'Add' : 'Save'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  if (_descController.text.trim().isEmpty) {
-                    _showSnackBar('Please enter a description.');
-                    return;
-                  }
-
-                  final amount = double.tryParse(_amountController.text);
-                  if (amount == null || amount <= 0) {
-                    _showSnackBar('Please enter a valid amount.');
-                    return;
-                  }
-
-                  if (_selectedMembers.isEmpty) {
-                    _showSnackBar('Please select at least one member.');
-                    return;
-                  }
-
-                  List<Map<String, dynamic>> splitData = [];
-
-                  if (_splitType == 'custom') {
-                    double totalCustomAmount = 0;
-                    for (String email in _selectedMembers) {
-                      final customAmount = double.tryParse(
-                              _customSplitControllers[email]!.text) ??
-                          0;
-                      splitData.add({'user': email, 'amount': customAmount});
-                      totalCustomAmount += customAmount;
-                    }
-
-                    if ((totalCustomAmount - amount).abs() > 0.01) {
-                      _showSnackBar(
-                          'Custom split amounts must sum to total amount.');
-                      return;
-                    }
-                  } else {
-                    final splitAmount = amount / _selectedMembers.length;
-                    _selectedMembers.forEach((email) {
-                      splitData.add({'user': email, 'amount': splitAmount});
-                    });
-                  }
-
-                  final expenseData = {
-                    'description': _descController.text.trim(),
-                    'amount': amount,
-                    'splitType': _splitType,
-                    'split': splitData,
-                    'selectedMembers': _selectedMembers,
-                    'addedByEmail': expense['addedBy'], // Keep original addedBy
-                  };
-
-                  Navigator.of(context).pop();
-                  _editExpense(groupId, expense['_id'], expenseData);
-                },
-                child: Text('Save'),
-              ),
-            ],
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 
-  Future<void> _deleteExpense(String groupId, String expenseId) async {
-    try {
-      final response = await ApiClient.delete(
-          '/api/admin/group-transactions/$groupId/expenses/$expenseId');
+  Future<void> _updateGroup(String groupId, Map<String, dynamic> body) async {
+    final response = await ApiClient.put(
+      '/api/admin/group-transactions/$groupId',
+      body: body,
+    );
+    if (response.statusCode == 200) {
+      _showSnackBar('Group updated successfully.');
+      _fetchGroups();
+      return;
+    }
+    final data = jsonDecode(response.body);
+    _showSnackBar(data['error'] ?? 'Failed to update group.');
+  }
 
-      if (response.statusCode == 200) {
-        _showSnackBar('Expense deleted successfully.');
-        _fetchGroups();
-      } else {
-        final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to delete expense.');
-      }
-    } catch (e) {
-      _showSnackBar('An error occurred: $e');
+  Future<void> _addMember(String groupId, String email) async {
+    final response = await ApiClient.post(
+      '/api/admin/group-transactions/$groupId/members',
+      body: {'email': email},
+    );
+    if (response.statusCode == 200) {
+      _showSnackBar('Member added successfully.');
+      _fetchGroups();
+      return;
+    }
+    final data = jsonDecode(response.body);
+    _showSnackBar(data['error'] ?? 'Failed to add member.');
+  }
+
+  Future<void> _removeMember(String groupId, String memberId) async {
+    final response = await ApiClient.delete(
+      '/api/admin/group-transactions/$groupId/members/$memberId',
+    );
+    if (response.statusCode == 200) {
+      _showSnackBar('Member removed successfully.');
+      _fetchGroups();
+      return;
+    }
+    final data = jsonDecode(response.body);
+    _showSnackBar(data['error'] ?? 'Failed to remove member.');
+  }
+
+  Future<void> _addExpense(String groupId, Map<String, dynamic> body) async {
+    final response = await ApiClient.post(
+      '/api/admin/group-transactions/$groupId/expenses',
+      body: body,
+    );
+    if (response.statusCode == 200) {
+      _showSnackBar('Expense added successfully.');
+      _fetchGroups();
+      return;
+    }
+    final data = jsonDecode(response.body);
+    _showSnackBar(data['error'] ?? 'Failed to add expense.');
+  }
+
+  Future<void> _editExpense(
+      String groupId, String expenseId, Map<String, dynamic> body) async {
+    final response = await ApiClient.put(
+      '/api/admin/group-transactions/$groupId/expenses/$expenseId',
+      body: body,
+    );
+    if (response.statusCode == 200) {
+      _showSnackBar('Expense updated successfully.');
+      _fetchGroups();
+      return;
+    }
+    final data = jsonDecode(response.body);
+    _showSnackBar(data['error'] ?? 'Failed to update expense.');
+  }
+
+  Future<void> _deleteExpense(String groupId, String expenseId) async {
+    final response = await ApiClient.delete(
+      '/api/admin/group-transactions/$groupId/expenses/$expenseId',
+    );
+    if (response.statusCode == 200) {
+      _showSnackBar('Expense deleted successfully.');
+      _fetchGroups();
+      return;
+    }
+    final data = jsonDecode(response.body);
+    _showSnackBar(data['error'] ?? 'Failed to delete expense.');
+  }
+
+  Future<void> _settleExpenseSplits(
+      String groupId, String expenseId, List<String> memberEmails) async {
+    final response = await ApiClient.post(
+      '/api/admin/group-transactions/$groupId/expenses/$expenseId/settle',
+      body: {'memberEmails': memberEmails},
+    );
+    if (response.statusCode == 200) {
+      _showSnackBar('Expense splits settled successfully.');
+      _fetchGroups();
+      return;
+    }
+    final data = jsonDecode(response.body);
+    _showSnackBar(data['error'] ?? 'Failed to settle expense splits.');
+  }
+
+  Future<bool> _showExpenseActionConfirmation({
+    required String title,
+    required String message,
+    required Color color,
+    required IconData icon,
+    required String confirmLabel,
+  }) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+            contentPadding: EdgeInsets.zero,
+            content: Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: Icon(icon, color: color, size: 34),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.black54, height: 1.4),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: color,
+                            foregroundColor: Colors.white,
+                          ),
+                          child: Text(confirmLabel),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ) ??
+        false;
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFF00B4D8),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  String _formatDate(dynamic raw) {
+    if (raw == null) return 'Unknown';
+    try {
+      return DateFormat('MMM d, yyyy h:mm a')
+          .format(DateTime.parse(raw.toString()).toLocal());
+    } catch (_) {
+      return raw.toString();
     }
   }
 
-  void _showDeleteExpenseConfirmationDialog(
-      String groupId, String expenseId, String description) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete Expense'),
-        content: Text('Are you sure you want to delete "$description"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel'),
+  double _groupTotal(List<dynamic> expenses) => expenses.fold<double>(
+        0,
+        (sum, expense) => sum + ((expense['amount'] as num?)?.toDouble() ?? 0),
+      );
+
+  String _extractUserId(dynamic value) {
+    if (value is Map<String, dynamic>) {
+      return '${value['_id'] ?? value['id'] ?? value['user'] ?? ''}';
+    }
+    return '$value';
+  }
+
+  double _calculateMemberSplitAmount({
+    required List<dynamic> expenses,
+    required String memberId,
+  }) {
+    var total = 0.0;
+
+    for (final expense in expenses) {
+      final splitItems = expense['split'] as List<dynamic>? ?? const [];
+      for (final splitItem in splitItems) {
+        if (_extractUserId(splitItem['user']) != memberId) continue;
+        if (splitItem['settled'] == true) continue;
+        total += (splitItem['amount'] as num?)?.toDouble() ?? 0;
+      }
+    }
+
+    return total;
+  }
+
+  Color _parseColor(String? colorString) {
+    if (colorString == null || colorString.isEmpty) return Colors.blue;
+    try {
+      var clean = colorString.replaceAll('#', '');
+      if (clean.length == 6) clean = 'FF$clean';
+      return Color(int.parse(clean, radix: 16));
+    } catch (_) {
+      return Colors.blue;
+    }
+  }
+
+  List<dynamic> get _filteredGroups {
+    final filtered = groups.where((group) {
+      final matchesStatus = _statusFilter == 'all' ||
+          (_statusFilter == 'active' && group['isActive'] != false) ||
+          (_statusFilter == 'inactive' && group['isActive'] == false);
+      if (!matchesStatus) return false;
+      if (_searchQuery.trim().isEmpty) return true;
+      return jsonEncode(group)
+          .toLowerCase()
+          .contains(_searchQuery.toLowerCase());
+    }).toList();
+    filtered.sort((a, b) {
+      if (_sortBy == 'members') {
+        return ((b['members'] as List?)?.length ?? 0)
+            .compareTo((a['members'] as List?)?.length ?? 0);
+      }
+      if (_sortBy == 'expenses') {
+        return ((b['expenses'] as List?)?.length ?? 0)
+            .compareTo((a['expenses'] as List?)?.length ?? 0);
+      }
+      return DateTime.tryParse('${b['createdAt']}')?.compareTo(
+              DateTime.tryParse('${a['createdAt']}') ?? DateTime(0)) ??
+          0;
+    });
+    return filtered;
+  }
+
+  List<dynamic> get _visibleGroups => _showAll || _filteredGroups.length <= 5
+      ? _filteredGroups
+      : _filteredGroups.take(5).toList();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F6FA),
+      body: Stack(
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipPath(
+              clipper: TopWaveClipper(),
+              child: Container(height: 60, color: const Color(0xFF00B4D8)),
+            ),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _deleteExpense(groupId, expenseId);
-            },
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.black),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'Manage Group Transactions',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh, color: Colors.black),
+                        onPressed: _fetchGroups,
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: loading
+                      ? const Center(child: CircularProgressIndicator())
+                      : error != null
+                          ? Center(
+                              child: Text(error!,
+                                  style: const TextStyle(color: Colors.red)))
+                          : SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                              child: Column(
+                                children: [
+                                  _filterBar(),
+                                  const SizedBox(height: 12),
+                                  _statsRow(),
+                                  const SizedBox(height: 16),
+                                  if (_filteredGroups.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 80),
+                                      child: Column(
+                                        children: [
+                                          Icon(Icons.group_off_rounded,
+                                              size: 72, color: Colors.grey),
+                                          SizedBox(height: 12),
+                                          Text('No groups found',
+                                              style: TextStyle(
+                                                  fontSize: 18,
+                                                  color: Colors.grey)),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    ..._visibleGroups.map((group) => _groupCard(
+                                        Map<String, dynamic>.from(group))),
+                                  if (!_showAll && _filteredGroups.length > 5)
+                                    TextButton(
+                                      onPressed: () =>
+                                          setState(() => _showAll = true),
+                                      child: Text(
+                                          'View All (${_filteredGroups.length})'),
+                                    ),
+                                ],
+                              ),
+                            ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _settleExpenseSplits(
-      String groupId, String expenseId, List<String> memberEmails) async {
-    try {
-      final response = await ApiClient.post(
-          '/api/admin/group-transactions/$groupId/expenses/$expenseId/settle',
-          body: {'memberEmails': memberEmails});
-
-      if (response.statusCode == 200) {
-        _showSnackBar('Expense splits settled successfully.');
-        _fetchGroups();
-      } else {
-        final data = jsonDecode(response.body);
-        _showSnackBar(data['error'] ?? 'Failed to settle expense splits.');
-      }
-    } catch (e) {
-      _showSnackBar('An error occurred: $e');
-    }
+  Widget _filterBar() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(1.5),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() {
+                _searchQuery = value;
+                _showAll = false;
+              }),
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                hintText: 'Search group, member, creator, id...',
+                prefixIcon:
+                    Icon(Icons.search_rounded, color: Color(0xFF00B4D8)),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: _statusFilter,
+                decoration: const InputDecoration(
+                  filled: true,
+                  fillColor: Colors.white,
+                  labelText: 'Status',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'all', child: Text('All Groups')),
+                  DropdownMenuItem(value: 'active', child: Text('Active')),
+                  DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+                ],
+                onChanged: (value) => setState(() => _statusFilter = value!),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: _sortBy,
+                decoration: const InputDecoration(
+                  filled: true,
+                  fillColor: Colors.white,
+                  labelText: 'Sort',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'latest', child: Text('Latest')),
+                  DropdownMenuItem(
+                      value: 'members', child: Text('Most Members')),
+                  DropdownMenuItem(
+                      value: 'expenses', child: Text('Most Expenses')),
+                ],
+                onChanged: (value) => setState(() => _sortBy = value!),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
-  void _showSettleExpenseSplitsDialog(String groupId, String expenseId,
-      List<dynamic> members, List<dynamic> splitItems) {
-    List<String> _selectedMembersToSettle = [];
-
-    // Pre-select members who are not yet settled
-    for (var splitItem in splitItems) {
-      if (splitItem['settled'] != true) {
-        final member = members.firstWhere(
-          (m) => m['_id'] == splitItem['user'],
-          orElse: () => {'email': ''},
-        );
-        if (member['email'].isNotEmpty) {
-          _selectedMembersToSettle.add(member['email']);
-        }
-      }
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: Text('Settle Expense Splits'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
+  Widget _statsRow() {
+    final stats = [
+      ('Total', '${groups.length}', Icons.groups_2_rounded),
+      ('Showing', '${_visibleGroups.length}', Icons.visibility_rounded),
+      (
+        'Expenses',
+        '${_filteredGroups.fold<int>(0, (s, g) => s + ((g['expenses'] as List?)?.length ?? 0))}',
+        Icons.receipt_long_rounded
+      ),
+    ];
+    return Row(
+      children: List.generate(stats.length, (i) {
+        final item = stats[i];
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.only(right: i == stats.length - 1 ? 0 : 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: i == 0
+                  ? const Color(0xFFFFF4E6)
+                  : i == 1
+                      ? const Color(0xFFE8F5E9)
+                      : const Color(0xFFE3F2FD),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
               children: [
-                Text('Select members whose splits you want to settle:'),
-                SizedBox(height: 10),
-                ...members.map<Widget>((member) {
-                  final splitItem = splitItems.firstWhere(
-                    (item) => item['user'] == member['_id'],
-                    orElse: () => {'settled': false, 'amount': 0},
-                  );
-                  final isSettled = splitItem['settled'] == true;
-                  final amount = splitItem['amount']?.toString() ?? '0';
-
-                  return CheckboxListTile(
-                    title: Text(member['email']),
-                    subtitle: Text(
-                        'Amount: \$$amount${isSettled ? ' (Settled)' : ''}'),
-                    value: _selectedMembersToSettle.contains(member['email']),
-                    onChanged: isSettled
-                        ? null
-                        : (bool? value) {
-                            setDialogState(() {
-                              if (value == true) {
-                                _selectedMembersToSettle.add(member['email']);
-                              } else {
-                                _selectedMembersToSettle
-                                    .remove(member['email']);
-                              }
-                            });
-                          },
-                  );
-                }).toList(),
+                Icon(item.$3, color: const Color(0xFF00B4D8)),
+                const SizedBox(height: 6),
+                Text(item.$2,
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(item.$1,
+                    style: TextStyle(color: Colors.grey[700], fontSize: 12)),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('Cancel'),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _groupCard(Map<String, dynamic> group) {
+    final members = (group['members'] as List<dynamic>? ?? const []);
+    final expenses = (group['expenses'] as List<dynamic>? ?? const []);
+    final balances = (group['balances'] as List<dynamic>? ?? const []);
+    final balanceMap = <String, double>{};
+    for (final balance in balances) {
+      final userId = _extractUserId(balance['user']);
+      if (userId.isEmpty) continue;
+      balanceMap[userId] =
+          (balance['balance'] as num?)?.toDouble() ?? 0;
+    }
+    final hasAnyStoredBalance =
+        balanceMap.values.any((amount) => amount.abs() >= 0.01);
+    final selectedColor = _parseColor(group['color']);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(1.5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: selectedColor.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Card(
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          leading: CircleAvatar(
+            backgroundColor: selectedColor,
+            child: Text((group['title'] ?? 'G')
+                .toString()
+                .substring(0, 1)
+                .toUpperCase()),
+          ),
+          title: Text('${group['title'] ?? 'Untitled Group'}',
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text(
+            'Creator: ${group['creator']?['email'] ?? 'Unknown'}\nMembers: ${members.length} • Expenses: ${expenses.length}',
+          ),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(
+                    label: Text(
+                        group['isActive'] == false ? 'Inactive' : 'Active')),
+                Chip(
+                    label: Text(
+                        'Total ${_groupTotal(expenses).toStringAsFixed(2)}')),
+                Chip(label: Text('Balances ${balances.length}')),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final title = TextEditingController(
+                          text: '${group['title'] ?? ''}');
+                      var pickedColor = selectedColor;
+                      bool isActive = group['isActive'] != false;
+                      await showDialog(
+                        context: context,
+                        builder: (context) => StatefulBuilder(
+                          builder: (context, setDialogState) => AlertDialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                            contentPadding: EdgeInsets.zero,
+                            content: Container(
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(30),
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFF4FBFD), Colors.white],
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Color(0xFF003049),
+                                          Color(0xFF00B4D8)
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(22),
+                                    ),
+                                    child: const Row(
+                                      children: [
+                                        Icon(Icons.edit_rounded,
+                                            color: Colors.white),
+                                        SizedBox(width: 10),
+                                        Text(
+                                          'Edit Group',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 18),
+                                  TextField(
+                                    controller: title,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Title',
+                                      prefixIcon: Icon(Icons.title_rounded),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  InkWell(
+                                    borderRadius: BorderRadius.circular(18),
+                                    onTap: () => _pickGroupColor(
+                                      initialColor: pickedColor,
+                                      onPicked: (color) {
+                                        setDialogState(
+                                            () => pickedColor = color);
+                                      },
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(18),
+                                        border: Border.all(
+                                          color: pickedColor.withOpacity(0.35),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 34,
+                                            height: 34,
+                                            decoration: BoxDecoration(
+                                              color: pickedColor,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Text(
+                                              '#${pickedColor.value.toRadixString(16).substring(2).toUpperCase()}',
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          const Icon(Icons.palette_outlined),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SwitchListTile(
+                                    value: isActive,
+                                    contentPadding: EdgeInsets.zero,
+                                    title: const Text('Active'),
+                                    subtitle:
+                                        const Text('Disable without deleting'),
+                                    onChanged: (value) =>
+                                        setDialogState(() => isActive = value),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Cancel')),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(context);
+                                  _updateGroup(group['_id'], {
+                                    'title': title.text.trim(),
+                                    'color':
+                                        '#${pickedColor.value.toRadixString(16).substring(2).toUpperCase()}',
+                                    'isActive': isActive,
+                                  });
+                                },
+                                child: const Text('Save'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit_rounded),
+                    label: const Text('Edit'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () =>
+                        _showDeleteConfirmationDialog(group['_id']),
+                    icon: const Icon(Icons.delete_rounded, color: Colors.red),
+                    label: const Text('Delete',
+                        style: TextStyle(color: Colors.red)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF8FC),
+                borderRadius: BorderRadius.circular(16),
               ),
-              TextButton(
-                onPressed: _selectedMembersToSettle.isEmpty
-                    ? null
-                    : () {
-                        Navigator.of(context).pop();
-                        _settleExpenseSplits(
-                            groupId, expenseId, _selectedMembersToSettle);
-                      },
-                child: Text('Settle'),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Created: ${_formatDate(group['createdAt'])}'),
+                  const SizedBox(height: 4),
+                  Text('Color: ${group['color'] ?? 'Default'}'),
+                  const SizedBox(height: 4),
+                  Text('Group ID: ${group['_id']}'),
+                ],
               ),
-            ],
-          );
-        },
+            ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Members (${members.length})',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                TextButton.icon(
+                  onPressed: () {
+                    final emailController = TextEditingController();
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(28),
+                        ),
+                        contentPadding: EdgeInsets.zero,
+                        content: Container(
+                          padding: const EdgeInsets.all(22),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(28),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFF4FBFD), Colors.white],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF003049),
+                                      Color(0xFF00B4D8)
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(22),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(Icons.person_add_alt_1_rounded,
+                                        color: Colors.white),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'Add Member',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              TextField(
+                                controller: emailController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Member Email',
+                                  prefixIcon: Icon(Icons.email_outlined),
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Cancel'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                        _addMember(group['_id'],
+                                            emailController.text.trim());
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            const Color(0xFF00B4D8),
+                                        foregroundColor: Colors.white,
+                                      ),
+                                      child: const Text('Add'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+                  label: const Text('Add'),
+                ),
+              ],
+            ),
+            ...members.map((member) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor:
+                        member['leftAt'] == null ? Colors.green : Colors.grey,
+                    child: Icon(
+                      member['leftAt'] == null
+                          ? Icons.person_rounded
+                          : Icons.person_off_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                  title: Text('${member['email']}'),
+                  subtitle: Text(
+                    member['leftAt'] == null
+                        ? 'Joined ${_formatDate(member['joinedAt'])}'
+                        : 'Left ${_formatDate(member['leftAt'])}',
+                  ),
+                  trailing: member['leftAt'] == null
+                      ? IconButton(
+                          icon: const Icon(Icons.person_remove_rounded,
+                              color: Colors.red),
+                          onPressed: () =>
+                              _removeMember(group['_id'], '${member['_id']}'),
+                        )
+                      : null,
+                )),
+            const SizedBox(height: 14),
+            Text('Balances (${members.length})',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            ...members.map((member) {
+              final email = (member['email'] ?? 'Unknown').toString();
+              final memberId = '${member['_id']}';
+              final calculatedAmount = _calculateMemberSplitAmount(
+                expenses: expenses,
+                memberId: memberId,
+              );
+              final amount = hasAnyStoredBalance
+                  ? (balanceMap[memberId] ?? calculatedAmount)
+                  : calculatedAmount;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  amount.abs() < 0.01
+                      ? Icons.check_circle_rounded
+                      : Icons.pending_actions_rounded,
+                  color: amount.abs() < 0.01 ? Colors.green : Colors.orange,
+                ),
+                title: Text('$email'),
+                trailing: Text(
+                  amount.toStringAsFixed(2),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: amount.abs() < 0.01 ? Colors.green : Colors.red,
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Expenses (${expenses.length})',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                TextButton.icon(
+                  onPressed: members.isEmpty
+                      ? null
+                      : () => _showExpenseDialog(
+                            groupId: group['_id'],
+                            members: members,
+                          ),
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  label: const Text('Add'),
+                ),
+              ],
+            ),
+            ...expenses.map((expense) {
+              final splitItems = expense['split'] as List<dynamic>? ?? const [];
+              final unsettledMembers = <String>[];
+              for (final split in splitItems) {
+                if (split['settled'] != true) {
+                  final member =
+                      members.cast<Map<String, dynamic>>().firstWhere(
+                            (m) => '${m['_id']}' == '${split['user']}',
+                            orElse: () => <String, dynamic>{'email': ''},
+                          );
+                  if ((member['email'] ?? '').toString().isNotEmpty) {
+                    unsettledMembers.add(member['email'].toString());
+                  }
+                }
+              }
+              return Card(
+                margin: const EdgeInsets.only(top: 8),
+                color: const Color(0xFFF9FBFE),
+                child: ListTile(
+                  title: Text('${expense['description'] ?? 'No description'}'),
+                  subtitle: Text(
+                    'Added by ${expense['addedBy'] ?? 'Unknown'}\n'
+                    'Amount ${((expense['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}\n'
+                    'Date ${_formatDate(expense['date'] ?? expense['createdAt'])}',
+                  ),
+                  trailing: Wrap(
+                    spacing: 4,
+                  children: [
+                    IconButton(
+                        icon: const Icon(Icons.edit_rounded,
+                            color: Colors.orange),
+                        onPressed: () => _showExpenseDialog(
+                          groupId: group['_id'],
+                          members: members,
+                          expense: Map<String, dynamic>.from(expense),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.check_box_rounded,
+                            color: Colors.green),
+                        onPressed: unsettledMembers.isEmpty
+                            ? null
+                            : () async {
+                                final confirm =
+                                    await _showExpenseActionConfirmation(
+                                  title: 'Settle Expense',
+                                  message:
+                                      'Mark the pending selected splits as settled?',
+                                  color: Colors.green,
+                                  icon: Icons.check_box_rounded,
+                                  confirmLabel: 'Settle',
+                                );
+                                if (!confirm) return;
+                                _settleExpenseSplits(
+                                  group['_id'],
+                                  expense['_id'],
+                                  unsettledMembers,
+                                );
+                              },
+                      ),
+                      IconButton(
+                        icon:
+                            const Icon(Icons.delete_rounded, color: Colors.red),
+                        onPressed: () async {
+                          final confirm = await _showExpenseActionConfirmation(
+                            title: 'Delete Expense',
+                            message:
+                                'Are you sure you want to delete this expense?',
+                            color: Colors.red,
+                            icon: Icons.delete_rounded,
+                            confirmLabel: 'Delete',
+                          );
+                          if (!confirm) return;
+                          _deleteExpense(group['_id'], expense['_id']);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
+}
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+class TopWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height * 0.4);
+    path.quadraticBezierTo(size.width * 0.25, size.height * 0.5,
+        size.width * 0.5, size.height * 0.4);
+    path.quadraticBezierTo(
+        size.width * 0.75, size.height * 0.3, size.width, size.height * 0.4);
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Manage Group Transactions'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.black,
-      ),
-      body: RefreshIndicator(
-        onRefresh: _fetchGroups,
-        child: loading
-            ? Center(child: CircularProgressIndicator())
-            : error != null
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.error_outline, size: 64, color: Colors.red),
-                        SizedBox(height: 16),
-                        Text(
-                          error!,
-                          style: TextStyle(color: Colors.red, fontSize: 16),
-                          textAlign: TextAlign.center,
-                        ),
-                        SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _fetchGroups,
-                          child: Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  )
-                : groups.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.group_off, size: 64, color: Colors.grey),
-                            SizedBox(height: 16),
-                            Text(
-                              'No groups found',
-                              style:
-                                  TextStyle(fontSize: 18, color: Colors.grey),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: groups.length,
-                        itemBuilder: (context, index) {
-                          final group = groups[index];
-                          final expenses = group['expenses'] ?? [];
-                          final members = group['members'] ?? [];
-                          final creator = group['creator'];
-                          final groupColor = group['color'] != null
-                              ? _parseColor(group['color'])
-                              : Colors.blue;
-
-                          return Card(
-                            margin: EdgeInsets.all(8.0),
-                            elevation: 4,
-                            child: ExpansionTile(
-                              leading: CircleAvatar(
-                                backgroundColor: groupColor,
-                                child: Text(
-                                  group['title']
-                                          ?.substring(0, 1)
-                                          .toUpperCase() ??
-                                      'G',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              title: Text(
-                                group['title'] ?? 'Untitled Group',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                      'Creator: ${creator?['email'] ?? 'Unknown'}'),
-                                  Text(
-                                      'Members: ${members.length} • Expenses: ${expenses.length}'),
-                                  if (expenses.isNotEmpty)
-                                    Text(
-                                        'Total: \${_calculateGroupTotal(expenses).toStringAsFixed(2)}'),
-                                ],
-                              ),
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      // Group Info
-                                      Container(
-                                        padding: EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[100],
-                                          borderRadius:
-                                              BorderRadius.circular(8),
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text('Group ID: ${group['_id']}',
-                                                style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[600])),
-                                            Text(
-                                                'Color: ${group['color'] ?? 'Default'}',
-                                                style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[600])),
-                                            Text(
-                                                'Created: ${_formatDateTime(group['createdAt'])}',
-                                                style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: Colors.grey[600])),
-                                          ],
-                                        ),
-                                      ),
-                                      SizedBox(height: 16),
-
-                                      // Group Actions
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceEvenly,
-                                        children: [
-                                          ElevatedButton.icon(
-                                            onPressed: () =>
-                                                _showEditGroupDialog(group),
-                                            icon: Icon(Icons.edit, size: 16),
-                                            label: Text('Edit'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.orange,
-                                              foregroundColor: Colors.white,
-                                            ),
-                                          ),
-                                          ElevatedButton.icon(
-                                            onPressed: () =>
-                                                _showDeleteConfirmationDialog(
-                                                    group['_id']),
-                                            icon: Icon(Icons.delete, size: 16),
-                                            label: Text('Delete'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.red,
-                                              foregroundColor: Colors.white,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      SizedBox(height: 20),
-
-                                      // Members Section
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            'Members (${members.length})',
-                                            style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16),
-                                          ),
-                                          ElevatedButton.icon(
-                                            onPressed: () =>
-                                                _showAddMemberDialog(
-                                                    group['_id']),
-                                            icon: Icon(Icons.person_add,
-                                                size: 16),
-                                            label: Text('Add'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.green,
-                                              foregroundColor: Colors.white,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      SizedBox(height: 8),
-
-                                      if (members.isEmpty)
-                                        Container(
-                                          padding: EdgeInsets.all(16),
-                                          child: Text(
-                                            'No members in this group',
-                                            style: TextStyle(
-                                                color: Colors.grey,
-                                                fontStyle: FontStyle.italic),
-                                          ),
-                                        )
-                                      else
-                                        ...members.map<Widget>((member) {
-                                          final isActive =
-                                              member['leftAt'] == null;
-                                          return Card(
-                                            margin: EdgeInsets.symmetric(
-                                                vertical: 2),
-                                            child: ListTile(
-                                              leading: CircleAvatar(
-                                                backgroundColor: isActive
-                                                    ? Colors.green
-                                                    : Colors.grey,
-                                                child: Icon(
-                                                  isActive
-                                                      ? Icons.person
-                                                      : Icons.person_off,
-                                                  color: Colors.white,
-                                                  size: 16,
-                                                ),
-                                              ),
-                                              title: Text(member['email']),
-                                              subtitle: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                      'Joined: ${_formatDateTime(member['joinedAt'])}'),
-                                                  if (member['leftAt'] != null)
-                                                    Text(
-                                                      'Left: ${_formatDateTime(member['leftAt'])}',
-                                                      style: TextStyle(
-                                                          color: Colors.red),
-                                                    ),
-                                                ],
-                                              ),
-                                              trailing: isActive
-                                                  ? IconButton(
-                                                      icon: Icon(
-                                                          Icons.person_remove,
-                                                          color: Colors.red),
-                                                      onPressed: () =>
-                                                          _showRemoveMemberConfirmationDialog(
-                                                        group['_id'],
-                                                        member['_id'],
-                                                        member['email'],
-                                                      ),
-                                                    )
-                                                  : null,
-                                            ),
-                                          );
-                                        }).toList(),
-
-                                      SizedBox(height: 20),
-
-                                      // Expenses Section
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Text(
-                                            'Expenses (${expenses.length})',
-                                            style: TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 16),
-                                          ),
-                                          ElevatedButton.icon(
-                                            onPressed: members.isEmpty
-                                                ? null
-                                                : () => _showAddExpenseDialog(
-                                                    group['_id'], members),
-                                            icon: Icon(Icons.add, size: 16),
-                                            label: Text('Add'),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.blue,
-                                              foregroundColor: Colors.white,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      SizedBox(height: 8),
-
-                                      if (expenses.isEmpty)
-                                        Container(
-                                          padding: EdgeInsets.all(16),
-                                          child: Text(
-                                            'No expenses in this group',
-                                            style: TextStyle(
-                                                color: Colors.grey,
-                                                fontStyle: FontStyle.italic),
-                                          ),
-                                        )
-                                      else
-                                        ...expenses.map<Widget>((expense) {
-                                          final splitItems =
-                                              expense['split'] ?? [];
-                                          final settledCount = splitItems
-                                              .where((item) =>
-                                                  item['settled'] == true)
-                                              .length;
-                                          final totalSplits = splitItems.length;
-
-                                          return Card(
-                                            margin: EdgeInsets.symmetric(
-                                                vertical: 2),
-                                            child: ListTile(
-                                              leading: CircleAvatar(
-                                                backgroundColor:
-                                                    settledCount == totalSplits
-                                                        ? Colors.green
-                                                        : Colors.orange,
-                                                child: Text(
-                                                  '\,${expense['amount']?.toStringAsFixed(2) ?? '0.00'}',
-                                                  style: TextStyle(
-                                                      color: Colors.white,
-                                                      fontWeight:
-                                                          FontWeight.bold),
-                                                ),
-                                              ),
-                                              title: Text(
-                                                  expense['description'] ??
-                                                      'No description'),
-                                              subtitle: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                      'Amount: \,${expense['amount']?.toString() ?? '0'}'),
-                                                  Text(
-                                                      'Added by: ${expense['addedBy'] ?? 'Unknown'}'),
-                                                  Text(
-                                                      'Split: ${expense['splitType']?.toString().toUpperCase() ?? 'EQUAL'}'),
-                                                  Text(
-                                                      'Settled: $settledCount/$totalSplits'),
-                                                  Text(
-                                                      'Date: ${_formatDateTime(expense['createdAt'])}'),
-                                                ],
-                                              ),
-                                              trailing: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  IconButton(
-                                                    icon: Icon(Icons.edit,
-                                                        color: Colors.blue),
-                                                    onPressed: () =>
-                                                        _showEditExpenseDialog(
-                                                            expense,
-                                                            group['_id'],
-                                                            members),
-                                                  ),
-                                                  IconButton(
-                                                    icon: Icon(Icons.delete,
-                                                        color: Colors.red),
-                                                    onPressed: () =>
-                                                        _showDeleteExpenseConfirmationDialog(
-                                                      group['_id'],
-                                                      expense['_id'],
-                                                      expense['description'] ??
-                                                          'this expense',
-                                                    ),
-                                                  ),
-                                                  IconButton(
-                                                    icon: Icon(
-                                                      Icons.check_box,
-                                                      color: settledCount ==
-                                                              totalSplits
-                                                          ? Colors.green
-                                                          : Colors.orange,
-                                                    ),
-                                                    onPressed: () =>
-                                                        _showSettleExpenseSplitsDialog(
-                                                      group['_id'],
-                                                      expense['_id'],
-                                                      members,
-                                                      splitItems,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-      ),
-    );
-  }
-
-  Color _parseColor(String? colorString) {
-    if (colorString == null || colorString.isEmpty) return Colors.blue;
-
-    try {
-      // Remove # if present
-      String cleanColor = colorString.replaceAll('#', '');
-
-      // Add FF for full opacity if not present
-      if (cleanColor.length == 6) {
-        cleanColor = 'FF$cleanColor';
-      }
-
-      return Color(int.parse(cleanColor, radix: 16));
-    } catch (e) {
-      return Colors.blue; // Fallback color
-    }
-  }
-
-  double _calculateGroupTotal(List<dynamic> expenses) {
-    double total = 0;
-    for (var expense in expenses) {
-      total += (expense['amount'] ?? 0).toDouble();
-    }
-    return total;
-  }
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

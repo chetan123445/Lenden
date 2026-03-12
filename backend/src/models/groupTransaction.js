@@ -27,6 +27,15 @@ const groupTransactionSchema = new mongoose.Schema({
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     balance: { type: Number, default: 0 },
   }],
+  pendingLeaves: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    requestedAt: { type: Date, default: Date.now },
+  }],
+  _pendingOtp: {
+    userId: { type: String, default: null },
+    otp: { type: String, default: null },
+    createdAt: { type: Date, default: null },
+  },
   isActive: { type: Boolean, default: true },
   favourite: [{ type: String }], // Array of user emails
   messageCounts: [{
