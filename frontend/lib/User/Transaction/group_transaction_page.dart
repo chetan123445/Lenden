@@ -1,12 +1,10 @@
 import 'package:elegant_notification/elegant_notification.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../../api_config.dart';
 import 'package:provider/provider.dart';
 import '../../session.dart';
 import '../../utils/api_client.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import '../../widgets/subscription_prompt.dart';
 import '../../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
 import '../Digitise/gift_card_page.dart';
@@ -5541,112 +5539,204 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   Widget _buildCreateGroupCard() {
+    const borderRadius = BorderRadius.all(Radius.circular(22));
+
+    final inputBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
+    );
+
+    final focusedInputBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: Color(0xFF00B4D8), width: 2),
+    );
+
+    final inputDecoration = InputDecoration(
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      border: inputBorder,
+      enabledBorder: inputBorder,
+      focusedBorder: focusedInputBorder,
+      contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+    );
+
     return Container(
-      padding: const EdgeInsets.all(3), // border width
+      padding: const EdgeInsets.all(4), // border width
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [Colors.orange, Colors.white, Colors.green],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(21),
+        borderRadius: borderRadius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
         ),
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.symmetric(horizontal: 22.0, vertical: 20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
-                Icon(Icons.group, color: Colors.deepPurple, size: 40),
-                SizedBox(width: 16),
-                Text('Create Group',
-                    style:
-                        TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                Container(
+                  height: 52,
+                  width: 52,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.deepPurple.shade400,
+                        Colors.deepPurple.shade800
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.deepPurple.withOpacity(0.25),
+                        blurRadius: 12,
+                        offset: Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Icon(Icons.group, color: Colors.white, size: 28),
+                ),
+                SizedBox(width: 14),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Create Group',
+                        style: TextStyle(
+                            fontSize: 22, fontWeight: FontWeight.bold)),
+                    SizedBox(height: 4),
+                    Text('Start tracking expenses with friends',
+                        style:
+                            TextStyle(color: Colors.grey[600], fontSize: 14)),
+                  ],
+                ),
               ],
             ),
             if (error != null) ...[
-              SizedBox(height: 8),
-              Text(error!, style: TextStyle(color: Colors.red)),
+              SizedBox(height: 12),
+              Text(error!,
+                  style: TextStyle(
+                      color: Colors.red, fontWeight: FontWeight.w600)),
             ],
-            SizedBox(height: 24),
+            SizedBox(height: 22),
             TextField(
               controller: _titleController,
-              decoration: InputDecoration(
+              decoration: inputDecoration.copyWith(
                 labelText: 'Group Title',
-                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.title, color: Colors.grey[700]),
               ),
             ),
-            SizedBox(height: 20),
-            // Color picker
-            Row(
-              children: [
-                Text('Group Color:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () async {
-                    Color picked = selectedGroupColor ?? Colors.blue;
-                    await showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text('Pick Group Color'),
-                        content: SingleChildScrollView(
-                          child: ColorPicker(
-                            pickerColor: picked,
-                            onColorChanged: (color) {
-                              picked = color;
-                            },
-                            showLabel: false,
-                            pickerAreaHeightPercent: 0.7,
-                          ),
+            SizedBox(height: 18),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Group Color',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 14)),
+                        SizedBox(height: 6),
+                        Text(
+                          'Pick a color to identify this group in lists and tables.',
+                          style:
+                              TextStyle(color: Colors.grey[600], fontSize: 12),
                         ),
-                        actions: [
-                          TextButton(
-                            child: Text('Cancel'),
-                            onPressed: () => Navigator.of(context).pop(),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () async {
+                      Color picked = selectedGroupColor ?? Colors.blue;
+                      await showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: Text('Pick Group Color'),
+                          content: SingleChildScrollView(
+                            child: ColorPicker(
+                              pickerColor: picked,
+                              onColorChanged: (color) {
+                                picked = color;
+                              },
+                              showLabel: false,
+                              pickerAreaHeightPercent: 0.7,
+                            ),
                           ),
-                          TextButton(
-                            child: Text('Select'),
-                            onPressed: () {
-                              setState(() {
-                                selectedGroupColor = picked;
-                              });
-                              Navigator.of(context).pop();
-                            },
+                          actions: [
+                            TextButton(
+                              child: Text('Cancel'),
+                              onPressed: () => Navigator.of(context).pop(),
+                            ),
+                            TextButton(
+                              child: Text('Select'),
+                              onPressed: () {
+                                setState(() {
+                                  selectedGroupColor = picked;
+                                });
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: selectedGroupColor ?? Colors.blue,
+                        shape: BoxShape.circle,
+                        border:
+                            Border.all(color: Colors.grey.shade300, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.12),
+                            blurRadius: 10,
+                            offset: Offset(0, 4),
                           ),
                         ],
                       ),
-                    );
-                  },
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: selectedGroupColor ?? Colors.blue,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.grey, width: 2),
+                      child: Center(
+                        child: Icon(Icons.edit, color: Colors.white, size: 18),
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(width: 8),
-                Text(selectedGroupColor != null
-                    ? '#${selectedGroupColor!.value.toRadixString(16).substring(2).toUpperCase()}'
-                    : 'Default'),
-              ],
+                ],
+              ),
             ),
             SizedBox(height: 20),
-            Text('Add Members (by email):'),
-            SizedBox(height: 8),
+            Text('Add Members (by email)',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(height: 4),
+            Text('Invite friends so they can add expenses and pay back.',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+            SizedBox(height: 12),
             Container(
               padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: Colors.blue.shade200),
               ),
               child: Row(
@@ -5667,25 +5757,28 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ],
               ),
             ),
+            SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _memberEmailController,
-                    decoration: InputDecoration(
-                        hintText: 'Enter email', border: OutlineInputBorder()),
+                    decoration: inputDecoration.copyWith(
+                      hintText: 'Enter email(one at a time)',
+                      prefixIcon: Icon(Icons.email, color: Colors.grey[700]),
+                    ),
                     onSubmitted: (_) => _addMemberEmail(),
                   ),
                 ),
-                SizedBox(width: 8),
-                TextButton(
+                SizedBox(width: 10),
+                ElevatedButton(
                   onPressed: _addMemberEmail,
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF00B4D8),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        borderRadius: BorderRadius.circular(16)),
+                    padding: EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    elevation: 4,
                   ),
                   child: Text('Add',
                       style: TextStyle(fontWeight: FontWeight.bold)),
@@ -5693,7 +5786,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               ],
             ),
             if (_friendSuggestions.isNotEmpty) ...[
-              SizedBox(height: 8),
+              SizedBox(height: 10),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -5732,9 +5825,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: _addMembersFromFriends,
-                icon: Icon(Icons.people, color: Colors.deepPurple),
+                icon: Icon(Icons.people, color: Color(0xFF00B4D8)),
                 label: Text('Add from Friends',
-                    style: TextStyle(color: Colors.deepPurple)),
+                    style: TextStyle(color: Color(0xFF00B4D8))),
               ),
             ),
             if (memberAddError != null) ...[
@@ -5748,7 +5841,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       label: Text(e), onDeleted: () => _removeMemberEmail(e)))
                   .toList(),
             ),
-            SizedBox(height: 28),
+            SizedBox(height: 26),
             SizedBox(
               width: double.infinity,
               child: Consumer<SessionProvider>(
@@ -5791,9 +5884,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16)),
                           padding: EdgeInsets.symmetric(vertical: 16),
+                          elevation: 4,
                         ),
                         child: creatingGroup
-                            ? CircularProgressIndicator()
+                            ? SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
+                              )
                             : Text('Create Group',
                                 style: TextStyle(
                                     fontSize: 18, color: Colors.white)),
