@@ -87,7 +87,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       if (res.statusCode != 200) return;
       final data = jsonDecode(res.body);
       final friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
-      final blocked = List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
+      final blocked =
+          List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
       _blockedEmails = blocked
           .map((u) => (u['email'] ?? '').toString().toLowerCase().trim())
           .where((e) => e.isNotEmpty)
@@ -96,8 +97,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
       final tempSelected = Set<String>.from(memberEmails);
       final selectableCount = friends
-          .where((f) =>
-              !_isBlockedEmail((f['email'] ?? '').toString().toLowerCase().trim()))
+          .where((f) => !_isBlockedEmail(
+              (f['email'] ?? '').toString().toLowerCase().trim()))
           .length;
       bool selectAll =
           tempSelected.length == selectableCount && selectableCount > 0;
@@ -185,8 +186,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 itemBuilder: (context, index) {
                                   final f = friends[index];
                                   final email = (f['email'] ?? '').toString();
-                                  final name = (f['name'] ?? f['username'] ?? '')
-                                      .toString();
+                                  final name =
+                                      (f['name'] ?? f['username'] ?? '')
+                                          .toString();
                                   final isBlocked = _isBlockedEmail(email);
                                   return Container(
                                     margin: const EdgeInsets.symmetric(
@@ -212,8 +214,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                       ),
                                       child: CheckboxListTile(
                                         value: tempSelected.contains(email),
-                                        title:
-                                            Text(name.isNotEmpty ? name : email),
+                                        title: Text(
+                                            name.isNotEmpty ? name : email),
                                         subtitle: Text(email),
                                         secondary: isBlocked
                                             ? const Icon(Icons.block,
@@ -222,18 +224,18 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                         onChanged: isBlocked
                                             ? null
                                             : (val) {
-                                          setDialogState(() {
-                                            if (val == true) {
-                                              tempSelected.add(email);
-                                            } else {
-                                              tempSelected.remove(email);
-                                            }
-                                            selectAll =
-                                                tempSelected.length ==
-                                                        selectableCount &&
-                                                    selectableCount > 0;
-                                          });
-                                        },
+                                                setDialogState(() {
+                                                  if (val == true) {
+                                                    tempSelected.add(email);
+                                                  } else {
+                                                    tempSelected.remove(email);
+                                                  }
+                                                  selectAll =
+                                                      tempSelected.length ==
+                                                              selectableCount &&
+                                                          selectableCount > 0;
+                                                });
+                                              },
                                       ),
                                     ),
                                   );
@@ -325,8 +327,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     if (session.isSubscribed) return;
     try {
-      final res = await ApiClient.get(
-          '/api/limits/group/${group!['_id']}/expenses');
+      final res =
+          await ApiClient.get('/api/limits/group/${group!['_id']}/expenses');
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
         setState(() {
@@ -636,8 +638,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         }
         showInsufficientCoinsDialog(context);
       } else if (res.statusCode == 429) {
-        final errorMsg =
-            (data['error'] ?? 'Daily limit reached').toString();
+        final errorMsg = (data['error'] ?? 'Daily limit reached').toString();
         showDailyLimitDialog(context, message: errorMsg);
       } else {
         setState(() {
@@ -3686,8 +3687,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     );
   }
 
-
-
   void _showLeaveGroupDialog() {
     // Check if user has pending balances
     final userBalance = _getCurrentUserBalance();
@@ -4651,7 +4650,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             child: ClipPath(
               clipper: TopWaveClipper(),
               child: Container(
-                height: 200,
+                height: 100,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
@@ -4669,41 +4668,18 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (group == null)
-                  Text(
-                    'Group Transactions',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                      shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
-                    ),
-                  )
-                else
-                  Text(
-                    'Group: ${group?['title'] ?? ''}',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                      shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
-                    ),
+                Text(
+                  group == null
+                      ? 'Group Transactions'
+                      : 'Group: ${group?['title'] ?? ''}',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    shadows: [Shadow(color: Colors.black26, blurRadius: 4)],
                   ),
-                if (group == null)
-                  IconButton(
-                    icon: Icon(
-                      _showFavouritesOnly ? Icons.star : Icons.star_border,
-                      color: _showFavouritesOnly ? Colors.amber : Colors.white,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _showFavouritesOnly = !_showFavouritesOnly;
-                      });
-                      _filterAndSearchGroups();
-                    },
-                  ),
+                ),
               ],
             ),
           ),
@@ -4724,27 +4700,59 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 crossAxisAlignment: CrossAxisAlignment.center,
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Card(
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(18)),
-                                    elevation: 4,
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(32.0),
-                                      child: Column(
-                                        children: [
-                                          Icon(Icons.group_off,
-                                              color: Colors.grey, size: 60),
-                                          SizedBox(height: 16),
-                                          Text('No groups found.',
-                                              style: TextStyle(
-                                                  fontSize: 20,
-                                                  fontWeight: FontWeight.bold)),
-                                          SizedBox(height: 8),
-                                          Text(
-                                              'Create your first group to get started!',
-                                              style: TextStyle(fontSize: 16)),
+                                  Container(
+                                    padding:
+                                        const EdgeInsets.all(3), // border width
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Colors.orange,
+                                          Colors.white,
+                                          Colors.green
                                         ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(21),
+                                    ),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(18),
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(32.0),
+                                        child: Column(
+                                          children: [
+                                            Icon(Icons.group_off,
+                                                color: Colors.grey, size: 60),
+                                            SizedBox(height: 16),
+                                            Text(
+                                              'No Groups Yet!',
+                                              style: TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF00B4D8),
+                                              ),
+                                            ),
+                                            SizedBox(height: 8),
+                                            Text(
+                                              'Start splitting expenses with friends and family effortlessly.',
+                                              style: TextStyle(
+                                                  fontSize: 16,
+                                                  color: Colors.grey[700]),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            SizedBox(height: 8),
+                                            Text(
+                                              'Create your first group to get started!',
+                                              style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.w500),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -4828,6 +4836,48 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                   scrollDirection: Axis.horizontal,
                                   child: Row(
                                     children: [
+                                      Container(
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Colors.orange,
+                                              Colors.white,
+                                              Colors.green
+                                            ],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(18),
+                                        ),
+                                        padding: const EdgeInsets.all(2),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                          ),
+                                          child: IconButton(
+                                            icon: Icon(
+                                              _showFavouritesOnly
+                                                  ? Icons.star
+                                                  : Icons.star_border,
+                                              color: _showFavouritesOnly
+                                                  ? Colors.amber
+                                                  : Color(0xFF00B4D8),
+                                            ),
+                                            onPressed: () {
+                                              setState(() {
+                                                _showFavouritesOnly =
+                                                    !_showFavouritesOnly;
+                                              });
+                                              _filterAndSearchGroups();
+                                            },
+                                            tooltip: 'Show Favourites Only',
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(width: 12),
                                       Container(
                                         decoration: BoxDecoration(
                                           gradient: const LinearGradient(
@@ -5081,57 +5131,96 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 ),
                                 SizedBox(height: 16),
                                 if (!showCreateGroupForm)
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      Consumer<SessionProvider>(
-                                        builder: (context, session, child) {
-                                          final bool canCreate = session
-                                                  .isSubscribed ||
-                                              (session.freeGroupsRemaining ??
-                                                      0) >
-                                                  0 ||
-                                              (session.lenDenCoins ?? 0) >= 20;
-                                          return Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.end,
-                                            children: [
-                                              if (!session.isSubscribed &&
-                                                  (session.freeGroupsRemaining ??
-                                                          0) >
-                                                      0)
-                                                Padding(
-                                                  padding:
-                                                      const EdgeInsets.only(
-                                                          bottom: 8.0),
-                                                  child: Text(
-                                                    '${session.freeGroupsRemaining} free group creations remaining.',
-                                                    style: TextStyle(
-                                                        color: Colors.green),
+                                  Center(
+                                    child: Container(
+                                      padding: const EdgeInsets.all(
+                                          3), // border width
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [
+                                            Colors.orange,
+                                            Colors.white,
+                                            Colors.green
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(21),
+                                      ),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 16, horizontal: 20),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius:
+                                              BorderRadius.circular(18),
+                                        ),
+                                        child: Consumer<SessionProvider>(
+                                          builder: (context, session, child) {
+                                            final bool canCreate = session
+                                                    .isSubscribed ||
+                                                (session.freeGroupsRemaining ??
+                                                        0) >
+                                                    0 ||
+                                                (session.lenDenCoins ?? 0) >=
+                                                    20;
+                                            return Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.center,
+                                              children: [
+                                                if (!session.isSubscribed &&
+                                                    (session.freeGroupsRemaining ??
+                                                            0) >
+                                                        0)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                            bottom: 8.0),
+                                                    child: Text(
+                                                      '${session.freeGroupsRemaining} free group creations remaining.',
+                                                      style: TextStyle(
+                                                          color: Colors.green),
+                                                    ),
+                                                  ),
+                                                ElevatedButton.icon(
+                                                  onPressed: canCreate
+                                                      ? _showCreateGroup
+                                                      : null,
+                                                  icon:
+                                                      Icon(Icons.add, size: 28),
+                                                  label: Text(
+                                                      'Create New Group',
+                                                      style: TextStyle(
+                                                          fontSize: 18)),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor: canCreate
+                                                        ? Color(0xFF00B4D8)
+                                                        : Colors.grey,
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                            horizontal: 24,
+                                                            vertical: 12),
+                                                    shape:
+                                                        RoundedRectangleBorder(
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        12)),
+                                                    elevation: 4,
                                                   ),
                                                 ),
-                                              ElevatedButton.icon(
-                                                onPressed: canCreate
-                                                    ? _showCreateGroup
-                                                    : null,
-                                                icon: Icon(Icons.add),
-                                                label: Text('Create Group'),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: canCreate
-                                                      ? Color(0xFF00B4D8)
-                                                      : Colors.grey,
-                                                  shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              12)),
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        },
+                                              ],
+                                            );
+                                          },
+                                        ),
                                       ),
-                                    ],
+                                    ),
                                   ),
+                                SizedBox(height: 20),
                                 if (showCreateGroupForm) ...[
                                   _buildCreateGroupCard(),
                                   SizedBox(height: 12),
@@ -5141,261 +5230,296 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                         style: TextStyle(color: Colors.red)),
                                   ),
                                 ],
-                                ...filteredGroups.map((g) {
-                                  final groupColor = g['color'] != null
-                                      ? Color(int.parse(g['color']
-                                          .toString()
-                                          .replaceFirst('#', '0xff')))
-                                      : Colors.blue.shade300;
-                                  final avatarText = () {
-                                    final title = g['title'] ?? '';
-                                    return title.isNotEmpty
-                                        ? title[0].toUpperCase()
-                                        : '?';
-                                  }();
-                                  return Card(
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(18)),
-                                    elevation: 6,
-                                    margin: EdgeInsets.only(bottom: 18),
+                                if (_showFavouritesOnly &&
+                                    filteredGroups.isEmpty)
+                                  Container(
+                                    padding:
+                                        const EdgeInsets.all(3), // border width
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Colors.orange,
+                                          Colors.white,
+                                          Colors.green
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                      borderRadius: BorderRadius.circular(21),
+                                    ),
                                     child: Container(
                                       decoration: BoxDecoration(
-                                        border: Border.all(
-                                          color: groupColor,
-                                          width: 2,
-                                        ),
+                                        color: Colors.white,
                                         borderRadius: BorderRadius.circular(18),
                                       ),
                                       child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 18, horizontal: 18),
+                                        padding: const EdgeInsets.all(32.0),
                                         child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  // New row for Favourites and View Details buttons
-                                                  Row(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment.end,
-                                                    children: [
-                                                      IconButton(
-                                                        icon: Icon(
-                                                          (g['favourite'] as List? ??
-                                                                      [])
-                                                                  .contains(Provider.of<
-                                                                              SessionProvider>(
-                                                                          context,
-                                                                          listen:
-                                                                              false)
-                                                                      .user?['email'])
-                                                              ? Icons.star
-                                                              : Icons.star_border,
-                                                          color: (g['favourite']
-                                                                          as List? ??
-                                                                      [])
-                                                                  .contains(Provider.of<
-                                                                              SessionProvider>(
-                                                                          context,
-                                                                          listen:
-                                                                              false)
-                                                                      .user?['email'])
-                                                              ? Colors.amber
-                                                              : Colors.grey,
-                                                        ),
-                                                        onPressed: () =>
-                                                            _toggleFavourite(
-                                                                g['_id']),
-                                                      ),
-                                                      ElevatedButton(
-                                                        onPressed: () =>
-                                                            _showGroupDetails(
-                                                                g),
-                                                        style: ElevatedButton
-                                                            .styleFrom(
-                                                          backgroundColor:
-                                                              Color(0xFF48CAE4),
-                                                          shape: RoundedRectangleBorder(
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          12)),
-                                                          elevation: 0,
-                                                        ),
-                                                        child: Text(
-                                                            'View Details',
-                                                            style: TextStyle(
-                                                                color: Colors
-                                                                    .white)),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  SizedBox(height: 10),
-                                                  // Existing row with avatar, title, and color indicator
-                                                  Row(
-                                                    children: [
-                                                      CircleAvatar(
-                                                        backgroundColor:
-                                                            groupColor,
-                                                        radius: 22,
-                                                        child: Text(avatarText,
-                                                            style: TextStyle(
-                                                                fontSize: 22,
-                                                                color: Colors
-                                                                    .white,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold)),
-                                                      ),
-                                                      SizedBox(width: 14),
-                                                      Expanded(
-                                                        child: Text(
-                                                          g['title'] ?? '',
-                                                          style: TextStyle(
-                                                              fontSize: 20,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold,
-                                                              color: Color(
-                                                                  0xFF00B4D8)),
-                                                        ),
-                                                      ),
-                                                      // Group color indicator
-                                                      Container(
-                                                        width: 18,
-                                                        height: 18,
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          color: groupColor,
-                                                          shape:
-                                                              BoxShape.circle,
-                                                          border: Border.all(
-                                                              color:
-                                                                  Colors.white,
-                                                              width: 2),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  SizedBox(height: 10),
-                                                  Row(
-                                                    children: [
-                                                      Icon(Icons.person,
-                                                          size: 18,
-                                                          color: Colors.grey),
-                                                      SizedBox(width: 4),
-                                                      Text(
-                                                          'Creator: ${g['creator']?['email'] ?? ''}',
-                                                          style: TextStyle(
-                                                              fontSize: 14,
-                                                              color: Colors
-                                                                  .grey[700])),
-                                                    ],
-                                                  ),
-                                                  SizedBox(height: 6),
-                                                  Row(
-                                                    children: [
-                                                      Icon(Icons.people,
-                                                          size: 18,
-                                                          color: Colors.grey),
-                                                      SizedBox(width: 4),
-                                                      Text(
-                                                          'Members: ${(g['members'] as List).length}',
-                                                          style: TextStyle(
-                                                              fontSize: 14,
-                                                              color: Colors
-                                                                  .grey[700])),
-                                                      SizedBox(width: 12),
-                                                      // Member avatars
-                                                      ...((g['members'] as List)
-                                                          .take(5)
-                                                          .map((m) =>
-                                                              GestureDetector(
-                                                                onTap: () =>
-                                                                    _showMemberDetails(
-                                                                        m),
-                                                                child: Padding(
-                                                                  padding: const EdgeInsets
-                                                                      .symmetric(
-                                                                      horizontal:
-                                                                          2),
-                                                                  child:
-                                                                      CircleAvatar(
-                                                                    radius: 12,
-                                                                    backgroundColor: Colors
-                                                                        .primaries[(m['email'] ?? '').toString().hashCode %
-                                                                            Colors.primaries.length]
-                                                                        .shade200,
-                                                                    child: Text(
-                                                                      () {
-                                                                        final email =
-                                                                            (m['email'] ?? '').toString();
-                                                                        return email.isNotEmpty
-                                                                            ? email[0].toUpperCase()
-                                                                            : '?';
-                                                                      }(),
-                                                                      style: TextStyle(
-                                                                          fontSize:
-                                                                              12,
-                                                                          color: Colors
-                                                                              .white,
-                                                                          fontWeight:
-                                                                              FontWeight.bold),
-                                                                    ),
-                                                                  ),
-                                                                ),
-                                                              ))),
-                                                      if ((g['members'] as List)
-                                                              .length >
-                                                          5)
-                                                        Padding(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      2),
-                                                          child: CircleAvatar(
-                                                            radius: 12,
-                                                            backgroundColor:
-                                                                Colors
-                                                                    .grey[400],
-                                                            child: Text(
-                                                                '+${(g['members'] as List).length - 5}',
-                                                                style: TextStyle(
-                                                                    fontSize:
-                                                                        12,
-                                                                    color: Colors
-                                                                        .white)),
-                                                          ),
-                                                        ),
-                                                    ],
-                                                  ),
-                                                  SizedBox(height: 6),
-                                                  Row(
-                                                    children: [
-                                                      Icon(Icons.calendar_today,
-                                                          size: 16,
-                                                          color: Colors.grey),
-                                                      SizedBox(width: 4),
-                                                      Text(
-                                                          'Created: ${g['createdAt'] != null ? g['createdAt'].toString().substring(0, 10) : ''}',
-                                                          style: TextStyle(
-                                                              fontSize: 13,
-                                                              color: Colors
-                                                                  .grey[600])),
-                                                    ],
-                                                  ),
-                                                ],
+                                          children: [
+                                            Icon(Icons.star_border,
+                                                color: Colors.grey, size: 60),
+                                            SizedBox(height: 16),
+                                            Text(
+                                              'No Favourite Groups Yet!',
+                                              style: TextStyle(
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF00B4D8),
                                               ),
-                                            ]),
+                                            ),
+                                            SizedBox(height: 8),
+                                            Text(
+                                              'Mark groups as favourites to see them here.',
+                                              style: TextStyle(
+                                                  fontSize: 16,
+                                                  color: Colors.grey[700]),
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  );
-                                }),
+                                  )
+                                else
+                                  ...filteredGroups.map((g) {
+                                    final groupColor = g['color'] != null
+                                        ? Color(int.parse(g['color']
+                                            .toString()
+                                            .replaceFirst('#', '0xff')))
+                                        : Colors.blue.shade300;
+                                    final avatarText = () {
+                                      final title = g['title'] ?? '';
+                                      return title.isNotEmpty
+                                          ? title[0].toUpperCase()
+                                          : '?';
+                                    }();
+                                    return Card(
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(18)),
+                                      elevation: 6,
+                                      margin: EdgeInsets.only(bottom: 18),
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color: groupColor,
+                                            width: 2,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(18),
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 18, horizontal: 18),
+                                          child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    // New row for Favourites and View Details buttons
+                                                    Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment.end,
+                                                      children: [
+                                                        ElevatedButton(
+                                                          onPressed: () =>
+                                                              _showGroupDetails(
+                                                                  g),
+                                                          style: ElevatedButton
+                                                              .styleFrom(
+                                                            backgroundColor:
+                                                                Color(
+                                                                    0xFF48CAE4),
+                                                            shape: RoundedRectangleBorder(
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                            12)),
+                                                            elevation: 0,
+                                                          ),
+                                                          child: Text(
+                                                              'View Details',
+                                                              style: TextStyle(
+                                                                  color: Colors
+                                                                      .white)),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    SizedBox(height: 10),
+                                                    // Existing row with avatar, title, and color indicator
+                                                    Row(
+                                                      children: [
+                                                        CircleAvatar(
+                                                          backgroundColor:
+                                                              groupColor,
+                                                          radius: 22,
+                                                          child: Text(
+                                                              avatarText,
+                                                              style: TextStyle(
+                                                                  fontSize: 22,
+                                                                  color: Colors
+                                                                      .white,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold)),
+                                                        ),
+                                                        SizedBox(width: 14),
+                                                        Expanded(
+                                                          child: Text(
+                                                            g['title'] ?? '',
+                                                            style: TextStyle(
+                                                                fontSize: 20,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                color: Color(
+                                                                    0xFF00B4D8)),
+                                                          ),
+                                                        ),
+                                                        // Group color indicator
+                                                        Container(
+                                                          width: 18,
+                                                          height: 18,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: groupColor,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                            border: Border.all(
+                                                                color: Colors
+                                                                    .white,
+                                                                width: 2),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    SizedBox(height: 10),
+                                                    Row(
+                                                      children: [
+                                                        Icon(Icons.person,
+                                                            size: 18,
+                                                            color: Colors.grey),
+                                                        SizedBox(width: 4),
+                                                        Text(
+                                                            'Creator: ${g['creator']?['email'] ?? ''}',
+                                                            style: TextStyle(
+                                                                fontSize: 14,
+                                                                color:
+                                                                    Colors.grey[
+                                                                        700])),
+                                                      ],
+                                                    ),
+                                                    SizedBox(height: 6),
+                                                    Row(
+                                                      children: [
+                                                        Icon(Icons.people,
+                                                            size: 18,
+                                                            color: Colors.grey),
+                                                        SizedBox(width: 4),
+                                                        Text(
+                                                            'Members: ${(g['members'] as List).length}',
+                                                            style: TextStyle(
+                                                                fontSize: 14,
+                                                                color:
+                                                                    Colors.grey[
+                                                                        700])),
+                                                        SizedBox(width: 12),
+                                                        // Member avatars
+                                                        ...((g['members']
+                                                                as List)
+                                                            .take(5)
+                                                            .map((m) =>
+                                                                GestureDetector(
+                                                                  onTap: () =>
+                                                                      _showMemberDetails(
+                                                                          m),
+                                                                  child:
+                                                                      Padding(
+                                                                    padding: const EdgeInsets
+                                                                        .symmetric(
+                                                                        horizontal:
+                                                                            2),
+                                                                    child:
+                                                                        CircleAvatar(
+                                                                      radius:
+                                                                          12,
+                                                                      backgroundColor: Colors
+                                                                          .primaries[(m['email'] ?? '').toString().hashCode %
+                                                                              Colors.primaries.length]
+                                                                          .shade200,
+                                                                      child:
+                                                                          Text(
+                                                                        () {
+                                                                          final email =
+                                                                              (m['email'] ?? '').toString();
+                                                                          return email.isNotEmpty
+                                                                              ? email[0].toUpperCase()
+                                                                              : '?';
+                                                                        }(),
+                                                                        style: TextStyle(
+                                                                            fontSize:
+                                                                                12,
+                                                                            color:
+                                                                                Colors.white,
+                                                                            fontWeight: FontWeight.bold),
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ))),
+                                                        if ((g['members']
+                                                                    as List)
+                                                                .length >
+                                                            5)
+                                                          Padding(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
+                                                                    horizontal:
+                                                                        2),
+                                                            child: CircleAvatar(
+                                                              radius: 12,
+                                                              backgroundColor:
+                                                                  Colors.grey[
+                                                                      400],
+                                                              child: Text(
+                                                                  '+${(g['members'] as List).length - 5}',
+                                                                  style: TextStyle(
+                                                                      fontSize:
+                                                                          12,
+                                                                      color: Colors
+                                                                          .white)),
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                    SizedBox(height: 6),
+                                                    Row(
+                                                      children: [
+                                                        Icon(
+                                                            Icons
+                                                                .calendar_today,
+                                                            size: 16,
+                                                            color: Colors.grey),
+                                                        SizedBox(width: 4),
+                                                        Text(
+                                                            'Created: ${g['createdAt'] != null ? g['createdAt'].toString().substring(0, 10) : ''}',
+                                                            style: TextStyle(
+                                                                fontSize: 13,
+                                                                color:
+                                                                    Colors.grey[
+                                                                        600])),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ]),
+                                        ),
+                                      ),
+                                    );
+                                  }),
                               ],
                             ),
             ),
@@ -5417,10 +5541,21 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   }
 
   Widget _buildCreateGroupCard() {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      elevation: 4,
-      child: Padding(
+    return Container(
+      padding: const EdgeInsets.all(3), // border width
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(21),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -5577,8 +5712,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     ),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: _getFriendNoteColor(
-                            email.hashCode.abs() % 6),
+                        color: _getFriendNoteColor(email.hashCode.abs() % 6),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: ActionChip(
@@ -7192,688 +7326,694 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               _dailyExpenseRemaining != null &&
               _dailyExpenseRemaining! <= 0;
           return AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          backgroundColor: Colors.white,
-          title: Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.add_circle_outline, color: Colors.white, size: 28),
-                SizedBox(width: 12),
-                Text(
-                  'Add New Expense',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            backgroundColor: Colors.white,
+            title: Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ],
-            ),
-          ),
-          content: Container(
-            width: double.maxFinite,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
                 children: [
-                  if (!session.isSubscribed && _dailyExpenseRemaining != null)
+                  Icon(Icons.add_circle_outline, color: Colors.white, size: 28),
+                  SizedBox(width: 12),
+                  Text(
+                    'Add New Expense',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            content: Container(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!session.isSubscribed && _dailyExpenseRemaining != null)
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.all(12),
+                        margin: EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Color(0xFFE3F2FD),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.timer,
+                                color: Color(0xFF1E3A8A), size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Daily expense remaining: $_dailyExpenseRemaining',
+                                style: TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     Container(
-                      width: double.infinity,
                       padding: EdgeInsets.all(12),
-                      margin: EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
-                        color: Color(0xFFE3F2FD),
+                        color: Color(0xFF1E3A8A).withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
-                        border:
-                            Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                        border: Border.all(
+                            color: Color(0xFF1E3A8A).withOpacity(0.3)),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.timer,
+                          Icon(Icons.info_outline,
                               color: Color(0xFF1E3A8A), size: 20),
                           SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Daily expense remaining: $_dailyExpenseRemaining',
-                              style: TextStyle(
-                                  fontSize: 13, fontWeight: FontWeight.w600),
+                          Text(
+                            'Add expense details and choose split type',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF1E3A8A),
                             ),
                           ),
                         ],
                       ),
                     ),
-                  Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF1E3A8A).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border:
-                          Border.all(color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline,
-                            color: Color(0xFF1E3A8A), size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Add expense details and choose split type',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+                    SizedBox(height: 20),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        controller: _expenseDescController,
+                        decoration: InputDecoration(
+                          labelText: 'Expense Description',
+                          labelStyle: TextStyle(
                             color: Color(0xFF1E3A8A),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          prefixIcon:
+                              Icon(Icons.description, color: Color(0xFF1E3A8A)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                                color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                                color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide:
+                                BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        controller: _expenseAmountController,
+                        keyboardType:
+                            TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: 'Amount (\$)',
+                          labelStyle: TextStyle(
+                            color: Color(0xFF1E3A8A),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          prefixIcon: Icon(Icons.attach_money,
+                              color: Color(0xFF1E3A8A)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                                color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                                color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide:
+                                BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    // Member Selection Field
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: InkWell(
+                        onTap: () => _showMemberSelectionDialog(),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 20),
+                          child: Row(
+                            children: [
+                              Icon(Icons.people, color: Color(0xFF1E3A8A)),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Choose Members',
+                                      style: TextStyle(
+                                        color: Color(0xFF1E3A8A),
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      selectedMembers.isEmpty
+                                          ? 'Select members to include in this expense'
+                                          : "${selectedMembers.length} member${selectedMembers.length == 1 ? '' : 's'} selected",
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.arrow_drop_down,
+                                  color: Color(0xFF1E3A8A)),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border:
-                          Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _expenseDescController,
-                      decoration: InputDecoration(
-                        labelText: 'Expense Description',
-                        labelStyle: TextStyle(
-                          color: Color(0xFF1E3A8A),
-                          fontWeight: FontWeight.w500,
-                        ),
-                        prefixIcon:
-                            Icon(Icons.description, color: Color(0xFF1E3A8A)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide:
-                              BorderSide(color: Color(0xFF1E3A8A), width: 2),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
                       ),
                     ),
-                  ),
-                  SizedBox(height: 16),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border:
-                          Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
+                    SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: DropdownButtonFormField<String>(
+                        value: splitType,
+                        items: [
+                          DropdownMenuItem(
+                            value: 'equal',
+                            child: Row(
+                              children: [
+                                Icon(Icons.equalizer, color: Color(0xFF1E3A8A)),
+                                SizedBox(width: 8),
+                                Text('Split Equally'),
+                              ],
+                            ),
+                          ),
+                          DropdownMenuItem(
+                            value: 'custom',
+                            child: Row(
+                              children: [
+                                Icon(Icons.person_outline,
+                                    color: Color(0xFF1E3A8A)),
+                                SizedBox(width: 8),
+                                Text('Custom Split'),
+                              ],
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          setDialogState(() {
+                            splitType = v ?? 'equal';
+                            if (splitType == 'custom') {
+                              _initializeCustomSplitAmounts();
+                            }
+                          });
+                        },
+                        decoration: InputDecoration(
+                          labelText: 'Split Type',
+                          labelStyle: TextStyle(
+                            color: Color(0xFF1E3A8A),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          prefixIcon:
+                              Icon(Icons.share, color: Color(0xFF1E3A8A)),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                                color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                                color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide:
+                                BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
                         ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _expenseAmountController,
-                      keyboardType:
-                          TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: 'Amount (\$)',
-                        labelStyle: TextStyle(
-                          color: Color(0xFF1E3A8A),
-                          fontWeight: FontWeight.w500,
-                        ),
-                        prefixIcon:
-                            Icon(Icons.attach_money, color: Color(0xFF1E3A8A)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide:
-                              BorderSide(color: Color(0xFF1E3A8A), width: 2),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
                       ),
                     ),
-                  ),
-                  SizedBox(height: 16),
-                  // Member Selection Field
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border:
-                          Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
+                    if (splitType == 'custom')
+                      Container(
+                        margin: EdgeInsets.only(top: 16),
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF1E3A8A).withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: Color(0xFF1E3A8A).withOpacity(0.2)),
                         ),
-                      ],
-                    ),
-                    child: InkWell(
-                      onTap: () => _showMemberSelectionDialog(),
-                      borderRadius: BorderRadius.circular(16),
-                      child: Container(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.people, color: Color(0xFF1E3A8A)),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Choose Members',
+                            Row(
+                              children: [
+                                Icon(Icons.info_outline,
+                                    color: Color(0xFF1E3A8A), size: 20),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Custom Split',
                                     style: TextStyle(
-                                      color: Color(0xFF1E3A8A),
-                                      fontWeight: FontWeight.w500,
                                       fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1E3A8A),
                                     ),
                                   ),
-                                  SizedBox(height: 4),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Enter amount for each selected member',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF1E3A8A),
+                              ),
+                            ),
+                            SizedBox(height: 12),
+                            // Amount summary
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
                                   Text(
-                                    selectedMembers.isEmpty
-                                        ? 'Select members to include in this expense'
-                                        : "${selectedMembers.length} member${selectedMembers.length == 1 ? '' : 's'} selected",
+                                    'Total Split:',
                                     style: TextStyle(
-                                      color: Colors.grey[600],
                                       fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF1E3A8A),
+                                    ),
+                                  ),
+                                  Text(
+                                    '\$${_totalCustomSplitAmount.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: _totalCustomSplitAmount > 0
+                                          ? Colors.green[700]
+                                          : Colors.grey[600],
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            Icon(Icons.arrow_drop_down,
-                                color: Color(0xFF1E3A8A)),
+                            SizedBox(height: 8),
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Remaining:',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Color(0xFF1E3A8A),
+                                    ),
+                                  ),
+                                  Text(
+                                    '\$${_remainingCustomSplitAmount.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: _remainingCustomSplitAmount > 0
+                                          ? Colors.orange[700]
+                                          : _remainingCustomSplitAmount < 0
+                                              ? Colors.red[700]
+                                              : Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: 16),
+                            // Member amount inputs
+                            ...selectedMembers
+                                .map((memberEmail) => Container(
+                                      margin: EdgeInsets.only(bottom: 12),
+                                      padding: EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                            color: Color(0xFF1E3A8A)
+                                                .withOpacity(0.2)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 16,
+                                            backgroundColor: Color(0xFF1E3A8A),
+                                            child: Text(
+                                              memberEmail[0].toUpperCase(),
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                          SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  memberEmail,
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Color(0xFF1E3A8A),
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Amount: \$${(customSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2)}',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          SizedBox(width: 12),
+                                          Container(
+                                            width: 100,
+                                            child: TextField(
+                                              keyboardType: TextInputType
+                                                  .numberWithOptions(
+                                                      decimal: true),
+                                              decoration: InputDecoration(
+                                                hintText: '0.00',
+                                                prefixText: '\$',
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  borderSide: BorderSide(
+                                                      color: Color(0xFF1E3A8A)
+                                                          .withOpacity(0.3)),
+                                                ),
+                                                enabledBorder:
+                                                    OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  borderSide: BorderSide(
+                                                      color: Color(0xFF1E3A8A)
+                                                          .withOpacity(0.3)),
+                                                ),
+                                                focusedBorder:
+                                                    OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  borderSide: BorderSide(
+                                                      color: Color(0xFF1E3A8A),
+                                                      width: 2),
+                                                ),
+                                                contentPadding:
+                                                    EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 8),
+                                              ),
+                                              style: TextStyle(fontSize: 14),
+                                              onChanged: (value) {
+                                                setDialogState(() {
+                                                  final amount =
+                                                      double.tryParse(value) ??
+                                                          0.0;
+                                                  customSplitAmounts[
+                                                      memberEmail] = amount;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ))
+                                .toList(),
                           ],
                         ),
                       ),
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border:
-                          Border.all(color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
+                    if (dialogError != null)
+                      Container(
+                        margin: EdgeInsets.only(top: 16),
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red[300]!),
                         ),
-                      ],
-                    ),
-                    child: DropdownButtonFormField<String>(
-                      value: splitType,
-                      items: [
-                        DropdownMenuItem(
-                          value: 'equal',
-                          child: Row(
-                            children: [
-                              Icon(Icons.equalizer, color: Color(0xFF1E3A8A)),
-                              SizedBox(width: 8),
-                              Text('Split Equally'),
-                            ],
-                          ),
-                        ),
-                        DropdownMenuItem(
-                          value: 'custom',
-                          child: Row(
-                            children: [
-                              Icon(Icons.person_outline,
-                                  color: Color(0xFF1E3A8A)),
-                              SizedBox(width: 8),
-                              Text('Custom Split'),
-                            ],
-                          ),
-                        ),
-                      ],
-                      onChanged: (v) {
-                        setDialogState(() {
-                          splitType = v ?? 'equal';
-                          if (splitType == 'custom') {
-                            _initializeCustomSplitAmounts();
-                          }
-                        });
-                      },
-                      decoration: InputDecoration(
-                        labelText: 'Split Type',
-                        labelStyle: TextStyle(
-                          color: Color(0xFF1E3A8A),
-                          fontWeight: FontWeight.w500,
-                        ),
-                        prefixIcon: Icon(Icons.share, color: Color(0xFF1E3A8A)),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                              color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide:
-                              BorderSide(color: Color(0xFF1E3A8A), width: 2),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                    ),
-                  ),
-                  if (splitType == 'custom')
-                    Container(
-                      margin: EdgeInsets.only(top: 16),
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Color(0xFF1E3A8A).withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: Color(0xFF1E3A8A).withOpacity(0.2)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(Icons.info_outline,
-                                  color: Color(0xFF1E3A8A), size: 20),
-                              SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Custom Split',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1E3A8A),
-                                  ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline,
+                                color: Colors.red, size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                dialogError!,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.red[700],
                                 ),
                               ),
-                            ],
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Enter amount for each selected member',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF1E3A8A),
                             ),
-                          ),
-                          SizedBox(height: 12),
-                          // Amount summary
-                          Container(
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Total Split:',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF1E3A8A),
-                                  ),
-                                ),
-                                Text(
-                                  '\$${_totalCustomSplitAmount.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: _totalCustomSplitAmount > 0
-                                        ? Colors.green[700]
-                                        : Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Container(
-                            padding: EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: Color(0xFF1E3A8A).withOpacity(0.3)),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Remaining:',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF1E3A8A),
-                                  ),
-                                ),
-                                Text(
-                                  '\$${_remainingCustomSplitAmount.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: _remainingCustomSplitAmount > 0
-                                        ? Colors.orange[700]
-                                        : _remainingCustomSplitAmount < 0
-                                            ? Colors.red[700]
-                                            : Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          // Member amount inputs
-                          ...selectedMembers
-                              .map((memberEmail) => Container(
-                                    margin: EdgeInsets.only(bottom: 12),
-                                    padding: EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                          color: Color(0xFF1E3A8A)
-                                              .withOpacity(0.2)),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 16,
-                                          backgroundColor: Color(0xFF1E3A8A),
-                                          child: Text(
-                                            memberEmail[0].toUpperCase(),
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                memberEmail,
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: Color(0xFF1E3A8A),
-                                                ),
-                                              ),
-                                              Text(
-                                                'Amount: \$${(customSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2)}',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        SizedBox(width: 12),
-                                        Container(
-                                          width: 100,
-                                          child: TextField(
-                                            keyboardType:
-                                                TextInputType.numberWithOptions(
-                                                    decimal: true),
-                                            decoration: InputDecoration(
-                                              hintText: '0.00',
-                                              prefixText: '\$',
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: BorderSide(
-                                                    color: Color(0xFF1E3A8A)
-                                                        .withOpacity(0.3)),
-                                              ),
-                                              enabledBorder: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: BorderSide(
-                                                    color: Color(0xFF1E3A8A)
-                                                        .withOpacity(0.3)),
-                                              ),
-                                              focusedBorder: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                borderSide: BorderSide(
-                                                    color: Color(0xFF1E3A8A),
-                                                    width: 2),
-                                              ),
-                                              contentPadding:
-                                                  EdgeInsets.symmetric(
-                                                      horizontal: 8,
-                                                      vertical: 8),
-                                            ),
-                                            style: TextStyle(fontSize: 14),
-                                            onChanged: (value) {
-                                              setDialogState(() {
-                                                final amount =
-                                                    double.tryParse(value) ??
-                                                        0.0;
-                                                customSplitAmounts[
-                                                    memberEmail] = amount;
-                                              });
-                                            },
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ))
-                              .toList(),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  if (dialogError != null)
-                    Container(
-                      margin: EdgeInsets.only(top: 16),
-                      padding: EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red[300]!),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.error_outline,
-                              color: Colors.red, size: 20),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              dialogError!,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.red[700],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-          actions: [
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    margin: EdgeInsets.only(left: 16, right: 8),
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[300],
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                      ),
-                      child: Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: Colors.grey[700],
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+            actions: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      margin: EdgeInsets.only(left: 16, right: 8),
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[300],
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Container(
-                    margin: EdgeInsets.only(left: 8, right: 16),
-                    child: ElevatedButton(
-                      onPressed: dialogAddingExpense
-                          || limitReached
-                          ? null
-                          : () async {
-                              // Clear previous error
-                              setDialogState(() {
-                                dialogError = null;
-                              });
-
-                              // Validate that at least one member is selected
-                              if (selectedMembers.isEmpty) {
+                  Expanded(
+                    child: Container(
+                      margin: EdgeInsets.only(left: 8, right: 16),
+                      child: ElevatedButton(
+                        onPressed: dialogAddingExpense || limitReached
+                            ? null
+                            : () async {
+                                // Clear previous error
                                 setDialogState(() {
-                                  dialogError =
-                                      'Please select at least one member for this expense';
+                                  dialogError = null;
                                 });
-                                return;
-                              }
 
-                              // Validate custom split amounts if split type is custom
-                              if (splitType == 'custom') {
-                                final totalExpenseAmount = double.tryParse(
-                                        _expenseAmountController.text.trim()) ??
-                                    0.0;
-                                final totalSplitAmount =
-                                    _totalCustomSplitAmount;
-
-                                if (totalSplitAmount != totalExpenseAmount) {
+                                // Validate that at least one member is selected
+                                if (selectedMembers.isEmpty) {
                                   setDialogState(() {
                                     dialogError =
-                                        'Total split amount (\$${totalSplitAmount.toStringAsFixed(2)}) must equal expense amount (\$${totalExpenseAmount.toStringAsFixed(2)})';
+                                        'Please select at least one member for this expense';
                                   });
                                   return;
                                 }
-                              }
 
-                              setDialogState(() {
-                                dialogAddingExpense = true;
-                              });
-                              try {
-                                if (limitReached) {
-                                  showDailyLimitDialog(context,
-                                      message:
-                                          'Daily limit reached: You can add 3 expenses per day in a group.');
+                                // Validate custom split amounts if split type is custom
+                                if (splitType == 'custom') {
+                                  final totalExpenseAmount = double.tryParse(
+                                          _expenseAmountController.text
+                                              .trim()) ??
+                                      0.0;
+                                  final totalSplitAmount =
+                                      _totalCustomSplitAmount;
+
+                                  if (totalSplitAmount != totalExpenseAmount) {
+                                    setDialogState(() {
+                                      dialogError =
+                                          'Total split amount (\$${totalSplitAmount.toStringAsFixed(2)}) must equal expense amount (\$${totalExpenseAmount.toStringAsFixed(2)})';
+                                    });
+                                    return;
+                                  }
+                                }
+
+                                setDialogState(() {
+                                  dialogAddingExpense = true;
+                                });
+                                try {
+                                  if (limitReached) {
+                                    showDailyLimitDialog(context,
+                                        message:
+                                            'Daily limit reached: You can add 3 expenses per day in a group.');
+                                    setDialogState(() {
+                                      dialogAddingExpense = false;
+                                    });
+                                    return;
+                                  }
+                                  await _addExpense();
                                   setDialogState(() {
                                     dialogAddingExpense = false;
                                   });
-                                  return;
-                                }
-                                await _addExpense();
-                                setDialogState(() {
-                                  dialogAddingExpense = false;
-                                });
-                                Navigator.of(context).pop();
-                              } catch (e) {
-                                final errText = e.toString();
-                                if (errText.contains('DAILY_LIMIT:')) {
-                                  final msg =
-                                      errText.replaceFirst('Exception: ', '').replaceFirst('DAILY_LIMIT:', '');
-                                  showDailyLimitDialog(context, message: msg);
+                                  Navigator.of(context).pop();
+                                } catch (e) {
+                                  final errText = e.toString();
+                                  if (errText.contains('DAILY_LIMIT:')) {
+                                    final msg = errText
+                                        .replaceFirst('Exception: ', '')
+                                        .replaceFirst('DAILY_LIMIT:', '');
+                                    showDailyLimitDialog(context, message: msg);
+                                    setDialogState(() {
+                                      dialogAddingExpense = false;
+                                    });
+                                    return;
+                                  }
                                   setDialogState(() {
                                     dialogAddingExpense = false;
+                                    dialogError = e.toString();
                                   });
-                                  return;
                                 }
-                                setDialogState(() {
-                                  dialogAddingExpense = false;
-                                  dialogError = e.toString();
-                                });
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF1E3A8A),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                      ),
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF1E3A8A),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                        ),
                         child: dialogAddingExpense
                             ? SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white),
+                                ),
+                              )
+                            : Text(
+                                'Add Expense',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            )
-                          : Text(
-                              'Add Expense',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
-        );
+                ],
+              ),
+            ],
+          );
         },
       ),
     );
