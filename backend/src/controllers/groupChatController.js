@@ -2,6 +2,15 @@ const GroupChat = require('../models/groupChat');
 const GroupTransaction = require('../models/groupTransaction');
 const User = require('../models/user');
 const Subscription = require('../models/subscription');
+const {
+    decodeChatMessage,
+    normalizeStoredChatMessage,
+    toChatResponse
+} = require('../utils/chatCodec');
+
+function hasEncryptedPayloads(encryptedPayloads) {
+    return Array.isArray(encryptedPayloads) && encryptedPayloads.length > 0;
+}
 
 module.exports = (io) => {
     let users = {};
@@ -15,7 +24,24 @@ module.exports = (io) => {
 
         socket.on('createGroupMessage', async (data) => {
             try {
-                const { groupTransactionId, senderId, message, parentMessageId } = data;
+                const {
+                    groupTransactionId,
+                    senderId,
+                    message,
+                    parentMessageId,
+                    encryptedPayloads,
+                    senderPublicKey,
+                    encryptionVersion,
+                } = data;
+                const decodedMessage = typeof message === 'string'
+                    ? decodeChatMessage(message)
+                    : '';
+                const usingEncryptedPayloads = hasEncryptedPayloads(encryptedPayloads);
+
+                if (!usingEncryptedPayloads && (!decodedMessage || !decodedMessage.trim())) {
+                    socket.emit('createGroupMessageError', { ...data, error: 'Message cannot be empty.' });
+                    return;
+                }
 
                 const groupTransaction = await GroupTransaction.findById(groupTransactionId);
                 if (!groupTransaction) {
@@ -27,6 +53,13 @@ module.exports = (io) => {
                 if (!sender) {
                     socket.emit('createGroupMessageError', { ...data, error: 'User not found' });
                     return;
+                }
+
+                if (usingEncryptedPayloads) {
+                    if (!senderPublicKey || sender.chatEncryptionPublicKey !== senderPublicKey) {
+                        socket.emit('createGroupMessageError', { ...data, error: 'Encrypted chat key mismatch. Please refresh and try again.' });
+                        return;
+                    }
                 }
 
                 // Check if user is still an active member of the group
@@ -92,7 +125,12 @@ module.exports = (io) => {
                 let chat = new GroupChat({
                     groupTransactionId,
                     senderId,
-                    message,
+                    message: usingEncryptedPayloads
+                        ? null
+                        : normalizeStoredChatMessage(decodedMessage.trim()),
+                    senderPublicKey: usingEncryptedPayloads ? senderPublicKey : null,
+                    encryptionVersion: usingEncryptedPayloads ? (Number(encryptionVersion) || 1) : 0,
+                    encryptedPayloads: usingEncryptedPayloads ? encryptedPayloads : [],
                     parentMessageId,
                 });
 
@@ -110,7 +148,11 @@ module.exports = (io) => {
 
                 const updatedGroupTransaction = await GroupTransaction.findById(groupTransactionId).populate('messageCounts.user', 'name');
 
-                io.to(groupTransactionId).emit('newGroupMessage', {chat, messageCounts: updatedGroupTransaction.messageCounts, lenDenCoins: sender.lenDenCoins});
+                io.to(groupTransactionId).emit('newGroupMessage', {
+                    chat: toChatResponse(chat),
+                    messageCounts: updatedGroupTransaction.messageCounts,
+                    lenDenCoins: sender.lenDenCoins
+                });
             } catch (error) {
                 console.error('Error in createGroupMessage socket handler:', error);
                 socket.emit('createGroupMessageError', { ...data, error: 'An error occurred while sending the message.' });
@@ -120,7 +162,18 @@ module.exports = (io) => {
         // Edit group message
         socket.on('editGroupMessage', async (data) => {
             try {
-                const { messageId, userId, message } = data;
+                const {
+                    messageId,
+                    userId,
+                    message,
+                    encryptedPayloads,
+                    senderPublicKey,
+                    encryptionVersion,
+                } = data;
+                const decodedMessage = typeof message === 'string'
+                    ? decodeChatMessage(message)
+                    : '';
+                const usingEncryptedPayloads = hasEncryptedPayloads(encryptedPayloads);
 
                 const chat = await GroupChat.findOne({
                     _id: messageId,
@@ -129,6 +182,17 @@ module.exports = (io) => {
 
                 if (!chat) {
                     socket.emit('editGroupMessageError', { ...data, error: 'Message not found or not authorized to edit' });
+                    return;
+                }
+
+                if (!usingEncryptedPayloads && (!decodedMessage || !decodedMessage.trim())) {
+                    socket.emit('editGroupMessageError', { ...data, error: 'Message cannot be empty.' });
+                    return;
+                }
+
+                const sender = await User.findById(userId).select('chatEncryptionPublicKey');
+                if (usingEncryptedPayloads && (!senderPublicKey || sender?.chatEncryptionPublicKey !== senderPublicKey)) {
+                    socket.emit('editGroupMessageError', { ...data, error: 'Encrypted chat key mismatch. Please refresh and try again.' });
                     return;
                 }
 
@@ -158,7 +222,12 @@ module.exports = (io) => {
                     return;
                 }
 
-                chat.message = message;
+                chat.message = usingEncryptedPayloads
+                    ? null
+                    : normalizeStoredChatMessage(decodedMessage.trim());
+                chat.senderPublicKey = usingEncryptedPayloads ? senderPublicKey : chat.senderPublicKey;
+                chat.encryptionVersion = usingEncryptedPayloads ? (Number(encryptionVersion) || 1) : 0;
+                chat.encryptedPayloads = usingEncryptedPayloads ? encryptedPayloads : [];
                 chat.isEdited = true;
                 await chat.save();
 
@@ -172,7 +241,7 @@ module.exports = (io) => {
                         }
                     });
 
-                io.to(chat.groupTransactionId.toString()).emit('groupMessageUpdated', updatedChat);
+                io.to(chat.groupTransactionId.toString()).emit('groupMessageUpdated', toChatResponse(updatedChat));
             } catch (error) {
                 console.error('Error in editGroupMessage socket handler:', error);
                 socket.emit('editGroupMessageError', { ...data, error: 'An error occurred while editing the message.' });
@@ -328,7 +397,10 @@ module.exports = (io) => {
             })
             .sort({ createdAt: 'asc' });
 
-            res.status(200).json({messages, messageCounts: groupTransaction.messageCounts});
+            res.status(200).json({
+                messages: messages.map((message) => toChatResponse(message)),
+                messageCounts: groupTransaction.messageCounts
+            });
         } catch (error) {
             res.status(500).json({ message: 'Error fetching group messages', error });
         }

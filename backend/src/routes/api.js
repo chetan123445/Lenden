@@ -82,6 +82,7 @@ module.exports = (io) => {
   router.get('/users/me', auth, sessionTimeout, profileController.getUserProfile);
   router.get('/users/freebie-counts', auth, userController.getFreebieCounts);
   router.put('/users/me', auth, sessionTimeout, upload.single('profileImage'), editProfileController.updateUserProfile);
+  router.put('/users/me/chat-public-key', auth, sessionTimeout, userController.updateChatEncryptionPublicKey);
   // Serve user profile image
   router.get('/users/:id/profile-image', profileController.getUserProfileImage);
   router.get('/users/profile-by-email', profileController.getUserProfileByEmail);

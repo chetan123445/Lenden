@@ -10,6 +10,7 @@ import 'dart:math';
 import '../../widgets/subscription_prompt.dart';
 import '../../utils/api_client.dart';
 import '../../widgets/stylish_dialog.dart';
+import 'chat_encryption_service.dart';
 
 class GroupChatPage extends StatefulWidget {
   final String groupTransactionId;
@@ -43,6 +44,23 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Map<String, Color> _userColors = {};
   final Random _random = Random();
   bool _isActiveMember = true;
+  String? _currentUserPublicKey;
+  final Map<String, String> _memberPublicKeys = {};
+  bool _encryptionReady = false;
+  String? _encryptionError;
+
+  void _showEncryptionUnavailableMessage() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Encrypted group chat is not ready for all members yet. Everyone needs to open the updated app once before messages can be sent.',
+        ),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -52,15 +70,84 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
     for (var i = 0; i < widget.members.length; i++) {
       final member = widget.members[i];
-      final memberId = member is Map ? member['_id'] : member;
+      final memberId = _extractMemberId(member);
       if (memberId != null && !_userColors.containsKey(memberId)) {
         _userColors[memberId] = _getNoteColor(i);
       }
     }
 
-    _fetchMessages();
-    _fetchDailyMessageLimit();
-    _initSocket();
+    _initializeEncryptedChat();
+  }
+
+  Future<void> _initializeEncryptedChat() async {
+    try {
+      if (_currentUserId == null) {
+        throw Exception('User session not found.');
+      }
+
+      final identity =
+          await ChatEncryptionService.ensureIdentity(_currentUserId!);
+      _currentUserPublicKey = identity['publicKey'];
+      _memberPublicKeys[_currentUserId!] = _currentUserPublicKey!;
+      await _loadMemberPublicKeys();
+      await _fetchMessages();
+      await _fetchDailyMessageLimit();
+      _initSocket();
+
+      if (mounted) {
+        setState(() {
+          _encryptionReady = true;
+          _encryptionError = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _encryptionReady = false;
+          _encryptionError = error.toString();
+        });
+      }
+    }
+  }
+
+  String? _extractMemberId(dynamic member) {
+    if (member is! Map) return member?.toString();
+
+    final directId = member['_id']?.toString();
+    if (directId != null && directId.isNotEmpty) return directId;
+
+    final nestedUser = member['user'];
+    if (nestedUser is Map) {
+      final nestedId = nestedUser['_id']?.toString();
+      if (nestedId != null && nestedId.isNotEmpty) return nestedId;
+    }
+
+    final nestedUserId = nestedUser?.toString();
+    if (nestedUserId != null && nestedUserId.isNotEmpty) return nestedUserId;
+
+    return null;
+  }
+
+  Future<void> _loadMemberPublicKeys() async {
+    final memberIds = <String>{};
+    for (final member in widget.members) {
+      if (member is Map && member['leftAt'] != null) continue;
+
+      final memberId = _extractMemberId(member);
+
+      if (memberId != null && memberId.isNotEmpty) {
+        memberIds.add(memberId);
+      }
+    }
+
+    for (final memberId in memberIds) {
+      if (_memberPublicKeys.containsKey(memberId)) continue;
+      final publicKey = await ChatEncryptionService.fetchUserPublicKey(memberId);
+      if (publicKey != null && publicKey.isNotEmpty) {
+        _memberPublicKeys[memberId] = publicKey;
+      }
+    }
   }
 
   Future<void> _fetchDailyMessageLimit() async {
@@ -114,8 +201,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
       socket.emit('joinGroup', widget.groupTransactionId);
     });
 
-    socket.on('newGroupMessage', (data) {
-      final chat = data['chat'];
+    socket.on('newGroupMessage', (data) async {
+      final chat = await ChatEncryptionService.decryptChat(
+        data['chat'],
+        currentUserId: _currentUserId ?? '',
+      );
       final messageCounts = data['messageCounts'];
       if (chat['groupTransactionId'] == widget.groupTransactionId) {
         if (!_messages.any((m) => m['_id'] == chat['_id'])) {
@@ -165,13 +255,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
       }
     });
 
-    socket.on('groupMessageUpdated', (data) {
-      if (data['groupTransactionId'] == widget.groupTransactionId) {
-        final index = _messages.indexWhere((m) => m['_id'] == data['_id']);
+    socket.on('groupMessageUpdated', (data) async {
+      final decodedMessage = await ChatEncryptionService.decryptChat(
+        data,
+        currentUserId: _currentUserId ?? '',
+      );
+      if (decodedMessage['groupTransactionId'] == widget.groupTransactionId) {
+        final index =
+            _messages.indexWhere((m) => m['_id'] == decodedMessage['_id']);
         if (index != -1) {
           if (mounted) {
             setState(() {
-              _messages[index] = data;
+              _messages[index] = decodedMessage;
             });
           }
         }
@@ -240,8 +335,15 @@ class _GroupChatPageState extends State<GroupChatPage> {
       if (response.statusCode == 200) {
         if (mounted) {
           final body = jsonDecode(response.body);
+          final decryptedMessages = <dynamic>[];
+          for (final message in (body['messages'] as List<dynamic>)) {
+            decryptedMessages.add(await ChatEncryptionService.decryptChat(
+              message,
+              currentUserId: _currentUserId ?? '',
+            ));
+          }
           setState(() {
-            _messages = body['messages'];
+            _messages = decryptedMessages;
             final messageCounts = body['messageCounts'];
             if (messageCounts != null) {
               for (var item in messageCounts) {
@@ -269,6 +371,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
+    if (!_encryptionReady || _currentUserId == null) return;
 
     if (!_isActiveMember) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -436,14 +539,47 @@ class _GroupChatPageState extends State<GroupChatPage> {
     }
 
     if (_editingMessage != null) {
-      _editMessage();
+      await _editMessage();
       return;
     }
+
+    await _loadMemberPublicKeys();
+    final activeRecipientIds = <String>{_currentUserId!};
+    for (final member in widget.members) {
+      if (member is Map && member['leftAt'] != null) continue;
+      final memberId = _extractMemberId(member);
+      if (memberId != null && memberId.isNotEmpty) {
+        activeRecipientIds.add(memberId);
+      }
+    }
+
+    final missingMembers = activeRecipientIds
+        .where((id) => (_memberPublicKeys[id] ?? '').isEmpty)
+        .toList();
+    if (missingMembers.isNotEmpty) {
+      await _loadMemberPublicKeys();
+      final stillMissingMembers = activeRecipientIds
+          .where((id) => (_memberPublicKeys[id] ?? '').isEmpty)
+          .toList();
+      if (stillMissingMembers.isNotEmpty) {
+        _showEncryptionUnavailableMessage();
+        return;
+      }
+    }
+
+    final encryptedEnvelope = await ChatEncryptionService.buildEncryptedEnvelope(
+      senderId: _currentUserId!,
+      plaintext: _messageController.text.trim(),
+      recipientIds: activeRecipientIds,
+      publicKeysByUserId: _memberPublicKeys,
+    );
 
     socket.emit('createGroupMessage', {
       'groupTransactionId': widget.groupTransactionId,
       'senderId': _currentUserId,
-      'message': _messageController.text.trim(),
+      'senderPublicKey': encryptedEnvelope['senderPublicKey'],
+      'encryptionVersion': encryptedEnvelope['encryptionVersion'],
+      'encryptedPayloads': encryptedEnvelope['encryptedPayloads'],
       'parentMessageId': _replyingTo?['_id'],
     });
 
@@ -453,12 +589,47 @@ class _GroupChatPageState extends State<GroupChatPage> {
     });
   }
 
-  void _editMessage() {
+  Future<void> _editMessage() async {
     if (_messageController.text.trim().isEmpty) return;
+    if (_currentUserId == null) return;
+
+    await _loadMemberPublicKeys();
+    final activeRecipientIds = <String>{_currentUserId!};
+    for (final member in widget.members) {
+      if (member is Map && member['leftAt'] != null) continue;
+      final memberId = _extractMemberId(member);
+      if (memberId != null && memberId.isNotEmpty) {
+        activeRecipientIds.add(memberId);
+      }
+    }
+
+    final stillMissingMembers = activeRecipientIds
+        .where((id) => (_memberPublicKeys[id] ?? '').isEmpty)
+        .toList();
+    if (stillMissingMembers.isNotEmpty) {
+      await _loadMemberPublicKeys();
+      final unresolvedMembers = activeRecipientIds
+          .where((id) => (_memberPublicKeys[id] ?? '').isEmpty)
+          .toList();
+      if (unresolvedMembers.isNotEmpty) {
+        _showEncryptionUnavailableMessage();
+        return;
+      }
+    }
+
+    final encryptedEnvelope = await ChatEncryptionService.buildEncryptedEnvelope(
+      senderId: _currentUserId!,
+      plaintext: _messageController.text.trim(),
+      recipientIds: activeRecipientIds,
+      publicKeysByUserId: _memberPublicKeys,
+    );
+
     final message = {
       'messageId': _editingMessage['_id'],
       'userId': _currentUserId,
-      'message': _messageController.text.trim(),
+      'senderPublicKey': encryptedEnvelope['senderPublicKey'],
+      'encryptionVersion': encryptedEnvelope['encryptionVersion'],
+      'encryptedPayloads': encryptedEnvelope['encryptedPayloads'],
     };
 
     socket.emit('editGroupMessage', message);
@@ -549,7 +720,7 @@ class _GroupChatPageState extends State<GroupChatPage> {
                       itemCount: widget.members.length,
                       itemBuilder: (context, index) {
                         final member = widget.members[index];
-                        final memberId = member is Map ? member['_id'] : member;
+                        final memberId = _extractMemberId(member);
                         final messageCount = _messageCounts[memberId] ?? 0;
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
@@ -822,6 +993,21 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_encryptionError != null) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.groupTitle)),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Encrypted group chat could not be initialized.\n$_encryptionError',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return WillPopScope(
       onWillPop: () async {
         if (_showEmojiPicker) {

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 import 'api_config.dart';
 import 'utils/http_interceptor.dart';
+import 'User/chats/chat_encryption_service.dart';
 
 class SessionProvider extends ChangeNotifier {
   final _storage = const FlutterSecureStorage();
@@ -125,6 +127,7 @@ class SessionProvider extends ChangeNotifier {
           _role = response.request?.url.path.contains('/admins/') ?? false
               ? 'admin'
               : 'user';
+          await _ensureChatEncryptionReady();
           await checkSubscriptionStatus();
           await loadFreebieCounts();
           notifyListeners();
@@ -134,6 +137,7 @@ class SessionProvider extends ChangeNotifier {
         }
       } else {
         // We already have user data, just notify listeners
+        await _ensureChatEncryptionReady();
         await checkSubscriptionStatus();
         await loadFreebieCounts();
         notifyListeners();
@@ -163,6 +167,7 @@ class SessionProvider extends ChangeNotifier {
 
     // Save user data to secure storage
     _saveUserData(user);
+    unawaited(_ensureChatEncryptionReady());
 
     notifyListeners();
     print('🔧 SessionProvider: notifyListeners() called');
@@ -366,6 +371,18 @@ class SessionProvider extends ChangeNotifier {
     _userDataManuallySet = false;
     await _storage.delete(key: 'user_data');
     notifyListeners();
+  }
+
+  Future<void> _ensureChatEncryptionReady() async {
+    if (_role == 'admin') return;
+    final userId = _user?['_id']?.toString();
+    if (userId == null || userId.isEmpty) return;
+
+    try {
+      await ChatEncryptionService.ensureIdentity(userId);
+    } catch (e) {
+      print('Error initializing chat encryption: $e');
+    }
   }
 
   void clearSubscription() {

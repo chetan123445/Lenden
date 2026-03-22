@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../widgets/subscription_prompt.dart';
 import '../../utils/api_client.dart';
 import '../../widgets/stylish_dialog.dart';
+import 'chat_encryption_service.dart';
 
 class ChatPage extends StatefulWidget {
   final String transactionId;
@@ -38,16 +39,60 @@ class _ChatPageState extends State<ChatPage> {
   dynamic _editingMessage;
   late IO.Socket socket;
   Map<String, dynamic>? _otherUser;
+  String? _currentUserPublicKey;
+  bool _encryptionReady = false;
+  String? _encryptionError;
+
+  void _showEncryptionUnavailableMessage() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Encrypted chat is not ready for this user yet. They need to open the updated app once before messages can be sent.',
+        ),
+        backgroundColor: Colors.red,
+        duration: Duration(seconds: 4),
+      ),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     final user = Provider.of<SessionProvider>(context, listen: false).user;
     _currentUserId = user?['_id'];
-    _fetchMessages();
-    _fetchDailyMessageLimit();
-    _initSocket();
-    _fetchOtherUserDetails();
+    _initializeEncryptedChat();
+  }
+
+  Future<void> _initializeEncryptedChat() async {
+    try {
+      if (_currentUserId == null) {
+        throw Exception('User session not found.');
+      }
+
+      final identity =
+          await ChatEncryptionService.ensureIdentity(_currentUserId!);
+      _currentUserPublicKey = identity['publicKey'];
+      await _fetchOtherUserDetails();
+      await _fetchMessages();
+      await _fetchDailyMessageLimit();
+      _initSocket();
+
+      if (mounted) {
+        setState(() {
+          _encryptionReady = true;
+          _encryptionError = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _encryptionReady = false;
+          _encryptionError = error.toString();
+        });
+      }
+    }
   }
 
   Future<void> _fetchDailyMessageLimit() async {
@@ -93,8 +138,11 @@ class _ChatPageState extends State<ChatPage> {
       socket.emit('join', _currentUserId);
     });
 
-    socket.on('newMessage', (data) {
-      final chat = data['chat'];
+    socket.on('newMessage', (data) async {
+      final chat = await ChatEncryptionService.decryptChat(
+        data['chat'],
+        currentUserId: _currentUserId ?? '',
+      );
       final messageCounts = data['messageCounts'];
       if (chat['transactionId'] == widget.transactionId) {
         if (!_messages.any((m) => m['_id'] == chat['_id'])) {
@@ -134,13 +182,18 @@ class _ChatPageState extends State<ChatPage> {
       }
     });
 
-    socket.on('messageUpdated', (data) {
-      if (data['transactionId'] == widget.transactionId) {
-        final index = _messages.indexWhere((m) => m['_id'] == data['_id']);
+    socket.on('messageUpdated', (data) async {
+      final decodedMessage = await ChatEncryptionService.decryptChat(
+        data,
+        currentUserId: _currentUserId ?? '',
+      );
+      if (decodedMessage['transactionId'] == widget.transactionId) {
+        final index =
+            _messages.indexWhere((m) => m['_id'] == decodedMessage['_id']);
         if (index != -1) {
           if (mounted) {
             setState(() {
-              _messages[index] = data;
+              _messages[index] = decodedMessage;
             });
           }
         }
@@ -173,8 +226,15 @@ class _ChatPageState extends State<ChatPage> {
       if (response.statusCode == 200) {
         if (mounted) {
           final body = jsonDecode(response.body);
+          final decryptedMessages = <dynamic>[];
+          for (final message in (body['messages'] as List<dynamic>)) {
+            decryptedMessages.add(await ChatEncryptionService.decryptChat(
+              message,
+              currentUserId: _currentUserId ?? '',
+            ));
+          }
           setState(() {
-            _messages = body['messages'];
+            _messages = decryptedMessages;
             final messageCounts = body['messageCounts'];
             if (messageCounts != null) {
               for (var item in messageCounts) {
@@ -194,6 +254,7 @@ class _ChatPageState extends State<ChatPage> {
 
   Future<void> _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
+    if (!_encryptionReady || _currentUserId == null) return;
 
     final session = Provider.of<SessionProvider>(context, listen: false);
     final dailyLimitReached =
@@ -350,15 +411,65 @@ class _ChatPageState extends State<ChatPage> {
     }
 
     if (_editingMessage != null) {
-      _editMessage();
+      await _editMessage();
       return;
     }
+
+    final otherUserPublicKey =
+        _otherUser?['chatEncryptionPublicKey']?.toString();
+    if (otherUserPublicKey == null || otherUserPublicKey.isEmpty) {
+      await _fetchOtherUserDetails();
+      final refreshedPublicKey =
+          _otherUser?['chatEncryptionPublicKey']?.toString();
+      if (refreshedPublicKey == null || refreshedPublicKey.isEmpty) {
+        _showEncryptionUnavailableMessage();
+        return;
+      }
+      final encryptedEnvelope =
+          await ChatEncryptionService.buildEncryptedEnvelope(
+        senderId: _currentUserId!,
+        plaintext: _messageController.text.trim(),
+        recipientIds: [_currentUserId!, widget.otherUserId],
+        publicKeysByUserId: {
+          _currentUserId!: _currentUserPublicKey ?? '',
+          widget.otherUserId: refreshedPublicKey,
+        },
+      );
+
+      socket.emit('createMessage', {
+        'transactionId': widget.transactionId,
+        'senderId': _currentUserId,
+        'receiverId': widget.otherUserId,
+        'senderPublicKey': encryptedEnvelope['senderPublicKey'],
+        'encryptionVersion': encryptedEnvelope['encryptionVersion'],
+        'encryptedPayloads': encryptedEnvelope['encryptedPayloads'],
+        'parentMessageId': _replyingTo?['_id'],
+      });
+
+      _messageController.clear();
+      setState(() {
+        _replyingTo = null;
+      });
+      return;
+    }
+
+    final encryptedEnvelope = await ChatEncryptionService.buildEncryptedEnvelope(
+      senderId: _currentUserId!,
+      plaintext: _messageController.text.trim(),
+      recipientIds: [_currentUserId!, widget.otherUserId],
+      publicKeysByUserId: {
+        _currentUserId!: _currentUserPublicKey ?? '',
+        widget.otherUserId: otherUserPublicKey,
+      },
+    );
 
     socket.emit('createMessage', {
       'transactionId': widget.transactionId,
       'senderId': _currentUserId,
       'receiverId': widget.otherUserId,
-      'message': _messageController.text.trim(),
+      'senderPublicKey': encryptedEnvelope['senderPublicKey'],
+      'encryptionVersion': encryptedEnvelope['encryptionVersion'],
+      'encryptedPayloads': encryptedEnvelope['encryptedPayloads'],
       'parentMessageId': _replyingTo?['_id'],
     });
 
@@ -368,12 +479,65 @@ class _ChatPageState extends State<ChatPage> {
     });
   }
 
-  void _editMessage() {
+  Future<void> _editMessage() async {
     if (_messageController.text.trim().isEmpty) return;
+    final otherUserPublicKey =
+        _otherUser?['chatEncryptionPublicKey']?.toString();
+    if (_currentUserId == null ||
+        otherUserPublicKey == null ||
+        otherUserPublicKey.isEmpty) {
+      await _fetchOtherUserDetails();
+      final refreshedPublicKey =
+          _otherUser?['chatEncryptionPublicKey']?.toString();
+      if (refreshedPublicKey == null || refreshedPublicKey.isEmpty) {
+        _showEncryptionUnavailableMessage();
+        return;
+      }
+
+      final encryptedEnvelope =
+          await ChatEncryptionService.buildEncryptedEnvelope(
+        senderId: _currentUserId!,
+        plaintext: _messageController.text.trim(),
+        recipientIds: [_currentUserId!, widget.otherUserId],
+        publicKeysByUserId: {
+          _currentUserId!: _currentUserPublicKey ?? '',
+          widget.otherUserId: refreshedPublicKey,
+        },
+      );
+
+      final message = {
+        'messageId': _editingMessage['_id'],
+        'userId': _currentUserId,
+        'senderPublicKey': encryptedEnvelope['senderPublicKey'],
+        'encryptionVersion': encryptedEnvelope['encryptionVersion'],
+        'encryptedPayloads': encryptedEnvelope['encryptedPayloads'],
+      };
+
+      socket.emit('editMessage', message);
+
+      _messageController.clear();
+      setState(() {
+        _editingMessage = null;
+      });
+      return;
+    }
+
+    final encryptedEnvelope = await ChatEncryptionService.buildEncryptedEnvelope(
+      senderId: _currentUserId!,
+      plaintext: _messageController.text.trim(),
+      recipientIds: [_currentUserId!, widget.otherUserId],
+      publicKeysByUserId: {
+        _currentUserId!: _currentUserPublicKey ?? '',
+        widget.otherUserId: otherUserPublicKey,
+      },
+    );
+
     final message = {
       'messageId': _editingMessage['_id'],
       'userId': _currentUserId,
-      'message': _messageController.text.trim(),
+      'senderPublicKey': encryptedEnvelope['senderPublicKey'],
+      'encryptionVersion': encryptedEnvelope['encryptionVersion'],
+      'encryptedPayloads': encryptedEnvelope['encryptedPayloads'],
     };
 
     socket.emit('editMessage', message);
@@ -720,6 +884,21 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_encryptionError != null) {
+      return Scaffold(
+        appBar: AppBar(title: Text('Chat')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Encrypted chat could not be initialized.\n$_encryptionError',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return WillPopScope(
       onWillPop: () async {
         if (_showEmojiPicker) {

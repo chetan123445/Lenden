@@ -2,6 +2,15 @@ const Transaction = require('../models/transaction');
 const User = require('../models/user');
 const Subscription = require('../models/subscription');
 const Chat = require('../models/chat');
+const {
+    decodeChatMessage,
+    normalizeStoredChatMessage,
+    toChatResponse
+} = require('../utils/chatCodec');
+
+function hasEncryptedPayloads(encryptedPayloads) {
+    return Array.isArray(encryptedPayloads) && encryptedPayloads.length > 0;
+}
 
 module.exports = (io) => {
     let users = {};
@@ -25,7 +34,25 @@ module.exports = (io) => {
 
         socket.on('createMessage', async (data) => {
             try {
-                const { transactionId, senderId, receiverId, message, parentMessageId } = data;
+                const {
+                    transactionId,
+                    senderId,
+                    receiverId,
+                    message,
+                    parentMessageId,
+                    encryptedPayloads,
+                    senderPublicKey,
+                    encryptionVersion,
+                } = data;
+                const decodedMessage = typeof message === 'string'
+                    ? decodeChatMessage(message)
+                    : '';
+                const usingEncryptedPayloads = hasEncryptedPayloads(encryptedPayloads);
+
+                if (!usingEncryptedPayloads && (!decodedMessage || !decodedMessage.trim())) {
+                    socket.emit('createMessageError', { ...data, error: 'Message cannot be empty.' });
+                    return;
+                }
 
                 const transaction = await Transaction.findById(transactionId);
                 if (!transaction) {
@@ -38,6 +65,13 @@ module.exports = (io) => {
                 if (!sender || !receiver) {
                     socket.emit('createMessageError', { ...data, error: 'User not found' });
                     return;
+                }
+
+                if (usingEncryptedPayloads) {
+                    if (!senderPublicKey || sender.chatEncryptionPublicKey !== senderPublicKey) {
+                        socket.emit('createMessageError', { ...data, error: 'Encrypted chat key mismatch. Please refresh and try again.' });
+                        return;
+                    }
                 }
                 
                 const subscription = await Subscription.findOne({ user: senderId, status: 'active' });
@@ -91,7 +125,12 @@ module.exports = (io) => {
                     transactionId,
                     senderId,
                     receiverId,
-                    message,
+                    message: usingEncryptedPayloads
+                        ? null
+                        : normalizeStoredChatMessage(decodedMessage.trim()),
+                    senderPublicKey: usingEncryptedPayloads ? senderPublicKey : null,
+                    encryptionVersion: usingEncryptedPayloads ? (Number(encryptionVersion) || 1) : 0,
+                    encryptedPayloads: usingEncryptedPayloads ? encryptedPayloads : [],
                     parentMessageId,
                 });
 
@@ -110,7 +149,11 @@ module.exports = (io) => {
                 
                 const updatedTransaction = await Transaction.findById(transactionId).populate('messageCounts.user', 'name');
 
-                io.to(senderId).to(receiverId).emit('newMessage', {chat, messageCounts: updatedTransaction.messageCounts, lenDenCoins: sender.lenDenCoins});
+                io.to(senderId).to(receiverId).emit('newMessage', {
+                    chat: toChatResponse(chat),
+                    messageCounts: updatedTransaction.messageCounts,
+                    lenDenCoins: sender.lenDenCoins
+                });
             } catch (error) {
                 console.error('Error in createMessage socket handler:', error);
                 socket.emit('createMessageError', { ...data, error: 'An error occurred while sending the message.' });
@@ -119,9 +162,31 @@ module.exports = (io) => {
 
         socket.on('editMessage', async (data) => {
             try {
-                const { messageId, userId, message } = data;
+                const {
+                    messageId,
+                    userId,
+                    message,
+                    encryptedPayloads,
+                    senderPublicKey,
+                    encryptionVersion,
+                } = data;
+                const decodedMessage = typeof message === 'string'
+                    ? decodeChatMessage(message)
+                    : '';
+                const usingEncryptedPayloads = hasEncryptedPayloads(encryptedPayloads);
                 let chat = await Chat.findById(messageId);
                 if (!chat || chat.senderId.toString() !== userId) return;
+
+                if (!usingEncryptedPayloads && (!decodedMessage || !decodedMessage.trim())) {
+                    socket.emit('editMessageError', { messageId, error: 'Message cannot be empty.' });
+                    return;
+                }
+
+                const sender = await User.findById(userId).select('chatEncryptionPublicKey');
+                if (usingEncryptedPayloads && (!senderPublicKey || sender?.chatEncryptionPublicKey !== senderPublicKey)) {
+                    socket.emit('editMessageError', { messageId, error: 'Encrypted chat key mismatch. Please refresh and try again.' });
+                    return;
+                }
 
                 const senderIdStr = chat.senderId.toString();
                 const receiverIdStr = chat.receiverId.toString();
@@ -135,7 +200,12 @@ module.exports = (io) => {
                     return;
                 }
 
-                chat.message = message;
+                chat.message = usingEncryptedPayloads
+                    ? null
+                    : normalizeStoredChatMessage(decodedMessage.trim());
+                chat.senderPublicKey = usingEncryptedPayloads ? senderPublicKey : chat.senderPublicKey;
+                chat.encryptionVersion = usingEncryptedPayloads ? (Number(encryptionVersion) || 1) : 0;
+                chat.encryptedPayloads = usingEncryptedPayloads ? encryptedPayloads : [];
                 chat.isEdited = true;
                 await chat.save();
                 let populatedChat = await Chat.findById(chat._id)
@@ -149,7 +219,7 @@ module.exports = (io) => {
                         }
                     });
 
-                io.to(senderIdStr).to(receiverIdStr).emit('messageUpdated', populatedChat);
+                io.to(senderIdStr).to(receiverIdStr).emit('messageUpdated', toChatResponse(populatedChat));
             } catch (error) {
                 console.error('Error in editMessage socket handler:', error);
             }
@@ -241,7 +311,10 @@ module.exports = (io) => {
             })
             .sort({ createdAt: 'asc' });
 
-            res.status(200).json({messages, messageCounts: transaction.messageCounts});
+            res.status(200).json({
+                messages: messages.map((message) => toChatResponse(message)),
+                messageCounts: transaction.messageCounts
+            });
         } catch (error) {
             res.status(500).json({ message: 'Error fetching messages', error });
         }

@@ -13,8 +13,35 @@ const groupChatSchema = new mongoose.Schema({
     },
     message: {
         type: String,
-        required: true,
+        default: null,
     },
+    senderPublicKey: {
+        type: String,
+        default: null,
+    },
+    encryptionVersion: {
+        type: Number,
+        default: 1,
+    },
+    encryptedPayloads: [{
+        recipientUserId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            required: true,
+        },
+        nonce: {
+            type: String,
+            required: true,
+        },
+        cipherText: {
+            type: String,
+            required: true,
+        },
+        mac: {
+            type: String,
+            required: true,
+        }
+    }],
     parentMessageId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'GroupChat',

@@ -643,7 +643,7 @@ exports.recoverAccount = async (req, res) => {
 
 exports.getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('name email');
+    const user = await User.findById(req.params.id).select('name email chatEncryptionPublicKey');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -656,11 +656,38 @@ exports.getUserById = async (req, res) => {
 // Get user by ID
 exports.getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('name email');
+    const user = await User.findById(req.params.id).select('name email chatEncryptionPublicKey');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
     res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.updateChatEncryptionPublicKey = async (req, res) => {
+  try {
+    const { chatEncryptionPublicKey } = req.body || {};
+
+    if (!chatEncryptionPublicKey || typeof chatEncryptionPublicKey !== 'string') {
+      return res.status(400).json({ message: 'chatEncryptionPublicKey is required' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { chatEncryptionPublicKey: chatEncryptionPublicKey.trim() },
+      { new: true }
+    ).select('chatEncryptionPublicKey');
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      message: 'Chat encryption public key updated successfully',
+      chatEncryptionPublicKey: user.chatEncryptionPublicKey,
+    });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
