@@ -686,12 +686,12 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                                               strokeWidth: 2, color: Colors.white),
                                         ),
                                         SizedBox(width: 10),
-                                        Text('Verifying OTP...',
+                                        Text('Verifying & Logging in...',
                                             style: TextStyle(
                                                 fontSize: 18, color: Colors.white)),
                                       ],
                                     )
-                                  : const Text('Verify OTP',
+                                  : const Text('Verify & Login',
                                       style: TextStyle(
                                           fontSize: 18, color: Colors.white)),
                             ),
@@ -705,61 +705,62 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                         ],
                       ],
                       const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _isLoading
-                              ? null
-                              : (_isDeactivated
-                                  ? () => _recoverAccountAndLogin(_recoverInfo!)
-                                  : _login),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24)),
-                            padding: EdgeInsets.zero,
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(24),
-                              gradient: const LinearGradient(
-                                colors: [Colors.orange, Colors.white, Colors.green],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
+                      if (_loginMethod != 'Email + OTP')
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: _isLoading
+                                ? null
+                                : (_isDeactivated
+                                    ? () => _recoverAccountAndLogin(_recoverInfo!)
+                                    : _login),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24)),
+                              padding: EdgeInsets.zero,
                             ),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              padding: const EdgeInsets.all(2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF00B4D8),
-                                borderRadius: BorderRadius.circular(22),
+                                borderRadius: BorderRadius.circular(24),
+                                gradient: const LinearGradient(
+                                  colors: [Colors.orange, Colors.white, Colors.green],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
                               ),
-                              child: _isLoading
-                                  ? Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        SizedBox(
-                                          height: 20,
-                                          width: 20,
-                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                        ),
-                                        SizedBox(width: 10),
-                                        Text(
-                                          _isDeactivated ? 'Recovering...' : 'Logging in...',
-                                          style: TextStyle(fontSize: 18, color: Colors.white),
-                                        ),
-                                      ],
-                                    )
-                                  : Center(
-                                      child: Text(_isDeactivated ? 'Recover & Login' : 'Login',
-                                          style: TextStyle(
-                                              fontSize: 18, color: Colors.white)),
-                                    ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF00B4D8),
+                                  borderRadius: BorderRadius.circular(22),
+                                ),
+                                child: _isLoading
+                                    ? Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          SizedBox(
+                                            height: 20,
+                                            width: 20,
+                                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                          ),
+                                          SizedBox(width: 10),
+                                          Text(
+                                            _isDeactivated ? 'Recovering...' : 'Logging in...',
+                                            style: TextStyle(fontSize: 18, color: Colors.white),
+                                          ),
+                                        ],
+                                      )
+                                    : Center(
+                                        child: Text(_isDeactivated ? 'Recover & Login' : 'Login',
+                                            style: TextStyle(
+                                                fontSize: 18, color: Colors.white)),
+                                      ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

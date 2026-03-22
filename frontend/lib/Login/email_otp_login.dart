@@ -66,7 +66,7 @@ class EmailOtpLogin {
           deviceName = 'Unknown Device';
         }
       }
-      final response = await ApiClient.post('/api/users/verify-login-otp', body: {
+      final response = await ApiClient.post('/api/users/login-with-otp', body: {
         'email': email,
         'otp': otp,
         'deviceName': deviceName,

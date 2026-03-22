@@ -67,6 +67,7 @@ module.exports = (io) => {
   router.get('/users/list', userController.listUsers); // Debug endpoint
   router.post('/users/send-login-otp', userController.sendLoginOtp);
   router.post('/users/verify-login-otp', userController.verifyLoginOtp);
+  router.post('/users/login-with-otp', userController.verifyLoginOtp);
   router.post('/users/send-reset-otp', forgotPasswordController.sendResetOtp);
   router.post('/users/verify-reset-otp', forgotPasswordController.verifyResetOtp);
   router.post('/users/reset-password', forgotPasswordController.resetPassword);
