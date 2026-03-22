@@ -61,6 +61,8 @@ class _UserLoginPageState extends State<UserLoginPage> {
   int _otpSecondsLeft = 0;
   String? _deviceId;
 
+  bool get _isSubmitting => _isLoading || _isVerifyingOtp;
+
   @override
   void initState() {
     super.initState();
@@ -490,7 +492,9 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                                 child: Text(method),
                               );
                             }).toList(),
-                            onChanged: (value) {
+                            onChanged: _isSubmitting
+                                ? null
+                                : (value) {
                               setState(() {
                                 _loginMethod = value!;
                               });
@@ -504,6 +508,7 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                         TricolorBorderTextField(
                           child: TextField(
                             controller: _emailController,
+                            enabled: !_isSubmitting,
                             decoration: InputDecoration(
                               labelText: 'Email',
                               labelStyle: const TextStyle(color: Colors.grey),
@@ -517,6 +522,7 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                         TricolorBorderTextField(
                           child: TextField(
                             controller: _passwordController,
+                            enabled: !_isSubmitting,
                             obscureText: _obscurePassword,
                             decoration: InputDecoration(
                               labelText: 'Password',
@@ -528,8 +534,10 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                                 icon: Icon(_obscurePassword
                                     ? Icons.visibility_off
                                     : Icons.visibility),
-                                onPressed: () => setState(
-                                    () => _obscurePassword = !_obscurePassword),
+                                onPressed: _isSubmitting
+                                    ? null
+                                    : () => setState(() =>
+                                        _obscurePassword = !_obscurePassword),
                               ),
                             ),
                           ),
@@ -538,6 +546,7 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                         TricolorBorderTextField(
                           child: TextField(
                             controller: _usernameController,
+                            enabled: !_isSubmitting,
                             decoration: InputDecoration(
                               labelText: 'Username',
                               labelStyle: const TextStyle(color: Colors.grey),
@@ -551,6 +560,7 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                         TricolorBorderTextField(
                           child: TextField(
                             controller: _passwordController,
+                            enabled: !_isSubmitting,
                             obscureText: _obscurePassword,
                             decoration: InputDecoration(
                               labelText: 'Password',
@@ -562,8 +572,10 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                                 icon: Icon(_obscurePassword
                                     ? Icons.visibility_off
                                     : Icons.visibility),
-                                onPressed: () => setState(
-                                    () => _obscurePassword = !_obscurePassword),
+                                onPressed: _isSubmitting
+                                    ? null
+                                    : () => setState(() =>
+                                        _obscurePassword = !_obscurePassword),
                               ),
                             ),
                           ),
@@ -572,7 +584,7 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                         TricolorBorderTextField(
                           child: TextField(
                             controller: _emailController,
-                            enabled: !_otpSent,
+                            enabled: !_otpSent && !_isSubmitting,
                             decoration: InputDecoration(
                               labelText: 'Email',
                               labelStyle: const TextStyle(color: Colors.grey),
@@ -624,8 +636,10 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                             ),
                         ] else ...[
                           OtpInput(
-                            onChanged: (val) => setState(() => _loginOtp = val),
-                            enabled: _otpSecondsLeft > 0,
+                            onChanged: _isSubmitting
+                                ? (_) {}
+                                : (val) => setState(() => _loginOtp = val),
+                            enabled: _otpSecondsLeft > 0 && !_isSubmitting,
                             autoFocus: true,
                           ),
                           const SizedBox(height: 10),
@@ -635,7 +649,7 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                                 style: const TextStyle(color: Colors.grey)),
                           if (_otpSecondsLeft == 0)
                             TextButton(
-                              onPressed: _isVerifyingOtp
+                              onPressed: _isSubmitting
                                   ? null
                                   : () {
                                       setState(() {
@@ -649,7 +663,7 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: _isVerifyingOtp ||
+                              onPressed: _isSubmitting ||
                                       _loginOtp.length != 6 ||
                                       _otpSecondsLeft == 0
                                   ? null
@@ -752,8 +766,10 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
                           const Text("I Don\'t Have an Account ? ",
                               style: TextStyle(fontSize: 14)),
                           GestureDetector(
-                            onTap: () =>
-                                Navigator.pushNamed(context, '/register'),
+                            onTap: _isSubmitting
+                                ? null
+                                : () =>
+                                    Navigator.pushNamed(context, '/register'),
                             child: const Text(
                               'Register',
                               style: TextStyle(
