@@ -1,76 +1,121 @@
 const Transaction = require('../models/transaction');
-const User = require('../models/user'); // Add this
+const GroupTransaction = require('../models/groupTransaction');
+const User = require('../models/user');
+
+function buildRecentMonths() {
+  const now = new Date();
+  return Array.from({ length: 12 }, (_, i) => {
+    return new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+  });
+}
+
+function applyMonthCount(months, monthlyCounts, dateValue) {
+  const date = new Date(dateValue);
+  months.forEach((month, index) => {
+    if (
+      date.getFullYear() === month.getFullYear() &&
+      date.getMonth() === month.getMonth()
+    ) {
+      monthlyCounts[index] += 1;
+    }
+  });
+}
+
+async function getAnalyticsUser(email) {
+  if (!email) {
+    return { error: 'Email is required', status: 400 };
+  }
+
+  const user = await User.findOne({ email }).select('_id privacySettings email');
+  if (!user) {
+    return { error: 'User not found', status: 404 };
+  }
+
+  if (user.privacySettings && user.privacySettings.analyticsSharing === false) {
+    return { analyticsSharing: false, user };
+  }
+
+  return { analyticsSharing: true, user };
+}
 
 exports.getUserAnalytics = async (req, res) => {
   try {
     const { email } = req.query;
-    if (!email) return res.status(400).json({ error: 'Email is required' });
+    const analyticsUser = await getAnalyticsUser(email);
 
-    // Check analytics sharing privacy
-    const user = await User.findOne({ email }).select('privacySettings');
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    if (user.privacySettings && user.privacySettings.analyticsSharing === false) {
+    if (analyticsUser.error) {
+      return res.status(analyticsUser.status).json({ error: analyticsUser.error });
+    }
+
+    if (analyticsUser.analyticsSharing === false) {
       return res.json({ analyticsSharing: false });
     }
 
+    const months = buildRecentMonths();
+    const monthlyCounts = Array(12).fill(0);
+
     const transactions = await Transaction.find({
-      $or: [
-        { userEmail: email },
-        { counterpartyEmail: email }
-      ]
+      $or: [{ userEmail: email }, { counterpartyEmail: email }],
     });
-    const now = new Date();
-    const months = Array.from({ length: 12 }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
-      return d;
-    });
-    // Analytics calculations
-    let totalLent = 0, totalBorrowed = 0, totalInterest = 0;
-    let cleared = 0, uncleared = 0;
-    let monthlyCounts = Array(12).fill(0);
-    transactions.forEach(t => {
+
+    let totalLent = 0;
+    let totalBorrowed = 0;
+    let totalInterest = 0;
+    let cleared = 0;
+    let uncleared = 0;
+
+    transactions.forEach((transaction) => {
       let isLender = false;
       let isBorrower = false;
 
-      if (t.userEmail === email) {
-        isLender = t.role === 'lender';
-        isBorrower = t.role === 'borrower';
-      } else { // counterpartyEmail === email
-        isLender = t.role === 'borrower'; // If original role was borrower, counterparty is lender
-        isBorrower = t.role === 'lender'; // If original role was lender, counterparty is borrower
+      if (transaction.userEmail === email) {
+        isLender = transaction.role === 'lender';
+        isBorrower = transaction.role === 'borrower';
+      } else {
+        isLender = transaction.role === 'borrower';
+        isBorrower = transaction.role === 'lender';
       }
 
-      if (isLender) totalLent += t.amount;
-      if (isBorrower) totalBorrowed += t.amount;
-      if (t.userCleared && t.counterpartyCleared) cleared++;
-      else uncleared++;
-      // Interest (accrued up to now or expectedReturnDate, whichever is earlier)
-      if (t.interestType && t.interestRate && t.expectedReturnDate) {
-        const principal = t.amount;
-        const rate = t.interestRate;
-        const start = new Date(t.date);
-        const end = new Date(t.expectedReturnDate);
-        const now = new Date();
-        const effectiveEnd = end > now ? now : end;
+      if (isLender) totalLent += transaction.amount;
+      if (isBorrower) totalBorrowed += transaction.amount;
+
+      if (transaction.userCleared && transaction.counterpartyCleared) {
+        cleared += 1;
+      } else {
+        uncleared += 1;
+      }
+
+      if (
+        transaction.interestType &&
+        transaction.interestRate &&
+        transaction.expectedReturnDate
+      ) {
+        const principal = transaction.amount;
+        const rate = transaction.interestRate;
+        const start = new Date(transaction.date);
+        const expectedEnd = new Date(transaction.expectedReturnDate);
+        const currentDate = new Date();
+        const effectiveEnd = expectedEnd > currentDate ? currentDate : expectedEnd;
         const years = (effectiveEnd - start) / (365 * 24 * 60 * 60 * 1000);
+
         if (years > 0) {
-          if (t.interestType === 'simple') {
-            totalInterest += principal * rate * years / 100;
-          } else if (t.interestType === 'compound') {
-            const n = t.compoundingFrequency || 1;
-            totalInterest += principal * Math.pow(1 + rate / 100 / n, n * years) - principal;
+          if (transaction.interestType === 'simple') {
+            totalInterest += (principal * rate * years) / 100;
+          } else if (transaction.interestType === 'compound') {
+            const frequency = transaction.compoundingFrequency || 1;
+            totalInterest +=
+              principal * Math.pow(1 + rate / 100 / frequency, frequency * years) -
+              principal;
           }
         }
       }
-      // Monthly volume
-      const d = new Date(t.date);
-      months.forEach((m, i) => {
-        if (d.getFullYear() === m.getFullYear() && d.getMonth() === m.getMonth()) {
-          monthlyCounts[i]++;
-        }
-      });
+
+      applyMonthCount(months, monthlyCounts, transaction.date);
     });
-    res.json({
+
+    return res.json({
+      analyticsSharing: true,
+      category: 'secure',
       totalLent,
       totalBorrowed,
       totalInterest,
@@ -78,10 +123,87 @@ exports.getUserAnalytics = async (req, res) => {
       uncleared,
       total: transactions.length,
       monthlyCounts,
-      months: months.map(m => m.toISOString().slice(0, 7)),
-      analyticsSharing: true // Always include this for frontend
+      months: months.map((month) => month.toISOString().slice(0, 7)),
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getGroupAnalytics = async (req, res) => {
+  try {
+    const { email } = req.query;
+    const analyticsUser = await getAnalyticsUser(email);
+
+    if (analyticsUser.error) {
+      return res.status(analyticsUser.status).json({ error: analyticsUser.error });
+    }
+
+    if (analyticsUser.analyticsSharing === false) {
+      return res.json({ analyticsSharing: false });
+    }
+
+    const user = analyticsUser.user;
+    const userId = user._id.toString();
+    const months = buildRecentMonths();
+    const monthlyCounts = Array(12).fill(0);
+
+    const groups = await GroupTransaction.find({
+      'members.user': user._id,
+    });
+
+    let totalContributed = 0;
+    let totalShare = 0;
+    let outstanding = 0;
+    let settled = 0;
+    let uncleared = 0;
+    let totalExpenses = 0;
+
+    groups.forEach((group) => {
+      (group.expenses || []).forEach((expense) => {
+        const userSplit = (expense.split || []).find(
+          (split) => split.user?.toString() === userId
+        );
+        const userIsInExpense =
+          expense.addedBy === email || Boolean(userSplit);
+
+        if (!userIsInExpense) {
+          return;
+        }
+
+        totalExpenses += 1;
+        applyMonthCount(months, monthlyCounts, expense.date || group.createdAt);
+
+        if (expense.addedBy === email) {
+          totalContributed += expense.amount || 0;
+        }
+
+        if (userSplit) {
+          totalShare += userSplit.amount || 0;
+          if (userSplit.settled) {
+            settled += 1;
+          } else {
+            uncleared += 1;
+            outstanding += userSplit.amount || 0;
+          }
+        }
+      });
+    });
+
+    return res.json({
+      analyticsSharing: true,
+      category: 'group',
+      totalLent: totalContributed,
+      totalBorrowed: totalShare,
+      totalInterest: outstanding,
+      cleared: settled,
+      uncleared,
+      total: totalExpenses,
+      totalGroups: groups.length,
+      monthlyCounts,
+      months: months.map((month) => month.toISOString().slice(0, 7)),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
 };

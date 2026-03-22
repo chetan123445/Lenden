@@ -4,7 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'Login/login_page.dart';
 import 'Register/register_page.dart';
 import 'Password Management/forgot_password_page.dart';
-import 'User/Basic/dashboard.dart';
+import 'User/Dashboard/dashboard.dart';
 import 'Admin/Dashboard/dashboard.dart';
 import 'Profile/profile_page.dart';
 import 'session.dart';

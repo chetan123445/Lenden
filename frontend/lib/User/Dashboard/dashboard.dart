@@ -1444,7 +1444,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                     SingleChildScrollView(
                                       scrollDirection: Axis.horizontal,
                                       child: Text(
-                                        '(for Secure transactions only)',
+                                        '(for Secure and Group transactions)',
                                         style: TextStyle(
                                             fontSize: 12,
                                             color: Colors.grey[600]),
