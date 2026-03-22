@@ -21,6 +21,31 @@ function applyMonthCount(months, monthlyCounts, dateValue) {
   });
 }
 
+function buildMetricCatalog(type) {
+  if (type === 'group') {
+    return [
+      { id: 'totalLent', title: 'Contributed' },
+      { id: 'totalBorrowed', title: 'Your Share' },
+      { id: 'totalInterest', title: 'Outstanding' },
+      { id: 'cleared', title: 'Settled' },
+      { id: 'uncleared', title: 'Unsettled' },
+      { id: 'total', title: 'Expenses' },
+      { id: 'totalGroups', title: 'Groups' },
+      { id: 'monthly', title: 'Monthly Activity' },
+    ];
+  }
+
+  return [
+    { id: 'totalLent', title: 'Total Lent' },
+    { id: 'totalBorrowed', title: 'Total Borrowed' },
+    { id: 'totalInterest', title: 'Interest' },
+    { id: 'cleared', title: 'Cleared' },
+    { id: 'uncleared', title: 'Uncleared' },
+    { id: 'total', title: 'Total Transactions' },
+    { id: 'monthly', title: 'Monthly Activity' },
+  ];
+}
+
 async function getAnalyticsUser(email) {
   if (!email) {
     return { error: 'Email is required', status: 400 };
@@ -124,6 +149,8 @@ exports.getUserAnalytics = async (req, res) => {
       total: transactions.length,
       monthlyCounts,
       months: months.map((month) => month.toISOString().slice(0, 7)),
+      highlightedMetrics: ['totalLent', 'totalBorrowed'],
+      availableInsights: buildMetricCatalog('secure'),
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -202,6 +229,8 @@ exports.getGroupAnalytics = async (req, res) => {
       totalGroups: groups.length,
       monthlyCounts,
       months: months.map((month) => month.toISOString().slice(0, 7)),
+      highlightedMetrics: ['totalLent', 'totalBorrowed'],
+      availableInsights: buildMetricCatalog('group'),
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });

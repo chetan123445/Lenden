@@ -202,7 +202,9 @@ module.exports = (io) => {
 
   // Analytics routes
   router.get('/analytics/user', analyticController.getUserAnalytics);
+  router.get('/analytics/secure', analyticController.getUserAnalytics);
   router.get('/analytics/group', analyticController.getGroupAnalytics);
+  router.get('/analytics/groups', analyticController.getGroupAnalytics);
   // Counterparty routes
   router.get('/counterparties/user', auth, counterpartyController.getUserCounterparties);
   router.get('/counterparties/stats', auth, counterpartyController.getCounterpartyStats);

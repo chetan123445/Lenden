@@ -1,14 +1,16 @@
 import 'dart:convert';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../Settings/privacy_settings_page.dart';
 import '../../session.dart';
 import '../../utils/api_client.dart';
 
 class AnalyticsPage extends StatefulWidget {
-  final List<dynamic>?
-      transactions; // Not used anymore, but kept for compatibility
+  final List<dynamic>? transactions;
+
   const AnalyticsPage({Key? key, this.transactions}) : super(key: key);
 
   @override
@@ -17,7 +19,7 @@ class AnalyticsPage extends StatefulWidget {
 
 class _AnalyticsPageState extends State<AnalyticsPage>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  late final TabController _tabController;
   Map<String, dynamic>? _secureAnalytics;
   Map<String, dynamic>? _groupAnalytics;
   bool _secureLoading = true;
@@ -52,10 +54,10 @@ class _AnalyticsPageState extends State<AnalyticsPage>
 
     if (email == null) {
       setState(() {
-        _secureError = 'User email not found.';
-        _groupError = 'User email not found.';
         _secureLoading = false;
         _groupLoading = false;
+        _secureError = 'User email not found.';
+        _groupError = 'User email not found.';
       });
       return;
     }
@@ -68,22 +70,23 @@ class _AnalyticsPageState extends State<AnalyticsPage>
 
   Future<void> _fetchSecureAnalytics(String email) async {
     try {
-      final res = await ApiClient.get('/api/analytics/user?email=$email');
+      final res = await ApiClient.get('/api/analytics/secure?email=$email');
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
         if (data['analyticsSharing'] == false) {
           setState(() {
             analyticsSharing = false;
             _secureAnalytics = null;
             _secureLoading = false;
           });
-        } else {
-          setState(() {
-            analyticsSharing = true;
-            _secureAnalytics = data;
-            _secureLoading = false;
-          });
+          return;
         }
+
+        setState(() {
+          analyticsSharing = true;
+          _secureAnalytics = data;
+          _secureLoading = false;
+        });
       } else {
         setState(() {
           _secureError = 'Failed to fetch secure transaction analytics.';
@@ -100,22 +103,23 @@ class _AnalyticsPageState extends State<AnalyticsPage>
 
   Future<void> _fetchGroupAnalytics(String email) async {
     try {
-      final res = await ApiClient.get('/api/analytics/group?email=$email');
+      final res = await ApiClient.get('/api/analytics/groups?email=$email');
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
         if (data['analyticsSharing'] == false) {
           setState(() {
             analyticsSharing = false;
             _groupAnalytics = null;
             _groupLoading = false;
           });
-        } else {
-          setState(() {
-            analyticsSharing = true;
-            _groupAnalytics = data;
-            _groupLoading = false;
-          });
+          return;
         }
+
+        setState(() {
+          analyticsSharing = true;
+          _groupAnalytics = data;
+          _groupLoading = false;
+        });
       } else {
         setState(() {
           _groupError = 'Failed to fetch group transaction analytics.';
@@ -135,15 +139,18 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(kToolbarHeight),
+        preferredSize: const Size.fromHeight(kToolbarHeight),
         child: AppBar(
           backgroundColor: Colors.transparent,
           elevation: 0,
           iconTheme: const IconThemeData(color: Colors.black),
-          title: const Text('Analytics', style: TextStyle(color: Colors.black)),
+          title: const Text(
+            'Analytics',
+            style: TextStyle(color: Colors.black),
+          ),
         ),
       ),
-      backgroundColor: const Color(0xFFF8F6FA),
+      backgroundColor: const Color(0xFFF7F8FC),
       body: Stack(
         children: [
           Positioned(
@@ -153,7 +160,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
             child: ClipPath(
               clipper: TopWaveClipper(),
               child: Container(
-                height: 140,
+                height: 150,
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
@@ -166,7 +173,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.only(top: 44),
+              padding: const EdgeInsets.only(top: 40),
               child: _buildBody(),
             ),
           ),
@@ -179,43 +186,56 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     if (analyticsSharing == false) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(32.0),
+          padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.analytics_outlined, size: 64, color: Colors.blue),
-              SizedBox(height: 24),
-              Text(
+              const Icon(
+                Icons.analytics_outlined,
+                size: 64,
+                color: Color(0xFF00B4D8),
+              ),
+              const SizedBox(height: 24),
+              const Text(
                 'Analytics is disabled in your privacy settings.',
+                textAlign: TextAlign.center,
                 style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.black87,
-                    fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Enable analytics sharing in your privacy settings to view your visual analytics.',
-                style: TextStyle(fontSize: 15, color: Colors.grey[700]),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 32),
-              ElevatedButton.icon(
-                icon: Icon(Icons.settings, color: Colors.white),
-                label: Text('Open Privacy Settings',
-                    style: TextStyle(color: Colors.white)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Color(0xFF00B4D8),
-                  padding: EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Enable analytics sharing to view your secure and group transaction insights.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 28),
+              ElevatedButton.icon(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => PrivacySettingsPage()),
+                    MaterialPageRoute(
+                      builder: (_) => const PrivacySettingsPage(),
+                    ),
                   ).then((_) => _fetchAnalytics());
                 },
+                icon: const Icon(Icons.settings, color: Colors.white),
+                label: const Text(
+                  'Open Privacy Settings',
+                  style: TextStyle(color: Colors.white),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00B4D8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 26,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
               ),
             ],
           ),
@@ -229,7 +249,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Container(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(24),
               gradient: const LinearGradient(
                 colors: [Colors.orange, Colors.white, Colors.green],
                 begin: Alignment.topLeft,
@@ -240,7 +260,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
               margin: const EdgeInsets.all(2),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.96),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(22),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.08),
@@ -252,12 +272,12 @@ class _AnalyticsPageState extends State<AnalyticsPage>
               child: TabBar(
                 controller: _tabController,
                 indicator: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                   color: const Color(0xFF00B4D8),
                 ),
+                dividerColor: Colors.transparent,
                 labelColor: Colors.white,
                 unselectedLabelColor: const Color(0xFF00B4D8),
-                dividerColor: Colors.transparent,
                 overlayColor: WidgetStateProperty.all(Colors.transparent),
                 tabs: const [
                   Tab(text: 'Secure'),
@@ -267,44 +287,144 @@ class _AnalyticsPageState extends State<AnalyticsPage>
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
         Expanded(
           child: TabBarView(
             controller: _tabController,
             children: [
-              _buildAnalyticsTab(
+              _buildTabContent(
                 analytics: _secureAnalytics,
                 loading: _secureLoading,
                 error: _secureError,
-                labels: const _AnalyticsLabels(
-                  summaryA: 'Total Lent',
-                  summaryB: 'Total Borrowed',
-                  summaryC: 'Interest',
-                  countA: 'Cleared',
-                  countB: 'Uncleared',
-                  countC: 'Total',
-                  compareTitle: 'Lent vs Borrowed',
-                  progressTitle: 'Cleared Transactions',
-                  monthlyTitle: 'Monthly Secure Activity',
+                config: const _AnalyticsTabConfig(
+                  tabTitle: 'Secure Analytics',
+                  tabSubtitle: 'See the most important lending and borrowing signals.',
+                  metrics: [
+                    _MetricDefinition(
+                      id: 'totalLent',
+                      title: 'Total Lent',
+                      subtitle: 'Amount shared by you',
+                      icon: Icons.arrow_upward_rounded,
+                      colors: [Color(0xFF7C9DFF), Color(0xFFA9B8FF)],
+                      isCurrency: true,
+                    ),
+                    _MetricDefinition(
+                      id: 'totalBorrowed',
+                      title: 'Total Borrowed',
+                      subtitle: 'Amount taken by you',
+                      icon: Icons.arrow_downward_rounded,
+                      colors: [Color(0xFFFF8B7B), Color(0xFFFFC2AE)],
+                      isCurrency: true,
+                    ),
+                    _MetricDefinition(
+                      id: 'totalInterest',
+                      title: 'Interest',
+                      subtitle: 'Interest tracked so far',
+                      icon: Icons.percent_rounded,
+                      colors: [Color(0xFF58C4DD), Color(0xFF89E0EF)],
+                      isCurrency: true,
+                    ),
+                    _MetricDefinition(
+                      id: 'cleared',
+                      title: 'Cleared',
+                      subtitle: 'Fully cleared transactions',
+                      icon: Icons.check_circle_outline_rounded,
+                      colors: [Color(0xFF6BCB91), Color(0xFFA9E4A7)],
+                    ),
+                    _MetricDefinition(
+                      id: 'uncleared',
+                      title: 'Uncleared',
+                      subtitle: 'Pending transactions',
+                      icon: Icons.pending_actions_rounded,
+                      colors: [Color(0xFFFFB562), Color(0xFFFFD9A0)],
+                    ),
+                    _MetricDefinition(
+                      id: 'total',
+                      title: 'Total Transactions',
+                      subtitle: 'All secure records',
+                      icon: Icons.receipt_long_rounded,
+                      colors: [Color(0xFF57A4FF), Color(0xFF90C6FF)],
+                    ),
+                    _MetricDefinition(
+                      id: 'monthly',
+                      title: 'Monthly Activity',
+                      subtitle: '12-month transaction trend',
+                      icon: Icons.show_chart_rounded,
+                      colors: [Color(0xFF6B7CFF), Color(0xFFB3BCFF)],
+                      isTrend: true,
+                    ),
+                  ],
                 ),
               ),
-              _buildAnalyticsTab(
+              _buildTabContent(
                 analytics: _groupAnalytics,
                 loading: _groupLoading,
                 error: _groupError,
-                labels: const _AnalyticsLabels(
-                  summaryA: 'Contributed',
-                  summaryB: 'Your Share',
-                  summaryC: 'Outstanding',
-                  countA: 'Settled',
-                  countB: 'Unsettled',
-                  countC: 'Expenses',
-                  compareTitle: 'Contribution vs Share',
-                  progressTitle: 'Settled Group Splits',
-                  monthlyTitle: 'Monthly Group Activity',
-                ),
-                headerBuilder: (analytics) => _buildGroupOverviewCard(
-                  analytics['totalGroups'] ?? 0,
+                config: const _AnalyticsTabConfig(
+                  tabTitle: 'Group Analytics',
+                  tabSubtitle: 'Track contributions, dues, expenses, and group movement.',
+                  metrics: [
+                    _MetricDefinition(
+                      id: 'totalLent',
+                      title: 'Contributed',
+                      subtitle: 'What you paid into groups',
+                      icon: Icons.volunteer_activism_outlined,
+                      colors: [Color(0xFF7C9DFF), Color(0xFFA9B8FF)],
+                      isCurrency: true,
+                    ),
+                    _MetricDefinition(
+                      id: 'totalBorrowed',
+                      title: 'Your Share',
+                      subtitle: 'What belongs to you',
+                      icon: Icons.pie_chart_outline_rounded,
+                      colors: [Color(0xFFFF8B7B), Color(0xFFFFC2AE)],
+                      isCurrency: true,
+                    ),
+                    _MetricDefinition(
+                      id: 'totalInterest',
+                      title: 'Outstanding',
+                      subtitle: 'Amount still unsettled',
+                      icon: Icons.account_balance_wallet_outlined,
+                      colors: [Color(0xFF58C4DD), Color(0xFF89E0EF)],
+                      isCurrency: true,
+                    ),
+                    _MetricDefinition(
+                      id: 'cleared',
+                      title: 'Settled',
+                      subtitle: 'Splits already settled',
+                      icon: Icons.task_alt_rounded,
+                      colors: [Color(0xFF6BCB91), Color(0xFFA9E4A7)],
+                    ),
+                    _MetricDefinition(
+                      id: 'uncleared',
+                      title: 'Unsettled',
+                      subtitle: 'Splits still pending',
+                      icon: Icons.hourglass_bottom_rounded,
+                      colors: [Color(0xFFFFB562), Color(0xFFFFD9A0)],
+                    ),
+                    _MetricDefinition(
+                      id: 'total',
+                      title: 'Expenses',
+                      subtitle: 'Tracked group expenses',
+                      icon: Icons.receipt_rounded,
+                      colors: [Color(0xFF57A4FF), Color(0xFF90C6FF)],
+                    ),
+                    _MetricDefinition(
+                      id: 'totalGroups',
+                      title: 'Groups',
+                      subtitle: 'Groups included in analytics',
+                      icon: Icons.groups_2_outlined,
+                      colors: [Color(0xFF7E74F1), Color(0xFFC0BCFF)],
+                    ),
+                    _MetricDefinition(
+                      id: 'monthly',
+                      title: 'Monthly Activity',
+                      subtitle: '12-month group trend',
+                      icon: Icons.show_chart_rounded,
+                      colors: [Color(0xFF6B7CFF), Color(0xFFB3BCFF)],
+                      isTrend: true,
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -314,264 +434,94 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     );
   }
 
-  Widget _buildTricolorCard({required Widget child, Color? color}) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      elevation: 3,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.transparent, width: 2),
-          borderRadius: BorderRadius.circular(18),
-          gradient: const LinearGradient(
-            colors: [Colors.orange, Colors.white, Colors.green],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            color: color ?? Theme.of(context).cardColor,
-            child: child,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnalyticsTab({
+  Widget _buildTabContent({
     required Map<String, dynamic>? analytics,
     required bool loading,
     required String? error,
-    required _AnalyticsLabels labels,
-    Widget Function(Map<String, dynamic> analytics)? headerBuilder,
+    required _AnalyticsTabConfig config,
   }) {
     if (loading) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade400),
-            ),
-            SizedBox(height: 20),
-            Text('Loading Analytics...',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
-          ],
-        ),
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF00B4D8)),
       );
     }
 
     if (error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, color: Colors.red, size: 60),
-              SizedBox(height: 20),
-              Text('An Error Occurred',
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.red)),
-              SizedBox(height: 10),
-              Text(error,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
-            ],
-          ),
-        ),
+      return _buildEmptyState(
+        icon: Icons.error_outline_rounded,
+        title: 'Unable to load analytics',
+        message: error,
       );
     }
 
     if (analytics == null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.info_outline, color: Colors.grey.shade400, size: 60),
-            SizedBox(height: 20),
-            Text('No analytics data available.',
-                style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
-          ],
-        ),
+      return _buildEmptyState(
+        icon: Icons.analytics_outlined,
+        title: 'No analytics available',
+        message: 'We could not find enough data for this tab yet.',
       );
     }
 
-    final totalLent = (analytics['totalLent'] as num?)?.toDouble() ?? 0.0;
-    final totalBorrowed =
-        (analytics['totalBorrowed'] as num?)?.toDouble() ?? 0.0;
-    final totalInterest =
-        (analytics['totalInterest'] as num?)?.toDouble() ?? 0.0;
-    final cleared = analytics['cleared'] ?? 0;
-    final uncleared = analytics['uncleared'] ?? 0;
-    final total = analytics['total'] ?? 0;
-    final clearedPercent = total == 0 ? 0.0 : cleared / total;
-    final monthlyCounts = List<double>.from(
-      (analytics['monthlyCounts'] ?? []).map((e) => (e as num).toDouble()),
-    );
-    final monthLabels = List<String>.from(analytics['months'] ?? []);
+    final metrics = _buildMetrics(config.metrics, analytics);
+    final heroMetrics = metrics.take(2).toList();
 
     return RefreshIndicator(
       onRefresh: _fetchAnalytics,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 26),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (headerBuilder != null) ...[
-              headerBuilder(analytics),
-              SizedBox(height: 16),
-            ],
-            _buildTricolorCard(
-              color: _getNoteColor(0),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionHeader('Summary', Icons.dashboard),
-                    SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _summaryTile(
-                            labels.summaryA, totalLent, Colors.green, Icons.arrow_upward),
-                        _summaryTile(labels.summaryB, totalBorrowed, Colors.orange,
-                            Icons.arrow_downward),
-                        _summaryTile(
-                            labels.summaryC, totalInterest, Colors.blue, Icons.percent),
-                      ],
-                    ),
-                    SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _countTile(labels.countA, cleared, Colors.green,
-                            Icons.check_circle),
-                        _countTile(
-                            labels.countB, uncleared, Colors.red, Icons.cancel),
-                        _countTile(labels.countC, total, Colors.teal,
-                            Icons.functions),
-                      ],
-                    ),
-                    SizedBox(height: 20),
-                    Text(labels.progressTitle,
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.teal)),
-                    SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: clearedPercent,
-                      minHeight: 12,
-                      backgroundColor: Colors.teal.shade50,
-                      color: Colors.green,
-                    ),
-                    SizedBox(height: 6),
-                    Text('${(clearedPercent * 100).toStringAsFixed(1)}% cleared',
-                        style: TextStyle(color: Colors.teal)),
-                  ],
+            _buildHeaderCard(config, analytics),
+            const SizedBox(height: 18),
+            SizedBox(
+              height: 132,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: heroMetrics.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 14),
+                itemBuilder: (context, index) => _buildHeroMetricCard(
+                  metric: heroMetrics[index],
+                  analytics: analytics,
+                  allMetrics: metrics,
+                  tabTitle: config.tabTitle,
                 ),
               ),
             ),
-            SizedBox(height: 24),
-            _buildTricolorCard(
-              color: _getNoteColor(1),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionHeader(labels.compareTitle, Icons.pie_chart),
-                    SizedBox(height: 16),
-                    if (totalLent == 0 && totalBorrowed == 0)
-                      Center(
-                          child: Text('No data to show',
-                              style: TextStyle(color: Colors.grey))),
-                    if (totalLent != 0 || totalBorrowed != 0)
-                      SizedBox(
-                        height: 180,
-                        child: PieChart(
-                          PieChartData(
-                            sections: [
-                              PieChartSectionData(
-                                color: Colors.green,
-                                value: totalLent,
-                                title: totalLent.toStringAsFixed(2),
-                                radius: 60,
-                                titleStyle: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              PieChartSectionData(
-                                color: Colors.orange,
-                                value: totalBorrowed,
-                                title: totalBorrowed.toStringAsFixed(2),
-                                radius: 60,
-                                titleStyle: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                            sectionsSpace: 4,
-                            centerSpaceRadius: 40,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+            const SizedBox(height: 24),
+            Text(
+              'Analytics Options',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade900,
               ),
             ),
-            SizedBox(height: 24),
-            _buildMonthlyChartCard(monthlyCounts, monthLabels, labels.monthlyTitle),
-            SizedBox(height: 24),
-            _buildTricolorCard(
-              color: _getNoteColor(2),
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionHeader('Cleared vs Uncleared', Icons.bar_chart),
-                    SizedBox(height: 16),
-                    if (cleared == 0 && uncleared == 0)
-                      Center(
-                          child: Text('No data to show',
-                              style: TextStyle(color: Colors.grey))),
-                    if (cleared != 0 || uncleared != 0)
-                      SizedBox(
-                        height: 180,
-                        child: PieChart(
-                          PieChartData(
-                            sections: [
-                              PieChartSectionData(
-                                color: Colors.green,
-                                value: cleared.toDouble(),
-                                title: '$cleared',
-                                radius: 60,
-                                titleStyle: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              PieChartSectionData(
-                                color: Colors.red,
-                                value: uncleared.toDouble(),
-                                title: '$uncleared',
-                                radius: 60,
-                                titleStyle: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                            sectionsSpace: 4,
-                            centerSpaceRadius: 40,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+            const SizedBox(height: 6),
+            Text(
+              'Open any option to view charts and related details.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 14),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: metrics.length,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+                childAspectRatio: 1.1,
+              ),
+              itemBuilder: (context, index) => _buildOptionCard(
+                metric: metrics[index],
+                analytics: analytics,
+                allMetrics: metrics,
+                tabTitle: config.tabTitle,
               ),
             ),
           ],
@@ -580,117 +530,580 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     );
   }
 
-  Widget _buildMonthlyChartCard(
-      List<double> monthlyCounts, List<String> monthLabels, String title) {
-    return _buildTricolorCard(
-      color: _getNoteColor(3),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
+  Widget _buildHeaderCard(
+    _AnalyticsTabConfig config,
+    Map<String, dynamic> analytics,
+  ) {
+    final total = ((analytics['total'] as num?) ?? 0).toInt();
+    final monthlyCounts = (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
+        .map((value) => (value as num).toDouble())
+        .toList();
+    final peakMonth = monthlyCounts.isEmpty
+        ? 0.0
+        : monthlyCounts.reduce((a, b) => a > b ? a : b);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.08),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  config.tabTitle,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  config.tabSubtitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(
+                colors: [Color(0xFFE8F2FF), Color(0xFFF7FBFF)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$total',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1B58B8),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Records',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Peak ${peakMonth.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF00B4D8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroMetricCard({
+    required _AnalyticsMetric metric,
+    required Map<String, dynamic> analytics,
+    required List<_AnalyticsMetric> allMetrics,
+    required String tabTitle,
+  }) {
+    return GestureDetector(
+      onTap: () => _openMetricPage(metric, analytics, allMetrics, tabTitle),
+      child: Container(
+        width: 164,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            colors: metric.colors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: metric.colors.first.withOpacity(0.30),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionHeader(title, Icons.show_chart),
-            SizedBox(height: 16),
-            if (monthlyCounts.every((value) => value == 0))
-              Center(
-                  child:
-                      Text('No data to show', style: TextStyle(color: Colors.grey))),
-            if (monthlyCounts.any((value) => value > 0))
-              SizedBox(
+            Icon(metric.icon, color: Colors.white, size: 26),
+            const Spacer(),
+            Text(
+              metric.displayValue,
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              metric.title,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionCard({
+    required _AnalyticsMetric metric,
+    required Map<String, dynamic> analytics,
+    required List<_AnalyticsMetric> allMetrics,
+    required String tabTitle,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(22),
+      onTap: () => _openMetricPage(metric, analytics, allMetrics, tabTitle),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 42,
+                width: 42,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
+                    colors: metric.colors,
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Icon(metric.icon, color: Colors.white),
+              ),
+              const Spacer(),
+              Text(
+                metric.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                metric.displayValue,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: metric.colors.first,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                metric.subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<_AnalyticsMetric> _buildMetrics(
+    List<_MetricDefinition> definitions,
+    Map<String, dynamic> analytics,
+  ) {
+    final monthlyCounts = (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
+        .map((value) => (value as num).toDouble())
+        .toList();
+
+    return definitions.map((definition) {
+      final rawValue = definition.id == 'monthly'
+          ? monthlyCounts.fold<double>(0.0, (sum, value) => sum + value)
+          : ((analytics[definition.id] as num?) ?? 0).toDouble();
+
+      return _AnalyticsMetric(
+        id: definition.id,
+        title: definition.title,
+        subtitle: definition.subtitle,
+        icon: definition.icon,
+        colors: definition.colors,
+        value: rawValue,
+        displayValue: definition.isTrend
+            ? '${rawValue.toStringAsFixed(0)} events'
+            : definition.isCurrency
+                ? _formatAmount(rawValue)
+                : rawValue.toStringAsFixed(0),
+        isCurrency: definition.isCurrency,
+        isTrend: definition.isTrend,
+      );
+    }).toList();
+  }
+
+  void _openMetricPage(
+    _AnalyticsMetric metric,
+    Map<String, dynamic> analytics,
+    List<_AnalyticsMetric> allMetrics,
+    String tabTitle,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _AnalyticsDetailPage(
+          tabTitle: tabTitle,
+          metric: metric,
+          analytics: analytics,
+          allMetrics: allMetrics,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: const Color(0xFF00B4D8), size: 60),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatAmount(double value) {
+    return 'Rs ${value.toStringAsFixed(2)}';
+  }
+}
+
+class _AnalyticsDetailPage extends StatelessWidget {
+  final String tabTitle;
+  final _AnalyticsMetric metric;
+  final Map<String, dynamic> analytics;
+  final List<_AnalyticsMetric> allMetrics;
+
+  const _AnalyticsDetailPage({
+    required this.tabTitle,
+    required this.metric,
+    required this.analytics,
+    required this.allMetrics,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final months = List<String>.from(analytics['months'] ?? const []);
+    final monthlyCounts = (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
+        .map((value) => (value as num).toDouble())
+        .toList();
+    final total = ((analytics['total'] as num?) ?? 0).toDouble();
+    final cleared = ((analytics['cleared'] as num?) ?? 0).toDouble();
+    final pending = ((analytics['uncleared'] as num?) ?? 0).toDouble();
+    final ratio = total == 0 ? 0.0 : (cleared / total).clamp(0.0, 1.0);
+
+    final secondaryMetrics = allMetrics
+        .where((item) => item.id != metric.id)
+        .take(2)
+        .toList();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F8FC),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: Text(
+          metric.title,
+          style: const TextStyle(color: Colors.black),
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                gradient: LinearGradient(
+                  colors: metric.colors,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: metric.colors.first.withOpacity(0.30),
+                    blurRadius: 28,
+                    offset: const Offset(0, 16),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tabTitle,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    metric.displayValue,
+                    style: const TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    metric.subtitle,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              'Quick Facts',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey.shade900,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _MiniInfoCard(
+                    title: 'Records',
+                    value: total.toStringAsFixed(0),
+                    color: const Color(0xFF1B58B8),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MiniInfoCard(
+                    title: 'Completion',
+                    value: '${(ratio * 100).toStringAsFixed(0)}%',
+                    color: const Color(0xFF00B4D8),
+                  ),
+                ),
+              ],
+            ),
+            if (secondaryMetrics.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: secondaryMetrics
+                    .map(
+                      (item) => Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                            right: item == secondaryMetrics.first &&
+                                    secondaryMetrics.length > 1
+                                ? 12
+                                : 0,
+                          ),
+                          child: _MiniInfoCard(
+                            title: item.title,
+                            value: item.displayValue,
+                            color: item.colors.first,
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ],
+            const SizedBox(height: 22),
+            _ChartShell(
+              title: "Today's Stats",
+              trailing: metric.isTrend
+                  ? const Text(
+                      '12 months',
+                      style: TextStyle(
+                        color: Color(0xFF00B4D8),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _LegendDot(color: const Color(0xFF7C9DFF), label: 'Cleared'),
+                        const SizedBox(width: 12),
+                        _LegendDot(color: const Color(0xFFFF8B7B), label: 'Pending'),
+                      ],
+                    ),
+              child: SizedBox(
                 height: 220,
-                child: BarChart(
-                  BarChartData(
-                    alignment: BarChartAlignment.spaceAround,
-                    maxY: monthlyCounts.reduce((a, b) => a > b ? a : b) + 1,
+                child: LineChart(
+                  LineChartData(
+                    minY: 0,
+                    gridData: FlGridData(
+                      show: true,
+                      horizontalInterval: 5,
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (_) => FlLine(
+                        color: Colors.grey.shade200,
+                        strokeWidth: 1,
+                      ),
+                    ),
                     borderData: FlBorderData(show: false),
-                    gridData: FlGridData(show: true, drawVerticalLine: false),
                     titlesData: FlTitlesData(
                       topTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                       rightTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
-                      leftTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: true, reservedSize: 28),
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 28,
+                          getTitlesWidget: (value, meta) => Text(
+                            value.toInt().toString(),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
                       ),
                       bottomTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: true,
-                          reservedSize: 34,
+                          reservedSize: 30,
+                          interval: 1,
                           getTitlesWidget: (value, meta) {
                             final index = value.toInt();
-                            if (index < 0 || index >= monthLabels.length) {
+                            if (index < 0 || index >= months.length) {
                               return const SizedBox.shrink();
                             }
-                            final label = monthLabels[index];
+
+                            final label = months[index];
                             return Padding(
                               padding: const EdgeInsets.only(top: 8),
                               child: Text(
                                 label.length >= 7 ? label.substring(5) : label,
-                                style: const TextStyle(fontSize: 10),
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
                               ),
                             );
                           },
                         ),
                       ),
                     ),
-                    barGroups: monthlyCounts.asMap().entries.map((entry) {
-                      return BarChartGroupData(
-                        x: entry.key,
-                        barRods: [
-                          BarChartRodData(
-                            toY: entry.value,
-                            width: 14,
-                            borderRadius: BorderRadius.circular(8),
-                            gradient: const LinearGradient(
-                              colors: [
-                                Colors.orange,
-                                Color(0xFF00B4D8),
-                                Colors.green,
-                              ],
-                              begin: Alignment.bottomCenter,
-                              end: Alignment.topCenter,
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
+                    lineBarsData: [
+                      _buildPrimaryLine(monthlyCounts),
+                      if (!metric.isTrend)
+                        _buildSecondaryLine(cleared, pending, months.length),
+                    ],
                   ),
                 ),
               ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGroupOverviewCard(int totalGroups) {
-    return _buildTricolorCard(
-      color: _getNoteColor(4),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(Icons.groups_2_outlined, color: Color(0xFF00B4D8)),
             ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Text('Group Analytics Overview',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.green.shade100,
-                borderRadius: BorderRadius.circular(12),
+            const SizedBox(height: 20),
+            _ChartShell(
+              title: 'Needed Info',
+              child: Column(
+                children: [
+                  _InfoRow(
+                    label: metric.title,
+                    value: metric.displayValue,
+                  ),
+                  _InfoRow(
+                    label: 'Total Records',
+                    value: total.toStringAsFixed(0),
+                  ),
+                  _InfoRow(
+                    label: 'Cleared',
+                    value: cleared.toStringAsFixed(0),
+                  ),
+                  _InfoRow(
+                    label: 'Pending',
+                    value: pending.toStringAsFixed(0),
+                    isLast: true,
+                  ),
+                ],
               ),
-              child: Text('$totalGroups groups',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -698,336 +1111,318 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.blue.shade300, Colors.blue.shade600],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, color: Colors.white),
-        ),
-        SizedBox(width: 12),
-        Text(title,
-            style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-                color: Color(0xFF00B4D8))),
-      ],
-    );
-  }
+  LineChartBarData _buildPrimaryLine(List<double> monthlyCounts) {
+    final points = monthlyCounts.isEmpty
+        ? [const FlSpot(0, 0)]
+        : monthlyCounts
+            .asMap()
+            .entries
+            .map((entry) => FlSpot(entry.key.toDouble(), entry.value))
+            .toList();
 
-  Widget _summaryTile(String label, double value, Color color, IconData icon) {
-    return Column(
-      children: [
-        Container(
-          padding: EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [color.withOpacity(0.7), color],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Icon(icon, color: Colors.white, size: 28),
-        ),
-        SizedBox(height: 8),
-        Text(label,
-            style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-        SizedBox(height: 6),
-        Text(value.toStringAsFixed(2),
-            style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 18, color: color)),
-      ],
-    );
-  }
-
-  Widget _countTile(String label, int count, Color color, IconData icon) {
-    return Column(
-      children: [
-        Container(
-          padding: EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [color.withOpacity(0.7), color],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Icon(icon, color: Colors.white, size: 28),
-        ),
-        SizedBox(height: 8),
-        Text(label,
-            style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-        SizedBox(height: 6),
-        Text(count.toString(),
-            style: TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 18, color: color)),
-      ],
-    );
-  }
-
-  Widget _buildCounterpartyTile(Map<String, dynamic> counterparty, int index) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        gradient: const LinearGradient(
-          colors: [Colors.orange, Colors.white, Colors.green],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return LineChartBarData(
+      spots: points,
+      isCurved: true,
+      color: const Color(0xFF7C9DFF),
+      barWidth: 3,
+      isStrokeCapRound: true,
+      belowBarData: BarAreaData(
+        show: true,
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF7C9DFF).withOpacity(0.25),
+            const Color(0xFF7C9DFF).withOpacity(0.03),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
         ),
       ),
-      padding: const EdgeInsets.all(2),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _getNoteColor(index),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () async {
-                  showDialog(
-                    context: context,
-                    builder: (_) => FutureBuilder<Map<String, dynamic>?>(
-                      future: _fetchCounterpartyProfile(counterparty['email']),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return Center(child: CircularProgressIndicator());
-                        }
-                        final profile = snapshot.data;
-                        if (profile == null) {
-                          return _StylishProfileDialog(
-                            title: 'Counterparty Info',
-                            name: 'No profile found.',
-                            avatarProvider: AssetImage('assets/Other.png'),
-                            email: counterparty['email'],
-                          );
-                        }
-                        final gender = profile['gender'] ?? 'Other';
-                        dynamic imageUrl = profile['profileImage'];
-                        if (imageUrl is Map && imageUrl['url'] != null)
-                          imageUrl = imageUrl['url'];
-                        if (imageUrl != null && imageUrl is! String)
-                          imageUrl = null;
-                        ImageProvider avatarProvider;
-                        if (imageUrl != null &&
-                            imageUrl.toString().isNotEmpty &&
-                            imageUrl != 'null') {
-                          avatarProvider = NetworkImage(imageUrl);
-                        } else {
-                          avatarProvider = AssetImage(
-                            gender == 'Male'
-                                ? 'assets/Male.png'
-                                : gender == 'Female'
-                                    ? 'assets/Female.png'
-                                    : 'assets/Other.png',
-                          );
-                        }
-                        final phoneStr = (profile['phone'] ?? '').toString();
-                        return _StylishProfileDialog(
-                          title: 'Counterparty',
-                          name: profile['name'] ?? 'Counterparty',
-                          avatarProvider: avatarProvider,
-                          email: profile['email'],
-                          phone: phoneStr,
-                          gender: profile['gender'],
-                        );
-                      },
-                    ),
-                  );
-                },
-                child: CircleAvatar(
-                  radius: 14,
-                  backgroundColor: Colors.teal.shade100,
-                  child:
-                      Icon(Icons.person_outline, color: Colors.teal, size: 16),
-                ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                  child: Text(counterparty['email'],
-                      style: TextStyle(fontSize: 15))),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Color(0xFF00B4D8),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text('${counterparty['count']} txns',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, color: Colors.white)),
-              ),
-            ],
-          ),
+      dotData: FlDotData(
+        show: true,
+        getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+          radius: 4,
+          color: Colors.white,
+          strokeWidth: 2.5,
+          strokeColor: const Color(0xFF7C9DFF),
         ),
       ),
     );
   }
 
-  Future<Map<String, dynamic>?> _fetchCounterpartyProfile(String email) async {
-    if (email.isEmpty) return null;
-    try {
-      final res = await ApiClient.get(
-          '/api/users/profile-by-email?email=$email'); // changed
-      if (res.statusCode == 200) {
-        return jsonDecode(res.body);
-      }
-    } catch (_) {}
-    return null;
-  }
+  LineChartBarData _buildSecondaryLine(
+    double cleared,
+    double pending,
+    int length,
+  ) {
+    final count = length <= 0 ? 1 : length;
+    final step = count == 1 ? 0.0 : 1.0 / (count - 1);
 
-  Color _getNoteColor(int index) {
-    final colors = [
-      Color(0xFFFCE4EC), // Light pink
-      Color(0xFFFFF4E6), // Cream
-      Color(0xFFE8F5E9), // Light green
-      Color(0xFFE3F2FD), // Light blue
-      Color(0xFFFFF9C4), // Light yellow
-      Color(0xFFF3E5F5), // Light purple
-    ];
-    return colors[index % colors.length];
+    final points = List.generate(count, (index) {
+      final progress = step * index;
+      final value = (cleared * (1 - progress)) + (pending * progress);
+      return FlSpot(index.toDouble(), value);
+    });
+
+    return LineChartBarData(
+      spots: points,
+      isCurved: true,
+      color: const Color(0xFFFF8B7B),
+      barWidth: 2,
+      dashArray: const [6, 4],
+      dotData: const FlDotData(show: false),
+      belowBarData: BarAreaData(
+        show: true,
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFFF8B7B).withOpacity(0.16),
+            const Color(0xFFFF8B7B).withOpacity(0.02),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+    );
   }
 }
 
-class _StylishProfileDialog extends StatelessWidget {
+class _MiniInfoCard extends StatelessWidget {
   final String title;
-  final String name;
-  final ImageProvider avatarProvider;
-  final String? email;
-  final String? phone;
-  final String? gender;
-  const _StylishProfileDialog(
-      {required this.title,
-      required this.name,
-      required this.avatarProvider,
-      this.email,
-      this.phone,
-      this.gender});
+  final String value;
+  final Color color;
+
+  const _MiniInfoCard({
+    required this.title,
+    required this.value,
+    required this.color,
+  });
+
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(24),
-          gradient: LinearGradient(
-            colors: [Colors.orange, Colors.white, Colors.green],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
-        ),
-        child: Container(
-          margin: EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(22),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChartShell extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+
+  const _ChartShell({
+    required this.title,
+    required this.child,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.blue.shade300, Colors.blue.shade600],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
                   ),
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-                ),
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Colors.orange, Colors.white, Colors.green],
-                        ),
-                      ),
-                      child: CircleAvatar(
-                          radius: 36, backgroundImage: avatarProvider),
-                    ),
-                    SizedBox(height: 12),
-                    Text(name,
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 22,
-                            color: Colors.white)),
-                    SizedBox(height: 4),
-                    Text(title,
-                        style: TextStyle(fontSize: 14, color: Colors.white70)),
-                  ],
                 ),
               ),
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (email != null) ...[
-                      _buildInfoCard(Icons.email, email!, Colors.blue.shade100),
-                      SizedBox(height: 10),
-                    ],
-                    if (phone != null && phone!.isNotEmpty) ...[
-                      _buildInfoCard(
-                          Icons.phone, phone!, Colors.green.shade100),
-                      SizedBox(height: 10),
-                    ],
-                    if (gender != null) ...[
-                      _buildInfoCard(
-                          Icons.transgender, gender!, Colors.purple.shade100),
-                      SizedBox(height: 10),
-                    ],
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text('Close'),
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF00B4D8),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12))),
-                ),
-              ),
+              if (trailing != null) trailing!,
             ],
           ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+
+  const _LegendDot({
+    required this.color,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          height: 8,
+          width: 8,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.grey.shade700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isLast;
+
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: isLast ? Colors.transparent : Colors.grey.shade200,
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoCard(IconData icon, String text, Color color) {
-    return Card(
-      color: color,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(children: [
-          Icon(icon, size: 18, color: Colors.black54),
-          SizedBox(width: 12),
-          Text(text, style: TextStyle(fontSize: 16, color: Colors.black87))
-        ]),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade700,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _AnalyticsTabConfig {
+  final String tabTitle;
+  final String tabSubtitle;
+  final List<_MetricDefinition> metrics;
+
+  const _AnalyticsTabConfig({
+    required this.tabTitle,
+    required this.tabSubtitle,
+    required this.metrics,
+  });
+}
+
+class _MetricDefinition {
+  final String id;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Color> colors;
+  final bool isCurrency;
+  final bool isTrend;
+
+  const _MetricDefinition({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.colors,
+    this.isCurrency = false,
+    this.isTrend = false,
+  });
+}
+
+class _AnalyticsMetric {
+  final String id;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Color> colors;
+  final double value;
+  final String displayValue;
+  final bool isCurrency;
+  final bool isTrend;
+
+  const _AnalyticsMetric({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.colors,
+    required this.value,
+    required this.displayValue,
+    required this.isCurrency,
+    required this.isTrend,
+  });
 }
 
 class TopWaveClipper extends CustomClipper<Path> {
@@ -1056,28 +1451,4 @@ class TopWaveClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-class _AnalyticsLabels {
-  final String summaryA;
-  final String summaryB;
-  final String summaryC;
-  final String countA;
-  final String countB;
-  final String countC;
-  final String compareTitle;
-  final String progressTitle;
-  final String monthlyTitle;
-
-  const _AnalyticsLabels({
-    required this.summaryA,
-    required this.summaryB,
-    required this.summaryC,
-    required this.countA,
-    required this.countB,
-    required this.countC,
-    required this.compareTitle,
-    required this.progressTitle,
-    required this.monthlyTitle,
-  });
 }
