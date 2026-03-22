@@ -386,107 +386,217 @@ class _FriendsPageState extends State<FriendsPage> {
 
     return _tricolorWrapper(
       index: index,
-      child: ListTile(
-        title: Text(name.isNotEmpty ? name : username),
-        subtitle: Column(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(email),
-            if (interactions > 0)
-              Text('Interactions: $interactions',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            if (isBlockedByThem)
-              const Text('Blocked you',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.red,
-                      fontWeight: FontWeight.w600)),
-          ],
-        ),
-        leading: _mutualCounts.containsKey(friendId)
-            ? Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.teal.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${_mutualCounts[friendId]} mutual',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.teal,
-                    fontWeight: FontWeight.w600,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name.isNotEmpty ? name : username,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (username.isNotEmpty && username != name) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '@$username',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade700,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 4),
+                      Text(
+                        email.toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade800,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              )
-            : null,
-        trailing: Wrap(
-          spacing: 8,
+                const SizedBox(width: 12),
+                Checkbox(
+                  value: selected,
+                  visualDensity: VisualDensity.compact,
+                  onChanged: (val) {
+                    if (val == true && isBlockedByThem) {
+                      showBlockedUserDialog(context,
+                          message: 'You cannot add this user because they have blocked you.');
+                      return;
+                    }
+                    if (val == true && isBlocked) {
+                      showBlockedUserDialog(context);
+                      return;
+                    }
+                    setState(() {
+                      if (val == true) {
+                        _selectedForGroup.add(email);
+                      } else {
+                        _selectedForGroup.remove(email);
+                      }
+                    });
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (_mutualCounts.containsKey(friendId))
+                  _buildInfoChip(
+                    label: '${_mutualCounts[friendId]} mutual',
+                    textColor: Colors.teal.shade700,
+                    backgroundColor: Colors.teal.withOpacity(0.12),
+                  ),
+                if (interactions > 0)
+                  _buildInfoChip(
+                    label: 'Interactions: $interactions',
+                    textColor: Colors.blue.shade700,
+                    backgroundColor: Colors.blue.withOpacity(0.10),
+                  ),
+                if (isBlockedByThem)
+                  _buildInfoChip(
+                    label: 'Blocked you',
+                    textColor: Colors.red.shade700,
+                    backgroundColor: Colors.red.withOpacity(0.10),
+                  ),
+                if (isBlocked)
+                  _buildInfoChip(
+                    label: 'You blocked',
+                    textColor: Colors.orange.shade800,
+                    backgroundColor: Colors.orange.withOpacity(0.14),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _buildActionButton(
+                  icon: Icons.flash_on,
+                  label: 'Quick',
+                  onPressed: () {
+                    if (isBlockedByThem) {
+                      showBlockedUserDialog(context,
+                          message: 'You cannot add this user because they have blocked you.');
+                      return;
+                    }
+                    if (isBlocked) {
+                      showBlockedUserDialog(context);
+                      return;
+                    }
+                    _openQuickTransaction(email);
+                  },
+                ),
+                _buildActionButton(
+                  icon: Icons.receipt_long,
+                  label: 'Transaction',
+                  onPressed: () {
+                    if (isBlockedByThem) {
+                      showBlockedUserDialog(context,
+                          message: 'You cannot add this user because they have blocked you.');
+                      return;
+                    }
+                    if (isBlocked) {
+                      showBlockedUserDialog(context);
+                      return;
+                    }
+                    _openUserTransaction(email);
+                  },
+                ),
+                _buildActionButton(
+                  icon: Icons.person_remove,
+                  label: 'Remove',
+                  onPressed: () => _removeFriend(friendId),
+                ),
+                _buildActionButton(
+                  icon: isBlocked ? Icons.lock_open : Icons.block,
+                  label: isBlocked ? 'Unblock' : 'Block',
+                  onPressed: () =>
+                      isBlocked ? _unblockUser(friendId) : _blockUser(friendId),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoChip({
+    required String label,
+    required Color textColor,
+    required Color backgroundColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: textColor,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.82),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: const Color(0xFF00B4D8).withOpacity(0.18),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              tooltip: 'Quick',
-              onPressed: () {
-                if (isBlockedByThem) {
-                  showBlockedUserDialog(context,
-                      message: 'You cannot add this user because they have blocked you.');
-                  return;
-                }
-                if (isBlocked) {
-                  showBlockedUserDialog(context);
-                  return;
-                }
-                _openQuickTransaction(email);
-              },
-              icon: const Icon(Icons.flash_on),
-            ),
-            IconButton(
-              tooltip: 'Transaction',
-              onPressed: () {
-                if (isBlockedByThem) {
-                  showBlockedUserDialog(context,
-                      message: 'You cannot add this user because they have blocked you.');
-                  return;
-                }
-                if (isBlocked) {
-                  showBlockedUserDialog(context);
-                  return;
-                }
-                _openUserTransaction(email);
-              },
-              icon: const Icon(Icons.receipt_long),
-            ),
-            IconButton(
-              tooltip: 'Remove',
-              onPressed: () => _removeFriend(friendId),
-              icon: const Icon(Icons.person_remove),
-            ),
-            IconButton(
-              tooltip: isBlocked ? 'Unblock' : 'Block',
-              onPressed: () =>
-                  isBlocked ? _unblockUser(friendId) : _blockUser(friendId),
-              icon: Icon(isBlocked ? Icons.lock_open : Icons.block),
-            ),
-            Checkbox(
-              value: selected,
-              onChanged: (val) {
-                if (val == true && isBlockedByThem) {
-                  showBlockedUserDialog(context,
-                      message: 'You cannot add this user because they have blocked you.');
-                  return;
-                }
-                if (val == true && isBlocked) {
-                  showBlockedUserDialog(context);
-                  return;
-                }
-                setState(() {
-                  if (val == true) {
-                    _selectedForGroup.add(email);
-                  } else {
-                    _selectedForGroup.remove(email);
-                  }
-                });
-              },
+            Icon(icon, size: 18, color: const Color(0xFF4D4A57)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF4D4A57),
+              ),
             ),
           ],
         ),
