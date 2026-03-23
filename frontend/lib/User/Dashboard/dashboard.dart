@@ -1044,7 +1044,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                           ),
                           const SizedBox(height: 14),
                           Align(
-                            alignment: Alignment.centerLeft,
+                            alignment: Alignment.center,
                             child: Container(
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
