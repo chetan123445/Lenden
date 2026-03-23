@@ -72,6 +72,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'manage_users',
           icon: Icons.people_alt_rounded,
           label: 'Manage Users',
+          caption: 'Review and control user accounts',
+          actionLabel: 'Users',
           backgroundColor: const Color(0xFFEDEBFA),
           iconColor: const Color(0xFF304E96),
           onTap: () {
@@ -85,6 +87,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'manage_transactions',
           icon: Icons.receipt_long_rounded,
           label: 'Manage Secure Transactions',
+          caption: 'Inspect and control secure records',
+          actionLabel: 'Secure',
           backgroundColor: const Color(0xFFE8F4EC),
           iconColor: const Color(0xFF1E6B3B),
           onTap: () {
@@ -98,6 +102,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'notes',
           icon: Icons.route_rounded,
           label: 'Notes',
+          caption: 'Open internal notes and references',
+          actionLabel: 'Notes',
           backgroundColor: const Color(0xFFF5EAF4),
           iconColor: const Color(0xFF8A2F7B),
           onTap: () {
@@ -111,6 +117,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'manage_groups',
           icon: Icons.group_work_rounded,
           label: 'Manage Groups',
+          caption: 'Handle group activity and expenses',
+          actionLabel: 'Groups',
           backgroundColor: const Color(0xFFF3F2E8),
           iconColor: const Color(0xFF8B7A30),
           onTap: () {
@@ -124,6 +132,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'track_user_activity',
           icon: Icons.insights_rounded,
           label: 'Track User Activity',
+          caption: 'Monitor user-side platform behaviour',
+          actionLabel: 'Track',
           backgroundColor: const Color(0xFFE8F2FB),
           iconColor: const Color(0xFF1D5D91),
           onTap: () {
@@ -137,6 +147,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'manage_features',
           icon: Icons.tune_rounded,
           label: 'Manage Features',
+          caption: 'Adjust admin-side product controls',
+          actionLabel: 'Features',
           backgroundColor: const Color(0xFFEAF6F0),
           iconColor: const Color(0xFF296D4E),
           onTap: () {
@@ -150,6 +162,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'manage_gift_cards',
           icon: Icons.card_giftcard_rounded,
           label: 'Manage Gift Cards',
+          caption: 'Create and control gift card inventory',
+          actionLabel: 'Cards',
           backgroundColor: const Color(0xFFFCEFE4),
           iconColor: const Color(0xFF9B5B21),
           onTap: () {
@@ -163,6 +177,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'referral_settings',
           icon: Icons.share_rounded,
           label: 'Referral Settings',
+          caption: 'Tune referral rewards and flows',
+          actionLabel: 'Referral',
           backgroundColor: const Color(0xFFEAF0FF),
           iconColor: const Color(0xFF405FB5),
           onTap: () {
@@ -178,6 +194,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'manage_offers',
           icon: Icons.local_offer_rounded,
           label: 'Manage Offers',
+          caption: 'Publish and update admin offers',
+          actionLabel: 'Offers',
           backgroundColor: const Color(0xFFF4EAF0),
           iconColor: const Color(0xFF8C2C62),
           onTap: () {
@@ -191,6 +209,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'contact_settings',
           icon: Icons.contact_phone_rounded,
           label: 'Contact Settings',
+          caption: 'Update support and contact details',
+          actionLabel: 'Contact',
           backgroundColor: const Color(0xFFE8F7FA),
           iconColor: const Color(0xFF0B8FAC),
           onTap: () {
@@ -204,6 +224,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'app_ratings',
           icon: Icons.star_rounded,
           label: 'App Ratings',
+          caption: 'Review ratings coming from the app',
+          actionLabel: 'Ratings',
           backgroundColor: const Color(0xFFF7F2E8),
           iconColor: const Color(0xFF8B6E24),
           onTap: () {
@@ -214,6 +236,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           id: 'user_feedbacks',
           icon: Icons.feedback_rounded,
           label: 'User Feedbacks',
+          caption: 'Read submitted feedback and issues',
+          actionLabel: 'Feedback',
           backgroundColor: const Color(0xFFEAF5F8),
           iconColor: const Color(0xFF236D86),
           onTap: () {
@@ -573,52 +597,82 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     required _AdminDashboardItem item,
   }) {
     return Container(
-      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
         gradient: const LinearGradient(
           colors: [Colors.orange, Colors.white, Colors.green],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(22),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(30),
+          borderRadius: BorderRadius.circular(22),
           onTap: item.onTap,
-          child: Ink(
+          child: Container(
+            margin: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               color: item.backgroundColor,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: [
-                BoxShadow(
-                  color: item.iconColor.withValues(alpha: 0.12),
-                  blurRadius: 14,
-                  offset: const Offset(0, 8),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(20),
             ),
             child: SizedBox(
-              height: 130,
+              height: 150,
               child: Padding(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      item.icon,
-                      size: 34,
-                      color: item.iconColor,
+                    Container(
+                      height: 42,
+                      width: 42,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                      child: Icon(
+                        item.icon,
+                        color: item.iconColor,
+                        size: 22,
+                      ),
                     ),
                     const Spacer(),
                     Text(
                       item.label,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.black87,
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        height: 1.18,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      item.actionLabel,
                       style: TextStyle(
-                        color: item.iconColor,
-                        fontSize: 17,
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
-                        height: 1.15,
+                        color: item.iconColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.caption,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[700],
+                        height: 1.25,
                       ),
                     ),
                   ],
@@ -785,6 +839,8 @@ class _AdminDashboardItem {
   final String id;
   final IconData icon;
   final String label;
+  final String caption;
+  final String actionLabel;
   final Color backgroundColor;
   final Color iconColor;
   final VoidCallback onTap;
@@ -793,6 +849,8 @@ class _AdminDashboardItem {
     required this.id,
     required this.icon,
     required this.label,
+    required this.caption,
+    required this.actionLabel,
     required this.backgroundColor,
     required this.iconColor,
     required this.onTap,

@@ -1,8 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../../session.dart';
-import 'dart:convert';
-import '../../api_config.dart';
 import '../../utils/api_client.dart';
 import '../Connections/friends_page.dart';
 import '../Digitise/offers_page.dart';
@@ -11,10 +12,12 @@ class UserNotificationsPage extends StatefulWidget {
   const UserNotificationsPage({Key? key}) : super(key: key);
 
   @override
-  _UserNotificationsPageState createState() => _UserNotificationsPageState();
+  State<UserNotificationsPage> createState() => _UserNotificationsPageState();
 }
 
-class _UserNotificationsPageState extends State<UserNotificationsPage> {
+class _UserNotificationsPageState extends State<UserNotificationsPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
   List<dynamic> _notifications = [];
   List<Map<String, dynamic>> _incomingRequests = [];
   final Set<String> _removingRequestIds = {};
@@ -22,22 +25,38 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
   bool _isShowingAll = false;
   int _unreadCount = 0;
 
+  final List<_UserNotificationTab> _tabs = const [
+    _UserNotificationTab(label: 'All', category: 'all'),
+    _UserNotificationTab(label: 'Requests', category: 'friend'),
+    _UserNotificationTab(label: 'Offers', category: 'offer'),
+    _UserNotificationTab(label: 'Transactions', category: 'transaction'),
+    _UserNotificationTab(label: 'Groups', category: 'group'),
+    _UserNotificationTab(label: 'General', category: 'general'),
+  ];
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: _tabs.length, vsync: this);
     _fetchNotifications();
     _fetchFriendRequests();
     _markNotificationsAsRead();
   }
 
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   Color _getNoteColor(int index) {
-    final colors = [
-      Color(0xFFFFF4E6), // Cream
-      Color(0xFFE8F5E9), // Light green
-      Color(0xFFFCE4EC), // Light pink
-      Color(0xFFE3F2FD), // Light blue
-      Color(0xFFFFF9C4), // Light yellow
-      Color(0xFFF3E5F5), // Light purple
+    const colors = [
+      Color(0xFFFFF4E6),
+      Color(0xFFE8F5E9),
+      Color(0xFFFCE4EC),
+      Color(0xFFE3F2FD),
+      Color(0xFFFFF9C4),
+      Color(0xFFF3E5F5),
     ];
     return colors[index % colors.length];
   }
@@ -46,32 +65,24 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final userId = session.user!['_id'];
     _unreadCount = _notifications
-        .where((notification) => !notification['readBy'].contains(userId))
+        .where((notification) => !_isNotificationRead(notification, userId))
         .length;
   }
 
   Future<void> _fetchNotifications({bool viewAll = false}) async {
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    final token = session.token;
-    final url = viewAll
-        ? '/api/notifications?viewAll=true'
-        : '/api/notifications';
+    final url =
+        viewAll ? '/api/notifications?viewAll=true' : '/api/notifications';
     final response = await ApiClient.get(url);
 
     if (response.statusCode == 200) {
       setState(() {
         _notifications = json.decode(response.body);
         _isLoading = false;
-        if (viewAll) {
-          _isShowingAll = true;
-        }
+        if (viewAll) _isShowingAll = true;
         _calculateUnreadCount();
       });
     } else {
-      // Handle error
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
@@ -80,16 +91,14 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
     if (res.statusCode == 200) {
       final data = json.decode(res.body);
       setState(() {
-        _incomingRequests =
-            List<Map<String, dynamic>>.from(data['incoming'] ?? []);
+        _incomingRequests = List<Map<String, dynamic>>.from(data['incoming'] ?? []);
       });
     }
   }
 
   Future<void> _acceptRequest(String requestId) async {
     setState(() => _removingRequestIds.add(requestId));
-    final res =
-        await ApiClient.post('/api/friends/requests/$requestId/accept');
+    final res = await ApiClient.post('/api/friends/requests/$requestId/accept');
     if (res.statusCode == 200) {
       await Future.delayed(const Duration(milliseconds: 250));
       setState(() {
@@ -101,8 +110,7 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
 
   Future<void> _declineRequest(String requestId) async {
     setState(() => _removingRequestIds.add(requestId));
-    final res =
-        await ApiClient.post('/api/friends/requests/$requestId/decline');
+    final res = await ApiClient.post('/api/friends/requests/$requestId/decline');
     if (res.statusCode == 200) {
       await Future.delayed(const Duration(milliseconds: 250));
       setState(() {
@@ -114,6 +122,63 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
 
   Future<void> _markNotificationsAsRead() async {
     await ApiClient.post('/api/notifications/mark-as-read');
+    if (!mounted) return;
+    await _fetchNotifications(viewAll: _isShowingAll);
+  }
+
+  bool _isNotificationRead(dynamic notification, dynamic userId) {
+    final targetId = userId.toString();
+    final readBy = (notification['readBy'] as List<dynamic>? ?? const []);
+
+    return readBy.any((entry) {
+      if (entry is Map<String, dynamic>) {
+        final entryId = entry['_id'] ?? entry['id'];
+        return entryId?.toString() == targetId;
+      }
+      return entry.toString() == targetId;
+    });
+  }
+
+  String _categoryForNotification(dynamic notification) {
+    final explicit = (notification['category'] ?? '').toString().toLowerCase();
+    if (explicit.isNotEmpty) return explicit;
+
+    final message = (notification['message'] ?? '').toString().toLowerCase();
+    if (message.contains('friend')) return 'friend';
+    if (message.contains('offer')) return 'offer';
+    if (message.contains('group') || message.contains('split')) return 'group';
+    if (message.contains('transaction') ||
+        message.contains('payment') ||
+        message.contains('borrow') ||
+        message.contains('lend') ||
+        message.contains('due')) {
+      return 'transaction';
+    }
+    return 'general';
+  }
+
+  List<dynamic> _notificationsForCategory(String category) {
+    if (category == 'all') return _notifications;
+    return _notifications
+        .where((notification) => _categoryForNotification(notification) == category)
+        .toList();
+  }
+
+  void _openNotificationTarget(dynamic notification) {
+    final category = _categoryForNotification(notification);
+    if (category == 'friend') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const FriendsPage()),
+      );
+      return;
+    }
+    if (category == 'offer') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const UserOffersPage()),
+      );
+    }
   }
 
   @override
@@ -132,19 +197,7 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
             child: ClipPath(
               clipper: TopWaveClipper(),
               child: Container(
-                height: 120,
-                color: const Color(0xFF00B4D8),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: ClipPath(
-              clipper: BottomWaveClipper(),
-              child: Container(
-                height: 90,
+                height: 132,
                 color: const Color(0xFF00B4D8),
               ),
             ),
@@ -153,300 +206,96 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
                   child: Row(
                     children: [
                       IconButton(
                         icon: const Icon(Icons.arrow_back, color: Colors.black),
-                        onPressed: () {
-                          Navigator.pop(context);
-                        },
+                        onPressed: () => Navigator.pop(context),
                       ),
-                      Expanded(
+                      const Expanded(
                         child: Text(
                           'Notifications',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                             color: Colors.black,
                           ),
-                          textAlign: TextAlign.center,
                         ),
                       ),
-                      // Placeholder for alignment if needed, or remove if not
-                      const SizedBox(
-                          width: 48), // Adjust width to match IconButton's visual space
+                      const SizedBox(width: 48),
                     ],
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  child: _buildSummaryCard(),
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      gradient: const LinearGradient(
+                        colors: [Colors.orange, Colors.white, Colors.green],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Container(
+                      margin: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.96),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        isScrollable: true,
+                        indicator: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          color: const Color(0xFF00B4D8),
+                        ),
+                        labelColor: Colors.white,
+                        unselectedLabelColor: const Color(0xFF00B4D8),
+                        dividerColor: Colors.transparent,
+                        overlayColor:
+                            WidgetStateProperty.all(Colors.transparent),
+                        tabs: _tabs
+                            .map((tab) => Tab(text: tab.label))
+                            .toList(growable: false),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Expanded(
                   child: _isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : _notifications.isEmpty
-                          ? const Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.notifications_off_outlined,
-                                    size: 80,
-                                    color: Colors.grey,
-                                  ),
-                                  SizedBox(height: 16),
-                                  Text(
-                                    'No notifications yet.',
-                                    style: TextStyle(
-                                        fontSize: 18, color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : Container(
-                              margin: const EdgeInsets.only(top: 30),
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  top: BorderSide(
-                                    color: Colors.grey.shade300,
-                                    width: 1.0,
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF00B4D8),
+                          ),
+                        )
+                      : TabBarView(
+                          controller: _tabController,
+                          children: _tabs
+                              .map(
+                                (tab) => RefreshIndicator(
+                                  onRefresh: () async {
+                                    await _fetchNotifications(
+                                      viewAll: _isShowingAll,
+                                    );
+                                    await _fetchFriendRequests();
+                                  },
+                                  child: _buildNotificationList(
+                                    userId: userId,
+                                    category: tab.category,
                                   ),
                                 ),
-                              ),
-                              child: Column(
-                                children: [
-                                  Expanded(
-                                    child: ListView.builder(
-                                      padding: const EdgeInsets.all(8.0),
-                                      itemCount: _notifications.length +
-                                          (_incomingRequests.isNotEmpty
-                                              ? 1
-                                              : 0),
-                                      itemBuilder: (context, index) {
-                                        if (_incomingRequests.isNotEmpty &&
-                                            index == 0) {
-                                          return Container(
-                                            margin: const EdgeInsets.symmetric(
-                                                vertical: 8.0,
-                                                horizontal: 16.0),
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(18),
-                                              gradient: const LinearGradient(
-                                                colors: [
-                                                  Colors.orange,
-                                                  Colors.white,
-                                                  Colors.green
-                                                ],
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black
-                                                      .withOpacity(0.06),
-                                                  blurRadius: 6,
-                                                  offset: const Offset(0, 2),
-                                                ),
-                                              ],
-                                            ),
-                                            child: Container(
-                                              padding: const EdgeInsets.all(12),
-                                              decoration: BoxDecoration(
-                                                color: _getNoteColor(index),
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
-                                              ),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  const Text(
-                                                    'Friend Requests',
-                                                    style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: 16,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  ..._incomingRequests
-                                                      .map((r) {
-                                                    final from =
-                                                        r['from'] ?? {};
-                                                    final name = from['name'] ??
-                                                        from['username'] ??
-                                                        '';
-                                                    final email =
-                                                        from['email'] ?? '';
-                                                    final isRemoving =
-                                                        _removingRequestIds
-                                                            .contains(r['_id']);
-                                                    return AnimatedSize(
-                                                      duration:
-                                                          const Duration(
-                                                              milliseconds:
-                                                                  250),
-                                                      child: AnimatedOpacity(
-                                                        duration:
-                                                            const Duration(
-                                                                milliseconds:
-                                                                    250),
-                                                        opacity:
-                                                            isRemoving ? 0 : 1,
-                                                        child: ListTile(
-                                                          contentPadding:
-                                                              EdgeInsets.zero,
-                                                          title: Text(
-                                                              name.toString()),
-                                                          subtitle: Text(
-                                                              email.toString()),
-                                                          trailing: Wrap(
-                                                            spacing: 8,
-                                                            children: [
-                                                              TextButton(
-                                                                onPressed:
-                                                                    isRemoving
-                                                                        ? null
-                                                                        : () =>
-                                                                            _declineRequest(
-                                                                                r['_id']),
-                                                                child:
-                                                                    const Text(
-                                                                        'Decline'),
-                                                              ),
-                                                              ElevatedButton(
-                                                                onPressed:
-                                                                    isRemoving
-                                                                        ? null
-                                                                        : () =>
-                                                                            _acceptRequest(
-                                                                                r['_id']),
-                                                                child:
-                                                                    const Text(
-                                                                        'Accept'),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    );
-                                                  }).toList(),
-                                                ],
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                        final actualIndex =
-                                            _incomingRequests.isNotEmpty
-                                                ? index - 1
-                                                : index;
-                                        final notification =
-                                            _notifications[actualIndex];
-                                        final bool isRead =
-                                            notification['readBy'].contains(userId);
-                                        return Container(
-                                          margin: const EdgeInsets.symmetric(
-                                              vertical: 8.0, horizontal: 16.0),
-                                          padding: const EdgeInsets.all(2),
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(18),
-                                            gradient: const LinearGradient(
-                                              colors: [
-                                                Colors.orange,
-                                                Colors.white,
-                                                Colors.green
-                                              ],
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                            ),
-                                          ),
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: _getNoteColor(index),
-                                              borderRadius: BorderRadius.circular(16),
-                                            ),
-                                            child: ListTile(
-                                              title: Text(notification['message']),
-                                              onTap: () {
-                                                final msg = (notification['message'] ?? '')
-                                                    .toString()
-                                                    .toLowerCase();
-                                                if (msg.contains('friend request')) {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                        builder: (_) =>
-                                                            const FriendsPage()),
-                                                  );
-                                                } else if (msg.contains('offer')) {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                        builder: (_) =>
-                                                            const UserOffersPage()),
-                                                  );
-                                                }
-                                              },
-                                              trailing: isRead
-                                                  ? null
-                                                  : Container(
-                                                      width: 10,
-                                                      height: 10,
-                                                      decoration: BoxDecoration(
-                                                        color: Colors.blue,
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                    ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  if (_notifications.length == 3 &&
-                                      !_isShowingAll)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                          bottom: 16.0),
-                                      child: ElevatedButton(
-                                        onPressed: () =>
-                                            _fetchNotifications(viewAll: true),
-                                        style: ElevatedButton.styleFrom(
-                                          padding: EdgeInsets.zero,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                          ),
-                                          elevation: 5,
-                                        ),
-                                        child: Ink(
-                                          decoration: BoxDecoration(
-                                            gradient: const LinearGradient(
-                                              colors: [
-                                                Color(0xFF00B4D8),
-                                                Color(0xFF0077B6)
-                                              ],
-                                            ),
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                          ),
-                                          child: Container(
-                                            width: 150,
-                                            height: 40,
-                                            alignment: Alignment.center,
-                                            child: const Text(
-                                              'View All',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
+                              )
+                              .toList(growable: false),
+                        ),
                 ),
               ],
             ),
@@ -455,36 +304,460 @@ class _UserNotificationsPageState extends State<UserNotificationsPage> {
       ),
     );
   }
+
+  Widget _buildSummaryCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildStatTile(
+              title: 'Unread',
+              value: '$_unreadCount',
+              color: const Color(0xFF00B4D8),
+              icon: Icons.mark_email_unread_outlined,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildStatTile(
+              title: 'Requests',
+              value: '${_incomingRequests.length}',
+              color: Colors.orange,
+              icon: Icons.person_add_alt_1_outlined,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildStatTile(
+              title: 'Alerts',
+              value: '${_notifications.length}',
+              color: Colors.green,
+              icon: Icons.notifications_active_outlined,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatTile({
+    required String title,
+    required String value,
+    required Color color,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationList({
+    required dynamic userId,
+    required String category,
+  }) {
+    final items = _notificationsForCategory(category);
+    final showRequests = category == 'all' || category == 'friend';
+
+    if (items.isEmpty && (!showRequests || _incomingRequests.isEmpty)) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 120),
+          Center(
+            child: Column(
+              children: [
+                Icon(
+                  Icons.notifications_off_outlined,
+                  size: 72,
+                  color: Colors.grey,
+                ),
+                SizedBox(height: 14),
+                Text(
+                  'No notifications in this tab.',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        if (showRequests && _incomingRequests.isNotEmpty)
+          _buildFriendRequestsCard(),
+        ...items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final notification = entry.value;
+          final isRead = _isNotificationRead(notification, userId);
+          return _buildNotificationCard(
+            notification: notification,
+            isRead: isRead,
+            index: index,
+          );
+        }),
+        if (category == 'all' && _notifications.length == 3 && !_isShowingAll)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Center(
+              child: ElevatedButton(
+                onPressed: () => _fetchNotifications(viewAll: true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00B4D8),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 26,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: const Text('View All Notifications'),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildFriendRequestsCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF4E6),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.people_alt_outlined, color: Color(0xFF00B4D8)),
+                SizedBox(width: 8),
+                Text(
+                  'Friend Requests',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ..._incomingRequests.map((request) {
+              final from = request['from'] ?? {};
+              final isRemoving = _removingRequestIds.contains(request['_id']);
+              final title =
+                  (from['name'] ?? from['username'] ?? 'New request').toString();
+              final subtitle = (from['email'] ?? '').toString();
+              return AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: isRemoving ? 0.4 : 1,
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.88),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: isRemoving
+                                  ? null
+                                  : () => _declineRequest(request['_id']),
+                              child: const Text('Decline'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: isRemoving
+                                  ? null
+                                  : () => _acceptRequest(request['_id']),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00B4D8),
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Accept'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationCard({
+    required dynamic notification,
+    required bool isRead,
+    required int index,
+  }) {
+    final category = _categoryForNotification(notification);
+    final accent = _accentForCategory(category);
+    final icon = _iconForCategory(category);
+    final message = _prettifyMessage((notification['message'] ?? '').toString());
+
+    return InkWell(
+      onTap: () => _openNotificationTarget(notification),
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          gradient: const LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _getNoteColor(index),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _labelForCategory(category),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: accent,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ),
+                        if (!isRead)
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF00B4D8),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      message,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _formatTime(notification['createdAt']),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _accentForCategory(String category) {
+    switch (category) {
+      case 'friend':
+        return Colors.orange;
+      case 'offer':
+        return Colors.purple;
+      case 'transaction':
+        return Colors.teal;
+      case 'group':
+        return Colors.deepPurple;
+      default:
+        return const Color(0xFF00B4D8);
+    }
+  }
+
+  IconData _iconForCategory(String category) {
+    switch (category) {
+      case 'friend':
+        return Icons.people_alt_outlined;
+      case 'offer':
+        return Icons.local_offer_outlined;
+      case 'transaction':
+        return Icons.receipt_long_outlined;
+      case 'group':
+        return Icons.groups_2_outlined;
+      default:
+        return Icons.notifications_active_outlined;
+    }
+  }
+
+  String _labelForCategory(String category) {
+    switch (category) {
+      case 'friend':
+        return 'FRIENDS';
+      case 'offer':
+        return 'OFFERS';
+      case 'transaction':
+        return 'TRANSACTIONS';
+      case 'group':
+        return 'GROUPS';
+      default:
+        return 'GENERAL';
+    }
+  }
+
+  String _prettifyMessage(String message) {
+    final normalized = message.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) {
+      return 'You have a new notification.';
+    }
+    return normalized[0].toUpperCase() + normalized.substring(1);
+  }
+
+  String _formatTime(dynamic rawDate) {
+    if (rawDate == null) return 'Recently';
+    final createdAt = DateTime.tryParse(rawDate.toString())?.toLocal();
+    if (createdAt == null) return 'Recently';
+
+    final diff = DateTime.now().difference(createdAt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    if (diff.inDays < 7) return '${diff.inDays} day ago';
+    return '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+  }
+}
+
+class _UserNotificationTab {
+  final String label;
+  final String category;
+
+  const _UserNotificationTab({
+    required this.label,
+    required this.category,
+  });
 }
 
 class TopWaveClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
-    Path path = Path();
+    final path = Path();
     path.lineTo(0, size.height * 0.7);
     path.quadraticBezierTo(
-        size.width * 0.25, size.height, size.width * 0.5, size.height * 0.7);
+      size.width * 0.25,
+      size.height,
+      size.width * 0.5,
+      size.height * 0.7,
+    );
     path.quadraticBezierTo(
-        size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
+      size.width * 0.75,
+      size.height * 0.4,
+      size.width,
+      size.height * 0.7,
+    );
     path.lineTo(size.width, 0);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-class BottomWaveClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    Path path = Path();
-    path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
-        size.width * 0.5, size.height * 0.4);
-    path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
     path.close();
     return path;
   }

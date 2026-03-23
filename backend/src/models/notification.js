@@ -31,6 +31,11 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  category: {
+    type: String,
+    default: 'general',
+    enum: ['general', 'friend', 'offer', 'transaction', 'group', 'system'],
+  },
   readBy: [{
     type: mongoose.Schema.Types.ObjectId,
     refPath: 'recipientModel'

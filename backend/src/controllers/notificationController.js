@@ -2,9 +2,43 @@ const Notification = require('../models/notification');
 const User = require('../models/user');
 const Admin = require('../models/admin');
 
+function inferNotificationCategory(message = '', recipientType = '') {
+  const text = `${message} ${recipientType}`.toLowerCase();
+
+  if (text.includes('friend')) return 'friend';
+  if (text.includes('offer')) return 'offer';
+  if (
+    text.includes('group') ||
+    text.includes('split') ||
+    text.includes('expense')
+  ) {
+    return 'group';
+  }
+  if (
+    text.includes('transaction') ||
+    text.includes('payment') ||
+    text.includes('borrow') ||
+    text.includes('lend') ||
+    text.includes('due') ||
+    text.includes('reminder')
+  ) {
+    return 'transaction';
+  }
+  if (
+    text.includes('admin') ||
+    text.includes('system') ||
+    text.includes('alert') ||
+    text.includes('security') ||
+    text.includes('maintenance')
+  ) {
+    return 'system';
+  }
+  return 'general';
+}
+
 exports.createNotification = async (req, res) => {
   try {
-    const { message, recipientType, recipients } = req.body;
+    const { message, recipientType, recipients, category } = req.body;
     const sender = req.user._id;
     const senderModel = req.user.role === 'admin' ? 'Admin' : 'User';
 
@@ -61,6 +95,7 @@ exports.createNotification = async (req, res) => {
       recipients: recipientIds,
       recipientModel,
       message,
+      category: category || inferNotificationCategory(message, recipientType),
     });
 
     await notification.save();
@@ -199,7 +234,7 @@ exports.updateNotification = async (req, res) => {
   try {
     const notificationId = req.params.id;
     const userId = req.user._id; // Authenticated user's ID
-    const { message, recipientType, recipients } = req.body;
+    const { message, recipientType, recipients, category } = req.body;
 
     const notification = await Notification.findById(notificationId);
 
@@ -215,6 +250,12 @@ exports.updateNotification = async (req, res) => {
     // Update fields
     notification.message = message || notification.message;
     notification.recipientType = recipientType || notification.recipientType;
+    notification.category =
+      category ||
+      inferNotificationCategory(
+        message || notification.message,
+        recipientType || notification.recipientType
+      );
 
     // Handle recipients update if provided
     if (recipients) {
