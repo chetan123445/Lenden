@@ -1,9 +1,7 @@
 import 'dart:convert';
-
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../../Settings/privacy_settings_page.dart';
 import '../../session.dart';
 import '../../utils/api_client.dart';
@@ -280,8 +278,8 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                 unselectedLabelColor: const Color(0xFF00B4D8),
                 overlayColor: WidgetStateProperty.all(Colors.transparent),
                 tabs: const [
-                  Tab(text: 'Secure'),
-                  Tab(text: 'Groups'),
+                  Tab(text: 'Secure Trxns'),
+                  Tab(text: 'Groups Trxns'),
                 ],
               ),
             ),
@@ -691,10 +689,14 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     return InkWell(
       borderRadius: BorderRadius.circular(22),
       onTap: () => _openMetricPage(metric, analytics, allMetrics, tabTitle),
-      child: Ink(
+      child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
           borderRadius: BorderRadius.circular(22),
+          gradient: const LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.06),
@@ -703,54 +705,61 @@ class _AnalyticsPageState extends State<AnalyticsPage>
             ),
           ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                height: 42,
-                width: 42,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
-                  gradient: LinearGradient(
-                    colors: metric.colors,
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+        child: Container(
+          margin: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: LinearGradient(
+                      colors: metric.colors,
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Icon(metric.icon, color: Colors.white),
+                ),
+                const Spacer(),
+                Text(
+                  metric.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                child: Icon(metric.icon, color: Colors.white),
-              ),
-              const Spacer(),
-              Text(
-                metric.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                const SizedBox(height: 6),
+                Text(
+                  metric.displayValue,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: metric.colors.first,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                metric.displayValue,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: metric.colors.first,
+                const SizedBox(height: 4),
+                Text(
+                  metric.subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                metric.subtitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
