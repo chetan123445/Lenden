@@ -4,7 +4,6 @@ import '../../session.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
-import 'dart:math' as math;
 import '../../api_config.dart';
 import '../../Profile/edit_profile_page.dart';
 import 'dart:async';
@@ -31,6 +30,7 @@ import '../Transaction/quick_transactions_page.dart';
 import '../Connections/friends_page.dart';
 import '../Digitise/offers_page.dart';
 import '../Connections/counterparties_page.dart';
+import '../Digitise/lenden_coins_page.dart';
 import 'package:elegant_notification/elegant_notification.dart';
 
 class UserDashboardPage extends StatefulWidget {
@@ -51,6 +51,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
   bool _hasRatedApp = false;
   bool _ratingDialogShown = false;
+  bool _useCompactTransactionOptions = true;
   final TextEditingController _searchController = TextEditingController();
   final Map<String, GlobalKey> _sectionKeys = {
     'quick_transactions': GlobalKey(),
@@ -118,231 +119,12 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     },
   ];
 
-  bool _isShowingLenDenCoin = false;
-
-  Future<void> _showLenDenCoinsDialog(int coins) async {
-    List<dynamic> recentRewards = [];
-    try {
-      final res = await ApiClient.get('/api/leaderboard/rewards/me');
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        recentRewards = List<dynamic>.from(data['rewards'] ?? []);
-      }
-    } catch (_) {}
-
-    String rankText(int rank) {
-      if (rank == 1) return '1st';
-      if (rank == 2) return '2nd';
-      if (rank == 3) return '3rd';
-      return '${rank}th';
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        final mq = MediaQuery.of(context);
-        final viewportWidth = mq.size.width * 0.78;
-        final viewportHeight = mq.size.height * 0.72;
-        final contentWidth = math.max(360.0, mq.size.width * 0.72);
-        return Dialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              gradient: const LinearGradient(
-                colors: [Colors.orange, Colors.white, Colors.green],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFAFDFC),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: SizedBox(
-                width: viewportWidth,
-                height: viewportHeight,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: contentWidth,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.vertical,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'LenDen Coins Wallet',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF00B4D8),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.monetization_on,
-                                  color: Colors.amber, size: 40),
-                              const SizedBox(width: 8),
-                              Text(
-                                '$coins',
-                                style: const TextStyle(
-                                  fontSize: 46,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE8F5E9),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Monthly leaderboard rewards are auto-distributed after month-end.\n1st rank: +20 coins, 2nd rank: +10 coins, 3rd rank: +5 coins.\nAll tied users at each rank receive the same reward.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF1B4332),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF8E7),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'You can also earn LenDen coins randomly from gift cards when creating Quick transactions, Group transactions, and User transactions.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF7A4F01),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Recent Monthly Rewards',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          if (recentRewards.isEmpty)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Text(
-                                'No monthly rewards received yet.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                            )
-                          else
-                            SizedBox(
-                              height: 130,
-                              child: ListView.builder(
-                                shrinkWrap: true,
-                                itemCount: recentRewards.length > 3
-                                    ? 3
-                                    : recentRewards.length,
-                                itemBuilder: (context, index) {
-                                  final r = recentRewards[index];
-                                  final rank = (r['rank'] ?? 0) as int;
-                                  final coinsAwarded = (r['coinsAwarded'] ?? 0);
-                                  final monthKey =
-                                      (r['monthKey'] ?? '').toString();
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 6),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF1F5F9),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        const Icon(Icons.emoji_events,
-                                            size: 16, color: Color(0xFF00B4D8)),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Text(
-                                            '$monthKey - ${rankText(rank)} rank',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                        Text(
-                                          '+$coinsAwarded',
-                                          style: const TextStyle(
-                                            color: Color(0xFF2E7D32),
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          const SizedBox(height: 12),
-                          ElevatedButton(
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF00B4D8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const Text(
-                              'Close',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+  Future<void> _openLenDenCoinsPage(int coins) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => LenDenCoinsPage(coins: coins),
+      ),
     );
   }
 
@@ -1240,328 +1022,77 @@ class _UserDashboardPageState extends State<UserDashboardPage>
 
                     const SizedBox(height: 16),
 
-                    // Main action cards
-                    GestureDetector(
-                      key: _sectionKeys['quick_transactions'],
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => QuickTransactionsPage())),
-                      child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.orange, Colors.white, Colors.green],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Transaction Options',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
-                          ],
-                        ),
-                        child: Container(
-                          padding: EdgeInsets.all(22),
-                          decoration: BoxDecoration(
-                            color: _getBoxColor(0),
-                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.flash_on,
-                                  color: Colors.amber, size: 40),
-                              SizedBox(width: 20),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Text(
-                                    'Quick Transactions',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 22),
-                                  ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Open the main transaction tools from one place.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Colors.orange,
+                                    Colors.white,
+                                    Colors.green
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      key: _sectionKeys['transactions'],
-                      onTap: showTransactionForm,
-                      child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.orange, Colors.white, Colors.green],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Container(
-                          padding: EdgeInsets.all(22),
-                          decoration: BoxDecoration(
-                            color: _getBoxColor(1),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.swap_horiz,
-                                  color: Colors.teal, size: 40),
-                              SizedBox(width: 20),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Text(
-                                    'Create Secure Transactions',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 22),
-                                  ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      key: _sectionKeys['your_transactions'],
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => UserTransactionsPage())),
-                      child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.orange, Colors.white, Colors.green],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Container(
-                          padding: EdgeInsets.all(22),
-                          decoration: BoxDecoration(
-                            color: _getBoxColor(2),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.account_balance_wallet,
-                                  color: Colors.blue, size: 40),
-                              SizedBox(width: 20),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Text(
-                                    'View Secure Transactions',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 22),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      key: _sectionKeys['analytics'],
-                      onTap: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => AnalyticsPage())),
-                      child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.orange, Colors.white, Colors.green],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Container(
-                          padding: EdgeInsets.all(22),
-                          decoration: BoxDecoration(
-                            color: _getBoxColor(3),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.analytics,
-                                  color: Color(0xFF00B4D8), size: 40),
-                              SizedBox(width: 20),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: Text(
-                                        'Visual Analytics',
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 22),
-                                      ),
+                                    _buildTransactionLayoutChip(
+                                      label: 'Single',
+                                      selected: !_useCompactTransactionOptions,
+                                      onTap: () {
+                                        setState(() {
+                                          _useCompactTransactionOptions = false;
+                                        });
+                                      },
                                     ),
-                                    SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: Text(
-                                        '(for Secure and Group transactions)',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[600]),
-                                      ),
+                                    _buildTransactionLayoutChip(
+                                      label: 'Grid',
+                                      selected: _useCompactTransactionOptions,
+                                      onTap: () {
+                                        setState(() {
+                                          _useCompactTransactionOptions = true;
+                                        });
+                                      },
                                     ),
                                   ],
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: 20),
-                    GestureDetector(
-                      key: _sectionKeys['group_transaction'],
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => GroupTransactionPage())),
-                      child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.orange, Colors.white, Colors.green],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
                             ),
-                          ],
-                        ),
-                        child: Container(
-                          padding: EdgeInsets.all(22),
-                          decoration: BoxDecoration(
-                            color: _getBoxColor(4),
-                            borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.group,
-                                  color: Colors.deepPurple, size: 40),
-                              SizedBox(width: 20),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Text(
-                                    'Create Group Transaction',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 22),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    GestureDetector(
-                      key: _sectionKeys['view_group'],
-                      onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => ViewGroupTransactionsPage())),
-                      child: Container(
-                        margin:
-                            EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Colors.orange, Colors.white, Colors.green],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black12,
-                              blurRadius: 8,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Container(
-                          padding: EdgeInsets.all(22),
-                          decoration: BoxDecoration(
-                            color: _getBoxColor(5),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.visibility,
-                                  color: Colors.orange, size: 40),
-                              SizedBox(width: 20),
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: Text(
-                                    'View Group Transactions',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 22),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                          const SizedBox(height: 14),
+                          _buildTransactionOptionsLayout(),
+                        ],
                       ),
                     ),
                   ],
@@ -1656,7 +1187,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                   final session = Provider.of<SessionProvider>(
                                       context,
                                       listen: false);
-                                  _showLenDenCoinsDialog(
+                                  _openLenDenCoinsPage(
                                       session.lenDenCoins ?? 0);
                                 },
                                 child: Icon(Icons.monetization_on,
@@ -1771,6 +1302,239 @@ class _UserDashboardPageState extends State<UserDashboardPage>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  List<Widget> _buildTransactionOptionCards() {
+    return [
+      _buildDashboardOptionCard(
+        key: _sectionKeys['quick_transactions'],
+        icon: Icons.flash_on,
+        title: 'Quick Transactions',
+        subtitle: 'Fast entries and shortcuts',
+        valueLabel: 'Quick',
+        iconColor: Colors.amber,
+        fillColor: _getBoxColor(0),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => QuickTransactionsPage(),
+          ),
+        ),
+      ),
+      _buildDashboardOptionCard(
+        key: _sectionKeys['transactions'],
+        icon: Icons.swap_horiz,
+        title: 'Create Secure Transactions',
+        subtitle: 'Start a secure transaction',
+        valueLabel: 'Create',
+        iconColor: Colors.teal,
+        fillColor: _getBoxColor(1),
+        onTap: showTransactionForm,
+      ),
+      _buildDashboardOptionCard(
+        key: _sectionKeys['your_transactions'],
+        icon: Icons.account_balance_wallet,
+        title: 'View Secure Transactions',
+        subtitle: 'See all secure records',
+        valueLabel: 'View',
+        iconColor: Colors.blue,
+        fillColor: _getBoxColor(2),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UserTransactionsPage(),
+          ),
+        ),
+      ),
+      _buildDashboardOptionCard(
+        key: _sectionKeys['analytics'],
+        icon: Icons.analytics,
+        title: 'Analytics',
+        subtitle: 'Secure and group insights',
+        valueLabel: 'Stats',
+        iconColor: const Color(0xFF00B4D8),
+        fillColor: _getBoxColor(3),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AnalyticsPage(),
+          ),
+        ),
+      ),
+      _buildDashboardOptionCard(
+        key: _sectionKeys['group_transaction'],
+        icon: Icons.group,
+        title: 'Create Group',
+        subtitle: 'Start a shared expense group',
+        valueLabel: 'Create',
+        iconColor: Colors.deepPurple,
+        fillColor: _getBoxColor(4),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GroupTransactionPage(),
+          ),
+        ),
+      ),
+      _buildDashboardOptionCard(
+        key: _sectionKeys['view_group'],
+        icon: Icons.visibility,
+        title: 'View Groups',
+        subtitle: 'Open your group transactions',
+        valueLabel: 'View',
+        iconColor: Colors.orange,
+        fillColor: _getBoxColor(5),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ViewGroupTransactionsPage(),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildTransactionOptionsLayout() {
+    final cards = _buildTransactionOptionCards();
+
+    if (_useCompactTransactionOptions) {
+      return GridView.count(
+        crossAxisCount: 2,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+        childAspectRatio: 1.1,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: cards,
+      );
+    }
+
+    return Column(
+      children: cards
+          .map(
+            (card) => Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: SizedBox(
+                width: double.infinity,
+                height: 150,
+                child: card,
+              ),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  Widget _buildTransactionLayoutChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: selected ? const Color(0xFF00B4D8) : Colors.transparent,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : const Color(0xFF00B4D8),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardOptionCard({
+    Key? key,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String valueLabel,
+    required Color iconColor,
+    required Color fillColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      key: key,
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          gradient: const LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Container(
+          margin: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: fillColor,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    color: Colors.white.withOpacity(0.92),
+                  ),
+                  child: Icon(icon, color: iconColor),
+                ),
+                const Spacer(),
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  valueLabel,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: iconColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
