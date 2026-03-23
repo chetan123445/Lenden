@@ -1316,6 +1316,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         valueLabel: 'Quick',
         iconColor: Colors.amber,
         fillColor: _getBoxColor(0),
+        showSubtitle: !_useCompactTransactionOptions,
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -1331,6 +1332,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         valueLabel: 'Create',
         iconColor: Colors.teal,
         fillColor: _getBoxColor(1),
+        showSubtitle: !_useCompactTransactionOptions,
         onTap: showTransactionForm,
       ),
       _buildDashboardOptionCard(
@@ -1341,6 +1343,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         valueLabel: 'View',
         iconColor: Colors.blue,
         fillColor: _getBoxColor(2),
+        showSubtitle: !_useCompactTransactionOptions,
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -1356,6 +1359,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         valueLabel: 'Stats',
         iconColor: const Color(0xFF00B4D8),
         fillColor: _getBoxColor(3),
+        showSubtitle: !_useCompactTransactionOptions,
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -1371,6 +1375,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         valueLabel: 'Create',
         iconColor: Colors.deepPurple,
         fillColor: _getBoxColor(4),
+        showSubtitle: !_useCompactTransactionOptions,
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -1386,6 +1391,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         valueLabel: 'View',
         iconColor: Colors.orange,
         fillColor: _getBoxColor(5),
+        showSubtitle: !_useCompactTransactionOptions,
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -1460,6 +1466,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     required String valueLabel,
     required Color iconColor,
     required Color fillColor,
+    required bool showSubtitle,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
@@ -1521,16 +1528,18 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                     color: iconColor,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[700],
+                if (showSubtitle) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[700],
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

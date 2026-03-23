@@ -416,6 +416,29 @@ class _CounterpartiesPageState extends State<CounterpartiesPage> {
                     ],
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F7FA),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Text(
+                      'Tap any counterparty card to open profile details.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0B8FAC),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -457,8 +480,8 @@ class _CounterpartiesPageState extends State<CounterpartiesPage> {
                                       SliverGridDelegateWithFixedCrossAxisCount(
                                     crossAxisCount: crossAxisCount,
                                     crossAxisSpacing: 14,
-                                    mainAxisSpacing: 14,
-                                    childAspectRatio: width < 420 ? 0.86 : 0.8,
+                                    mainAxisSpacing: width < 420 ? 26 : 18,
+                                    childAspectRatio: width < 420 ? 0.82 : 0.8,
                                   ),
                                   itemCount: filtered.length,
                                   itemBuilder: (context, index) {
@@ -550,7 +573,7 @@ class _CounterpartyGridCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -564,35 +587,30 @@ class _CounterpartyGridCard extends StatelessWidget {
                         color: Colors.black,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: onTap,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF00B4D8),
-                          side: BorderSide(
-                            color: isDeactivated
-                                ? Colors.red.shade300
-                                : isPrivate
-                                    ? Colors.orange.shade300
-                                    : const Color(0xFF00B4D8),
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          minimumSize: const Size.fromHeight(40),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    const SizedBox(height: 8),
+                    if (isDeactivated || isPrivate)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
                         ),
-                        child: const Text(
-                          'View Info',
+                        decoration: BoxDecoration(
+                          color: isDeactivated
+                              ? Colors.red.withOpacity(0.08)
+                              : Colors.orange.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          isDeactivated ? 'Account inactive' : 'Private profile',
                           style: TextStyle(
-                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDeactivated
+                                ? Colors.red.shade400
+                                : Colors.orange.shade700,
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
