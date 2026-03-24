@@ -1068,7 +1068,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     _buildTransactionLayoutChip(
-                                      label: 'Single',
+                                      label: 'Single View',
                                       selected: !_useCompactTransactionOptions,
                                       onTap: () {
                                         setState(() {
@@ -1077,7 +1077,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                                       },
                                     ),
                                     _buildTransactionLayoutChip(
-                                      label: 'Grid',
+                                      label: 'Grid View',
                                       selected: _useCompactTransactionOptions,
                                       onTap: () {
                                         setState(() {

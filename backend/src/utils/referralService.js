@@ -1,5 +1,6 @@
 const User = require('../models/user');
 const ReferralConfig = require('../models/referralConfig');
+const { recordCoinLedgerEntry } = require('./coinLedgerService');
 
 const DEFAULT_SHARE_OPTIONS = [
   {
@@ -156,6 +157,35 @@ const processReferralRewardOnFirstCreation = async (userId) => {
   user.referralRewardGranted = true;
   user.referralConvertedAt = new Date();
   await Promise.all([referrer.save(), user.save()]);
+
+  const occurredAt = user.referralConvertedAt || new Date();
+  await Promise.all([
+    recordCoinLedgerEntry({
+      userId: referrer._id,
+      direction: 'earned',
+      coins: inviterReward,
+      source: 'referral_inviter',
+      title: 'Referral Reward Earned',
+      description: `Earned ${inviterReward} LenDen coins because your referral completed their first creation.`,
+      metadata: {
+        referredUserId: user._id,
+        referredUserEmail: user.email,
+      },
+      occurredAt,
+    }),
+    recordCoinLedgerEntry({
+      userId: user._id,
+      direction: 'earned',
+      coins: refereeReward,
+      source: 'referral_referee',
+      title: 'Referral Welcome Reward',
+      description: `Earned ${refereeReward} LenDen coins after completing your first creation with a referral code.`,
+      metadata: {
+        referrerId: referrer._id,
+      },
+      occurredAt,
+    }),
+  ]);
 
   return {
     granted: true,

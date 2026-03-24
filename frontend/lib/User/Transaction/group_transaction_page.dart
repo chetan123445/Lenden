@@ -570,14 +570,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       showBlockedUserDialog(context);
       return;
     }
-    final session = Provider.of<SessionProvider>(context, listen: false);
-    if (!session.isSubscribed &&
-        _dailyGroupRemaining != null &&
-        _dailyGroupRemaining! <= 0) {
-      showDailyLimitDialog(context,
-          message: 'Daily limit reached: You can create 1 group per day.');
-      return;
-    }
     setState(() {
       creatingGroup = true;
       error = null;
@@ -656,18 +648,16 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
   Future<void> _createGroup() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
+    final dailyLimitExceeded = !session.isSubscribed &&
+        _dailyGroupRemaining != null &&
+        _dailyGroupRemaining! <= 0;
+    final shouldUseCoins = !session.isSubscribed &&
+        (dailyLimitExceeded || (session.freeGroupsRemaining ?? 0) <= 0);
     if (_hasBlockedMembers()) {
       showBlockedUserDialog(context);
       return;
     }
-    if (!session.isSubscribed &&
-        _dailyGroupRemaining != null &&
-        _dailyGroupRemaining! <= 0) {
-      showDailyLimitDialog(context,
-          message: 'Daily limit reached: You can create 1 group per day.');
-      return;
-    }
-    if (!session.isSubscribed && (session.freeGroupsRemaining ?? 0) <= 0) {
+    if (shouldUseCoins) {
       if ((session.lenDenCoins ?? 0) < 20) {
         if ((session.lenDenCoins ?? 0) == 0) {
           showZeroCoinsDialog(context);
@@ -712,10 +702,24 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                   ),
                   SizedBox(height: 16),
                   Text(
-                    'You have no free groups remaining. Would you like to use 20 LenDen coins to create this group?',
+                    dailyLimitExceeded
+                        ? 'Your daily group creation limit is finished. You can still create this group now by spending 20 LenDen coins.'
+                        : 'You have no free groups remaining. Would you like to use 20 LenDen coins to create this group?',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, color: Colors.grey[800]),
                   ),
+                  if (dailyLimitExceeded) ...[
+                    SizedBox(height: 12),
+                    Text(
+                      'Warning: this will bypass today\'s free daily limit.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.orange[800],
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                   SizedBox(height: 8),
                   Text(
                     'OR',
@@ -5155,11 +5159,17 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                         ),
                                         child: Consumer<SessionProvider>(
                                           builder: (context, session, child) {
+                                            final bool dailyLimitReached =
+                                                !session.isSubscribed &&
+                                                    _dailyGroupRemaining !=
+                                                        null &&
+                                                    _dailyGroupRemaining! <= 0;
                                             final bool canCreate = session
                                                     .isSubscribed ||
-                                                (session.freeGroupsRemaining ??
-                                                        0) >
-                                                    0 ||
+                                                (!dailyLimitReached &&
+                                                    (session.freeGroupsRemaining ??
+                                                            0) >
+                                                        0) ||
                                                 (session.lenDenCoins ?? 0) >=
                                                     20;
                                             return Column(
@@ -5846,12 +5856,13 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
               width: double.infinity,
               child: Consumer<SessionProvider>(
                 builder: (context, session, child) {
-                  final bool canCreate = session.isSubscribed ||
-                      (session.freeGroupsRemaining ?? 0) > 0 ||
-                      (session.lenDenCoins ?? 0) >= 20;
                   final bool dailyLimitReached = !session.isSubscribed &&
                       _dailyGroupRemaining != null &&
                       _dailyGroupRemaining! <= 0;
+                  final bool canCreate = session.isSubscribed ||
+                      (!dailyLimitReached &&
+                          (session.freeGroupsRemaining ?? 0) > 0) ||
+                      (session.lenDenCoins ?? 0) >= 20;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -5875,10 +5886,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           ),
                         ),
                       ElevatedButton(
-                        onPressed:
-                            creatingGroup || !canCreate || dailyLimitReached
-                                ? null
-                                : _createGroup,
+                        onPressed: creatingGroup || !canCreate
+                            ? null
+                            : _createGroup,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFF00B4D8),
                           shape: RoundedRectangleBorder(

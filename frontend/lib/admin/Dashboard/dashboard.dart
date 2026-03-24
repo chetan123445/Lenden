@@ -503,7 +503,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     _buildAdminLayoutChip(
-                                      label: 'Single',
+                                      label: 'Single View',
                                       selected: !_useCompactAdminOptions,
                                       onTap: () {
                                         setState(() {
@@ -512,7 +512,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                       },
                                     ),
                                     _buildAdminLayoutChip(
-                                      label: 'Grid',
+                                      label: 'Grid View',
                                       selected: _useCompactAdminOptions,
                                       onTap: () {
                                         setState(() {

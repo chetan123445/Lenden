@@ -4,6 +4,8 @@ const Subscription = require('../models/subscription');
 const { logQuickTransactionActivity } = require('./activityController');
 const { awardGiftCard, shouldAwardGiftCard } = require('./userGiftCardController');
 const { processReferralRewardOnFirstCreation } = require('../utils/referralService');
+const { validateCoinCreationAccess } = require('../utils/coinUsageGuard');
+const { recordCoinLedgerEntry } = require('../utils/coinLedgerService');
 
 const isBlockedBy = (user, other) =>
   (user.blockedUsers || []).some(
@@ -111,14 +113,13 @@ exports.createQuickTransaction = async (req, res) => {
 
 exports.createQuickTransactionWithCoins = async (req, res) => {
   const QUICK_TRANSACTION_COST = 5;
+  const QUICK_TRANSACTION_DAILY_LIMIT = 3;
   try {
     const { amount, currency, date, time, description, counterpartyEmail, role } = req.body;
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.user._id).select(
+      'email blockedUsers lenDenCoins freeQuickTransactionsRemaining'
+    );
     const userEmail = user.email;
-
-    if (user.lenDenCoins < QUICK_TRANSACTION_COST) {
-      return res.status(403).json({ error: 'Insufficient LenDen coins.' });
-    }
 
     if (userEmail === counterpartyEmail) {
       return res.status(400).json({ error: 'User and counterparty email cannot be the same.' });
@@ -141,21 +142,43 @@ exports.createQuickTransactionWithCoins = async (req, res) => {
       });
     }
 
-    if (!(await isSubscribed(user._id))) {
-      const { start, end } = getTodayRange();
-      const todayCount = await QuickTransaction.countDocuments({
-        creatorEmail: userEmail,
-        createdAt: { $gte: start, $lte: end },
-      });
-      if (todayCount >= 3) {
-        return res.status(429).json({
-          error: 'Daily limit reached: You can create 3 quick transactions per day.',
-        });
-      }
+    const subscribed = await isSubscribed(user._id);
+    const { start, end } = getTodayRange();
+    const todayCount = await QuickTransaction.countDocuments({
+      creatorEmail: userEmail,
+      createdAt: { $gte: start, $lte: end },
+    });
+    const accessError = validateCoinCreationAccess({
+      subscribed,
+      freeRemaining: user.freeQuickTransactionsRemaining,
+      dailyCount: todayCount,
+      dailyLimit: QUICK_TRANSACTION_DAILY_LIMIT,
+      dailyLimitMessage:
+        'Daily limit reached: You can create 3 quick transactions per day.',
+      coinBalance: user.lenDenCoins,
+      coinCost: QUICK_TRANSACTION_COST,
+      featureLabel: 'quick transaction',
+    });
+    if (accessError && accessError.error) {
+      return res.status(accessError.status).json({ error: accessError.error });
     }
+    const accessWarning = accessError?.warning;
 
     user.lenDenCoins -= QUICK_TRANSACTION_COST;
     await user.save();
+    await recordCoinLedgerEntry({
+      userId: user._id,
+      direction: 'spent',
+      coins: QUICK_TRANSACTION_COST,
+      source: 'quick_transaction_with_coins',
+      title: 'Quick Transaction Created With Coins',
+      description: `Spent ${QUICK_TRANSACTION_COST} LenDen coins to create a quick transaction with ${counterpartyEmail}.`,
+      metadata: {
+        counterpartyEmail,
+        amount,
+        currency,
+      },
+    });
 
     const quickTransaction = new QuickTransaction({
       amount,
@@ -187,6 +210,7 @@ exports.createQuickTransactionWithCoins = async (req, res) => {
         message: 'Quick transaction created successfully with LenDen coins', 
         quickTransaction, 
         lenDenCoins: user.lenDenCoins,
+        warning: accessWarning,
         referralReward,
         giftCardAwarded: awardedCard ? true : false,
         awardedCard: awardedCard

@@ -11,6 +11,8 @@ const PDFDocument = require('pdfkit');
 
 const { sendReceiptEmail } = require('../utils/receiptEmail');
 const { processReferralRewardOnFirstCreation } = require('../utils/referralService');
+const { validateCoinCreationAccess } = require('../utils/coinUsageGuard');
+const { recordCoinLedgerEntry } = require('../utils/coinLedgerService');
 
 const isBlockedBy = (user, other) =>
   (user.blockedUsers || []).some(
@@ -331,6 +333,7 @@ exports.generateReceipt = async (req, res) => {
 
 exports.createTransactionWithCoins = async (req, res) => {
   const TRANSACTION_COST = 10;
+  const USER_TRANSACTION_DAILY_LIMIT = 2;
   try {
     const {
       amount,
@@ -349,13 +352,9 @@ exports.createTransactionWithCoins = async (req, res) => {
     } = req.body;
 
     const user = await User.findById(req.user._id).select(
-      'email blockedUsers lenDenCoins'
+      'email blockedUsers lenDenCoins freeUserTransactionsRemaining'
     );
     if (!user) return res.status(400).json({ error: 'User not found' });
-
-    if (user.lenDenCoins < TRANSACTION_COST) {
-      return res.status(403).json({ error: 'Insufficient LenDen coins.' });
-    }
 
     if (user.email !== userEmail) {
       return res.status(403).json({ error: 'User email does not match authenticated user.' });
@@ -399,18 +398,27 @@ exports.createTransactionWithCoins = async (req, res) => {
       });
     }
 
-    if (!(await isSubscribed(user._id))) {
-      const { start, end } = getTodayRange();
-      const todayCount = await Transaction.countDocuments({
-        userEmail: user.email,
-        createdAt: { $gte: start, $lte: end },
-      });
-      if (todayCount >= 2) {
-        return res.status(429).json({
-          error: 'Daily limit reached: You can create 2 user transactions per day.',
-        });
-      }
+    const subscribed = await isSubscribed(user._id);
+    const { start, end } = getTodayRange();
+    const todayCount = await Transaction.countDocuments({
+      userEmail: user.email,
+      createdAt: { $gte: start, $lte: end },
+    });
+    const accessError = validateCoinCreationAccess({
+      subscribed,
+      freeRemaining: user.freeUserTransactionsRemaining,
+      dailyCount: todayCount,
+      dailyLimit: USER_TRANSACTION_DAILY_LIMIT,
+      dailyLimitMessage:
+        'Daily limit reached: You can create 2 user transactions per day.',
+      coinBalance: user.lenDenCoins,
+      coinCost: TRANSACTION_COST,
+      featureLabel: 'secure transaction',
+    });
+    if (accessError && accessError.error) {
+      return res.status(accessError.status).json({ error: accessError.error });
     }
+    const accessWarning = accessError?.warning;
 
     // Handle photos (images only)
     let photos = [];
@@ -437,6 +445,20 @@ exports.createTransactionWithCoins = async (req, res) => {
 
     user.lenDenCoins -= TRANSACTION_COST;
     await user.save();
+    await recordCoinLedgerEntry({
+      userId: user._id,
+      direction: 'spent',
+      coins: TRANSACTION_COST,
+      source: 'secure_transaction_with_coins',
+      title: 'Secure Transaction Created With Coins',
+      description: `Spent ${TRANSACTION_COST} LenDen coins to create a secure transaction with ${counterpartyEmail}.`,
+      metadata: {
+        counterpartyEmail,
+        amount,
+        currency,
+        role,
+      },
+    });
 
     // Save transaction
     const transaction = await Transaction.create({
@@ -486,6 +508,7 @@ exports.createTransactionWithCoins = async (req, res) => {
       transactionId: transaction.transactionId, 
       transaction,
       lenDenCoins: user.lenDenCoins,
+      warning: accessWarning,
       referralReward
     });
 

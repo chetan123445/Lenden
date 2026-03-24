@@ -4,6 +4,7 @@ const OfferClaim = require('../models/offerClaim');
 const User = require('../models/user');
 const Notification = require('../models/notification');
 const { createActivityLog } = require('./activityController');
+const { recordCoinLedgerEntry } = require('../utils/coinLedgerService');
 
 const MAX_COINS_PER_OFFER = 10000;
 const MAX_ACTIVE_OFFERS = 50;
@@ -736,6 +737,18 @@ exports.acceptOffer = async (req, res) => {
 
     if (!responsePayload.alreadyAccepted) {
       const offer = await Offer.findById(req.params.offerId);
+      await recordCoinLedgerEntry({
+        userId: req.user._id,
+        direction: 'earned',
+        coins: responsePayload.coinsAwarded,
+        source: 'offer_claim',
+        title: 'Offer Reward Earned',
+        description: `Earned ${responsePayload.coinsAwarded} LenDen coins by accepting "${offer?.name || 'Offer'}".`,
+        metadata: {
+          offerId: req.params.offerId,
+          offerName: offer?.name || 'Offer',
+        },
+      });
       await createActivityLog(
         req.user._id,
         'offer_accepted',

@@ -14,9 +14,11 @@ const activitySchema = new mongoose.Schema({
       'transaction_cleared',
       'partial_payment_made',
       'partial_payment_received',
+      'transaction_created_with_coins',
       
       // Group activities
       'group_created',
+      'group_created_with_coins',
       'group_joined',
       'group_left',
       'member_added',
@@ -53,6 +55,7 @@ const activitySchema = new mongoose.Schema({
         'receipt_generated',
       // Quick transaction activities
       'quick_transaction_created',
+      'quick_transaction_created_with_coins',
       'quick_transaction_updated',
       'quick_transaction_deleted',
       'quick_transaction_cleared',

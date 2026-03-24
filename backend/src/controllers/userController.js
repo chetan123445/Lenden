@@ -11,6 +11,7 @@ const TokenService = require('../utils/tokenService');
 const {
   generateUniqueReferralCode,
 } = require('../utils/referralService');
+const { recordCoinLedgerEntry } = require('../utils/coinLedgerService');
 
 // In-memory OTP store (for demo; use DB or cache in production)
 const otpStore = {};
@@ -273,6 +274,17 @@ exports.login = async (req, res) => {
       });
       const dailyReward = applyDailyLoginReward(user);
       await user.save();
+      if (dailyReward.awarded) {
+        await recordCoinLedgerEntry({
+          userId: user._id,
+          direction: 'earned',
+          coins: dailyReward.coinsAwarded,
+          source: 'daily_login',
+          title: 'Daily Login Reward',
+          description: `Earned ${dailyReward.coinsAwarded} LenDen coin for logging in today.`,
+          occurredAt: user.lastDailyLoginRewardAt || new Date(),
+        });
+      }
 
       res.json({ 
         message: 'Login successful', 
@@ -516,6 +528,17 @@ exports.verifyLoginOtp = async (req, res) => {
 
       const dailyReward = applyDailyLoginReward(user);
       await user.save();
+      if (dailyReward.awarded) {
+        await recordCoinLedgerEntry({
+          userId: user._id,
+          direction: 'earned',
+          coins: dailyReward.coinsAwarded,
+          source: 'daily_login',
+          title: 'Daily Login Reward',
+          description: `Earned ${dailyReward.coinsAwarded} LenDen coin for logging in today.`,
+          occurredAt: user.lastDailyLoginRewardAt || new Date(),
+        });
+      }
       
       delete otpStore[email];
       return res.status(200).json({ 

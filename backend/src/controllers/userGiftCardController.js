@@ -1,6 +1,7 @@
 const UserGiftCard = require('../models/userGiftCard');
 const GiftCard = require('../models/giftCard');
 const User = require('../models/user');
+const { recordCoinLedgerEntry } = require('../utils/coinLedgerService');
 
 // Helper: Check if user should get gift card (guaranteed once per window)
 // Uses deterministic hash based on userId + windowNumber to pick random position
@@ -119,6 +120,19 @@ exports.scratchGiftCard = async (req, res) => {
     const user = await User.findById(userId);
     user.lenDenCoins += userGiftCard.coins;
     await user.save();
+    await recordCoinLedgerEntry({
+      userId,
+      direction: 'earned',
+      coins: userGiftCard.coins,
+      source: 'gift_card_scratch',
+      title: 'Gift Card Coins Claimed',
+      description: `Claimed ${userGiftCard.coins} LenDen coins from a scratched gift card.`,
+      metadata: {
+        userGiftCardId: userGiftCard._id,
+        awardedFrom: userGiftCard.awardedFrom,
+      },
+      occurredAt: userGiftCard.scratchedAt || new Date(),
+    });
 
     // Populate gift card details for response
     const populatedCard = await UserGiftCard.findById(userGiftCardId)

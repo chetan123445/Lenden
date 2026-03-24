@@ -10,6 +10,8 @@ const { awardGiftCard, shouldAwardGiftCard } = require('./userGiftCardController
 const PDFDocument = require('pdfkit');
 const { sendGroupReceiptEmail } = require('../utils/groupReceiptEmail');
 const { processReferralRewardOnFirstCreation } = require('../utils/referralService');
+const { validateCoinCreationAccess } = require('../utils/coinUsageGuard');
+const { recordCoinLedgerEntry } = require('../utils/coinLedgerService');
 
 const isBlockedBy = (user, other) =>
   (user.blockedUsers || []).some(
@@ -52,32 +54,37 @@ async function validateUsers(userIds) {
 
 exports.createGroupWithCoins = async (req, res) => {
   const GROUP_COST = 20;
+  const GROUP_DAILY_LIMIT = 1;
   try {
     const { title, memberEmails, color } = req.body;
     const creator = await User.findById(req.user._id).select(
-      'email blockedUsers lenDenCoins'
+      'email blockedUsers lenDenCoins freeGroupsRemaining'
     );
 
     if (!creator) {
       return res.status(400).json({ error: 'Creator not found' });
     }
 
-    if (creator.lenDenCoins < GROUP_COST) {
-      return res.status(403).json({ error: 'Insufficient LenDen coins.' });
+    const subscribed = await isSubscribed(creator._id);
+    const { start, end } = getTodayRange();
+    const todayCount = await GroupTransaction.countDocuments({
+      creator: creator._id,
+      createdAt: { $gte: start, $lte: end },
+    });
+    const accessError = validateCoinCreationAccess({
+      subscribed,
+      freeRemaining: creator.freeGroupsRemaining,
+      dailyCount: todayCount,
+      dailyLimit: GROUP_DAILY_LIMIT,
+      dailyLimitMessage: 'Daily limit reached: You can create 1 group per day.',
+      coinBalance: creator.lenDenCoins,
+      coinCost: GROUP_COST,
+      featureLabel: 'group creation',
+    });
+    if (accessError && accessError.error) {
+      return res.status(accessError.status).json({ error: accessError.error });
     }
-
-    if (!(await isSubscribed(creator._id))) {
-      const { start, end } = getTodayRange();
-      const todayCount = await GroupTransaction.countDocuments({
-        creator: creator._id,
-        createdAt: { $gte: start, $lte: end },
-      });
-      if (todayCount >= 1) {
-        return res.status(429).json({
-          error: 'Daily limit reached: You can create 1 group per day.',
-        });
-      }
-    }
+    const accessWarning = accessError?.warning;
 
     if (!title) {
       return res.status(400).json({ error: 'Title is required' });
@@ -108,6 +115,18 @@ exports.createGroupWithCoins = async (req, res) => {
     
     creator.lenDenCoins -= GROUP_COST;
     await creator.save();
+    await recordCoinLedgerEntry({
+      userId: creator._id,
+      direction: 'spent',
+      coins: GROUP_COST,
+      source: 'group_creation_with_coins',
+      title: 'Group Created With Coins',
+      description: `Spent ${GROUP_COST} LenDen coins to create the group "${title}".`,
+      metadata: {
+        title,
+        memberCount: Array.isArray(memberEmails) ? memberEmails.length : 0,
+      },
+    });
 
     const memberIds = users.map(u => u._id.toString());
     // Always add creator as the first member
@@ -148,6 +167,7 @@ exports.createGroupWithCoins = async (req, res) => {
         message: "Group created successfully with LenDen coins",
         group: groupObj, 
         lenDenCoins: creator.lenDenCoins,
+        warning: accessWarning,
         referralReward,
         giftCardAwarded: awardedCardWithCoins ? true : false,
         awardedCard: awardedCardWithCoins

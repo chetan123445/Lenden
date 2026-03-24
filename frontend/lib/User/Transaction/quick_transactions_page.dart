@@ -103,9 +103,14 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       return;
     }
 
-    if (!session.isSubscribed &&
-        (session.freeQuickTransactionsRemaining ?? 0) <= 0 &&
-        transaction == null) {
+    final dailyQuickRemaining =
+        _dailyLimits?['limits']?['quickTransactions']?['remaining'] as int?;
+    final shouldUseCoins = !session.isSubscribed &&
+        transaction == null &&
+        ((dailyQuickRemaining != null && dailyQuickRemaining <= 0) ||
+            (session.freeQuickTransactionsRemaining ?? 0) <= 0);
+
+    if (shouldUseCoins) {
       if ((session.lenDenCoins ?? 0) < 5) {
         if ((session.lenDenCoins ?? 0) == 0) {
           showZeroCoinsDialog(context);
@@ -119,7 +124,9 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
         builder: (context) => SubscriptionPrompt(
           title: 'No Free Quick Transactions Left',
           subtitle:
-              'You have no free quick transactions remaining. Would you like to use 10 LenDen coins to create one?',
+              dailyQuickRemaining != null && dailyQuickRemaining <= 0
+                  ? 'Your daily quick transaction limit is finished. You can still create one more now by spending 5 LenDen coins.'
+                  : 'You have no free quick transactions remaining. Would you like to use 5 LenDen coins to create one?',
         ),
       );
       if (useCoins != true) {
@@ -131,8 +138,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       context: context,
       builder: (context) => _QuickTransactionDialog(
         transaction: transaction,
-        useCoins: !session.isSubscribed &&
-            (session.freeQuickTransactionsRemaining ?? 0) <= 0,
+        useCoins: shouldUseCoins,
         prefillCounterpartyEmail: prefillEmail,
         blockedEmails: _blockedEmails,
         dailyRemaining: _dailyLimits?['limits']?['quickTransactions']
@@ -297,9 +303,13 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     if (!session.isSubscribed && _dailyLimits == null) {
       await _loadDailyLimits();
     }
-    if (!session.isSubscribed &&
-        (session.freeQuickTransactionsRemaining ?? 0) <= 0 &&
-        transaction == null) {
+    final dailyQuickRemaining =
+        _dailyLimits?['limits']?['quickTransactions']?['remaining'] as int?;
+    final shouldUseCoins = !session.isSubscribed &&
+        transaction == null &&
+        ((dailyQuickRemaining != null && dailyQuickRemaining <= 0) ||
+            (session.freeQuickTransactionsRemaining ?? 0) <= 0);
+    if (shouldUseCoins) {
       if ((session.lenDenCoins ?? 0) < 5) {
         if ((session.lenDenCoins ?? 0) == 0) {
           showZeroCoinsDialog(context);
@@ -344,10 +354,25 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                   ),
                   SizedBox(height: 16),
                   Text(
-                    'You have no free quick transactions remaining. Would you like to use 5 LenDen coins to create this transaction?',
+                    dailyQuickRemaining != null && dailyQuickRemaining <= 0
+                        ? 'Your daily quick transaction limit is finished. You can still create this transaction now by spending 5 LenDen coins.'
+                        : 'You have no free quick transactions remaining. Would you like to use 5 LenDen coins to create this transaction?',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 16, color: Colors.grey[800]),
                   ),
+                  if (dailyQuickRemaining != null &&
+                      dailyQuickRemaining <= 0) ...[
+                    SizedBox(height: 12),
+                    Text(
+                      'Warning: this will bypass today\'s free daily limit.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.orange[800],
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                   SizedBox(height: 8),
                   Text(
                     'OR',
@@ -447,8 +472,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       context: context,
       builder: (context) => _QuickTransactionDialog(
           transaction: transaction,
-          useCoins: !session.isSubscribed &&
-              (session.freeQuickTransactionsRemaining ?? 0) <= 0,
+          useCoins: shouldUseCoins,
           blockedEmails: _blockedEmails,
           dailyRemaining: _dailyLimits?['limits']?['quickTransactions']
                   ?['remaining'] ??
@@ -1475,7 +1499,8 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
   Widget build(BuildContext context) {
     final userEmail = _userEmail;
     final isEditing = widget.transaction != null;
-    final limitReached = !widget.isSubscribed &&
+    final limitReached = !widget.useCoins &&
+        !widget.isSubscribed &&
         (widget.dailyRemaining != null) &&
         (widget.dailyRemaining! <= 0) &&
         !isEditing;
@@ -1571,6 +1596,35 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                                   'Daily quick transactions remaining: ${widget.dailyRemaining}',
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (widget.useCoins &&
+                          !widget.isSubscribed &&
+                          widget.dailyRemaining != null &&
+                          widget.dailyRemaining! <= 0)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF3E0),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.shade300),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.warning_amber_rounded,
+                                  color: Colors.orange),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Daily free limit is already exhausted. This quick transaction will go through by spending 5 LenDen coins.',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],

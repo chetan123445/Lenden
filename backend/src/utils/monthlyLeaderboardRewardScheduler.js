@@ -4,6 +4,7 @@ const Transaction = require('../models/transaction');
 const QuickTransaction = require('../models/quickTransaction');
 const GroupTransaction = require('../models/groupTransaction');
 const MonthlyLeaderboardReward = require('../models/monthlyLeaderboardReward');
+const { recordCoinLedgerEntry } = require('./coinLedgerService');
 
 const RANK_REWARDS = {
   1: 20,
@@ -118,6 +119,20 @@ const settlePreviousMonthRewards = async () => {
     if (!user) continue;
     user.lenDenCoins = (user.lenDenCoins || 0) + reward;
     await user.save();
+    await recordCoinLedgerEntry({
+      userId: user._id,
+      direction: 'earned',
+      coins: reward,
+      source: 'leaderboard_reward',
+      title: 'Monthly Leaderboard Reward',
+      description: `Earned ${reward} LenDen coins for finishing rank #${winner.rank} on the monthly leaderboard.`,
+      metadata: {
+        monthKey,
+        rank: winner.rank,
+        points: winner.points,
+      },
+      occurredAt: end,
+    });
     totalCoinsAwarded += reward;
     rewardedUsers.push({
       user: user._id,

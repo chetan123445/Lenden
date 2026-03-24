@@ -7,6 +7,7 @@ const {
     normalizeStoredChatMessage,
     toChatResponse
 } = require('../utils/chatCodec');
+const { recordCoinLedgerEntry } = require('../utils/coinLedgerService');
 
 function hasEncryptedPayloads(encryptedPayloads) {
     return Array.isArray(encryptedPayloads) && encryptedPayloads.length > 0;
@@ -106,6 +107,18 @@ module.exports = (io) => {
                         }
                         sender.lenDenCoins -= MESSAGE_COST;
                         await sender.save();
+                        await recordCoinLedgerEntry({
+                            userId: sender._id,
+                            direction: 'spent',
+                            coins: MESSAGE_COST,
+                            source: 'private_chat_with_coins',
+                            title: 'Private Chat Message Sent With Coins',
+                            description: `Spent ${MESSAGE_COST} LenDen coins to send a private chat message.`,
+                            metadata: {
+                                transactionId,
+                                receiverId,
+                            },
+                        });
                     }
                 }
 

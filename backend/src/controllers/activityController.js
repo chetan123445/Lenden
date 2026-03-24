@@ -170,11 +170,15 @@ exports.logTransactionActivity = async (userId, type, transaction, metadata = {}
   
   switch (type) {
     case 'transaction_created':
+    case 'transaction_created_with_coins':
       activityData.title = 'Transaction Created';
       if (isCreator) {
         activityData.description = `Created by you (${creatorEmail}) - ${transaction.role} transaction of ${transaction.currency}${transaction.amount} with ${transaction.role === 'lender' ? transaction.counterpartyEmail : transaction.userEmail}`;
       } else {
         activityData.description = `Created by ${creatorEmail} - ${transaction.role} transaction of ${transaction.currency}${transaction.amount} with ${transaction.role === 'lender' ? transaction.counterpartyEmail : transaction.userEmail}`;
+      }
+      if (type === 'transaction_created_with_coins') {
+        activityData.description += ' using LenDen coins';
       }
       break;
     case 'transaction_cleared':
@@ -229,8 +233,12 @@ exports.logGroupActivity = async (userId, type, group, metadata = {}) => {
   
   switch (type) {
     case 'group_created':
+    case 'group_created_with_coins':
       activityData.title = 'Group Created';
       activityData.description = `Created group "${group.title}"`;
+      if (type === 'group_created_with_coins') {
+        activityData.description += ' using LenDen coins';
+      }
       break;
     case 'group_joined':
       activityData.title = 'Joined Group';
@@ -289,8 +297,12 @@ exports.logGroupActivityForAllMembers = async (type, group, metadata = {}, exclu
   
   switch (type) {
     case 'group_created':
+    case 'group_created_with_coins':
       activityData.title = 'Group Created';
       activityData.description = `Created group "${group.title}"`;
+      if (type === 'group_created_with_coins') {
+        activityData.description += ' using LenDen coins';
+      }
       break;
     case 'group_joined':
       activityData.title = 'Joined Group';
@@ -335,7 +347,13 @@ exports.logGroupActivityForAllMembers = async (type, group, metadata = {}, exclu
   // Get all active group members (excluding the specified user if provided)
   const memberIds = group.members
     .filter(member => !member.leftAt) // Only active members
-    .map(member => member.user._id.toString())
+    .map((member) => {
+      const memberUser = member.user;
+      if (!memberUser) return null;
+      if (memberUser._id) return memberUser._id.toString();
+      return memberUser.toString();
+    })
+    .filter(Boolean)
     .filter(memberId => !excludeUserId || memberId !== excludeUserId.toString());
   
   // Log activity for all members with context-specific messages
@@ -419,8 +437,12 @@ exports.logQuickTransactionActivity = async (userId, type, transaction, metadata
 
   switch (type) {
     case 'quick_transaction_created':
+    case 'quick_transaction_created_with_coins':
       activityData.title = 'Quick Transaction Created';
       activityData.description = `You added a quick transaction of ${transaction.amount} ${transaction.currency} for "${transaction.description}" with ${metadata.counterpartyEmail}`;
+      if (type === 'quick_transaction_created_with_coins') {
+        activityData.description += ' using LenDen coins';
+      }
       break;
     case 'quick_transaction_updated':
       activityData.title = 'Quick Transaction Updated';

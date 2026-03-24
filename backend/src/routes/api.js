@@ -39,6 +39,7 @@ module.exports = (io) => {
   const referralController = require('../controllers/referralController');
   const offerController = require('../controllers/offerController');
   const contactConfigController = require('../controllers/contactConfigController');
+  const coinLedgerController = require('../controllers/coinLedgerController');
   const handleUsage = require('../middleware/handleUsage');
 
   // Middleware to check for admin role
@@ -222,6 +223,7 @@ module.exports = (io) => {
 
   // Referral routes
   router.get('/referral/me', auth, referralController.getReferralInfo);
+  router.get('/coins/history', auth, coinLedgerController.getMyCoinHistory);
   router.post('/referral/share', auth, referralController.logReferralShare);
   router.get('/admin/referral-config', auth, isAdmin, referralController.getReferralConfigForAdmin);
   router.put('/admin/referral-config', auth, isAdmin, referralController.updateReferralConfigForAdmin);

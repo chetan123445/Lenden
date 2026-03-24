@@ -508,20 +508,17 @@ class _TransactionPageState extends State<TransactionPage> {
 
   Future<void> _submit() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    if (!session.isSubscribed &&
+    final dailyLimitExceeded = !session.isSubscribed &&
         _dailyUserTxRemaining != null &&
-        _dailyUserTxRemaining! <= 0) {
-      showDailyLimitDialog(context,
-          message:
-              'Daily limit reached: You can create 2 user transactions per day.');
-      return;
-    }
+        _dailyUserTxRemaining! <= 0;
+    final shouldUseCoins = !session.isSubscribed &&
+        (dailyLimitExceeded ||
+            (session.freeUserTransactionsRemaining ?? 0) <= 0);
     if (_isBlockedEmail(_counterpartyEmailController.text)) {
       showBlockedUserDialog(context);
       return;
     }
-    if (session.isSubscribed ||
-        (session.freeUserTransactionsRemaining ?? 0) > 0) {
+    if (session.isSubscribed || !shouldUseCoins) {
       _submitWithApi();
     } else {
       if ((session.lenDenCoins ?? 0) < 10) {
@@ -569,10 +566,24 @@ class _TransactionPageState extends State<TransactionPage> {
                       ),
                       SizedBox(height: 16),
                       Text(
-                        'You have no free transactions remaining. Would you like to use 10 LenDen coins to create this transaction?',
+                        dailyLimitExceeded
+                            ? 'Your daily secure transaction limit is finished. You can still create this transaction now by spending 10 LenDen coins.'
+                            : 'You have no free transactions remaining. Would you like to use 10 LenDen coins to create this transaction?',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 16, color: Colors.grey[800]),
                       ),
+                      if (dailyLimitExceeded) ...[
+                        SizedBox(height: 12),
+                        Text(
+                          'Warning: this will bypass today\'s free daily limit.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.orange[800],
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                       SizedBox(height: 8),
                       Text(
                         'OR',
@@ -1808,12 +1819,7 @@ class _TransactionPageState extends State<TransactionPage> {
                         child: ElevatedButton(
                           onPressed: (_counterpartyVerified &&
                                   _userVerified &&
-                                  !_isLoading &&
-                                  !(!Provider.of<SessionProvider>(context,
-                                              listen: false)
-                                          .isSubscribed &&
-                                      _dailyUserTxRemaining != null &&
-                                      _dailyUserTxRemaining! <= 0))
+                                  !_isLoading)
                               ? _submit
                               : null,
                           child: Text('Submit Transaction'),
