@@ -1,8 +1,6 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../../api_config.dart';
 import '../../utils/api_client.dart';
 import '../../session.dart';
@@ -138,7 +136,7 @@ class _LeaderboardPageState extends State<LeaderboardPage>
           tabs: const [
             Tab(text: 'Quick'),
             Tab(text: 'Group'),
-            Tab(text: 'Trxns'),
+            Tab(text: 'Secure'),
           ],
         ),
       ),
