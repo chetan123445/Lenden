@@ -24,6 +24,7 @@ class AdminDashboardPage extends StatefulWidget {
 
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   int _imageRefreshKey = 0; // Key to force avatar rebuild
+  bool _useCompactAdminOptions = true;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final Map<String, GlobalKey> _sectionKeys = {
@@ -456,24 +457,78 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final itemWidth = (constraints.maxWidth - 16) / 2;
-                        return Wrap(
-                          spacing: 16,
-                          runSpacing: 16,
-                          children: dashboardItems.map((item) {
-                            return SizedBox(
-                              key: _sectionKeys[item.id],
-                              width: itemWidth,
-                              child: _buildDashboardCard(
-                                context,
-                                item: item,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Admin Options',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Switch between detailed cards or compact admin grid.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Align(
+                          alignment: Alignment.center,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Colors.orange,
+                                    Colors.white,
+                                    Colors.green
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
                               ),
-                            );
-                          }).toList(),
-                        );
-                      },
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildAdminLayoutChip(
+                                      label: 'Single',
+                                      selected: !_useCompactAdminOptions,
+                                      onTap: () {
+                                        setState(() {
+                                          _useCompactAdminOptions = false;
+                                        });
+                                      },
+                                    ),
+                                    _buildAdminLayoutChip(
+                                      label: 'Grid',
+                                      selected: _useCompactAdminOptions,
+                                      onTap: () {
+                                        setState(() {
+                                          _useCompactAdminOptions = true;
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        _buildAdminOptionsLayout(dashboardItems),
+                      ],
                     ),
                   ],
                 ),
@@ -595,6 +650,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   Widget _buildDashboardCard(
     BuildContext context, {
     required _AdminDashboardItem item,
+    required bool showCaption,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -664,21 +720,92 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         color: item.iconColor,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.caption,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[700],
-                        height: 1.25,
+                    if (showCaption) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        item.caption,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                          height: 1.25,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminOptionsLayout(List<_AdminDashboardItem> items) {
+    if (_useCompactAdminOptions) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final itemWidth = (width - 16) / 2;
+
+          return Wrap(
+            spacing: 16,
+            runSpacing: 24,
+            children: items.map((item) {
+              return SizedBox(
+                key: _sectionKeys[item.id],
+                width: itemWidth,
+                child: _buildDashboardCard(
+                  context,
+                  item: item,
+                  showCaption: false,
+                ),
+              );
+            }).toList(),
+          );
+        },
+      );
+    }
+
+    return Column(
+      children: items.map((item) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 18),
+          child: SizedBox(
+            key: _sectionKeys[item.id],
+            width: double.infinity,
+            child: _buildDashboardCard(
+              context,
+              item: item,
+              showCaption: true,
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildAdminLayoutChip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: selected ? const Color(0xFF00B4D8) : Colors.transparent,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : const Color(0xFF00B4D8),
           ),
         ),
       ),
