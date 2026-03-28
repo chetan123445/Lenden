@@ -26,6 +26,8 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
   String _statusFilter = 'all';
   String _priorityFilter = 'all';
   String _assignmentFilter = 'all';
+  String _supportLane = 'all';
+  Map<String, dynamic> _summary = const {};
 
   @override
   void initState() {
@@ -133,6 +135,9 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
         final data = jsonDecode(response.body);
         setState(() {
           _queries = data['queries'] ?? [];
+          _summary = data['summary'] is Map
+              ? Map<String, dynamic>.from(data['summary'])
+              : const {};
           _currentAdmin = data['currentAdmin'] is Map
               ? Map<String, dynamic>.from(data['currentAdmin'])
               : null;
@@ -411,6 +416,24 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
                 .contains(_searchTerm.toLowerCase()))
             .toList();
 
+    if (_supportLane == 'open') {
+      filteredQueries =
+          filteredQueries.where((q) => (q['status'] ?? '') == 'open').toList();
+    } else if (_supportLane == 'mine') {
+      final adminId = _currentAdmin?['_id']?.toString();
+      filteredQueries = filteredQueries
+          .where((q) => q['assignedAdmin'] is Map && q['assignedAdmin']['_id']?.toString() == adminId)
+          .toList();
+    } else if (_supportLane == 'critical') {
+      filteredQueries = filteredQueries
+          .where((q) => (q['priority'] ?? '') == 'critical')
+          .toList();
+    } else if (_supportLane == 'resolved') {
+      filteredQueries = filteredQueries
+          .where((q) => (q['status'] ?? '') == 'resolved')
+          .toList();
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFFAF9F6),
       body: Stack(
@@ -505,6 +528,34 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
                         icon: const Icon(Icons.download_rounded),
                         label: const Text('Export CSV'),
                       ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _buildSummaryChip('Open', '${_summary['open'] ?? 0}'),
+                      _buildSummaryChip('In Progress', '${_summary['inProgress'] ?? 0}'),
+                      _buildSummaryChip('Critical', '${_summary['critical'] ?? 0}'),
+                      _buildSummaryChip('Assigned To Me', '${_summary['assignedToMe'] ?? 0}'),
+                      _buildSummaryChip('Overdue', '${_summary['overdue'] ?? 0}'),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildLaneChip('all', 'All'),
+                      _buildLaneChip('open', 'Open'),
+                      _buildLaneChip('mine', 'Assigned to Me'),
+                      _buildLaneChip('critical', 'Critical'),
+                      _buildLaneChip('resolved', 'Resolved'),
                     ],
                   ),
                 ),
@@ -624,11 +675,43 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     }
   }
 
+  Widget _buildSummaryChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF0077B5),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLaneChip(String value, String label) {
+    final selected = _supportLane == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => setState(() => _supportLane = value),
+      selectedColor: const Color(0xFF00B4D8).withValues(alpha: 0.16),
+      labelStyle: TextStyle(
+        fontWeight: FontWeight.w700,
+        color: selected ? const Color(0xFF0077B5) : Colors.black87,
+      ),
+    );
+  }
+
   Widget _buildQueryCard(Map<String, dynamic> query) {
     final assignedAdmin = query['assignedAdmin'] is Map
         ? Map<String, dynamic>.from(query['assignedAdmin'])
         : null;
     final internalNotes = (query['internalNotes'] as List?) ?? const [];
+    final isOverdue = query['isOverdue'] == true;
     return Card(
       margin: EdgeInsets.symmetric(vertical: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -667,6 +750,24 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
                     ),
                   ),
                 ),
+                if (isOverdue) ...[
+                  SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Text(
+                      'Overdue',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
             SizedBox(height: 10),

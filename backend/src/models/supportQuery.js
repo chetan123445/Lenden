@@ -49,6 +49,18 @@ const supportQuerySchema = new mongoose.Schema({
     default: null,
     index: true,
   },
+  firstAdminReplyAt: {
+    type: Date,
+    default: null,
+  },
+  lastAdminReplyAt: {
+    type: Date,
+    default: null,
+  },
+  resolvedAt: {
+    type: Date,
+    default: null,
+  },
   internalNotes: [
     {
       admin: {

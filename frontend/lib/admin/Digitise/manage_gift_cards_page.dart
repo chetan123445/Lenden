@@ -154,6 +154,23 @@ class _ViewGiftCardsTabState extends State<ViewGiftCardsTab> {
     }
   }
 
+  Widget _buildOverviewChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF00B4D8),
+        ),
+      ),
+    );
+  }
+
   void _showSortOptions() {
     showModalBottomSheet(
       context: context,
@@ -467,6 +484,21 @@ class _ViewGiftCardsTabState extends State<ViewGiftCardsTab> {
                 child: _buildStylishSearchBar(),
               ),
               _buildStylishSortButton(),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildOverviewChip('Cards', '${_allGiftCards.length}'),
+              _buildOverviewChip('Visible', '${_filteredGiftCards.length}'),
+              _buildOverviewChip(
+                'Total Value',
+                '${_allGiftCards.fold<int>(0, (sum, card) => sum + card.value)}',
+              ),
             ],
           ),
         ),

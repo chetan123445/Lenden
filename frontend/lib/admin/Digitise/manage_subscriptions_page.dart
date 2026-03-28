@@ -1622,6 +1622,23 @@ class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
   bool _searched = false;
   TextEditingController _searchController = TextEditingController();
 
+  Widget _buildOverviewChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF0077B5),
+        ),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1793,6 +1810,26 @@ class _ManageSubscriptionsTabState extends State<ManageSubscriptionsTab> {
                     _fetchSubscriptions();
                   },
                   child: Text('View All Active Subscriptions'),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildOverviewChip('Active', '${_subscriptions.length}'),
+                    _buildOverviewChip(
+                      'Free',
+                      '${_subscriptions.where((s) => s['free'] == true).length}',
+                    ),
+                    _buildOverviewChip(
+                      'Paid',
+                      '${_subscriptions.where((s) => s['free'] != true).length}',
+                    ),
+                    _buildOverviewChip(
+                      'Revenue',
+                      '${_subscriptions.fold<num>(0, (sum, s) => sum + ((s['price'] ?? 0) as num))}',
+                    ),
+                  ],
                 ),
               ],
             ),

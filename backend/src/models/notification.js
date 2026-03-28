@@ -31,10 +31,33 @@ const notificationSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  title: {
+    type: String,
+    default: '',
+  },
   category: {
     type: String,
     default: 'general',
     enum: ['general', 'friend', 'offer', 'transaction', 'group', 'system'],
+  },
+  deliveryStatus: {
+    type: String,
+    enum: ['sent', 'draft', 'scheduled'],
+    default: 'sent',
+    index: true,
+  },
+  scheduledFor: {
+    type: Date,
+    default: null,
+    index: true,
+  },
+  sentAt: {
+    type: Date,
+    default: null,
+  },
+  estimatedAudience: {
+    type: Number,
+    default: 0,
   },
   readBy: [{
     type: mongoose.Schema.Types.ObjectId,

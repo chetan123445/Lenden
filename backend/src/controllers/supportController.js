@@ -27,6 +27,35 @@ const hasSupportPermission = (admin) =>
   (admin.isSuperAdmin === true ||
     normalizePermissions(admin.permissions || {}).canManageSupport === true);
 
+const getSlaHours = (priority = 'normal') => {
+  switch ((priority || 'normal').toString()) {
+    case 'critical':
+      return 2;
+    case 'high':
+      return 8;
+    case 'low':
+      return 48;
+    default:
+      return 24;
+  }
+};
+
+const mapSupportQuery = (query) => {
+  const item = query.toObject ? query.toObject() : query;
+  const baseTime = item.lastAdminReplyAt || item.createdAt;
+  const slaHours = getSlaHours(item.priority);
+  const overdue =
+    ['open', 'in_progress'].includes(item.status) &&
+    baseTime &&
+    Date.now() - new Date(baseTime).getTime() > slaHours * 60 * 60 * 1000;
+
+  return {
+    ...item,
+    slaHours,
+    isOverdue: overdue,
+  };
+};
+
 const getCurrentAdmin = async (req) => {
   const adminId = req.user?._id || req.user?.userId || req.user?.id;
   if (adminId) {
@@ -193,9 +222,26 @@ module.exports = (io) => {
         .populate('internalNotes.admin', 'email name')
         .sort({ createdAt: -1 });
 
+      const mappedQueries = queries.map(mapSupportQuery);
+      const summary = {
+        total: mappedQueries.length,
+        open: mappedQueries.filter((item) => item.status === 'open').length,
+        inProgress: mappedQueries.filter((item) => item.status === 'in_progress').length,
+        resolved: mappedQueries.filter((item) => item.status === 'resolved').length,
+        critical: mappedQueries.filter((item) => item.priority === 'critical').length,
+        assignedToMe: mappedQueries.filter(
+          (item) =>
+            item.assignedAdmin &&
+            item.assignedAdmin._id &&
+            item.assignedAdmin._id.toString() === currentAdmin?._id?.toString()
+        ).length,
+        overdue: mappedQueries.filter((item) => item.isOverdue).length,
+      };
+
       console.log('Backend: getAllSupportQueries - Success', queries.length, 'queries found');
       res.status(200).json({
-        queries,
+        queries: mappedQueries,
+        summary,
         currentAdmin: currentAdmin
           ? {
               _id: currentAdmin._id,
@@ -231,6 +277,10 @@ module.exports = (io) => {
 
       query.replies.push({ admin: adminId, replyText });
       query.status = 'in_progress'; // Automatically set status to in_progress
+      if (!query.firstAdminReplyAt) {
+        query.firstAdminReplyAt = new Date();
+      }
+      query.lastAdminReplyAt = new Date();
       if (!query.assignedAdmin) {
         query.assignedAdmin = adminId;
       }
@@ -303,6 +353,7 @@ module.exports = (io) => {
       // }
 
       reply.replyText = replyText;
+      query.lastAdminReplyAt = new Date();
       await query.save();
 
       // Populate the query and the edited reply for emission
@@ -418,6 +469,11 @@ module.exports = (io) => {
       }
 
       query.status = status;
+      if (status === 'resolved') {
+        query.resolvedAt = new Date();
+      } else if (status !== 'closed') {
+        query.resolvedAt = null;
+      }
       await query.save();
 
       // Populate the query for emission after status update
@@ -484,6 +540,10 @@ module.exports = (io) => {
           admin: currentAdmin._id,
           noteText: internalNote.toString().trim(),
         });
+      }
+
+      if (query.status === 'resolved' && !query.resolvedAt) {
+        query.resolvedAt = new Date();
       }
 
       await query.save();

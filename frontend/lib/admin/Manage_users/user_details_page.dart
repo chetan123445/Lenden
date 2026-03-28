@@ -19,6 +19,9 @@ class _UserDetailsPageState extends State<UserDetailsPage>
   Map<String, dynamic>? _userStats;
   List<Map<String, dynamic>> _recentTransactions = [];
   List<Map<String, dynamic>> _userActivity = [];
+  final TextEditingController _adminNoteController = TextEditingController();
+  final TextEditingController _suspensionReasonController =
+      TextEditingController();
 
   @override
   void initState() {
@@ -30,6 +33,8 @@ class _UserDetailsPageState extends State<UserDetailsPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _adminNoteController.dispose();
+    _suspensionReasonController.dispose();
     super.dispose();
   }
 
@@ -433,6 +438,11 @@ class _UserDetailsPageState extends State<UserDetailsPage>
 
   Widget _buildProfileTab() {
     final user = widget.user;
+    final adminNotes =
+        List<Map<String, dynamic>>.from(user['adminNotes'] ?? const []);
+    final suspendedUntil = DateTime.tryParse('${user['suspendedUntil'] ?? ''}');
+    final isSuspended =
+        suspendedUntil != null && suspendedUntil.isAfter(DateTime.now());
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -483,6 +493,118 @@ class _UserDetailsPageState extends State<UserDetailsPage>
                 widget.user['twoFactorEnabled'] == true
                     ? 'Enabled'
                     : 'Disabled'),
+            _buildInfoTile(
+              'Suspension',
+              isSuspended
+                  ? 'Until ${_formatDate(user['suspendedUntil'])}'
+                  : 'Not suspended',
+            ),
+          ]),
+          const SizedBox(height: 16),
+          _buildInfoSection('Admin Controls', [
+            TextField(
+              controller: _suspensionReasonController,
+              decoration: InputDecoration(
+                labelText: 'Suspension Reason',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _updateSuspension(clear: false),
+                    icon: const Icon(Icons.lock_clock_outlined),
+                    label: const Text('Suspend'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _updateSuspension(clear: true),
+                    icon: const Icon(Icons.lock_open_rounded),
+                    label: const Text('Clear'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _forceLogoutUser,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text(
+                  'Force Logout User',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          _buildInfoSection('Internal Admin Notes', [
+            TextField(
+              controller: _adminNoteController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                labelText: 'Add internal note',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton.icon(
+                onPressed: _addAdminNote,
+                icon: const Icon(Icons.note_add_outlined),
+                label: const Text('Save Note'),
+              ),
+            ),
+            if (adminNotes.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('No internal notes added yet.'),
+              ),
+            ...adminNotes.take(5).map(
+              (note) => Container(
+                margin: const EdgeInsets.only(top: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFD),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      (note['noteText'] ?? '').toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'By ${(note['admin'] is Map ? note['admin']['email'] : 'Admin') ?? 'Admin'}',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      _formatDate(note['createdAt']),
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ]),
         ],
       ),
@@ -936,6 +1058,115 @@ class _UserDetailsPageState extends State<UserDetailsPage>
         return Colors.orange;
       default:
         return Colors.grey;
+    }
+  }
+
+  Future<void> _addAdminNote() async {
+    final text = _adminNoteController.text.trim();
+    if (text.isEmpty) return;
+
+    try {
+      final response = await ApiClient.post(
+        '/api/admin/users/${widget.user['_id']}/notes',
+        body: {'noteText': text},
+      );
+      final data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        setState(() {
+          final notes = List<Map<String, dynamic>>.from(
+            widget.user['adminNotes'] ?? const [],
+          );
+          notes.insert(0, Map<String, dynamic>.from(data['note']));
+          widget.user['adminNotes'] = notes;
+        });
+        _adminNoteController.clear();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Internal note added successfully')),
+        );
+      } else {
+        throw Exception((data['message'] ?? 'Failed to add note').toString());
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _updateSuspension({required bool clear}) async {
+    try {
+      DateTime? selectedUntil;
+      if (!clear) {
+        final pickedDate = await showDatePicker(
+          context: context,
+          firstDate: DateTime.now(),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+          initialDate: DateTime.now().add(const Duration(days: 1)),
+        );
+        if (pickedDate == null) return;
+        final pickedTime = await showTimePicker(
+          context: context,
+          initialTime: TimeOfDay.now(),
+        );
+        if (pickedTime == null) return;
+        selectedUntil = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
+      }
+
+      final response = await ApiClient.patch(
+        '/api/admin/users/${widget.user['_id']}/suspension',
+        body: clear
+            ? {'clearSuspension': true}
+            : {
+                'suspendedUntil': selectedUntil?.toIso8601String(),
+                'suspensionReason': _suspensionReasonController.text.trim(),
+              },
+      );
+      final data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        setState(() {
+          widget.user.addAll(Map<String, dynamic>.from(data['user']));
+        });
+        _suspensionReasonController.clear();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text((data['message'] ?? 'Suspension updated').toString())),
+        );
+      } else {
+        throw Exception((data['message'] ?? 'Failed to update suspension').toString());
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _forceLogoutUser() async {
+    try {
+      final response = await ApiClient.post(
+        '/api/admin/users/${widget.user['_id']}/force-logout',
+        body: const {},
+      );
+      final data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        setState(() {
+          widget.user.addAll(Map<String, dynamic>.from(data['user']));
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text((data['message'] ?? 'User logged out').toString())),
+        );
+      } else {
+        throw Exception((data['message'] ?? 'Failed to force logout').toString());
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
     }
   }
 

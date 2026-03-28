@@ -3,10 +3,50 @@ const PremiumBenefit = require('../models/premiumBenefit');
 const Faq = require('../models/faq');
 const Subscription = require('../models/subscription');
 const User = require('../models/user');
+const Admin = require('../models/admin');
+
+const normalizePermissions = (permissions = {}) => ({
+    canManageUsers: permissions.canManageUsers !== false,
+    canManageTransactions: permissions.canManageTransactions !== false,
+    canManageSupport: permissions.canManageSupport !== false,
+    canManageContent: permissions.canManageContent !== false,
+    canManageDigitise: permissions.canManageDigitise !== false,
+    canManageSettings: permissions.canManageSettings !== false,
+    canViewAuditLogs: permissions.canViewAuditLogs !== false,
+});
+
+const getCurrentAdmin = async (req) => {
+    const adminId = req.user?._id || req.user?.userId || req.user?.id;
+    if (adminId) {
+        const admin = await Admin.findById(adminId).select('_id email isSuperAdmin permissions').lean();
+        if (admin) return admin;
+    }
+    if (req.user?.email) {
+        return Admin.findOne({ email: req.user.email })
+            .select('_id email isSuperAdmin permissions')
+            .lean();
+    }
+    return null;
+};
+
+const ensureDigitisePermission = async (req, res) => {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (
+        !currentAdmin ||
+        !(currentAdmin.isSuperAdmin === true ||
+            normalizePermissions(currentAdmin.permissions || {}).canManageDigitise === true)
+    ) {
+        res.status(403).json({ message: 'You do not have permission to manage digitise features' });
+        return null;
+    }
+    return currentAdmin;
+};
 
 // Subscription Plan Controllers
 exports.createSubscriptionPlan = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { name, price, duration, features, offer, discount, free } = req.body;
         const newPlan = new SubscriptionPlan({ name, price, duration, features, offer, discount, free });
         await newPlan.save();
@@ -18,6 +58,8 @@ exports.createSubscriptionPlan = async (req, res) => {
 
 exports.getSubscriptionPlans = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const plans = await SubscriptionPlan.find();
         res.status(200).json(plans);
     } catch (error) {
@@ -27,6 +69,8 @@ exports.getSubscriptionPlans = async (req, res) => {
 
 exports.updateSubscriptionPlan = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { id } = req.params;
         const { name, price, duration, features, isAvailable, offer, discount, free } = req.body;
         const updatedPlan = await SubscriptionPlan.findByIdAndUpdate(id, { name, price, duration, features, isAvailable, offer, discount, free }, { new: true });
@@ -41,6 +85,8 @@ exports.updateSubscriptionPlan = async (req, res) => {
 
 exports.deleteSubscriptionPlan = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { id } = req.params;
         const deletedPlan = await SubscriptionPlan.findByIdAndDelete(id);
         if (!deletedPlan) {
@@ -55,6 +101,8 @@ exports.deleteSubscriptionPlan = async (req, res) => {
 // Premium Benefit Controllers
 exports.createPremiumBenefit = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { text } = req.body;
         const newBenefit = new PremiumBenefit({ text });
         await newBenefit.save();
@@ -66,6 +114,8 @@ exports.createPremiumBenefit = async (req, res) => {
 
 exports.getPremiumBenefits = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const benefits = await PremiumBenefit.find();
         res.status(200).json(benefits);
     } catch (error) {
@@ -75,6 +125,8 @@ exports.getPremiumBenefits = async (req, res) => {
 
 exports.updatePremiumBenefit = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { id } = req.params;
         const { text } = req.body;
         const updatedBenefit = await PremiumBenefit.findByIdAndUpdate(id, { text }, { new: true });
@@ -89,6 +141,8 @@ exports.updatePremiumBenefit = async (req, res) => {
 
 exports.deletePremiumBenefit = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { id } = req.params;
         const deletedBenefit = await PremiumBenefit.findByIdAndDelete(id);
         if (!deletedBenefit) {
@@ -103,6 +157,8 @@ exports.deletePremiumBenefit = async (req, res) => {
 // FAQ Controllers
 exports.createFaq = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { question, answer } = req.body;
         const newFaq = new Faq({ question, answer });
         await newFaq.save();
@@ -114,6 +170,8 @@ exports.createFaq = async (req, res) => {
 
 exports.getFaqs = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const faqs = await Faq.find();
         res.status(200).json(faqs);
     } catch (error) {
@@ -123,6 +181,8 @@ exports.getFaqs = async (req, res) => {
 
 exports.updateFaq = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { id } = req.params;
         const { question, answer } = req.body;
         const updatedFaq = await Faq.findByIdAndUpdate(id, { question, answer }, { new: true });
@@ -137,6 +197,8 @@ exports.updateFaq = async (req, res) => {
 
 exports.deleteFaq = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { id } = req.params;
         const deletedFaq = await Faq.findByIdAndDelete(id);
         if (!deletedFaq) {
@@ -151,6 +213,8 @@ exports.deleteFaq = async (req, res) => {
 // Manage Subscriptions
 exports.getAllSubscriptions = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { search } = req.query;
         let subscriptions;
 
@@ -185,6 +249,8 @@ exports.getAllSubscriptions = async (req, res) => {
 
 exports.updateUserSubscription = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { id } = req.params;
         const { subscriptionPlan, duration, price, discount, free, endDate } = req.body;
         const updatedSubscription = await Subscription.findByIdAndUpdate(id, { subscriptionPlan, duration, price, discount, free, endDate }, { new: true });
@@ -199,6 +265,8 @@ exports.updateUserSubscription = async (req, res) => {
 
 exports.deactivateUserSubscription = async (req, res) => {
     try {
+        const permitted = await ensureDigitisePermission(req, res);
+        if (!permitted) return;
         const { id } = req.params;
         const updatedSubscription = await Subscription.findByIdAndUpdate(id, { status: 'expired' }, { new: true });
         if (!updatedSubscription) {

@@ -237,6 +237,19 @@ const getCurrentAdmin = async (req) => {
   return admin;
 };
 
+const toAdminNoteResponse = (note) => ({
+  _id: note._id,
+  noteText: note.noteText,
+  createdAt: note.createdAt,
+  admin: note.admin
+    ? {
+        _id: note.admin._id || note.admin,
+        email: note.admin.email,
+        name: note.admin.name,
+      }
+    : null,
+});
+
 
 // Admin registration
 const register = async (req, res) => {
@@ -319,7 +332,9 @@ const getAllUsers = async (req, res) => {
       });
     }
 
-    const users = await User.find({}, '-password').sort({ createdAt: -1 });
+    const users = await User.find({}, '-password')
+      .populate('adminNotes.admin', 'email name')
+      .sort({ createdAt: -1 });
     
     res.json({
       success: true,
@@ -355,7 +370,9 @@ const getUserDetails = async (req, res) => {
 
     const { userId } = req.params;
     
-    const user = await User.findById(userId, '-password').lean();
+    const user = await User.findById(userId, '-password')
+      .populate('adminNotes.admin', 'email name')
+      .lean();
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -521,7 +538,14 @@ const getUserDetails = async (req, res) => {
 
     res.json({
       success: true,
-      user: user,
+      user: {
+        ...user,
+        adminNotes: Array.isArray(user.adminNotes)
+          ? user.adminNotes.map((note) => toAdminNoteResponse(note))
+          : [],
+        isSuspended:
+          !!user.suspendedUntil && new Date(user.suspendedUntil) > new Date(),
+      },
       stats: userStats,
       recentTransactions: recentTransactions,
       userActivity: recentActivities.map((activity) => ({
@@ -1448,6 +1472,186 @@ const reviewPendingUser = async (req, res) => {
   }
 };
 
+const addAdminNoteToUser = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to manage users',
+      });
+    }
+
+    const { userId } = req.params;
+    const noteText = (req.body?.noteText || '').toString().trim();
+    if (!noteText) {
+      return res.status(400).json({
+        success: false,
+        message: 'Note text is required',
+      });
+    }
+
+    const user = await User.findById(userId).populate('adminNotes.admin', 'email name');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    user.adminNotes.push({
+      admin: currentAdmin._id,
+      noteText,
+    });
+    await user.save();
+    await user.populate('adminNotes.admin', 'email name');
+
+    const latestNote = user.adminNotes[user.adminNotes.length - 1];
+
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'user_admin_note_added',
+      targetType: 'user',
+      targetId: user._id,
+      summary: `${currentAdmin.email} added an internal note on ${user.email}`,
+      details: { noteText },
+      severity: 'info',
+    });
+
+    return res.json({
+      success: true,
+      message: 'Internal note added successfully',
+      note: toAdminNoteResponse(latestNote),
+    });
+  } catch (error) {
+    console.error('Error adding admin note to user:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to add internal note',
+    });
+  }
+};
+
+const updateUserSuspension = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to manage users',
+      });
+    }
+
+    const { userId } = req.params;
+    const { suspendedUntil, suspensionReason, clearSuspension } = req.body || {};
+    const user = await User.findById(userId).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    if (clearSuspension === true || !suspendedUntil) {
+      user.suspendedUntil = null;
+      user.suspensionReason = null;
+    } else {
+      const parsedDate = new Date(suspendedUntil);
+      if (Number.isNaN(parsedDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Suspended until must be a valid date',
+        });
+      }
+      user.suspendedUntil = parsedDate;
+      user.suspensionReason = (suspensionReason || '').toString().trim() || null;
+    }
+
+    await user.save();
+
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'user_suspension_updated',
+      targetType: 'user',
+      targetId: user._id,
+      summary:
+        user.suspendedUntil
+          ? `${currentAdmin.email} suspended ${user.email} until ${user.suspendedUntil.toISOString()}`
+          : `${currentAdmin.email} cleared suspension for ${user.email}`,
+      details: {
+        suspendedUntil: user.suspendedUntil,
+        suspensionReason: user.suspensionReason,
+      },
+      severity: 'warning',
+    });
+
+    return res.json({
+      success: true,
+      message: user.suspendedUntil
+        ? 'User suspension updated successfully'
+        : 'User suspension cleared successfully',
+      user,
+    });
+  } catch (error) {
+    console.error('Error updating user suspension:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update suspension',
+    });
+  }
+};
+
+const forceLogoutUser = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to manage users',
+      });
+    }
+
+    const { userId } = req.params;
+    const user = await User.findById(userId).select('-password');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    user.forceLogoutAfter = new Date();
+    user.devices = [];
+    await user.save();
+
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'user_force_logout',
+      targetType: 'user',
+      targetId: user._id,
+      summary: `${currentAdmin.email} forced logout for ${user.email}`,
+      details: {},
+      severity: 'warning',
+    });
+
+    return res.json({
+      success: true,
+      message: 'User was logged out from active sessions',
+      user,
+    });
+  } catch (error) {
+    console.error('Error forcing logout for user:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to force logout user',
+    });
+  }
+};
+
 const getDashboardSummary = async (req, res) => {
   try {
     const currentAdmin = await getCurrentAdmin(req);
@@ -2289,6 +2493,9 @@ module.exports = {
   exportUsers,
   clearPendingUsers,
   reviewPendingUser,
+  addAdminNoteToUser,
+  updateUserSuspension,
+  forceLogoutUser,
   getUserDetails,
   bulkUpdateUserStatus,
   updateUserStatus,

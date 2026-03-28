@@ -3,6 +3,7 @@ const Offer = require('../models/offer');
 const OfferClaim = require('../models/offerClaim');
 const User = require('../models/user');
 const Notification = require('../models/notification');
+const Admin = require('../models/admin');
 const { createActivityLog } = require('./activityController');
 const { recordCoinLedgerEntry } = require('../utils/coinLedgerService');
 
@@ -91,6 +92,43 @@ const getTodayRange = () => {
   const end = new Date(now);
   end.setHours(23, 59, 59, 999);
   return { start, end };
+};
+
+const normalizePermissions = (permissions = {}) => ({
+  canManageUsers: permissions.canManageUsers !== false,
+  canManageTransactions: permissions.canManageTransactions !== false,
+  canManageSupport: permissions.canManageSupport !== false,
+  canManageContent: permissions.canManageContent !== false,
+  canManageDigitise: permissions.canManageDigitise !== false,
+  canManageSettings: permissions.canManageSettings !== false,
+  canViewAuditLogs: permissions.canViewAuditLogs !== false,
+});
+
+const getCurrentAdmin = async (req) => {
+  const adminId = req.user?._id || req.user?.userId || req.user?.id;
+  if (adminId) {
+    const admin = await Admin.findById(adminId).select('_id email isSuperAdmin permissions').lean();
+    if (admin) return admin;
+  }
+  if (req.user?.email) {
+    return Admin.findOne({ email: req.user.email })
+      .select('_id email isSuperAdmin permissions')
+      .lean();
+  }
+  return null;
+};
+
+const ensureDigitisePermission = async (req, res) => {
+  const currentAdmin = await getCurrentAdmin(req);
+  if (
+    !currentAdmin ||
+    !(currentAdmin.isSuperAdmin === true ||
+      normalizePermissions(currentAdmin.permissions || {}).canManageDigitise === true)
+  ) {
+    res.status(403).json({ error: 'You do not have permission to manage offers' });
+    return null;
+  }
+  return currentAdmin;
 };
 
 const sendOfferNotificationToUsers = async ({
@@ -238,6 +276,8 @@ exports.cleanupExpiredOffers = cleanupExpiredOffers;
 
 exports.createOffer = async (req, res) => {
   try {
+    const permitted = await ensureDigitisePermission(req, res);
+    if (!permitted) return;
     const {
       name,
       description,
@@ -323,6 +363,8 @@ exports.createOffer = async (req, res) => {
 
 exports.getAdminOffers = async (req, res) => {
   try {
+    const permitted = await ensureDigitisePermission(req, res);
+    if (!permitted) return;
     await cleanupExpiredOffers();
     const {
       includeInactive = 'true',
@@ -402,6 +444,8 @@ exports.getAdminOffers = async (req, res) => {
 
 exports.updateOffer = async (req, res) => {
   try {
+    const permitted = await ensureDigitisePermission(req, res);
+    if (!permitted) return;
     await cleanupExpiredOffers();
     const { offerId } = req.params;
     const offer = await Offer.findById(offerId);
@@ -500,6 +544,8 @@ exports.updateOffer = async (req, res) => {
 
 exports.deleteOffer = async (req, res) => {
   try {
+    const permitted = await ensureDigitisePermission(req, res);
+    if (!permitted) return;
     const { offerId } = req.params;
     const offer = await Offer.findById(offerId);
     if (!offer) return res.status(404).json({ error: 'Offer not found' });
@@ -815,6 +861,8 @@ exports.getMyOfferClaims = async (req, res) => {
 
 exports.searchUsersForOffers = async (req, res) => {
   try {
+    const permitted = await ensureDigitisePermission(req, res);
+    if (!permitted) return;
     const { search = '', limit = 20 } = req.query;
     const parsedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
     const trimmed = search.toString().trim();
@@ -840,6 +888,8 @@ exports.searchUsersForOffers = async (req, res) => {
 
 exports.getOfferAnalytics = async (req, res) => {
   try {
+    const permitted = await ensureDigitisePermission(req, res);
+    if (!permitted) return;
     await cleanupExpiredOffers();
     const { offerId } = req.params;
     const offer = await Offer.findById(offerId).populate(
@@ -898,6 +948,8 @@ exports.getOfferAnalytics = async (req, res) => {
 
 exports.getOfferClaimsAudit = async (req, res) => {
   try {
+    const permitted = await ensureDigitisePermission(req, res);
+    if (!permitted) return;
     await cleanupExpiredOffers();
     const { offerId } = req.params;
     const {

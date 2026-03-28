@@ -35,6 +35,36 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
   isActive: { type: Boolean, default: true },
   isVerified: { type: Boolean, default: true },
+  suspendedUntil: {
+    type: Date,
+    default: null,
+  },
+  suspensionReason: {
+    type: String,
+    default: null,
+  },
+  forceLogoutAfter: {
+    type: Date,
+    default: null,
+  },
+  adminNotes: [
+    {
+      admin: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin',
+        required: true,
+      },
+      noteText: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+  ],
   deactivatedAccount: {
     type: Boolean,
     default: false

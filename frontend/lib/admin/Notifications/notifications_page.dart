@@ -27,9 +27,13 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
   String _recipientType = 'all-users';
   String _inboxCategory = 'all';
   String _sentCategory = 'all';
+  String _deliveryStatus = 'sent';
+  String? _audiencePreview;
 
+  final _titleController = TextEditingController();
   final _messageController = TextEditingController();
   final _recipientsController = TextEditingController();
+  final _scheduledForController = TextEditingController();
 
   final List<_NotificationCategoryChip> _categories = const [
     _NotificationCategoryChip(label: 'All', value: 'all'),
@@ -53,8 +57,10 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _titleController.dispose();
     _messageController.dispose();
     _recipientsController.dispose();
+    _scheduledForController.dispose();
     super.dispose();
   }
 
@@ -193,20 +199,34 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
 
     try {
       final response = await ApiClient.post('/api/notifications', body: {
+        'title': _titleController.text.trim(),
         'message': _messageController.text,
         'recipientType': _recipientType,
         'recipients': recipients,
         'category': _categoryFromComposer(),
+        'deliveryStatus': _deliveryStatus,
+        'scheduledFor': _scheduledForController.text.trim(),
       });
 
       if (response.statusCode == 201) {
+        _titleController.clear();
         _messageController.clear();
         _recipientsController.clear();
+        _scheduledForController.clear();
+        _audiencePreview = null;
         await _fetchReceivedNotifications();
         await _fetchSentNotifications();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Notification sent successfully.')),
+            SnackBar(
+              content: Text(
+                _deliveryStatus == 'scheduled'
+                    ? 'Notification scheduled successfully.'
+                    : _deliveryStatus == 'draft'
+                        ? 'Notification draft saved successfully.'
+                        : 'Notification sent successfully.',
+              ),
+            ),
           );
         }
       } else if (mounted) {
@@ -232,6 +252,46 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
         setState(() => _isSending = false);
       }
     }
+  }
+
+  Future<void> _loadAudiencePreview() async {
+    final recipients = _recipientsController.text.trim();
+    final response = await ApiClient.get(
+      '/api/notifications/audience-preview?recipientType=${Uri.encodeQueryComponent(_recipientType)}&recipients=${Uri.encodeQueryComponent(recipients)}',
+    );
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      setState(() {
+        final invalid = List<String>.from(data['invalidRecipients'] ?? const []);
+        _audiencePreview =
+            '${data['estimatedAudience'] ?? 0} eligible recipients${invalid.isNotEmpty ? ' • Invalid: ${invalid.join(', ')}' : ''}';
+      });
+    }
+  }
+
+  Future<void> _pickScheduledDateTime() async {
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+    );
+    if (date == null) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (time == null) return;
+    final scheduled = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+    setState(() {
+      _scheduledForController.text = scheduled.toIso8601String();
+    });
   }
 
   Future<void> _deleteNotification(String notificationId) async {
@@ -887,6 +947,16 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                 ),
                 const SizedBox(height: 16),
                 TextField(
+                  controller: _titleController,
+                  decoration: InputDecoration(
+                    labelText: 'Title',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
                   controller: _messageController,
                   maxLines: 4,
                   decoration: InputDecoration(
@@ -924,6 +994,29 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                     }
                   },
                 ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  value: _deliveryStatus,
+                  decoration: InputDecoration(
+                    labelText: 'Delivery',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 'sent', child: Text('Send Now')),
+                    DropdownMenuItem(value: 'draft', child: Text('Save Draft')),
+                    DropdownMenuItem(
+                      value: 'scheduled',
+                      child: Text('Schedule'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _deliveryStatus = value);
+                    }
+                  },
+                ),
                 if (_recipientType == 'specific-users' ||
                     _recipientType == 'specific-admins') ...[
                   const SizedBox(height: 14),
@@ -937,6 +1030,44 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
                     ),
                   ),
                 ],
+                if (_deliveryStatus == 'scheduled') ...[
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: _scheduledForController,
+                    readOnly: true,
+                    onTap: _pickScheduledDateTime,
+                    decoration: InputDecoration(
+                      labelText: 'Scheduled For',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      suffixIcon: const Icon(Icons.schedule_rounded),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6FBFE),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _audiencePreview ?? 'Audience preview will appear here.',
+                          style: TextStyle(color: Colors.grey.shade700),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _loadAudiencePreview,
+                        child: const Text('Preview'),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 18),
                 SizedBox(
                   width: double.infinity,

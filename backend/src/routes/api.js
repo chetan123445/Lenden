@@ -376,6 +376,9 @@ module.exports = (io) => {
   router.get('/admin/users/export', auth, isAdmin, adminController.exportUsers);
   router.patch('/admin/users/clear-pending', auth, isAdmin, adminController.clearPendingUsers);
   router.patch('/admin/users/:userId/review-pending', auth, isAdmin, adminController.reviewPendingUser);
+  router.post('/admin/users/:userId/notes', auth, isAdmin, adminController.addAdminNoteToUser);
+  router.patch('/admin/users/:userId/suspension', auth, isAdmin, adminController.updateUserSuspension);
+  router.post('/admin/users/:userId/force-logout', auth, isAdmin, adminController.forceLogoutUser);
   router.get('/admin/users/:userId/details', auth, isAdmin, adminController.getUserDetails);
   router.patch('/admin/users/bulk-status', auth, isAdmin, adminController.bulkUpdateUserStatus);
   router.patch('/admin/users/:userId/status', auth, isAdmin, adminController.updateUserStatus);
@@ -447,6 +450,7 @@ module.exports = (io) => {
   router.post('/notifications', auth, isAdmin, notificationController.createNotification);
   router.get('/notifications', auth, notificationController.getNotifications);
   router.get('/notifications/sent', auth, isAdmin, notificationController.getSentNotifications);
+  router.get('/notifications/audience-preview', auth, isAdmin, notificationController.getAudiencePreview);
   router.get('/notifications/unread-count', auth, notificationController.getUnreadNotificationCount);
   router.post('/notifications/mark-as-read', auth, notificationController.markNotificationsAsRead);
   router.delete('/notifications/:id', auth, notificationController.deleteNotification);

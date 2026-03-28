@@ -91,6 +91,23 @@ class _ManageOffersPageState extends State<ManageOffersPage> {
     return d.toLocal().toString().substring(0, 16);
   }
 
+  Widget _buildOverviewChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF0077B5),
+        ),
+      ),
+    );
+  }
+
   Color _statusColor(String status) {
     switch (status) {
       case 'draft':
@@ -1342,6 +1359,28 @@ class _ManageOffersPageState extends State<ManageOffersPage> {
                   ),
                 ),
                 _buildFilterBar(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _buildOverviewChip('Loaded', '${_offers.length}'),
+                      _buildOverviewChip(
+                        'Active',
+                        '${_offers.where((offer) => (offer['status'] ?? '') == 'active').length}',
+                      ),
+                      _buildOverviewChip(
+                        'Scheduled',
+                        '${_offers.where((offer) => (offer['status'] ?? '') == 'scheduled').length}',
+                      ),
+                      _buildOverviewChip(
+                        'Coins',
+                        '${_offers.fold<num>(0, (sum, offer) => sum + ((offer['analytics']?['distributedCoins'] ?? 0) as num))}',
+                      ),
+                    ],
+                  ),
+                ),
                 Expanded(child: RefreshIndicator(onRefresh: _fetchOffers, child: _buildOfferList())),
                 _buildPagination(),
               ],
