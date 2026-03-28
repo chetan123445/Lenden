@@ -1,9 +1,133 @@
 const User = require('../models/user');
 const Admin = require('../models/admin');
 const GroupTransaction = require('../models/groupTransaction');
+const Transaction = require('../models/transaction');
+const QuickTransaction = require('../models/quickTransaction');
+const Activity = require('../models/activity');
+const Subscription = require('../models/subscription');
+const SupportQuery = require('../models/supportQuery');
+const Notification = require('../models/notification');
+const AppUpdate = require('../models/appUpdate');
+const AppAd = require('../models/appAd');
+const AppAdEvent = require('../models/appAdEvent');
+const Feedback = require('../models/feedback');
+const AdminAuditLog = require('../models/adminAuditLog');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { sendAdminWelcomeEmail, sendAdminRemovalEmail } = require('../utils/adminEmailNotifications');
+const { logAdminAudit } = require('../utils/adminAuditLogger');
+
+const roundToTwo = (value) => Number((Number(value || 0)).toFixed(2));
+
+const startOfToday = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+};
+
+const endOfToday = () => {
+  const start = startOfToday();
+  return new Date(start.getTime() + 24 * 60 * 60 * 1000);
+};
+
+const normalizeSecureTransaction = (transaction, userEmail) => ({
+  _id: transaction._id,
+  transactionId: transaction.transactionId,
+  source: 'secure',
+  amount: Number(transaction.amount || 0),
+  currency: transaction.currency || '',
+  createdAt: transaction.createdAt || transaction.date || new Date(),
+  date: transaction.date || transaction.createdAt || null,
+  status:
+    transaction.userCleared && transaction.counterpartyCleared
+      ? 'completed'
+      : transaction.isPartiallyPaid
+          ? 'partially_paid'
+          : 'pending',
+  counterpart:
+    transaction.userEmail === userEmail
+      ? transaction.counterpartyEmail
+      : transaction.userEmail,
+  place: transaction.place || '',
+  description: transaction.description || '',
+  role: transaction.role || '',
+});
+
+const normalizeQuickTransaction = (transaction, userEmail) => ({
+  _id: transaction._id,
+  transactionId: transaction._id,
+  source: 'quick',
+  amount: Number(transaction.amount || 0),
+  currency: transaction.currency || '',
+  createdAt: transaction.createdAt || transaction.date || new Date(),
+  date: transaction.date || transaction.createdAt || null,
+  status: transaction.cleared ? 'completed' : 'pending',
+  counterpart: (transaction.users || [])
+    .filter((email) => email !== userEmail)
+    .join(', '),
+  place: '',
+  description: transaction.description || '',
+  role: transaction.role || '',
+});
+
+const buildAdminNotificationFilter = (adminId) => {
+  if (!adminId) return { _id: null };
+
+  return {
+    recipientModel: 'Admin',
+    $or: [
+      { recipientType: 'all-admins' },
+      {
+        recipientType: 'specific-admins',
+        recipients: adminId,
+      },
+    ],
+    readBy: { $ne: adminId },
+  };
+};
+
+const ADMIN_PERMISSION_KEYS = [
+  'canManageUsers',
+  'canManageTransactions',
+  'canManageSupport',
+  'canManageContent',
+  'canManageDigitise',
+  'canManageSettings',
+  'canViewAuditLogs',
+];
+
+const normalizeAdminPermissions = (permissions = {}) => {
+  const normalized = {};
+  for (const key of ADMIN_PERMISSION_KEYS) {
+    normalized[key] = permissions[key] !== false;
+  }
+  return normalized;
+};
+
+const hasAdminPermission = (admin, key) => {
+  if (!admin) return false;
+  if (admin.isSuperAdmin === true) return true;
+  return normalizeAdminPermissions(admin.permissions || {})[key] === true;
+};
+
+const escapeCsv = (value) => {
+  const stringValue =
+    value === null || value === undefined ? '' : String(value);
+  return `"${stringValue.replace(/"/g, '""')}"`;
+};
+
+const sendCsv = (res, filename, columns, rows) => {
+  const header = columns.map((column) => escapeCsv(column.label)).join(',');
+  const body = rows
+    .map((row) =>
+      columns.map((column) => escapeCsv(row[column.key])).join(',')
+    )
+    .join('\n');
+  const csv = `${header}\n${body}`;
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  return res.status(200).send(csv);
+};
 
 const ensureGroupBalanceEntries = (group) => {
   if (!group) return false;
@@ -99,6 +223,20 @@ const rebuildGroupBalances = async (group) => {
   return changed;
 };
 
+const getCurrentAdmin = async (req) => {
+  const adminId = req.user?._id || req.user?.userId || req.user?.id;
+  let admin = null;
+
+  if (adminId) {
+    admin = await Admin.findById(adminId).select('-password');
+  }
+  if (!admin && req.user?.email) {
+    admin = await Admin.findOne({ email: req.user.email }).select('-password');
+  }
+
+  return admin;
+};
+
 
 // Admin registration
 const register = async (req, res) => {
@@ -135,7 +273,13 @@ const register = async (req, res) => {
     // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
     const token = jwt.sign(
-      { userId: admin._id, role: admin.role },
+      {
+        _id: admin._id,
+        userId: admin._id,
+        email: admin.email,
+        role: 'admin',
+        isSuperAdmin: admin.isSuperAdmin === true,
+      },
       jwtSecret,
       { expiresIn: '24h' }
     );
@@ -149,7 +293,8 @@ const register = async (req, res) => {
         username: admin.username,
         email: admin.email,
         name: admin.name,
-        role: admin.role
+        role: 'admin',
+        isSuperAdmin: admin.isSuperAdmin === true,
       }
     });
   } catch (error) {
@@ -166,11 +311,27 @@ const register = async (req, res) => {
 // Get all users (for admin)
 const getAllUsers = async (req, res) => {
   try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to manage users',
+      });
+    }
+
     const users = await User.find({}, '-password').sort({ createdAt: -1 });
     
     res.json({
       success: true,
-      users: users
+      users: users,
+      currentAdmin: currentAdmin
+        ? {
+            _id: currentAdmin._id,
+            email: currentAdmin.email,
+            isSuperAdmin: currentAdmin.isSuperAdmin === true,
+            permissions: normalizeAdminPermissions(currentAdmin.permissions),
+          }
+        : null,
     });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -184,9 +345,17 @@ const getAllUsers = async (req, res) => {
 // Get user details with stats
 const getUserDetails = async (req, res) => {
   try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to view user details',
+      });
+    }
+
     const { userId } = req.params;
     
-    const user = await User.findById(userId, '-password');
+    const user = await User.findById(userId, '-password').lean();
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -194,62 +363,176 @@ const getUserDetails = async (req, res) => {
       });
     }
 
-    // Mock data for user stats (in a real app, you'd aggregate from transactions)
-    const userStats = {
-      totalTransactions: Math.floor(Math.random() * 100),
-      totalAmount: Math.floor(Math.random() * 10000),
-      successfulTransactions: Math.floor(Math.random() * 80),
-      failedTransactions: Math.floor(Math.random() * 20),
-      averageTransaction: Math.floor(Math.random() * 500),
-      largestTransaction: Math.floor(Math.random() * 2000),
-      totalGroups: Math.floor(Math.random() * 10),
-      totalFriends: Math.floor(Math.random() * 50),
-      daysActive: Math.floor(Math.random() * 365),
-      lastActivity: new Date(),
-      loginCount: Math.floor(Math.random() * 100),
-      profileViews: Math.floor(Math.random() * 1000)
+    const transactionFilter = {
+      $or: [{ userEmail: user.email }, { counterpartyEmail: user.email }],
+    };
+    const quickTransactionFilter = {
+      $or: [{ creatorEmail: user.email }, { users: user.email }],
     };
 
-    // Mock recent transactions
-    const recentTransactions = [
-      {
-        id: '1',
-        amount: 150.00,
-        type: 'send',
-        status: 'completed',
-        createdAt: new Date()
-      },
-      {
-        id: '2',
-        amount: 75.50,
-        type: 'receive',
-        status: 'completed',
-        createdAt: new Date(Date.now() - 86400000)
-      }
-    ];
+    const [
+      secureTransactions,
+      quickTransactions,
+      secureAggregate,
+      quickAggregate,
+      secureCompletedCount,
+      quickCompletedCount,
+      groups,
+      loginCount,
+      latestActivity,
+      recentActivities,
+      activeSubscription,
+    ] = await Promise.all([
+      Transaction.find(transactionFilter).sort({ createdAt: -1 }).limit(8).lean(),
+      QuickTransaction.find(quickTransactionFilter)
+        .sort({ createdAt: -1 })
+        .limit(8)
+        .lean(),
+      Transaction.aggregate([
+        { $match: transactionFilter },
+        {
+          $group: {
+            _id: null,
+            totalTransactions: { $sum: 1 },
+            totalAmount: { $sum: '$amount' },
+            largestTransaction: { $max: '$amount' },
+          },
+        },
+      ]),
+      QuickTransaction.aggregate([
+        { $match: quickTransactionFilter },
+        {
+          $group: {
+            _id: null,
+            totalTransactions: { $sum: 1 },
+            totalAmount: { $sum: '$amount' },
+            largestTransaction: { $max: '$amount' },
+          },
+        },
+      ]),
+      Transaction.countDocuments({
+        ...transactionFilter,
+        userCleared: true,
+        counterpartyCleared: true,
+      }),
+      QuickTransaction.countDocuments({
+        ...quickTransactionFilter,
+        cleared: true,
+      }),
+      GroupTransaction.find({
+        isActive: true,
+        'members.user': user._id,
+      })
+        .select('creator members')
+        .lean(),
+      Activity.countDocuments({ user: user._id, type: 'login' }),
+      Activity.findOne({ user: user._id }).sort({ createdAt: -1 }).lean(),
+      Activity.find({ user: user._id }).sort({ createdAt: -1 }).limit(10).lean(),
+      Subscription.findOne({
+        user: user._id,
+        subscribed: true,
+        status: 'active',
+        endDate: { $gte: new Date() },
+      })
+        .sort({ endDate: -1 })
+        .lean(),
+    ]);
 
-    // Mock user activity
-    const userActivity = [
-      {
-        action: 'login',
-        timestamp: new Date()
-      },
-      {
-        action: 'transaction',
-        timestamp: new Date(Date.now() - 3600000)
-      },
-      {
-        action: 'profile_update',
-        timestamp: new Date(Date.now() - 86400000)
-      }
-    ];
+    const secureSummary = secureAggregate[0] || {};
+    const quickSummary = quickAggregate[0] || {};
+    const totalTransactions =
+      Number(secureSummary.totalTransactions || 0) +
+      Number(quickSummary.totalTransactions || 0);
+    const totalAmount =
+      Number(secureSummary.totalAmount || 0) +
+      Number(quickSummary.totalAmount || 0);
+    const successfulTransactions =
+      Number(secureCompletedCount || 0) + Number(quickCompletedCount || 0);
+    const pendingTransactions = Math.max(
+      totalTransactions - successfulTransactions,
+      0
+    );
+    const largestTransaction = Math.max(
+      Number(secureSummary.largestTransaction || 0),
+      Number(quickSummary.largestTransaction || 0)
+    );
+    const averageTransaction =
+      totalTransactions > 0 ? totalAmount / totalTransactions : 0;
+    const totalGroups = groups.filter((group) =>
+      (group.members || []).some(
+        (member) =>
+          member?.user?.toString?.() === user._id.toString() && !member.leftAt
+      )
+    ).length;
+    const groupsCreated = groups.filter(
+      (group) => group.creator?.toString?.() === user._id.toString()
+    ).length;
+    const recentTransactions = [...secureTransactions, ...quickTransactions]
+      .map((transaction) =>
+        transaction.userEmail || transaction.counterpartyEmail
+          ? normalizeSecureTransaction(transaction, user.email)
+          : normalizeQuickTransaction(transaction, user.email)
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      .slice(0, 10);
+
+    const lastActivityAt =
+      latestActivity?.createdAt ||
+      user.privacySettings?.lastActivityAt ||
+      user.updatedAt ||
+      user.createdAt;
+
+    const userStats = {
+      totalTransactions,
+      totalAmount: roundToTwo(totalAmount),
+      successfulTransactions,
+      pendingTransactions,
+      averageTransaction: roundToTwo(averageTransaction),
+      largestTransaction: roundToTwo(largestTransaction),
+      totalGroups,
+      groupsCreated,
+      totalFriends: Array.isArray(user.friends) ? user.friends.length : 0,
+      daysActive: Math.max(
+        1,
+        Math.ceil(
+          (Date.now() - new Date(user.createdAt || Date.now()).getTime()) /
+            (24 * 60 * 60 * 1000)
+        )
+      ),
+      lastActivity: lastActivityAt,
+      loginCount,
+      profileViews: 0,
+      secureTransactions:
+        Number(secureSummary.totalTransactions || 0),
+      quickTransactions:
+        Number(quickSummary.totalTransactions || 0),
+      activeSubscription: activeSubscription
+        ? {
+            subscribed: true,
+            plan: activeSubscription.subscriptionPlan || 'Active plan',
+            endDate: activeSubscription.endDate,
+          }
+        : null,
+      lenDenCoins: Number(user.lenDenCoins || 0),
+    };
 
     res.json({
       success: true,
       user: user,
       stats: userStats,
       recentTransactions: recentTransactions,
-      userActivity: userActivity
+      userActivity: recentActivities.map((activity) => ({
+        _id: activity._id,
+        action: activity.type,
+        title: activity.title,
+        description: activity.description,
+        amount: activity.amount,
+        timestamp: activity.createdAt,
+        metadata: activity.metadata || {},
+      })),
     });
   } catch (error) {
     console.error('Error fetching user details:', error);
@@ -263,6 +546,14 @@ const getUserDetails = async (req, res) => {
 // Update user status (activate/deactivate)
 const updateUserStatus = async (req, res) => {
   try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to manage users',
+      });
+    }
+
     const { userId } = req.params;
     const { isActive } = req.body;
 
@@ -284,6 +575,16 @@ const updateUserStatus = async (req, res) => {
       message: `User ${isActive ? 'activated' : 'deactivated'} successfully`,
       user: user
     });
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'user_status_updated',
+      targetType: 'user',
+      targetId: user._id,
+      summary: `${currentAdmin.email} ${isActive ? 'activated' : 'deactivated'} user ${user.email}`,
+      details: { isActive },
+      severity: 'warning',
+    });
   } catch (error) {
     console.error('Error updating user status:', error);
     res.status(500).json({
@@ -296,6 +597,14 @@ const updateUserStatus = async (req, res) => {
 // Update user information
 const updateUser = async (req, res) => {
   try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to update users',
+      });
+    }
+
     const { userId } = req.params;
     const updateData = req.body;
 
@@ -322,6 +631,15 @@ const updateUser = async (req, res) => {
       message: 'User updated successfully',
       user: user
     });
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'user_updated',
+      targetType: 'user',
+      targetId: user._id,
+      summary: `${currentAdmin.email} updated user ${user.email}`,
+      details: { updatedFields: Object.keys(updateData) },
+    });
   } catch (error) {
     console.error('Error updating user:', error);
     res.status(500).json({
@@ -334,6 +652,14 @@ const updateUser = async (req, res) => {
 // Delete user
 const deleteUser = async (req, res) => {
   try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to delete users',
+      });
+    }
+
     const { userId } = req.params;
 
     const user = await User.findByIdAndDelete(userId);
@@ -347,6 +673,15 @@ const deleteUser = async (req, res) => {
     res.json({
       success: true,
       message: 'User deleted successfully'
+    });
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'user_deleted',
+      targetType: 'user',
+      targetId: user._id,
+      summary: `${currentAdmin.email} deleted user ${user.email}`,
+      severity: 'critical',
     });
   } catch (error) {
     console.error('Error deleting user:', error);
@@ -596,6 +931,14 @@ const updateNotificationSettings = async (req, res) => {
 // Get all admins
 const getAllAdmins = async (req, res) => {
   try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!currentAdmin?.isSuperAdmin && !hasAdminPermission(currentAdmin, 'canManageSettings')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to view admin roles',
+      });
+    }
+
     const { search } = req.query;
     let query = {};
 
@@ -613,7 +956,30 @@ const getAllAdmins = async (req, res) => {
     
     res.json({
       success: true,
-      admins,
+      admins: admins.map((admin) => ({
+        ...admin.toObject(),
+        permissions: normalizeAdminPermissions(admin.permissions || {}),
+        canToggleSuperAdmin:
+          currentAdmin?.isSuperAdmin === true &&
+          !admin.isProtectedAdmin() &&
+          admin._id.toString() !== currentAdmin._id.toString(),
+        canRemove:
+          currentAdmin?.isSuperAdmin === true &&
+          !admin.isProtectedAdmin() &&
+          admin._id.toString() !== currentAdmin._id.toString(),
+        canEditPermissions:
+          currentAdmin?.isSuperAdmin === true &&
+          !admin.isProtectedAdmin() &&
+          admin._id.toString() !== currentAdmin._id.toString(),
+      })),
+      currentAdmin: currentAdmin
+        ? {
+            _id: currentAdmin._id,
+            email: currentAdmin.email,
+            isSuperAdmin: currentAdmin.isSuperAdmin === true,
+            permissions: normalizeAdminPermissions(currentAdmin.permissions),
+          }
+        : null,
       total: admins.length
     });
   } catch (error) {
@@ -636,6 +1002,14 @@ function isPasswordValid(password) {
 // Add new admin
 const addAdmin = async (req, res) => {
   try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!currentAdmin?.isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only superadmins can create new admins'
+      });
+    }
+
     const { username, email, password, name, gender } = req.body;
 
     // Password validation
@@ -683,7 +1057,8 @@ const addAdmin = async (req, res) => {
       password: hashedPassword,
       name,
       gender: gender || 'Other',
-      isSuperAdmin: false
+      isSuperAdmin: false,
+      permissions: normalizeAdminPermissions(req.body.permissions || {}),
     });
 
     await admin.save();
@@ -703,8 +1078,20 @@ const addAdmin = async (req, res) => {
         id: admin._id,
         username: admin.username,
         email: admin.email,
-        name: admin.name
+        name: admin.name,
+        isSuperAdmin: admin.isSuperAdmin === true,
+        permissions: normalizeAdminPermissions(admin.permissions),
       }
+    });
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'admin_created',
+      targetType: 'admin',
+      targetId: admin._id,
+      summary: `${currentAdmin.email} created admin ${admin.email}`,
+      details: { permissions: normalizeAdminPermissions(admin.permissions) },
+      severity: 'critical',
     });
   } catch (error) {
     console.error('Error adding admin:', error);
@@ -718,6 +1105,14 @@ const addAdmin = async (req, res) => {
 // Remove admin
 const removeAdmin = async (req, res) => {
   try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!currentAdmin?.isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only superadmins can remove admins'
+      });
+    }
+
     const { adminId } = req.params;
     
     const adminToRemove = await Admin.findById(adminId);
@@ -737,6 +1132,13 @@ const removeAdmin = async (req, res) => {
       });
     }
 
+    if (adminToRemove._id.toString() === currentAdmin._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot remove your own admin account from here'
+      });
+    }
+
     // Send removal notification email before deleting
     await sendAdminRemovalEmail(adminToRemove.email, adminToRemove.name);
     
@@ -746,10 +1148,606 @@ const removeAdmin = async (req, res) => {
       success: true,
       message: 'Admin removed successfully and notification email sent'
     });
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'admin_removed',
+      targetType: 'admin',
+      targetId: adminToRemove._id,
+      summary: `${currentAdmin.email} removed admin ${adminToRemove.email}`,
+      severity: 'critical',
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
       message: 'Failed to remove admin'
+    });
+  }
+};
+
+const updateAdminPermissions = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!currentAdmin?.isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only superadmins can change admin permissions',
+      });
+    }
+
+    const { adminId } = req.params;
+    const targetAdmin = await Admin.findById(adminId);
+
+    if (!targetAdmin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin not found',
+      });
+    }
+
+    if (targetAdmin.isProtectedAdmin()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Protected admin permissions cannot be changed',
+      });
+    }
+
+    if (targetAdmin._id.toString() === currentAdmin._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot change your own permissions from here',
+      });
+    }
+
+    targetAdmin.permissions = normalizeAdminPermissions(req.body.permissions || {});
+    await targetAdmin.save();
+
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'admin_permissions_updated',
+      targetType: 'admin',
+      targetId: targetAdmin._id,
+      summary: `${currentAdmin.email} updated permissions for ${targetAdmin.email}`,
+      details: { permissions: normalizeAdminPermissions(targetAdmin.permissions) },
+      severity: 'critical',
+    });
+
+    res.json({
+      success: true,
+      message: 'Admin permissions updated successfully',
+      admin: {
+        _id: targetAdmin._id,
+        email: targetAdmin.email,
+        permissions: normalizeAdminPermissions(targetAdmin.permissions),
+      },
+    });
+  } catch (error) {
+    console.error('Error updating admin permissions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update admin permissions',
+    });
+  }
+};
+
+const bulkUpdateUserStatus = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to manage users',
+      });
+    }
+
+    const userIds = Array.isArray(req.body.userIds) ? req.body.userIds : [];
+    const isActive = req.body.isActive === true;
+
+    if (userIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Select at least one user first',
+      });
+    }
+
+    const result = await User.updateMany(
+      { _id: { $in: userIds } },
+      { $set: { isActive } }
+    );
+
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'users_bulk_status_updated',
+      targetType: 'user_bulk',
+      targetId: userIds.join(','),
+      summary: `${currentAdmin.email} ${isActive ? 'activated' : 'deactivated'} ${result.modifiedCount} users in bulk`,
+      details: { userIds, isActive, matchedCount: result.matchedCount },
+      severity: 'warning',
+    });
+
+    res.json({
+      success: true,
+      message: `${result.modifiedCount} users updated successfully`,
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error('Error bulk updating users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update users in bulk',
+    });
+  }
+};
+
+const exportUsers = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to export users',
+      });
+    }
+
+    const userIds = (req.query.userIds || '')
+      .toString()
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+
+    const filter = userIds.length > 0 ? { _id: { $in: userIds } } : {};
+    const users = await User.find(filter, '-password').sort({ createdAt: -1 }).lean();
+
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'users_exported',
+      targetType: 'user_export',
+      targetId: userIds.join(','),
+      summary: `${currentAdmin.email} exported ${users.length} users`,
+      details: { selectedCount: userIds.length, exportedCount: users.length },
+    });
+
+    return sendCsv(
+      res,
+      `users-export-${Date.now()}.csv`,
+      [
+        { key: 'name', label: 'Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'username', label: 'Username' },
+        { key: 'isActive', label: 'Active' },
+        { key: 'isVerified', label: 'Verified' },
+        { key: 'lenDenCoins', label: 'LenDen Coins' },
+        { key: 'createdAt', label: 'Created At' },
+      ],
+      users.map((user) => ({
+        name: user.name || '',
+        email: user.email || '',
+        username: user.username || '',
+        isActive: user.isActive === true ? 'Yes' : 'No',
+        isVerified: user.isVerified === true ? 'Yes' : 'No',
+        lenDenCoins: user.lenDenCoins || 0,
+        createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : '',
+      }))
+    );
+  } catch (error) {
+    console.error('Error exporting users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to export users',
+    });
+  }
+};
+
+const clearPendingUsers = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to manage users',
+      });
+    }
+
+    const result = await User.updateMany(
+      { isVerified: false },
+      { $set: { isVerified: true } }
+    );
+
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'users_pending_cleared',
+      targetType: 'user_bulk',
+      targetId: '',
+      summary: `${currentAdmin.email} marked ${result.modifiedCount} pending users as verified`,
+      details: {
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+      },
+      severity: 'warning',
+    });
+
+    res.json({
+      success: true,
+      message:
+          result.modifiedCount > 0
+              ? `${result.modifiedCount} pending users marked as verified`
+              : 'No pending users were left to review',
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error('Error clearing pending users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear pending users',
+    });
+  }
+};
+
+const reviewPendingUser = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canManageUsers')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to manage users',
+      });
+    }
+
+    const { userId } = req.params;
+    const user = await User.findById(userId).select('-password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    if (user.isVerified === true) {
+      return res.json({
+        success: true,
+        message: 'This user has already been reviewed and verified',
+        user,
+      });
+    }
+
+    user.isVerified = true;
+    await user.save();
+
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'user_pending_reviewed',
+      targetType: 'user',
+      targetId: user._id,
+      summary: `${currentAdmin.email} reviewed and verified pending user ${user.email}`,
+      details: {
+        userEmail: user.email,
+        userName: user.name,
+      },
+      severity: 'info',
+    });
+
+    return res.json({
+      success: true,
+      message: `${user.name || user.email} was reviewed and marked as verified`,
+      user,
+    });
+  } catch (error) {
+    console.error('Error reviewing pending user:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to review pending user',
+    });
+  }
+};
+
+const getDashboardSummary = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    const adminId = currentAdmin?._id;
+    const todayStart = startOfToday();
+    const todayEnd = endOfToday();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [
+      totalUsers,
+      activeUsers,
+      pendingUsers,
+      totalAdmins,
+      superAdmins,
+      secureTransactions,
+      quickTransactions,
+      activeGroups,
+      openSupportQueries,
+      recentFeedbacks,
+      activeSubscriptions,
+      draftUpdates,
+      scheduledUpdates,
+      activeAds,
+      reportedAdsAggregate,
+      unreadAdminNotifications,
+      todayUsers,
+      todayTransactions,
+    ] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ isActive: true }),
+      User.countDocuments({ isVerified: false }),
+      Admin.countDocuments(),
+      Admin.countDocuments({ isSuperAdmin: true }),
+      Transaction.countDocuments(),
+      QuickTransaction.countDocuments(),
+      GroupTransaction.countDocuments({ isActive: true }),
+      SupportQuery.countDocuments({ status: { $in: ['open', 'in_progress'] } }),
+      Feedback.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+      Subscription.countDocuments({
+        subscribed: true,
+        status: 'active',
+        endDate: { $gte: new Date() },
+      }),
+      AppUpdate.countDocuments({ status: 'draft' }),
+      AppUpdate.countDocuments({ status: 'scheduled' }),
+      AppAd.countDocuments({
+        active: true,
+        startsAt: { $lte: new Date() },
+        $or: [{ endsAt: null }, { endsAt: { $gte: new Date() } }],
+      }),
+      AppAdEvent.aggregate([
+        { $match: { type: 'report' } },
+        { $group: { _id: '$ad' } },
+        { $count: 'count' },
+      ]),
+      Notification.countDocuments(buildAdminNotificationFilter(adminId)),
+      User.countDocuments({ createdAt: { $gte: todayStart, $lt: todayEnd } }),
+      Promise.all([
+        Transaction.countDocuments({
+          createdAt: { $gte: todayStart, $lt: todayEnd },
+        }),
+        QuickTransaction.countDocuments({
+          createdAt: { $gte: todayStart, $lt: todayEnd },
+        }),
+      ]).then(([secureCount, quickCount]) => secureCount + quickCount),
+    ]);
+
+    const reportedAds = Number(reportedAdsAggregate[0]?.count || 0);
+    const priorityItems = [];
+
+    if (openSupportQueries > 0) {
+      priorityItems.push({
+        id: 'support',
+        title: 'Support queue needs attention',
+        description: `${openSupportQueries} open or in-progress support queries are waiting.`,
+        count: openSupportQueries,
+        sectionId: 'support_queries',
+        tone: 'critical',
+      });
+    }
+
+    if (pendingUsers > 0) {
+      priorityItems.push({
+        id: 'pending-users',
+        title: 'Pending user verification review',
+        description: `${pendingUsers} user accounts are still pending verification.`,
+        count: pendingUsers,
+        sectionId: 'manage_users',
+        tone: 'warning',
+      });
+    }
+
+    if (reportedAds > 0) {
+      priorityItems.push({
+        id: 'reported-ads',
+        title: 'Reported ads should be reviewed',
+        description: `${reportedAds} ads currently have user reports.`,
+        count: reportedAds,
+        sectionId: 'content_analytics',
+        tone: 'warning',
+      });
+    }
+
+    if (scheduledUpdates > 0 || draftUpdates > 0) {
+      priorityItems.push({
+        id: 'content-pipeline',
+        title: 'Content pipeline has pending items',
+        description:
+          `${draftUpdates} drafts and ${scheduledUpdates} scheduled updates are pending publication.`,
+        count: draftUpdates + scheduledUpdates,
+        sectionId: 'content_analytics',
+        tone: 'info',
+      });
+    }
+
+    res.json({
+      success: true,
+      summary: {
+        admin: currentAdmin
+          ? {
+              _id: currentAdmin._id,
+              name: currentAdmin.name,
+              email: currentAdmin.email,
+              isSuperAdmin: currentAdmin.isSuperAdmin === true,
+            }
+          : null,
+        cards: [
+          {
+            id: 'users',
+            label: 'Users',
+            value: totalUsers,
+            helper: `${activeUsers} active`,
+            sectionId: 'manage_users',
+          },
+          {
+            id: 'transactions',
+            label: 'Transactions',
+            value: secureTransactions + quickTransactions,
+            helper: `${todayTransactions} created today`,
+            sectionId: 'manage_transactions',
+          },
+          {
+            id: 'groups',
+            label: 'Groups',
+            value: activeGroups,
+            helper: `${activeSubscriptions} subscribed users`,
+            sectionId: 'manage_groups',
+          },
+          {
+            id: 'support',
+            label: 'Support',
+            value: openSupportQueries,
+            helper: `${recentFeedbacks} feedback items this week`,
+            sectionId: 'support_queries',
+          },
+        ],
+        systemHealth: {
+          totalAdmins,
+          superAdmins,
+          unreadAdminNotifications,
+          activeAds,
+          scheduledUpdates,
+          draftUpdates,
+          reportedAds,
+          todayUsers,
+        },
+        priorityItems,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching admin dashboard summary:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch admin dashboard summary',
+    });
+  }
+};
+
+const getAdminAuditLogs = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!hasAdminPermission(currentAdmin, 'canViewAuditLogs')) {
+      return res.status(403).json({
+        success: false,
+        message: 'You do not have permission to view audit logs',
+      });
+    }
+
+    const { search = '', severity = 'All', actor = 'All' } = req.query;
+    const filter = {};
+
+    if (severity !== 'All') {
+      filter.severity = severity;
+    }
+
+    if (actor === 'mine' && currentAdmin?._id) {
+      filter.admin = currentAdmin._id;
+    }
+
+    if (search.trim()) {
+      filter.$or = [
+        { adminEmail: { $regex: search.trim(), $options: 'i' } },
+        { action: { $regex: search.trim(), $options: 'i' } },
+        { summary: { $regex: search.trim(), $options: 'i' } },
+        { targetType: { $regex: search.trim(), $options: 'i' } },
+      ];
+    }
+
+    const logs = await AdminAuditLog.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(200)
+      .lean();
+
+    res.json({
+      success: true,
+      logs,
+      currentAdmin: currentAdmin
+        ? {
+            _id: currentAdmin._id,
+            email: currentAdmin.email,
+            isSuperAdmin: currentAdmin.isSuperAdmin === true,
+            permissions: normalizeAdminPermissions(currentAdmin.permissions),
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error('Error fetching admin audit logs:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch admin audit logs',
+    });
+  }
+};
+
+const toggleSuperAdminStatus = async (req, res) => {
+  try {
+    const currentAdmin = await getCurrentAdmin(req);
+    if (!currentAdmin?.isSuperAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only superadmins can change superadmin access'
+      });
+    }
+
+    const { adminId } = req.params;
+    const { isSuperAdmin } = req.body;
+    const targetAdmin = await Admin.findById(adminId);
+
+    if (!targetAdmin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Admin not found'
+      });
+    }
+
+    if (targetAdmin.isProtectedAdmin()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Protected admin access cannot be changed'
+      });
+    }
+
+    if (targetAdmin._id.toString() === currentAdmin._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot change your own superadmin status'
+      });
+    }
+
+    targetAdmin.isSuperAdmin = isSuperAdmin === true;
+    await targetAdmin.save();
+
+    res.json({
+      success: true,
+      message: targetAdmin.isSuperAdmin
+        ? 'Superadmin access granted successfully'
+        : 'Superadmin access removed successfully',
+      admin: {
+        _id: targetAdmin._id,
+        email: targetAdmin.email,
+        username: targetAdmin.username,
+        name: targetAdmin.name,
+        isSuperAdmin: targetAdmin.isSuperAdmin === true,
+      }
+    });
+    await logAdminAudit({
+      req,
+      admin: currentAdmin,
+      action: 'admin_superadmin_toggled',
+      targetType: 'admin',
+      targetId: targetAdmin._id,
+      summary: `${currentAdmin.email} ${targetAdmin.isSuperAdmin ? 'granted' : 'removed'} superadmin access for ${targetAdmin.email}`,
+      details: { isSuperAdmin: targetAdmin.isSuperAdmin === true },
+      severity: 'critical',
+    });
+  } catch (error) {
+    console.error('Error toggling superadmin status:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update superadmin access'
     });
   }
 };
@@ -1286,8 +2284,13 @@ const settleExpenseSplitsInGroup = async (req, res) => {
 
 module.exports = {
   register,
+  getDashboardSummary,
   getAllUsers,
+  exportUsers,
+  clearPendingUsers,
+  reviewPendingUser,
   getUserDetails,
+  bulkUpdateUserStatus,
   updateUserStatus,
   updateUser,
   deleteUser,
@@ -1300,8 +2303,11 @@ module.exports = {
   getNotificationSettings,
   updateNotificationSettings,
   getAllAdmins,
+  getAdminAuditLogs,
   addAdmin,
   removeAdmin,
+  updateAdminPermissions,
+  toggleSuperAdminStatus,
   getAllGroupTransactions,
   updateGroupTransaction,
   deleteGroupTransaction,

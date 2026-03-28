@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http_parser/http_parser.dart';
+import 'package:provider/provider.dart';
 
+import '../../session.dart';
 import '../../utils/api_client.dart';
 
 class ManageAdsPage extends StatefulWidget {
@@ -468,7 +470,7 @@ class _ManageAdsPageState extends State<ManageAdsPage>
     final items = _ads.where((ad) {
       switch (_filter) {
         case 'mine':
-          return ad['canManage'] == true;
+          return _canManageAd(ad);
         case 'active':
           return ad['active'] == true;
         case 'image':
@@ -477,11 +479,57 @@ class _ManageAdsPageState extends State<ManageAdsPage>
           return ad['mediaKind'] == 'video';
         case 'text':
           return ad['mediaKind'] == 'none';
+        case 'reported':
+          return ((ad['stats'] ?? {})['reports'] ?? 0) > 0;
         default:
           return true;
       }
     }).toList();
     return _showAll ? items : items.take(3).toList();
+  }
+
+  bool _canManageAd(Map<String, dynamic> ad) {
+    if (ad['canManage'] == true) return true;
+
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final currentAdmin = session.user ?? const <String, dynamic>{};
+    if (currentAdmin['isSuperAdmin'] == true) return true;
+
+    final createdBy = ad['createdBy'];
+    final createdById =
+        createdBy is Map ? createdBy['_id']?.toString() : createdBy?.toString();
+    final currentAdminId = currentAdmin['_id']?.toString();
+    return createdById != null && createdById == currentAdminId;
+  }
+
+  Map<String, num> get _adSummary {
+    var active = 0;
+    var impressions = 0;
+    var clicks = 0;
+    var reports = 0;
+    var hides = 0;
+    var totalWatch = 0;
+
+    for (final ad in _ads) {
+      if (ad['active'] == true) active += 1;
+      final stats = Map<String, dynamic>.from((ad['stats'] ?? {}) as Map);
+      impressions += (stats['impressions'] ?? 0) as int;
+      clicks += (stats['clicks'] ?? 0) as int;
+      reports += (stats['reports'] ?? 0) as int;
+      hides += (stats['hides'] ?? 0) as int;
+      totalWatch += (stats['totalWatchSeconds'] ?? 0) as int;
+    }
+
+    final ctr = impressions > 0 ? (clicks / impressions) * 100 : 0.0;
+    return {
+      'active': active,
+      'impressions': impressions,
+      'clicks': clicks,
+      'reports': reports,
+      'hides': hides,
+      'ctr': ctr,
+      'watch': totalWatch,
+    };
   }
 
   @override
@@ -932,9 +980,26 @@ class _ManageAdsPageState extends State<ManageAdsPage>
             spacing: 10,
             runSpacing: 10,
             children: [
+              _buildSummaryChip('Active', '${_adSummary['active']}'),
+              _buildSummaryChip('Views', '${_adSummary['impressions']}'),
+              _buildSummaryChip('Clicks', '${_adSummary['clicks']}'),
+              _buildSummaryChip('Reports', '${_adSummary['reports']}'),
+              _buildSummaryChip(
+                'CTR',
+                '${(_adSummary['ctr'] as double).toStringAsFixed(1)}%',
+              ),
+              _buildSummaryChip('Watch', '${_adSummary['watch']}s'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
               _buildFilterChip('all', 'All'),
               _buildFilterChip('mine', 'Mine'),
               _buildFilterChip('active', 'Active'),
+              _buildFilterChip('reported', 'Reported'),
               _buildFilterChip('image', 'Images'),
               _buildFilterChip('video', 'Videos'),
               _buildFilterChip('text', 'Text'),
@@ -967,6 +1032,34 @@ class _ManageAdsPageState extends State<ManageAdsPage>
     );
   }
 
+  Widget _buildSummaryChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF5FF),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(color: Colors.black87),
+          children: [
+            TextSpan(
+              text: '$value ',
+              style: const TextStyle(
+                color: Color(0xFF00B4D8),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            TextSpan(
+              text: label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -986,9 +1079,15 @@ class _ManageAdsPageState extends State<ManageAdsPage>
     final createdBy = ad['createdBy'];
     final createdByEmail =
         createdBy is Map ? (createdBy['email'] ?? '').toString() : '';
-    final canManage = ad['canManage'] == true;
+    final canManage = _canManageAd(ad);
     final wasEdited = (ad['updatedAt'] ?? '').toString() !=
         (ad['createdAt'] ?? '').toString();
+    final moderation =
+        Map<String, dynamic>.from((ad['moderation'] ?? {}) as Map);
+    final recentReports = List<Map<String, dynamic>>.from(
+      (moderation['recentReports'] ?? [])
+          .map((item) => Map<String, dynamic>.from(item)),
+    );
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -1063,6 +1162,10 @@ class _ManageAdsPageState extends State<ManageAdsPage>
                 _buildMetaChip(Icons.filter_alt_outlined, 'Audience: ${(ad['audience'] ?? 'nonsubscribed')}'),
                 _buildMetaChip(Icons.remove_red_eye_outlined, 'Views: ${((ad['stats'] ?? {})['impressions'] ?? 0)}'),
                 _buildMetaChip(Icons.ads_click, 'Clicks: ${((ad['stats'] ?? {})['clicks'] ?? 0)}'),
+                _buildMetaChip(Icons.report_gmailerrorred_outlined, 'Reports: ${((ad['stats'] ?? {})['reports'] ?? 0)}'),
+                _buildMetaChip(Icons.visibility_off_outlined, 'Hides: ${((ad['stats'] ?? {})['hides'] ?? 0)}'),
+                _buildMetaChip(Icons.group_outlined, 'Reach: ${((ad['stats'] ?? {})['uniqueUsers'] ?? 0)} users'),
+                _buildMetaChip(Icons.av_timer_outlined, 'Avg watch: ${((ad['stats'] ?? {})['averageWatchSeconds'] ?? 0)}s'),
                 if (wasEdited)
                   _buildMetaChip(Icons.edit_outlined, 'Edited: ${_formatDateTime(ad['updatedAt'])}'),
                 if ((ad['mediaKind'] ?? 'none').toString() == 'video')
@@ -1074,6 +1177,26 @@ class _ManageAdsPageState extends State<ManageAdsPage>
                 _buildMetaChip(Icons.today_outlined, 'Cap: ${(ad['dailyCapPerUser'] ?? 3)}/day'),
               ],
             ),
+            if (recentReports.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const Text(
+                'Recent report reasons',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF00B4D8),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...recentReports.map(
+                (report) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    '• ${(report['reason'] ?? '').toString().trim().isEmpty ? 'No reason provided' : report['reason']}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             Row(
               children: [

@@ -123,10 +123,14 @@ class SessionProvider extends ChangeNotifier {
               user['profileImage']['url'] != null) {
             user['profileImage'] = user['profileImage']['url'];
           }
+          final resolvedRole =
+              response.request?.url.path.contains('/admins/') ?? false
+                  ? 'admin'
+                  : 'user';
+          user['role'] = resolvedRole;
           _user = user;
-          _role = response.request?.url.path.contains('/admins/') ?? false
-              ? 'admin'
-              : 'user';
+          _role = resolvedRole;
+          await _saveUserData(user);
           await _ensureChatEncryptionReady();
           await checkSubscriptionStatus();
           await loadFreebieCounts();
@@ -136,6 +140,29 @@ class SessionProvider extends ChangeNotifier {
           await clearTokens();
         }
       } else {
+        if (_user != null) {
+          final resolvedRole = _role == 'admin' ? 'admin' : 'user';
+          final profileUrl =
+              resolvedRole == 'admin' ? '/api/admins/me' : '/api/users/me';
+
+          try {
+            final profileResponse = await HttpInterceptor.get(profileUrl);
+            if (profileResponse.statusCode == 200) {
+              final freshUser = jsonDecode(profileResponse.body);
+              if (freshUser['profileImage'] is Map &&
+                  freshUser['profileImage']['url'] != null) {
+                freshUser['profileImage'] = freshUser['profileImage']['url'];
+              }
+              freshUser['role'] = resolvedRole;
+              _user = freshUser;
+              _role = resolvedRole;
+              await _saveUserData(freshUser);
+            }
+          } catch (e) {
+            print('Error refreshing cached session profile: $e');
+          }
+        }
+
         // We already have user data, just notify listeners
         await _ensureChatEncryptionReady();
         await checkSubscriptionStatus();

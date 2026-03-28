@@ -2,6 +2,31 @@ const Notification = require('../models/notification');
 const User = require('../models/user');
 const Admin = require('../models/admin');
 
+const getCurrentAdmin = async (req) => {
+  if (req.user?.role !== 'admin') return null;
+
+  const adminId = req.user?._id || req.user?.userId || req.user?.id;
+  let admin = null;
+
+  if (adminId) {
+    admin = await Admin.findById(adminId).select('_id email isSuperAdmin').lean();
+  }
+  if (!admin && req.user?.email) {
+    admin = await Admin.findOne({ email: req.user.email })
+      .select('_id email isSuperAdmin')
+      .lean();
+  }
+
+  return admin;
+};
+
+const canManageNotification = (notification, req, currentAdmin) => {
+  if (!notification || !req.user) return false;
+  const requesterId = (req.user._id || req.user.userId || req.user.id)?.toString();
+  if (notification.sender?.toString() === requesterId) return true;
+  return req.user.role === 'admin' && currentAdmin?.isSuperAdmin === true;
+};
+
 function inferNotificationCategory(message = '', recipientType = '') {
   const text = `${message} ${recipientType}`.toLowerCase();
 
@@ -209,7 +234,7 @@ exports.getNotificationById = async (req, res) => {
 exports.deleteNotification = async (req, res) => {
   try {
     const notificationId = req.params.id;
-    const userId = req.user._id; // Authenticated user's ID
+    const currentAdmin = await getCurrentAdmin(req);
 
     const notification = await Notification.findById(notificationId);
 
@@ -218,7 +243,7 @@ exports.deleteNotification = async (req, res) => {
     }
 
     // Check if the authenticated user is the sender of the notification
-    if (notification.sender.toString() !== userId.toString()) {
+    if (!canManageNotification(notification, req, currentAdmin)) {
       return res.status(403).json({ message: 'Unauthorized: You can only delete your own notifications' });
     }
 
@@ -233,7 +258,7 @@ exports.deleteNotification = async (req, res) => {
 exports.updateNotification = async (req, res) => {
   try {
     const notificationId = req.params.id;
-    const userId = req.user._id; // Authenticated user's ID
+    const currentAdmin = await getCurrentAdmin(req);
     const { message, recipientType, recipients, category } = req.body;
 
     const notification = await Notification.findById(notificationId);
@@ -243,7 +268,7 @@ exports.updateNotification = async (req, res) => {
     }
 
     // Check if the authenticated user is the sender of the notification
-    if (notification.sender.toString() !== userId.toString()) {
+    if (!canManageNotification(notification, req, currentAdmin)) {
       return res.status(403).json({ message: 'Unauthorized: You can only edit your own notifications' });
     }
 

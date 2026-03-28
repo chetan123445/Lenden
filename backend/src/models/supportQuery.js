@@ -37,6 +37,36 @@ const supportQuerySchema = new mongoose.Schema({
     enum: ['open', 'in_progress', 'resolved', 'closed'],
     default: 'open',
   },
+  priority: {
+    type: String,
+    enum: ['low', 'normal', 'high', 'critical'],
+    default: 'normal',
+    index: true,
+  },
+  assignedAdmin: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    default: null,
+    index: true,
+  },
+  internalNotes: [
+    {
+      admin: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin',
+        required: true,
+      },
+      noteText: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+      timestamp: {
+        type: Date,
+        default: Date.now,
+      },
+    },
+  ],
   replies: [replySchema],
   createdAt: {
     type: Date,

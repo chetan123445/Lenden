@@ -17,9 +17,19 @@ exports.getUserProfile = async (req, res) => {
 
 exports.getAdminProfile = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.user._id).select('-password');
+    const adminId = req.user?._id || req.user?.userId || req.user?.id;
+    let admin = null;
+
+    if (adminId) {
+      admin = await Admin.findById(adminId).select('-password');
+    }
+    if (!admin && req.user?.email) {
+      admin = await Admin.findOne({ email: req.user.email }).select('-password');
+    }
+
     if (!admin) return res.status(404).json({ error: 'Admin not found' });
     const adminObj = admin.toObject();
+    adminObj.role = 'admin';
     if (adminObj.profileImage) {
       adminObj.profileImage = `${req.protocol}://${req.get('host')}/api/admins/${adminObj._id}/profile-image`;
     }

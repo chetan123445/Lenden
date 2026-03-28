@@ -26,6 +26,14 @@ class _UserAdPopupDialogState extends State<UserAdPopupDialog> {
   }
 
   Future<void> _trackAdEvent(String type, {int watchSeconds = 0}) async {
+    await _trackAdEventWithMetadata(type, watchSeconds: watchSeconds);
+  }
+
+  Future<void> _trackAdEventWithMetadata(
+    String type, {
+    int watchSeconds = 0,
+    Map<String, dynamic>? metadata,
+  }) async {
     final adId = widget.ad['_id']?.toString();
     if (adId == null || adId.isEmpty) return;
     if (type == 'impression' && _impressionTracked) return;
@@ -35,7 +43,10 @@ class _UserAdPopupDialogState extends State<UserAdPopupDialog> {
         body: {
           'type': type,
           'watchSeconds': watchSeconds,
-          'metadata': {'mediaKind': (widget.ad['mediaKind'] ?? 'none').toString()},
+          'metadata': {
+            'mediaKind': (widget.ad['mediaKind'] ?? 'none').toString(),
+            ...?metadata,
+          },
         },
       );
       if (type == 'impression') {
@@ -50,6 +61,215 @@ class _UserAdPopupDialogState extends State<UserAdPopupDialog> {
   void _closeAd(BuildContext context, {String eventType = 'close'}) {
     unawaited(_trackAdEvent(eventType, watchSeconds: _watchSeconds()));
     Navigator.of(context).pop();
+  }
+
+  Future<void> _reportAd(BuildContext context) async {
+    final controller = TextEditingController();
+    final shouldReport = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Report This Ad',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Tell us what feels wrong about this ad. This helps admins review and improve what users see.',
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: controller,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Reason',
+                    hintText: 'Example: irrelevant, repeated too often, misleading',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00B4D8),
+                        ),
+                        child: const Text('Report'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (shouldReport != true || !mounted) return;
+
+    final adId = widget.ad['_id']?.toString();
+    if (adId == null || adId.isEmpty) return;
+
+    try {
+      await ApiClient.post(
+        '/api/ads/$adId/events',
+        body: {
+          'type': 'report',
+          'watchSeconds': _watchSeconds(),
+          'metadata': {
+            'mediaKind': (widget.ad['mediaKind'] ?? 'none').toString(),
+            'reason': controller.text.trim(),
+          },
+        },
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ad reported. Thanks for the feedback.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not report this ad right now.')),
+      );
+    }
+  }
+
+  Future<void> _hideForAWeek(BuildContext context) async {
+    final controller = TextEditingController();
+    final shouldHide = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Not Interested',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'We can hide this ad from your screen for a week. You can optionally tell us why.',
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: controller,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Optional reason',
+                    hintText: 'Example: not relevant to me',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00B4D8),
+                        ),
+                        child: const Text('Hide 7 Days'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (shouldHide != true || !mounted) return;
+
+    try {
+      await _trackAdEventWithMetadata(
+        'hide',
+        watchSeconds: _watchSeconds(),
+        metadata: {
+          'hideMode': 'week',
+          'reason': controller.text.trim(),
+        },
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This ad will stay hidden for 7 days.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not hide this ad right now.')),
+      );
+    }
   }
 
   @override
@@ -243,8 +463,25 @@ class _UserAdPopupDialogState extends State<UserAdPopupDialog> {
                         alignment: WrapAlignment.end,
                         children: [
                           OutlinedButton(
-                            onPressed: () => _closeAd(context, eventType: 'hide'),
+                            onPressed: () {
+                              unawaited(
+                                _trackAdEventWithMetadata(
+                                  'hide',
+                                  watchSeconds: _watchSeconds(),
+                                  metadata: const {'hideMode': 'today'},
+                                ),
+                              );
+                              Navigator.of(context).pop();
+                            },
                             child: const Text('Hide Today'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => _hideForAWeek(context),
+                            child: const Text('Not Interested'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => _reportAd(context),
+                            child: const Text('Report Ad'),
                           ),
                           ElevatedButton.icon(
                             onPressed: () {

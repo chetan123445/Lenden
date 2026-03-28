@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const PROTECTED_SUPERADMIN_EMAIL = 'chetandudi791@gmail.com';
 
 const adminSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -22,6 +23,15 @@ const adminSchema = new mongoose.Schema({
   isSuperAdmin: { 
     type: Boolean, 
     default: false 
+  },
+  permissions: {
+    canManageUsers: { type: Boolean, default: true },
+    canManageTransactions: { type: Boolean, default: true },
+    canManageSupport: { type: Boolean, default: true },
+    canManageContent: { type: Boolean, default: true },
+    canManageDigitise: { type: Boolean, default: true },
+    canManageSettings: { type: Boolean, default: true },
+    canViewAuditLogs: { type: Boolean, default: true },
   },
   notificationSettings: {
     systemAlerts: { type: Boolean, default: true },
@@ -57,7 +67,7 @@ const adminSchema = new mongoose.Schema({
 
 // Add method to check if admin is protected
 adminSchema.methods.isProtectedAdmin = function() {
-  return this.email === 'chetandudi791@gmail.com';
+  return this.email === PROTECTED_SUPERADMIN_EMAIL;
 };
 
 adminSchema.index({ email: 1 });
@@ -75,7 +85,11 @@ adminSchema.statics.createDefaultAdmin = async function() {
     console.warn('Default admin credentials not set in .env');
     return;
   }
-  const exists = await Admin.findOne({ username });
+  const normalizedEmail = email.trim().toLowerCase();
+  const shouldBeSuperAdmin = normalizedEmail === PROTECTED_SUPERADMIN_EMAIL;
+  const exists = await Admin.findOne({
+    $or: [{ username }, { email: normalizedEmail }],
+  });
   if (!exists) {
     const bcrypt = require('bcrypt');
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -83,9 +97,16 @@ adminSchema.statics.createDefaultAdmin = async function() {
       name,
       username,
       password: hashedPassword,
-      email,
+      email: normalizedEmail,
       gender,
+      isSuperAdmin: shouldBeSuperAdmin,
     });
+  } else if (
+    exists.email?.trim?.().toLowerCase() === PROTECTED_SUPERADMIN_EMAIL &&
+    exists.isSuperAdmin !== true
+  ) {
+    exists.isSuperAdmin = true;
+    await exists.save();
   }
 };
 

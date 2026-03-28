@@ -17,15 +17,21 @@ class ManageSupportQueriesPage extends StatefulWidget {
 class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
   final TextEditingController _searchController = TextEditingController();
   List<dynamic> _queries = [];
+  List<Map<String, dynamic>> _admins = [];
+  Map<String, dynamic>? _currentAdmin;
   bool _isLoading = true;
   String? _error;
   IO.Socket? socket;
   String _searchTerm = ''; // Add search term
+  String _statusFilter = 'all';
+  String _priorityFilter = 'all';
+  String _assignmentFilter = 'all';
 
   @override
   void initState() {
     super.initState();
     _fetchAllQueries();
+    _loadAdmins();
     _connectSocket();
   }
 
@@ -117,15 +123,19 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
 
     try {
       final path = '/api/admin/support/queries' +
-          ((searchTerm != null && searchTerm.isNotEmpty)
-              ? '?searchTerm=${Uri.encodeComponent(searchTerm)}'
-              : '');
+          '?searchTerm=${Uri.encodeComponent(searchTerm ?? _searchTerm)}'
+              '&status=${Uri.encodeComponent(_statusFilter)}'
+              '&priority=${Uri.encodeComponent(_priorityFilter)}'
+              '&assigned=${Uri.encodeComponent(_assignmentFilter)}';
       final response = await ApiClient.get(path);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
           _queries = data['queries'] ?? [];
+          _currentAdmin = data['currentAdmin'] is Map
+              ? Map<String, dynamic>.from(data['currentAdmin'])
+              : null;
           _isLoading = false;
         });
       } else {
@@ -141,6 +151,20 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadAdmins() async {
+    try {
+      final response = await ApiClient.get('/api/admin/admins');
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        setState(() {
+          _admins = List<Map<String, dynamic>>.from(
+            (data['admins'] ?? []).map((item) => Map<String, dynamic>.from(item)),
+          );
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _replyToQuery(String queryId, String replyText) async {
@@ -165,7 +189,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
 
       if (response.statusCode == 200) {
         _showStylishSnackBar('Reply added successfully!', Colors.green);
-        final updatedQuery = jsonDecode(response.body);
+        final updatedQuery = jsonDecode(response.body)['query'];
         setState(() {
           int index =
               _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
@@ -206,7 +230,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
 
       if (response.statusCode == 200) {
         _showStylishSnackBar('Reply updated successfully!', Colors.green);
-        final updatedQuery = jsonDecode(response.body);
+        final updatedQuery = jsonDecode(response.body)['query'];
         setState(() {
           int index =
               _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
@@ -231,7 +255,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
 
       if (response.statusCode == 200) {
         _showStylishSnackBar('Reply deleted successfully!', Colors.green);
-        final updatedQuery = jsonDecode(response.body);
+        final updatedQuery = jsonDecode(response.body)['query'];
         setState(() {
           int index =
               _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
@@ -251,7 +275,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
 
   Future<void> _updateQueryStatus(String queryId, String status) async {
     try {
-      final response = await ApiClient.put(
+      final response = await ApiClient.patch(
         '/api/admin/support/queries/$queryId/status',
         body: {'status': status},
       );
@@ -259,7 +283,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
       if (response.statusCode == 200) {
         _showStylishSnackBar(
             'Query status updated successfully!', Colors.green);
-        final updatedQuery = jsonDecode(response.body);
+        final updatedQuery = jsonDecode(response.body)['query'];
         setState(() {
           int index =
               _queries.indexWhere((q) => q['_id'] == updatedQuery['_id']);
@@ -274,6 +298,79 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
       }
     } catch (e) {
       _showStylishSnackBar('Network error while updating status.', Colors.red);
+    }
+  }
+
+  Future<void> _updateWorkflow(
+    String queryId, {
+    String? priority,
+    String? assignedAdminId,
+    String? internalNote,
+  }) async {
+    try {
+      final response = await ApiClient.patch(
+        '/api/admin/support/queries/$queryId/workflow',
+        body: {
+          if (priority != null) 'priority': priority,
+          if (assignedAdminId != null) 'assignedAdminId': assignedAdminId,
+          if (internalNote != null) 'internalNote': internalNote,
+        },
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        final updated = data['query'];
+        setState(() {
+          final index = _queries.indexWhere((q) => q['_id'] == updated['_id']);
+          if (index != -1) {
+            _queries[index] = updated;
+          }
+        });
+        _showStylishSnackBar(
+          data['message'] ?? 'Support workflow updated',
+          Colors.green,
+        );
+      } else {
+        _showStylishSnackBar(
+          data['error'] ?? 'Failed to update support workflow.',
+          Colors.red,
+        );
+      }
+    } catch (e) {
+      _showStylishSnackBar(
+        'Network error while updating support workflow.',
+        Colors.red,
+      );
+    }
+  }
+
+  Future<void> _exportQueries() async {
+    try {
+      final response = await ApiClient.get('/api/admin/support/queries/export');
+      if (response.statusCode == 200) {
+        if (!mounted) return;
+        showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Support Export CSV'),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: SelectableText(response.body),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        _showStylishSnackBar('Failed to export support queries.', Colors.red);
+      }
+    } catch (_) {
+      _showStylishSnackBar('Network error while exporting queries.', Colors.red);
     }
   }
 
@@ -402,6 +499,85 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
                           color: Color(0xFF0077B5),
                         ),
                       ),
+                      const Spacer(),
+                      TextButton.icon(
+                        onPressed: _exportQueries,
+                        icon: const Icon(Icons.download_rounded),
+                        label: const Text('Export CSV'),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _statusFilter,
+                          decoration: const InputDecoration(
+                            labelText: 'Status',
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('All')),
+                            DropdownMenuItem(value: 'open', child: Text('Open')),
+                            DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
+                            DropdownMenuItem(value: 'resolved', child: Text('Resolved')),
+                            DropdownMenuItem(value: 'closed', child: Text('Closed')),
+                          ],
+                          onChanged: (value) {
+                            setState(() => _statusFilter = value ?? 'all');
+                            _fetchAllQueries();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _priorityFilter,
+                          decoration: const InputDecoration(
+                            labelText: 'Priority',
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('All')),
+                            DropdownMenuItem(value: 'low', child: Text('Low')),
+                            DropdownMenuItem(value: 'normal', child: Text('Normal')),
+                            DropdownMenuItem(value: 'high', child: Text('High')),
+                            DropdownMenuItem(value: 'critical', child: Text('Critical')),
+                          ],
+                          onChanged: (value) {
+                            setState(() => _priorityFilter = value ?? 'all');
+                            _fetchAllQueries();
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _assignmentFilter,
+                          decoration: const InputDecoration(
+                            labelText: 'Assigned',
+                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('All')),
+                            DropdownMenuItem(value: 'mine', child: Text('Mine')),
+                            DropdownMenuItem(value: 'unassigned', child: Text('Unassigned')),
+                          ],
+                          onChanged: (value) {
+                            setState(() => _assignmentFilter = value ?? 'all');
+                            _fetchAllQueries();
+                          },
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -449,6 +625,10 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
   }
 
   Widget _buildQueryCard(Map<String, dynamic> query) {
+    final assignedAdmin = query['assignedAdmin'] is Map
+        ? Map<String, dynamic>.from(query['assignedAdmin'])
+        : null;
+    final internalNotes = (query['internalNotes'] as List?) ?? const [];
     return Card(
       margin: EdgeInsets.symmetric(vertical: 10),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -501,6 +681,35 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
               ],
             ),
             SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    'Priority: ${(query['priority'] ?? 'normal').toString().toUpperCase()}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    'Assigned: ${(assignedAdmin?['email'] ?? 'Unassigned').toString()}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
             Text(query['description'], style: TextStyle(fontSize: 16)),
             SizedBox(height: 10),
             Row(
@@ -513,8 +722,102 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: (query['priority'] ?? 'normal').toString(),
+                    decoration: const InputDecoration(
+                      labelText: 'Priority',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'low', child: Text('Low')),
+                      DropdownMenuItem(value: 'normal', child: Text('Normal')),
+                      DropdownMenuItem(value: 'high', child: Text('High')),
+                      DropdownMenuItem(value: 'critical', child: Text('Critical')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        _updateWorkflow(query['_id'], priority: value);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: assignedAdmin?['_id']?.toString() ?? '',
+                    decoration: const InputDecoration(
+                      labelText: 'Assign To',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      const DropdownMenuItem(value: '', child: Text('Unassigned')),
+                      ..._admins.map(
+                        (admin) => DropdownMenuItem(
+                          value: admin['_id'].toString(),
+                          child: Text((admin['email'] ?? '').toString()),
+                        ),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      _updateWorkflow(
+                        query['_id'],
+                        assignedAdminId: value ?? '',
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => _showInternalNoteDialog(query['_id']),
+                icon: const Icon(Icons.sticky_note_2_outlined),
+                label: const Text('Add Internal Note'),
+              ),
+            ),
+            if (internalNotes.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Internal Notes',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ...internalNotes.take(3).map<Widget>((note) {
+                final noteMap = note is Map
+                    ? Map<String, dynamic>.from(note)
+                    : <String, dynamic>{};
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (noteMap['noteText'] ?? '').toString(),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${noteMap['admin'] is Map ? (noteMap['admin']['email'] ?? '') : ''} • ${noteMap['timestamp'] != null ? _formatDateTime(noteMap['timestamp']) : ''}',
+                        style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
             if (query['replies'] != null && query['replies'].isNotEmpty)
-              _buildReplies(query['replies']),
+              _buildReplies(query['_id'].toString(), query['replies']),
             SizedBox(height: 18),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -558,7 +861,7 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
     );
   }
 
-  Widget _buildReplies(List<dynamic> replies) {
+  Widget _buildReplies(String queryId, List<dynamic> replies) {
     return Padding(
       padding: const EdgeInsets.only(top: 18.0),
       child: Column(
@@ -626,14 +929,13 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
                         icon: Icon(Icons.edit,
                             size: 18, color: Color(0xFF0077B5)),
                         onPressed: () => _showEditReplyDialog(
-                            reply['queryId'], reply['_id'], reply['replyText']),
+                            queryId, reply['_id'], reply['replyText']),
                         tooltip: 'Edit Reply',
                       ),
                       IconButton(
                         icon: Icon(Icons.delete,
                             size: 18, color: Colors.red[700]),
-                        onPressed: () =>
-                            _deleteReply(reply['queryId'], reply['_id']),
+                        onPressed: () => _deleteReply(queryId, reply['_id']),
                         tooltip: 'Delete Reply',
                       ),
                     ],
@@ -759,6 +1061,60 @@ class _ManageSupportQueriesPageState extends State<ManageSupportQueriesPage> {
                       _editReply(queryId, replyId, editReplyController.text);
                       Navigator.of(context).pop();
                     },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showInternalNoteDialog(String queryId) {
+    final TextEditingController noteController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        backgroundColor: Colors.white,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Add Internal Note',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: Color(0xFF00B4D8))),
+              const SizedBox(height: 16),
+              TextField(
+                controller: noteController,
+                decoration: InputDecoration(
+                  labelText: 'Internal Note (Admins only)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: const Icon(Icons.sticky_note_2, color: Color(0xFF00B4D8)),
+                ),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () {
+                      _updateWorkflow(queryId, internalNote: noteController.text);
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Add Note'),
                   ),
                 ],
               ),

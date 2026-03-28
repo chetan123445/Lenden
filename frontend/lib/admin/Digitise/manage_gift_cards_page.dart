@@ -48,6 +48,7 @@ class _ViewGiftCardsTabState extends State<ViewGiftCardsTab> {
   List<GiftCard> _filteredGiftCards = [];
   bool _isLoading = true;
   String? _currentAdminId;
+  bool _isCurrentAdminSuperAdmin = false;
   final TextEditingController _searchController = TextEditingController();
   String _sortBy = 'createdAt_desc';
 
@@ -73,6 +74,7 @@ class _ViewGiftCardsTabState extends State<ViewGiftCardsTab> {
       if(mounted){
         setState(() {
           _currentAdminId = session.user!['_id'];
+          _isCurrentAdminSuperAdmin = session.user!['isSuperAdmin'] == true;
         });
       }
     }
@@ -498,7 +500,9 @@ class _ViewGiftCardsTabState extends State<ViewGiftCardsTab> {
                         itemCount: _filteredGiftCards.length,
                         itemBuilder: (context, index) {
                           final giftCard = _filteredGiftCards[index];
-                          final bool canEdit = giftCard.createdBy == _currentAdminId;
+                          final bool canEdit =
+                              _isCurrentAdminSuperAdmin ||
+                              giftCard.createdBy == _currentAdminId;
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 16),

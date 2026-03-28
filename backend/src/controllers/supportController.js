@@ -2,6 +2,44 @@ const SupportQuery = require('../models/supportQuery');
 const Activity = require('../models/activity');
 const User = require('../models/user');
 const Admin = require('../models/admin');
+const { logAdminAudit } = require('../utils/adminAuditLogger');
+
+const ADMIN_PERMISSION_DEFAULTS = {
+  canManageUsers: true,
+  canManageTransactions: true,
+  canManageSupport: true,
+  canManageContent: true,
+  canManageDigitise: true,
+  canManageSettings: true,
+  canViewAuditLogs: true,
+};
+
+const normalizePermissions = (permissions = {}) => {
+  const normalized = {};
+  for (const [key, value] of Object.entries(ADMIN_PERMISSION_DEFAULTS)) {
+    normalized[key] = permissions[key] !== false ? value : false;
+  }
+  return normalized;
+};
+
+const hasSupportPermission = (admin) =>
+  !!admin &&
+  (admin.isSuperAdmin === true ||
+    normalizePermissions(admin.permissions || {}).canManageSupport === true);
+
+const getCurrentAdmin = async (req) => {
+  const adminId = req.user?._id || req.user?.userId || req.user?.id;
+  if (adminId) {
+    const byId = await Admin.findById(adminId).select('-password');
+    if (byId) return byId;
+  }
+  if (req.user?.email) {
+    return Admin.findOne({ email: req.user.email }).select('-password');
+  }
+  return null;
+};
+
+const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
 // Helper: Delete queries older than 7 days
 const deleteOldQueries = async () => {
@@ -119,20 +157,54 @@ module.exports = (io) => {
   const getAllSupportQueries = async (req, res) => {
     try {
       await deleteOldQueries();
-      const { searchTerm } = req.query; // Search by topic
+      const currentAdmin = await getCurrentAdmin(req);
+      if (!hasSupportPermission(currentAdmin)) {
+        return res.status(403).json({ error: 'You do not have permission to manage support queries' });
+      }
+
+      const { searchTerm, status, priority, assigned } = req.query; // Search by topic
       let query = {};
 
       if (searchTerm) {
-        query.topic = { $regex: searchTerm, $options: 'i' }; // Case-insensitive search
+        query.$or = [
+          { topic: { $regex: searchTerm, $options: 'i' } },
+          { description: { $regex: searchTerm, $options: 'i' } },
+        ];
+      }
+
+      if (status && status !== 'all') {
+        query.status = status;
+      }
+
+      if (priority && priority !== 'all') {
+        query.priority = priority;
+      }
+
+      if (assigned === 'mine' && currentAdmin?._id) {
+        query.assignedAdmin = currentAdmin._id;
+      } else if (assigned === 'unassigned') {
+        query.assignedAdmin = null;
       }
 
       const queries = await SupportQuery.find(query)
         .populate('user', 'username email') // Populate user details
         .populate('replies.admin', 'username email') // Populate admin details for replies
+        .populate('assignedAdmin', 'username email name')
+        .populate('internalNotes.admin', 'email name')
         .sort({ createdAt: -1 });
 
       console.log('Backend: getAllSupportQueries - Success', queries.length, 'queries found');
-      res.status(200).json({ queries });
+      res.status(200).json({
+        queries,
+        currentAdmin: currentAdmin
+          ? {
+              _id: currentAdmin._id,
+              email: currentAdmin.email,
+              isSuperAdmin: currentAdmin.isSuperAdmin === true,
+              permissions: normalizePermissions(currentAdmin.permissions || {}),
+            }
+          : null,
+      });
     } catch (error) {
       console.error('Backend: getAllSupportQueries - Error', error);
       res.status(500).json({ error: 'Failed to fetch all support queries', details: error.message });
@@ -144,7 +216,11 @@ module.exports = (io) => {
     try {
       const { queryId } = req.params;
       const { replyText } = req.body;
-      const adminId = req.user._id; // Assuming admin ID is available from auth middleware
+      const currentAdmin = await getCurrentAdmin(req);
+      if (!hasSupportPermission(currentAdmin)) {
+        return res.status(403).json({ error: 'You do not have permission to reply to support queries' });
+      }
+      const adminId = currentAdmin._id;
 
       const query = await SupportQuery.findById(queryId);
 
@@ -155,12 +231,17 @@ module.exports = (io) => {
 
       query.replies.push({ admin: adminId, replyText });
       query.status = 'in_progress'; // Automatically set status to in_progress
+      if (!query.assignedAdmin) {
+        query.assignedAdmin = adminId;
+      }
       await query.save();
 
       // Re-fetch the query and populate it for emission
       const populatedQuery = await SupportQuery.findById(queryId)
         .populate('user', 'username email')
-        .populate('replies.admin', 'username email');
+        .populate('replies.admin', 'username email')
+        .populate('assignedAdmin', 'username email name')
+        .populate('internalNotes.admin', 'email name');
 
       // Emit Socket.IO event for updated query with new reply
       io.emit('support_query_updated', populatedQuery);
@@ -173,6 +254,16 @@ module.exports = (io) => {
         title: `Admin replied to your query: ${query.topic}`,
         description: `An admin has replied to your support query with ID: ${queryId}.`,
         metadata: { queryId: query._id, adminId, replyText },
+      });
+
+      await logAdminAudit({
+        req,
+        admin: currentAdmin,
+        action: 'support_replied',
+        targetType: 'support_query',
+        targetId: query._id,
+        summary: `${currentAdmin.email} replied to support query "${query.topic}"`,
+        details: { replyText },
       });
 
       console.log('Backend: replyToSupportQuery - Success', populatedQuery);
@@ -188,7 +279,11 @@ module.exports = (io) => {
     try {
       const { queryId, replyId } = req.params;
       const { replyText } = req.body;
-      const adminId = req.user._id;
+      const currentAdmin = await getCurrentAdmin(req);
+      if (!hasSupportPermission(currentAdmin)) {
+        return res.status(403).json({ error: 'You do not have permission to edit support replies' });
+      }
+      const adminId = currentAdmin._id;
 
       const query = await SupportQuery.findById(queryId);
 
@@ -213,7 +308,9 @@ module.exports = (io) => {
       // Populate the query and the edited reply for emission
       const populatedQuery = await query
         .populate('user', 'username email')
-        .populate('replies.admin', 'username email');
+        .populate('replies.admin', 'username email')
+        .populate('assignedAdmin', 'username email name')
+        .populate('internalNotes.admin', 'email name');
 
       // Emit Socket.IO event for updated query with edited reply
       io.emit('support_query_updated', populatedQuery);
@@ -228,6 +325,16 @@ module.exports = (io) => {
         metadata: { queryId: query._id, replyId, newReplyText: replyText },
       });
 
+      await logAdminAudit({
+        req,
+        admin: currentAdmin,
+        action: 'support_reply_edited',
+        targetType: 'support_query',
+        targetId: query._id,
+        summary: `${currentAdmin.email} edited a support reply on "${query.topic}"`,
+        details: { replyId },
+      });
+
       res.status(200).json({ message: 'Reply updated successfully', query: populatedQuery });
     } catch (error) {
       res.status(500).json({ error: 'Failed to update reply', details: error.message });
@@ -238,7 +345,10 @@ module.exports = (io) => {
   const deleteReply = async (req, res) => {
     try {
       const { queryId, replyId } = req.params;
-      const adminId = req.user._id;
+      const currentAdmin = await getCurrentAdmin(req);
+      if (!hasSupportPermission(currentAdmin)) {
+        return res.status(403).json({ error: 'You do not have permission to delete support replies' });
+      }
 
       const query = await SupportQuery.findById(queryId);
 
@@ -252,7 +362,9 @@ module.exports = (io) => {
       // Populate the query for emission after reply deletion
       const populatedQuery = await query
         .populate('user', 'username email')
-        .populate('replies.admin', 'username email');
+        .populate('replies.admin', 'username email')
+        .populate('assignedAdmin', 'username email name')
+        .populate('internalNotes.admin', 'email name');
 
       // Emit Socket.IO event for updated query after reply deletion
       io.emit('support_query_updated', populatedQuery);
@@ -267,6 +379,17 @@ module.exports = (io) => {
         metadata: { queryId: query._id, replyId },
       });
 
+      await logAdminAudit({
+        req,
+        admin: currentAdmin,
+        action: 'support_reply_deleted',
+        targetType: 'support_query',
+        targetId: query._id,
+        summary: `${currentAdmin.email} deleted a support reply on "${query.topic}"`,
+        details: { replyId },
+        severity: 'warning',
+      });
+
       res.status(200).json({ message: 'Reply deleted successfully', query: populatedQuery });
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete reply', details: error.message });
@@ -278,7 +401,11 @@ module.exports = (io) => {
     try {
       const { queryId } = req.params;
       const { status } = req.body;
-      const adminId = req.user._id;
+      const currentAdmin = await getCurrentAdmin(req);
+      if (!hasSupportPermission(currentAdmin)) {
+        return res.status(403).json({ error: 'You do not have permission to update support status' });
+      }
+      const adminId = currentAdmin._id;
 
       if (!['open', 'in_progress', 'resolved', 'closed'].includes(status)) {
         return res.status(400).json({ error: 'Invalid status provided' });
@@ -296,7 +423,9 @@ module.exports = (io) => {
       // Populate the query for emission after status update
       const populatedQuery = await query
         .populate('user', 'username email')
-        .populate('replies.admin', 'username email');
+        .populate('replies.admin', 'username email')
+        .populate('assignedAdmin', 'username email name')
+        .populate('internalNotes.admin', 'email name');
 
       // Emit Socket.IO event for updated query after status change
       io.emit('support_query_updated', populatedQuery);
@@ -311,9 +440,141 @@ module.exports = (io) => {
         metadata: { queryId: query._id, newStatus: status },
       });
 
+      await logAdminAudit({
+        req,
+        admin: currentAdmin,
+        action: 'support_status_updated',
+        targetType: 'support_query',
+        targetId: query._id,
+        summary: `${currentAdmin.email} updated support status to ${status} for "${query.topic}"`,
+        details: { status },
+      });
+
       res.status(200).json({ message: 'Query status updated successfully', query: populatedQuery });
     } catch (error) {
       res.status(500).json({ error: 'Failed to update query status', details: error.message });
+    }
+  };
+
+  const updateQueryWorkflow = async (req, res) => {
+    try {
+      const currentAdmin = await getCurrentAdmin(req);
+      if (!hasSupportPermission(currentAdmin)) {
+        return res.status(403).json({ error: 'You do not have permission to manage support workflow' });
+      }
+
+      const { queryId } = req.params;
+      const { priority, assignedAdminId, internalNote } = req.body;
+      const query = await SupportQuery.findById(queryId);
+
+      if (!query) {
+        return res.status(404).json({ error: 'Support query not found' });
+      }
+
+      if (priority && ['low', 'normal', 'high', 'critical'].includes(priority)) {
+        query.priority = priority;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(req.body, 'assignedAdminId')) {
+        query.assignedAdmin = assignedAdminId || null;
+      }
+
+      if (internalNote && internalNote.toString().trim()) {
+        query.internalNotes.push({
+          admin: currentAdmin._id,
+          noteText: internalNote.toString().trim(),
+        });
+      }
+
+      await query.save();
+
+      const populatedQuery = await SupportQuery.findById(queryId)
+        .populate('user', 'username email')
+        .populate('replies.admin', 'username email')
+        .populate('assignedAdmin', 'username email name')
+        .populate('internalNotes.admin', 'email name');
+
+      io.emit('support_query_updated', populatedQuery);
+      io.to(`query_${query._id}`).emit('support_query_updated', populatedQuery);
+
+      await logAdminAudit({
+        req,
+        admin: currentAdmin,
+        action: 'support_workflow_updated',
+        targetType: 'support_query',
+        targetId: query._id,
+        summary: `${currentAdmin.email} updated workflow settings for support query "${query.topic}"`,
+        details: {
+          priority: query.priority,
+          assignedAdminId: query.assignedAdmin?.toString?.() || '',
+          internalNoteAdded: !!internalNote,
+        },
+      });
+
+      res.status(200).json({ message: 'Support workflow updated successfully', query: populatedQuery });
+    } catch (error) {
+      console.error('Backend: updateQueryWorkflow - Error', error);
+      res.status(500).json({ error: 'Failed to update support workflow', details: error.message });
+    }
+  };
+
+  const exportSupportQueries = async (req, res) => {
+    try {
+      const currentAdmin = await getCurrentAdmin(req);
+      if (!hasSupportPermission(currentAdmin)) {
+        return res.status(403).json({ error: 'You do not have permission to export support queries' });
+      }
+
+      const queries = await SupportQuery.find({})
+        .populate('user', 'email username')
+        .populate('assignedAdmin', 'email')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      await logAdminAudit({
+        req,
+        admin: currentAdmin,
+        action: 'support_queries_exported',
+        targetType: 'support_query_export',
+        targetId: '',
+        summary: `${currentAdmin.email} exported ${queries.length} support queries`,
+      });
+
+      const columns = [
+        'Topic',
+        'User Email',
+        'Status',
+        'Priority',
+        'Assigned Admin',
+        'Replies',
+        'Created At',
+      ];
+      const csv = [
+        columns.map(escapeCsv).join(','),
+        ...queries.map((query) =>
+          [
+            query.topic,
+            query.user?.email || query.user?.username || '',
+            query.status,
+            query.priority || 'normal',
+            query.assignedAdmin?.email || '',
+            (query.replies || []).length,
+            query.createdAt ? new Date(query.createdAt).toISOString() : '',
+          ]
+            .map(escapeCsv)
+            .join(',')
+        ),
+      ].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="support-queries-${Date.now()}.csv"`
+      );
+      return res.status(200).send(csv);
+    } catch (error) {
+      console.error('Backend: exportSupportQueries - Error', error);
+      res.status(500).json({ error: 'Failed to export support queries', details: error.message });
     }
   };
 
@@ -359,5 +620,7 @@ module.exports = (io) => {
     editReply,
     deleteReply,
     updateQueryStatus,
+    updateQueryWorkflow,
+    exportSupportQueries,
   };
 };

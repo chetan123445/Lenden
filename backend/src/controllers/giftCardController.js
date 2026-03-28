@@ -1,4 +1,27 @@
 const GiftCard = require('../models/giftCard');
+const Admin = require('../models/admin');
+
+const getCurrentAdmin = async (req) => {
+    const adminId = req.user?._id || req.user?.userId || req.user?.id;
+    let admin = null;
+
+    if (adminId) {
+        admin = await Admin.findById(adminId).select('_id email isSuperAdmin').lean();
+    }
+    if (!admin && req.user?.email) {
+        admin = await Admin.findOne({ email: req.user.email })
+            .select('_id email isSuperAdmin')
+            .lean();
+    }
+
+    return admin;
+};
+
+const canManageGiftCard = (admin, giftCard) => {
+    if (!admin || !giftCard) return false;
+    if (admin.isSuperAdmin === true) return true;
+    return giftCard.createdBy?.toString() === admin._id?.toString();
+};
 
 // Create a new gift card
 exports.createGiftCard = async (req, res) => {
@@ -39,7 +62,7 @@ exports.updateGiftCard = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, value } = req.body;
-        const adminId = req.user._id;
+        const currentAdmin = await getCurrentAdmin(req);
 
         const giftCard = await GiftCard.findById(id);
 
@@ -47,7 +70,7 @@ exports.updateGiftCard = async (req, res) => {
             return res.status(404).json({ message: 'Gift card not found' });
         }
 
-        if (giftCard.createdBy.toString() !== adminId) {
+        if (!canManageGiftCard(currentAdmin, giftCard)) {
             return res.status(403).json({ message: 'You are not authorized to edit this gift card.' });
         }
 
@@ -66,7 +89,7 @@ exports.updateGiftCard = async (req, res) => {
 exports.deleteGiftCard = async (req, res) => {
     try {
         const { id } = req.params;
-        const adminId = req.user._id;
+        const currentAdmin = await getCurrentAdmin(req);
 
         const giftCard = await GiftCard.findById(id);
 
@@ -74,7 +97,7 @@ exports.deleteGiftCard = async (req, res) => {
             return res.status(404).json({ message: 'Gift card not found' });
         }
 
-        if (giftCard.createdBy.toString() !== adminId) {
+        if (!canManageGiftCard(currentAdmin, giftCard)) {
             return res.status(403).json({ message: 'You are not authorized to delete this gift card.' });
         }
 

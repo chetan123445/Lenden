@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'dart:convert';
-import '../../session.dart';
-import '../../api_config.dart';
 import 'user_edit_page.dart';
 import '../../utils/api_client.dart';
 
@@ -48,6 +45,9 @@ class _UserDetailsPageState extends State<UserDetailsPage>
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
+          if (data['user'] is Map) {
+            widget.user.addAll(Map<String, dynamic>.from(data['user']));
+          }
           _userStats = data['stats'];
           _recentTransactions =
               List<Map<String, dynamic>>.from(data['recentTransactions'] ?? []);
@@ -315,29 +315,70 @@ class _UserDetailsPageState extends State<UserDetailsPage>
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: OutlinedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        UserEditPage(user: user),
+                            child: isVerified
+                                ? OutlinedButton(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              UserEditPage(user: user),
+                                        ),
+                                      ).then((_) => _loadUserDetails());
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      side: const BorderSide(
+                                          color: Color(0xFF00B4D8)),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Edit User',
+                                      style:
+                                          TextStyle(color: Color(0xFF00B4D8)),
+                                    ),
+                                  )
+                                : ElevatedButton.icon(
+                                    onPressed: _reviewPendingUser,
+                                    icon: const Icon(Icons.fact_check_rounded),
+                                    label: const Text('Review Pending'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.orange,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
                                   ),
-                                ).then((_) => _loadUserDetails());
-                              },
-                              style: OutlinedButton.styleFrom(
-                                side:
-                                    const BorderSide(color: Color(0xFF00B4D8)),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                          ),
+                          if (!isVerified) ...[
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          UserEditPage(user: user),
+                                    ),
+                                  ).then((_) => _loadUserDetails());
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(
+                                      color: Color(0xFF00B4D8)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Edit User',
+                                  style: TextStyle(color: Color(0xFF00B4D8)),
                                 ),
                               ),
-                              child: const Text(
-                                'Edit User',
-                                style: TextStyle(color: Color(0xFF00B4D8)),
-                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ],
@@ -412,8 +453,22 @@ class _UserDetailsPageState extends State<UserDetailsPage>
             _buildInfoTile('User ID', user['_id'] ?? 'Unknown'),
             _buildInfoTile('Account Type', user['role'] ?? 'User'),
             _buildInfoTile('Joined Date', _formatDate(user['createdAt'])),
-            _buildInfoTile('Last Login', _formatDate(user['lastLogin'])),
+            _buildInfoTile(
+                'Last Activity', _formatDate(_userStats?['lastActivity'])),
             _buildInfoTile('Alternative Email', user['altEmail'] ?? 'Not set'),
+            _buildInfoTile(
+              'LenDen Coins',
+              (_userStats?['lenDenCoins'] ?? user['lenDenCoins'] ?? 0)
+                  .toString(),
+            ),
+            _buildInfoTile(
+              'Subscription',
+              (_userStats?['activeSubscription'] is Map)
+                  ? ((_userStats?['activeSubscription']['plan'] ??
+                          'Active plan')
+                      .toString())
+                  : 'Not active',
+            ),
           ]),
           const SizedBox(height: 16),
           _buildInfoSection('Account Status', [
@@ -468,15 +523,15 @@ class _UserDetailsPageState extends State<UserDetailsPage>
             children: [
               Expanded(
                   child: _buildStatCard(
-                      'Groups',
-                      _userStats!['totalGroups']?.toString() ?? '0',
-                      Icons.group)),
+                      'Secure',
+                      _userStats!['secureTransactions']?.toString() ?? '0',
+                      Icons.shield_outlined)),
               const SizedBox(width: 12),
               Expanded(
                   child: _buildStatCard(
-                      'Friends',
-                      _userStats!['totalFriends']?.toString() ?? '0',
-                      Icons.people)),
+                      'Quick',
+                      _userStats!['quickTransactions']?.toString() ?? '0',
+                      Icons.flash_on_rounded)),
             ],
           ),
 
@@ -486,25 +541,29 @@ class _UserDetailsPageState extends State<UserDetailsPage>
           _buildInfoSection('Transaction Statistics', [
             _buildInfoTile('Successful Transactions',
                 _userStats!['successfulTransactions']?.toString() ?? '0'),
-            _buildInfoTile('Failed Transactions',
-                _userStats!['failedTransactions']?.toString() ?? '0'),
+            _buildInfoTile('Pending / Uncleared',
+                _userStats!['pendingTransactions']?.toString() ?? '0'),
             _buildInfoTile('Average Transaction',
-                '\$${_userStats!['averageTransaction']?.toString() ?? '0'}'),
+                _formatCurrency(_userStats!['averageTransaction'])),
             _buildInfoTile('Largest Transaction',
-                '\$${_userStats!['largestTransaction']?.toString() ?? '0'}'),
+                _formatCurrency(_userStats!['largestTransaction'])),
           ]),
 
           const SizedBox(height: 16),
 
           _buildInfoSection('Activity Statistics', [
             _buildInfoTile(
+                'Groups Joined', _userStats!['totalGroups']?.toString() ?? '0'),
+            _buildInfoTile('Groups Created',
+                _userStats!['groupsCreated']?.toString() ?? '0'),
+            _buildInfoTile(
+                'Friends', _userStats!['totalFriends']?.toString() ?? '0'),
+            _buildInfoTile(
                 'Days Active', _userStats!['daysActive']?.toString() ?? '0'),
             _buildInfoTile(
                 'Last Activity', _formatDate(_userStats!['lastActivity'])),
             _buildInfoTile(
                 'Login Count', _userStats!['loginCount']?.toString() ?? '0'),
-            _buildInfoTile('Profile Views',
-                _userStats!['profileViews']?.toString() ?? '0'),
           ]),
         ],
       ),
@@ -669,9 +728,11 @@ class _UserDetailsPageState extends State<UserDetailsPage>
   }
 
   Widget _buildTransactionCard(Map<String, dynamic> transaction) {
-    final amount = transaction['amount']?.toString() ?? '0';
-    final date = transaction['date'] ?? 'Not provided';
-    final status = transaction['status'] ?? 'unknown';
+    final amount = transaction['amount'];
+    final date = transaction['createdAt'] ?? transaction['date'];
+    final status = (transaction['status'] ?? 'unknown').toString();
+    final source = (transaction['source'] ?? 'secure').toString();
+    final counterpart = (transaction['counterpart'] ?? '').toString();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -708,7 +769,7 @@ class _UserDetailsPageState extends State<UserDetailsPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Transaction ID: ${transaction['_id']}',
+                  '${source == 'quick' ? 'Quick' : 'Secure'} Transaction',
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -717,12 +778,22 @@ class _UserDetailsPageState extends State<UserDetailsPage>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Amount: \$${amount}',
+                  'Amount: ${_formatCurrency(amount, transaction['currency'])}',
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.black,
                   ),
                 ),
+                if (counterpart.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Counterpart: $counterpart',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Text(
                   'Date: ${_formatDate(date)}',
@@ -733,7 +804,7 @@ class _UserDetailsPageState extends State<UserDetailsPage>
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Status: ${status.toString().capitalize()}',
+                  'Status: ${status.replaceAll('_', ' ').capitalize()}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -760,9 +831,11 @@ class _UserDetailsPageState extends State<UserDetailsPage>
   }
 
   Widget _buildActivityCard(Map<String, dynamic> activity) {
-    final action = activity['action'] ?? 'activity';
+    final action = (activity['action'] ?? 'activity').toString();
     final timestamp = activity['timestamp'];
     final when = _formatDate(timestamp);
+    final title = (activity['title'] ?? _getActivityTitle(action)).toString();
+    final description = (activity['description'] ?? '').toString();
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -794,9 +867,18 @@ class _UserDetailsPageState extends State<UserDetailsPage>
           Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_getActivityTitle(action),
+              Text(title,
                   style: const TextStyle(
                       fontSize: 14, fontWeight: FontWeight.bold)),
+              if (description.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                ),
+              ],
               const SizedBox(height: 4),
               Text(when,
                   style: const TextStyle(fontSize: 12, color: Colors.grey)),
@@ -844,14 +926,89 @@ class _UserDetailsPageState extends State<UserDetailsPage>
   Color _getStatusColor(String status) {
     switch (status) {
       case 'successful':
+      case 'completed':
         return Colors.green;
       case 'failed':
         return Colors.red;
+      case 'partially_paid':
+        return Colors.deepOrange;
       case 'pending':
         return Colors.orange;
       default:
         return Colors.grey;
     }
+  }
+
+  Future<void> _reviewPendingUser() async {
+    try {
+      final response = await ApiClient.patch(
+        '/api/admin/users/${widget.user['_id']}/review-pending',
+        body: const {},
+      );
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        setState(() {
+          widget.user['isVerified'] = true;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            content: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withValues(alpha: 0.18),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.verified_user_rounded, color: Colors.green),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      (data['message'] ?? 'Pending user marked as verified')
+                          .toString(),
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      } else {
+        throw Exception(
+          (data['message'] ?? 'Failed to review pending user').toString(),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  String _formatCurrency(dynamic value, [dynamic currency]) {
+    final amount = (value is num) ? value.toDouble() : double.tryParse('$value');
+    if (amount == null) {
+      return currency == null || '$currency'.isEmpty ? '$value' : '$currency $value';
+    }
+    final code = (currency ?? '').toString().trim();
+    final formatted = amount.toStringAsFixed(amount.truncateToDouble() == amount ? 0 : 2);
+    return code.isEmpty ? '\$$formatted' : '$formatted $code';
   }
 
   Widget _buildProfileImage(Map<String, dynamic> user) {

@@ -9,9 +9,18 @@ module.exports = function (req, res, next) {
   try {
     const jwtSecret = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
     const decoded = jwt.verify(token, jwtSecret);
+    if (!decoded._id && decoded.userId) {
+      decoded._id = decoded.userId;
+    }
+    if (!decoded.userId && decoded._id) {
+      decoded.userId = decoded._id;
+    }
+    if (!decoded.id && decoded._id) {
+      decoded.id = decoded._id;
+    }
     req.user = decoded;
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid token' });
   }
-}; 
+};

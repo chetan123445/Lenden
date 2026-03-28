@@ -134,6 +134,7 @@ exports.verifyOtp = async (req, res) => {
       email,
       password: hashedPassword,
       gender,
+      isVerified: true,
       referralCode: uniqueReferralCode,
       referredByUser,
       referredByCode: referralCode || null,
@@ -318,9 +319,11 @@ exports.login = async (req, res) => {
       // Generate access token (short-lived)
       const accessToken = TokenService.generateAccessToken({
         _id: admin._id,
+        userId: admin._id,
         email: admin.email,
         role: 'admin',
-        deviceId
+        deviceId,
+        isSuperAdmin: admin.isSuperAdmin === true,
       });
 
       // Generate refresh token (long-lived)
@@ -567,9 +570,11 @@ exports.verifyLoginOtp = async (req, res) => {
       // Generate access token (short-lived)
       const accessToken = TokenService.generateAccessToken({
         _id: admin._id,
+        userId: admin._id,
         email: admin.email,
         role: 'admin',
-        deviceId
+        deviceId,
+        isSuperAdmin: admin.isSuperAdmin === true,
       });
 
       // Generate refresh token (long-lived)
@@ -732,13 +737,24 @@ exports.refreshToken = async (req, res) => {
     }
 
     // Generate new access token
+    let tokenSubject = null;
+    if (tokenData.userType === 'user') {
+      tokenSubject = await User.findById(tokenData.userId).select('_id email').lean();
+    } else {
+      tokenSubject = await Admin.findById(tokenData.userId)
+        .select('_id email isSuperAdmin')
+        .lean();
+    }
+
     const newAccessToken = TokenService.generateAccessToken({
       _id: tokenData.userId,
-      email: tokenData.userType === 'user' 
-        ? (await User.findById(tokenData.userId))?.email 
-        : (await Admin.findById(tokenData.userId))?.email,
+      userId: tokenData.userId,
+      email: tokenSubject?.email,
       role: tokenData.userType,
-      deviceId: tokenData.deviceId
+      deviceId: tokenData.deviceId,
+      ...(tokenData.userType === 'admin'
+          ? { isSuperAdmin: tokenSubject?.isSuperAdmin === true }
+          : {}),
     });
 
     console.log('✅ Token refreshed successfully for user:', tokenData.userId);

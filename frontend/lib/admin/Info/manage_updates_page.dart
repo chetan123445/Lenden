@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../session.dart';
 import '../../utils/api_client.dart';
 
 class ManageUpdatesPage extends StatefulWidget {
@@ -95,7 +97,7 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
       _status = (update['status'] ?? 'published').toString();
       _platformsController.text =
           ((update['platforms'] as List?) ?? const ['all']).map((e) => '$e').join(', ');
-      _scheduledForController.text = (update['scheduledFor'] ?? '').toString();
+      _scheduledForController.text = _toEditableDateTime(update['scheduledFor']);
       _pinned = update['pinned'] == true;
       _error = null;
     });
@@ -171,6 +173,49 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  String _toEditableDateTime(dynamic rawValue) {
+    final parsed = DateTime.tryParse(rawValue?.toString() ?? '')?.toLocal();
+    if (parsed == null) return '';
+    return _toApiDateTime(parsed);
+  }
+
+  String _toApiDateTime(DateTime value) => value.toUtc().toIso8601String();
+
+  Future<void> _pickDateTime({
+    required TextEditingController controller,
+    required String title,
+  }) async {
+    final initial =
+        DateTime.tryParse(controller.text.trim())?.toLocal() ?? DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2100),
+      helpText: title,
+    );
+    if (date == null || !mounted) return;
+
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+      helpText: '$title Time',
+    );
+    if (time == null || !mounted) return;
+
+    final combined = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    );
+
+    setState(() {
+      controller.text = _toApiDateTime(combined);
+    });
   }
 
   Future<void> _confirmDelete(Map<String, dynamic> update) async {
@@ -319,15 +364,59 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
     final items = _updates.where((update) {
       switch (_filter) {
         case 'mine':
-          return update['canManage'] == true;
+          return _canManageUpdate(update);
         case 'pinned':
           return update['pinned'] == true;
+        case 'draft':
+          return (update['status'] ?? 'published').toString() == 'draft';
+        case 'scheduled':
+          return (update['status'] ?? 'published').toString() == 'scheduled';
+        case 'critical':
+          return (update['importance'] ?? 'normal').toString() == 'critical';
         default:
           return true;
       }
     }).toList();
 
     return _showAll ? items : items.take(3).toList();
+  }
+
+  bool _canManageUpdate(Map<String, dynamic> update) {
+    if (update['canManage'] == true) return true;
+
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final currentAdmin = session.user ?? const <String, dynamic>{};
+    if (currentAdmin['isSuperAdmin'] == true) return true;
+
+    final createdBy = update['createdBy'];
+    final createdById =
+        createdBy is Map ? createdBy['_id']?.toString() : createdBy?.toString();
+    final currentAdminId = currentAdmin['_id']?.toString();
+    return createdById != null && createdById == currentAdminId;
+  }
+
+  Map<String, int> get _updateSummary {
+    final summary = {
+      'published': 0,
+      'draft': 0,
+      'scheduled': 0,
+      'reads': 0,
+      'critical': 0,
+    };
+
+    for (final update in _updates) {
+      final status = (update['status'] ?? 'published').toString();
+      if (summary.containsKey(status)) {
+        summary[status] = summary[status]! + 1;
+      }
+      summary['reads'] =
+          summary['reads']! + (((update['stats'] ?? {})['readCount'] ?? 0) as int);
+      if ((update['importance'] ?? 'normal').toString() == 'critical') {
+        summary['critical'] = summary['critical']! + 1;
+      }
+    }
+
+    return summary;
   }
 
   @override
@@ -579,10 +668,33 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
               const SizedBox(height: 12),
               TextField(
                 controller: _scheduledForController,
-                decoration: const InputDecoration(
+                readOnly: true,
+                onTap: () => _pickDateTime(
+                  controller: _scheduledForController,
+                  title: 'Select Schedule Date',
+                ),
+                decoration: InputDecoration(
                   labelText: 'Scheduled For',
-                  hintText: '2026-03-28T10:30:00.000Z',
-                  border: OutlineInputBorder(),
+                  hintText: 'Tap to choose date and time',
+                  border: const OutlineInputBorder(),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_scheduledForController.text.trim().isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () =>
+                              setState(() => _scheduledForController.clear()),
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.calendar_month_outlined),
+                        onPressed: () => _pickDateTime(
+                          controller: _scheduledForController,
+                          title: 'Select Schedule Date',
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -696,9 +808,24 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
             spacing: 10,
             runSpacing: 10,
             children: [
+              _buildSummaryChip('Published', '${_updateSummary['published']}'),
+              _buildSummaryChip('Drafts', '${_updateSummary['draft']}'),
+              _buildSummaryChip('Scheduled', '${_updateSummary['scheduled']}'),
+              _buildSummaryChip('Reads', '${_updateSummary['reads']}'),
+              _buildSummaryChip('Critical', '${_updateSummary['critical']}'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
               _buildFilterChip('all', 'All'),
               _buildFilterChip('mine', 'Mine'),
               _buildFilterChip('pinned', 'Pinned'),
+              _buildFilterChip('draft', 'Drafts'),
+              _buildFilterChip('scheduled', 'Scheduled'),
+              _buildFilterChip('critical', 'Critical'),
             ],
           ),
           const SizedBox(height: 12),
@@ -728,6 +855,34 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
     );
   }
 
+  Widget _buildSummaryChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF5FF),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(color: Colors.black87),
+          children: [
+            TextSpan(
+              text: '$value ',
+              style: const TextStyle(
+                color: Color(0xFF00B4D8),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            TextSpan(
+              text: label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -751,7 +906,7 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
     final editedAt = _formatDateTime(update['updatedAt']);
     final wasEdited = (update['updatedAt'] ?? '').toString() !=
         (update['createdAt'] ?? '').toString();
-    final canManage = update['canManage'] == true;
+    final canManage = _canManageUpdate(update);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),

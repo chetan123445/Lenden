@@ -294,6 +294,7 @@ module.exports = (io) => {
   router.get('/admin/offers/:offerId/claims', auth, isAdmin, offerController.getOfferClaimsAudit);
   router.put('/admin/offers/:offerId', auth, isAdmin, offerController.updateOffer);
   router.delete('/admin/offers/:offerId', auth, isAdmin, offerController.deleteOffer);
+  router.get('/admin/content-analytics', auth, isAdmin, appContentController.getAdminContentAnalytics);
   router.post('/admin/app-updates', auth, isAdmin, appContentController.createUpdate);
   router.put('/admin/app-updates/:updateId', auth, isAdmin, appContentController.updateUpdate);
   router.delete('/admin/app-updates/:updateId', auth, isAdmin, appContentController.deleteUpdate);
@@ -370,8 +371,13 @@ module.exports = (io) => {
 
   // Admin routes
   // User Management
+  router.get('/admin/dashboard-summary', auth, isAdmin, adminController.getDashboardSummary);
   router.get('/admin/users', auth, isAdmin, adminController.getAllUsers);
+  router.get('/admin/users/export', auth, isAdmin, adminController.exportUsers);
+  router.patch('/admin/users/clear-pending', auth, isAdmin, adminController.clearPendingUsers);
+  router.patch('/admin/users/:userId/review-pending', auth, isAdmin, adminController.reviewPendingUser);
   router.get('/admin/users/:userId/details', auth, isAdmin, adminController.getUserDetails);
+  router.patch('/admin/users/bulk-status', auth, isAdmin, adminController.bulkUpdateUserStatus);
   router.patch('/admin/users/:userId/status', auth, isAdmin, adminController.updateUserStatus);
   router.put('/admin/users/:userId', auth, isAdmin, adminController.updateUser);
   router.delete('/admin/users/:userId', auth, isAdmin, adminController.deleteUser);
@@ -394,8 +400,11 @@ module.exports = (io) => {
 
   // Admin Management routes
   router.get('/admin/admins', auth, isAdmin, adminController.getAllAdmins); // This route now supports ?search=query
+  router.get('/admin/audit-logs', auth, isAdmin, adminController.getAdminAuditLogs);
   router.post('/admin/admins', auth, isAdmin, adminController.addAdmin);
   router.delete('/admin/admins/:adminId', auth, isAdmin, adminController.removeAdmin);
+  router.patch('/admin/admins/:adminId/superadmin', auth, isAdmin, adminController.toggleSuperAdminStatus);
+  router.patch('/admin/admins/:adminId/permissions', auth, isAdmin, adminController.updateAdminPermissions);
 
   // System Settings
   router.get('/admin/system-settings', auth, isAdmin, adminController.getSystemSettings);
@@ -418,10 +427,12 @@ module.exports = (io) => {
 
   // Support routes (Admin)
   router.get('/admin/support/queries', auth, isAdmin, supportController.getAllSupportQueries);
+  router.get('/admin/support/queries/export', auth, isAdmin, supportController.exportSupportQueries);
   router.post('/admin/support/queries/:queryId/reply', auth, isAdmin, supportController.replyToSupportQuery);
   router.put('/admin/support/queries/:queryId/replies/:replyId', auth, isAdmin, supportController.editReply);
   router.delete('/admin/support/queries/:queryId/replies/:replyId', auth, isAdmin, supportController.deleteReply);
   router.patch('/admin/support/queries/:queryId/status', auth, isAdmin, supportController.updateQueryStatus);
+  router.patch('/admin/support/queries/:queryId/workflow', auth, isAdmin, supportController.updateQueryWorkflow);
   router.get('/admin/contact-info', auth, isAdmin, contactConfigController.getAdminContactConfig);
   router.put('/admin/contact-info', auth, isAdmin, contactConfigController.updateAdminContactConfig);
 

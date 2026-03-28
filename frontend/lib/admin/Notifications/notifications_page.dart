@@ -101,6 +101,14 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
     });
   }
 
+  bool _canCurrentAdminManageNotification(dynamic notification) {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    final currentAdmin = session.user ?? const <String, dynamic>{};
+    if (currentAdmin['isSuperAdmin'] == true) return true;
+    final currentAdminId = currentAdmin['_id']?.toString();
+    return notification['sender']?.toString() == currentAdminId;
+  }
+
   Future<void> _fetchReceivedNotifications({bool viewAll = false}) async {
     setState(() => _isLoadingReceived = true);
     final url =
@@ -735,8 +743,7 @@ class _AdminNotificationsPageState extends State<AdminNotificationsPage>
     final accent = _accentForCategory(category);
     final isRead = _isNotificationRead(notification, unreadUserId);
     final session = Provider.of<SessionProvider>(context, listen: false);
-    final currentAdminId = session.user!['_id'];
-    final canEditThis = notification['sender']?.toString() == currentAdminId.toString();
+    final canEditThis = _canCurrentAdminManageNotification(notification);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),

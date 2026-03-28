@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert';
 import '../../session.dart';
+import '../../utils/api_client.dart';
 import '../Support/notes_page.dart';
 import '../../profile/profile_page.dart';
 import '../Transactions/manage_secure_transactions_page.dart';
@@ -16,6 +18,8 @@ import '../Digitise/manage_referral_settings_page.dart';
 import '../Digitise/manage_offers_page.dart';
 import '../Info/manage_updates_page.dart';
 import '../Info/manage_ads_page.dart';
+import '../Info/content_analytics_page.dart';
+import '../Manage_users/admin_roles_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -27,6 +31,9 @@ class AdminDashboardPage extends StatefulWidget {
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   int _imageRefreshKey = 0; // Key to force avatar rebuild
   bool _useCompactAdminOptions = true;
+  bool _loadingOverview = false;
+  String? _overviewError;
+  Map<String, dynamic>? _dashboardSummary;
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
   final Map<String, GlobalKey> _sectionKeys = {
@@ -42,6 +49,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     'contact_settings': GlobalKey(),
     'app_ratings': GlobalKey(),
     'user_feedbacks': GlobalKey(),
+    'support_queries': GlobalKey(),
+    'content_analytics': GlobalKey(),
   };
 
   @override
@@ -52,6 +61,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = Provider.of<SessionProvider>(context, listen: false);
       session.addListener(_onSessionChanged);
+      _loadDashboardSummary();
     });
   }
 
@@ -68,11 +78,189 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     setState(() {
       _imageRefreshKey++;
     });
+    _loadDashboardSummary();
+  }
+
+  Future<void> _loadDashboardSummary() async {
+    if (!mounted) return;
+    setState(() {
+      _loadingOverview = true;
+      _overviewError = null;
+    });
+
+    try {
+      final response = await ApiClient.get('/api/admin/dashboard-summary');
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode != 200) {
+        throw Exception(
+          (data['message'] ?? 'Failed to load admin overview').toString(),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _dashboardSummary = data['summary'] is Map<String, dynamic>
+            ? Map<String, dynamic>.from(data['summary'])
+            : data['summary'] is Map
+                ? Map<String, dynamic>.from(data['summary'])
+                : null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _overviewError = e.toString().replaceFirst('Exception: ', '');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingOverview = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _clearPendingUsers() async {
+    try {
+      final response = await ApiClient.patch(
+        '/api/admin/users/clear-pending',
+        body: const {},
+      );
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (response.statusCode != 200) {
+        throw Exception(
+          (data['message'] ?? 'Failed to clear pending users').toString(),
+        );
+      }
+      if (!mounted) return;
+      final modifiedCount = (data['modifiedCount'] ?? 0) as num;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          content: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  (modifiedCount > 0
+                          ? const Color(0xFF00B4D8)
+                          : Colors.green)
+                      .withValues(alpha: 0.14),
+                  Colors.white,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  modifiedCount > 0
+                      ? Icons.verified_user_rounded
+                      : Icons.auto_awesome_rounded,
+                  color:
+                      modifiedCount > 0 ? const Color(0xFF00B4D8) : Colors.green,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    (data['message'] ?? 'No pending users were left to review')
+                        .toString(),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      _loadDashboardSummary();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    }
+  }
+
+  void _openSectionById(String? sectionId) {
+    if (sectionId == null || sectionId.isEmpty) return;
+
+    switch (sectionId) {
+      case 'manage_users':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const UserManagementPage()),
+        );
+        return;
+      case 'manage_transactions':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ManageTransactionsPage()),
+        );
+        return;
+      case 'manage_groups':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ManageGroupTransactionsPage()),
+        );
+        return;
+      case 'support_queries':
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ManageSupportQueriesPage()),
+        );
+        return;
+      case 'content_analytics':
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const AdminContentAnalyticsPage(),
+          ),
+        );
+        return;
+    }
+
+    final targetContext = _sectionKeys[sectionId]?.currentContext;
+    if (targetContext != null) {
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+        alignment: 0.15,
+      );
+    }
+  }
+
+  Map<String, dynamic> get _adminPermissions {
+    final sessionUser = Provider.of<SessionProvider>(context, listen: false).user;
+    if (sessionUser?['permissions'] is Map) {
+      return Map<String, dynamic>.from(sessionUser!['permissions']);
+    }
+    return const <String, dynamic>{};
+  }
+
+  bool get _isSuperAdmin =>
+      Provider.of<SessionProvider>(context, listen: false).user?['isSuperAdmin'] ==
+      true;
+
+  bool _hasPermission(String key) {
+    if (_isSuperAdmin) return true;
+    return _adminPermissions[key] != false;
   }
 
   List<_AdminDashboardItem> _dashboardItems(BuildContext context) => [
         _AdminDashboardItem(
           id: 'manage_users',
+          permissionKey: 'canManageUsers',
           icon: Icons.people_alt_rounded,
           label: 'Manage Users',
           caption: 'Review and control user accounts',
@@ -88,6 +276,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         _AdminDashboardItem(
           id: 'manage_transactions',
+          permissionKey: 'canManageTransactions',
           icon: Icons.receipt_long_rounded,
           label: 'Manage Secure Transactions',
           caption: 'Inspect and control secure records',
@@ -103,6 +292,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         _AdminDashboardItem(
           id: 'notes',
+          permissionKey: 'canManageSettings',
           icon: Icons.route_rounded,
           label: 'Notes',
           caption: 'Open internal notes and references',
@@ -118,6 +308,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         _AdminDashboardItem(
           id: 'manage_groups',
+          permissionKey: 'canManageTransactions',
           icon: Icons.group_work_rounded,
           label: 'Manage Groups',
           caption: 'Handle group activity and expenses',
@@ -133,6 +324,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         _AdminDashboardItem(
           id: 'track_user_activity',
+          permissionKey: 'canManageUsers',
           icon: Icons.insights_rounded,
           label: 'Track User Activity',
           caption: 'Monitor user-side platform behaviour',
@@ -148,6 +340,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         _AdminDashboardItem(
           id: 'manage_features',
+          permissionKey: 'canManageSettings',
           icon: Icons.tune_rounded,
           label: 'Manage Features',
           caption: 'Adjust admin-side product controls',
@@ -163,6 +356,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         _AdminDashboardItem(
           id: 'manage_gift_cards',
+          permissionKey: 'canManageDigitise',
           icon: Icons.card_giftcard_rounded,
           label: 'Manage Gift Cards',
           caption: 'Create and control gift card inventory',
@@ -178,6 +372,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         _AdminDashboardItem(
           id: 'referral_settings',
+          permissionKey: 'canManageDigitise',
           icon: Icons.share_rounded,
           label: 'Referral Settings',
           caption: 'Tune referral rewards and flows',
@@ -195,6 +390,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         _AdminDashboardItem(
           id: 'manage_offers',
+          permissionKey: 'canManageDigitise',
           icon: Icons.local_offer_rounded,
           label: 'Manage Offers',
           caption: 'Publish and update admin offers',
@@ -210,6 +406,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         _AdminDashboardItem(
           id: 'contact_settings',
+          permissionKey: 'canManageSettings',
           icon: Icons.contact_phone_rounded,
           label: 'Contact Settings',
           caption: 'Update support and contact details',
@@ -224,7 +421,42 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
           },
         ),
         _AdminDashboardItem(
+          id: 'support_queries',
+          permissionKey: 'canManageSupport',
+          icon: Icons.support_agent_rounded,
+          label: 'Help & Support',
+          caption: 'Resolve support queues and user issues',
+          actionLabel: 'Support',
+          backgroundColor: const Color(0xFFEAF8F6),
+          iconColor: const Color(0xFF11806A),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ManageSupportQueriesPage()),
+            );
+          },
+        ),
+        _AdminDashboardItem(
+          id: 'content_analytics',
+          permissionKey: 'canManageContent',
+          icon: Icons.query_stats_rounded,
+          label: 'Content Analytics',
+          caption: 'Track admin content performance and moderation',
+          actionLabel: 'Analytics',
+          backgroundColor: const Color(0xFFEAF1FF),
+          iconColor: const Color(0xFF3157B7),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AdminContentAnalyticsPage(),
+              ),
+            );
+          },
+        ),
+        _AdminDashboardItem(
           id: 'app_ratings',
+          permissionKey: 'canManageContent',
           icon: Icons.star_rounded,
           label: 'App Ratings',
           caption: 'Review ratings coming from the app',
@@ -237,6 +469,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         ),
         _AdminDashboardItem(
           id: 'user_feedbacks',
+          permissionKey: 'canManageContent',
           icon: Icons.feedback_rounded,
           label: 'User Feedbacks',
           caption: 'Read submitted feedback and issues',
@@ -247,7 +480,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             Navigator.pushNamed(context, '/admin/feedbacks');
           },
         ),
-      ];
+      ].where((item) {
+        if (item.permissionKey == null) return true;
+        return _hasPermission(item.permissionKey!);
+      }).toList();
 
   String _normalizeSearch(String value) {
     return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
@@ -373,49 +609,81 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   Navigator.of(context).pop(); // Close drawer
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.settings),
-                title: const Text('Settings'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.pushNamed(context, '/admin/settings');
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.help_center),
-                title: const Text('Help & Support'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.push(
+              if (_hasPermission('canManageSettings'))
+                ListTile(
+                  leading: const Icon(Icons.settings),
+                  title: const Text('Settings'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.pushNamed(context, '/admin/settings');
+                  },
+                ),
+              if (_hasPermission('canManageSupport'))
+                ListTile(
+                  leading: const Icon(Icons.help_center),
+                  title: const Text('Help & Support'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => ManageSupportQueriesPage()));
+                  },
+                ),
+              if (_hasPermission('canManageContent'))
+                ListTile(
+                  leading: const Icon(Icons.campaign_outlined),
+                  title: const Text('Updates'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => ManageSupportQueriesPage()));
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.campaign_outlined),
-                title: const Text('Updates'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ManageUpdatesPage(),
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.ondemand_video_outlined),
-                title: const Text('Ads'),
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const ManageAdsPage()),
-                  );
-                },
-              ),
+                        builder: (_) => const ManageUpdatesPage(),
+                      ),
+                    );
+                  },
+                ),
+              if (_hasPermission('canManageContent'))
+                ListTile(
+                  leading: const Icon(Icons.ondemand_video_outlined),
+                  title: const Text('Ads'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ManageAdsPage()),
+                    );
+                  },
+                ),
+              if (_hasPermission('canManageContent'))
+                ListTile(
+                  leading: const Icon(Icons.query_stats_outlined),
+                  title: const Text('Content Analytics'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AdminContentAnalyticsPage(),
+                      ),
+                    );
+                  },
+                ),
+              if (_isSuperAdmin)
+                ListTile(
+                  leading: const Icon(Icons.admin_panel_settings_outlined),
+                  title: const Text('Admin Roles'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const AdminRolesPage(),
+                      ),
+                    );
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.logout),
                 title: const Text('Logout'),
@@ -482,6 +750,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 20),
+                    _buildOverviewSection(),
                     const SizedBox(height: 20),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -769,6 +1039,396 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
+  Widget _buildOverviewSection() {
+    final sessionUser = Provider.of<SessionProvider>(context, listen: false).user;
+    final summary = _dashboardSummary ?? const <String, dynamic>{};
+    final admin = summary['admin'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(summary['admin'])
+        : summary['admin'] is Map
+            ? Map<String, dynamic>.from(summary['admin'])
+            : <String, dynamic>{};
+    final cards = (summary['cards'] as List?)
+            ?.map((item) => Map<String, dynamic>.from(item as Map))
+            .toList() ??
+        const <Map<String, dynamic>>[];
+    final health = summary['systemHealth'] is Map<String, dynamic>
+        ? Map<String, dynamic>.from(summary['systemHealth'])
+        : summary['systemHealth'] is Map
+            ? Map<String, dynamic>.from(summary['systemHealth'])
+            : <String, dynamic>{};
+    final priorityItems = (summary['priorityItems'] as List?)
+            ?.map((item) => Map<String, dynamic>.from(item as Map))
+            .toList() ??
+        const <Map<String, dynamic>>[];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEAF8FD),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome back, ${(admin['name'] ?? sessionUser?['name'] ?? 'Admin').toString()}',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  ((admin['isSuperAdmin'] ?? sessionUser?['isSuperAdmin']) == true)
+                      ? 'Superadmin control is active for this session.'
+                      : 'Admin control is active for this session.',
+                  style: TextStyle(
+                    color: Colors.grey[700],
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                if (_loadingOverview)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF00B4D8),
+                      ),
+                    ),
+                  )
+                else if (_overviewError != null)
+                  _buildOverviewMessage(
+                    _overviewError!,
+                    onRetry: _loadDashboardSummary,
+                  )
+                else ...[
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: cards
+                        .map(
+                          (card) => _buildOverviewCard(
+                            label: (card['label'] ?? '').toString(),
+                            value: (card['value'] ?? 0).toString(),
+                            helper: (card['helper'] ?? '').toString(),
+                            onTap: () => _openSectionById(
+                              card['sectionId']?.toString(),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _buildHealthChip(
+                        'Unread Admin Alerts',
+                        (health['unreadAdminNotifications'] ?? 0).toString(),
+                      ),
+                      _buildHealthChip(
+                        'Reported Ads',
+                        (health['reportedAds'] ?? 0).toString(),
+                      ),
+                      _buildHealthChip(
+                        'Draft Updates',
+                        (health['draftUpdates'] ?? 0).toString(),
+                      ),
+                      _buildHealthChip(
+                        'Scheduled Updates',
+                        (health['scheduledUpdates'] ?? 0).toString(),
+                      ),
+                      _buildHealthChip(
+                        'Superadmins',
+                        (health['superAdmins'] ?? 0).toString(),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Priority Queue',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_loadingOverview)
+          const SizedBox.shrink()
+        else if (_overviewError != null)
+          const Text(
+            'Overview is unavailable right now, but admin tools are still available below.',
+            style: TextStyle(color: Colors.grey),
+          )
+        else if (priorityItems.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Text(
+              'Nothing urgent is waiting right now. You can continue with regular admin tasks below.',
+              style: TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          )
+        else
+          Column(
+            children: priorityItems
+                .map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildPriorityCard(item),
+                  ),
+                )
+                .toList(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOverviewCard({
+    required String label,
+    required String value,
+    required String helper,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 148,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF00B4D8),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              helper,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthChip(String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        '$label: $value',
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF24657A),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverviewMessage(
+    String message, {
+    required VoidCallback onRetry,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4F1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.info_outline, color: Colors.deepOrange),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPriorityCard(Map<String, dynamic> item) {
+    final tone = (item['tone'] ?? 'info').toString();
+    final toneColor = tone == 'critical'
+        ? Colors.redAccent
+        : tone == 'warning'
+            ? Colors.orange
+            : const Color(0xFF00B4D8);
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => _openSectionById(item['sectionId']?.toString()),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: toneColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.priority_high_rounded,
+                    color: toneColor,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (item['title'] ?? '').toString(),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        (item['description'] ?? '').toString(),
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      (item['count'] ?? 0).toString(),
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: toneColor,
+                      ),
+                    ),
+                    if ((item['id'] ?? '') == 'pending-users')
+                      Wrap(
+                        spacing: 4,
+                        children: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const UserManagementPage(
+                                    initialStatusFilter: 'Pending',
+                                  ),
+                                ),
+                              );
+                            },
+                            child: const Text('Review'),
+                          ),
+                          TextButton(
+                            onPressed: _clearPendingUsers,
+                            child: const Text('Review All'),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAdminOptionsLayout(List<_AdminDashboardItem> items) {
     if (_useCompactAdminOptions) {
       return LayoutBuilder(
@@ -990,6 +1650,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
 class _AdminDashboardItem {
   final String id;
+  final String? permissionKey;
   final IconData icon;
   final String label;
   final String caption;
@@ -1000,6 +1661,7 @@ class _AdminDashboardItem {
 
   const _AdminDashboardItem({
     required this.id,
+    this.permissionKey,
     required this.icon,
     required this.label,
     required this.caption,

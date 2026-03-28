@@ -201,7 +201,19 @@ const aggregateAdStats = async (adIds) => {
     },
   ]);
 
-  return stats.reduce((acc, item) => {
+  const watchStats = await AppAdEvent.aggregate([
+    { $match: { ad: { $in: adIds } } },
+    {
+      $group: {
+        _id: '$ad',
+        totalWatchSeconds: { $sum: { $ifNull: ['$watchSeconds', 0] } },
+        averageWatchSeconds: { $avg: { $ifNull: ['$watchSeconds', 0] } },
+        uniqueUsers: { $addToSet: '$user' },
+      },
+    },
+  ]);
+
+  const aggregated = stats.reduce((acc, item) => {
     const adId = item._id.ad.toString();
     if (!acc[adId]) {
       acc[adId] = {
@@ -210,6 +222,9 @@ const aggregateAdStats = async (adIds) => {
         closes: 0,
         hides: 0,
         reports: 0,
+        totalWatchSeconds: 0,
+        averageWatchSeconds: 0,
+        uniqueUsers: 0,
       };
     }
     if (item._id.type === 'impression') acc[adId].impressions = item.count;
@@ -219,6 +234,29 @@ const aggregateAdStats = async (adIds) => {
     if (item._id.type === 'report') acc[adId].reports = item.count;
     return acc;
   }, {});
+
+  for (const item of watchStats) {
+    const adId = item._id.toString();
+    if (!aggregated[adId]) {
+      aggregated[adId] = {
+        impressions: 0,
+        clicks: 0,
+        closes: 0,
+        hides: 0,
+        reports: 0,
+        totalWatchSeconds: 0,
+        averageWatchSeconds: 0,
+        uniqueUsers: 0,
+      };
+    }
+    aggregated[adId].totalWatchSeconds = item.totalWatchSeconds || 0;
+    aggregated[adId].averageWatchSeconds = Math.round(item.averageWatchSeconds || 0);
+    aggregated[adId].uniqueUsers = Array.isArray(item.uniqueUsers)
+      ? item.uniqueUsers.length
+      : 0;
+  }
+
+  return aggregated;
 };
 
 const aggregateUpdateReadStats = async (updateIds) => {
@@ -239,6 +277,43 @@ const aggregateUpdateReadStats = async (updateIds) => {
       readCount: item.readCount || 0,
       lastReadAt: item.lastReadAt || null,
     };
+    return acc;
+  }, {});
+};
+
+const aggregateAdModeration = async (adIds) => {
+  if (!adIds.length) return {};
+
+  const events = await AppAdEvent.find({
+    ad: { $in: adIds },
+    type: { $in: ['report', 'hide'] },
+  })
+    .select('ad type occurredAt metadata')
+    .sort({ occurredAt: -1 })
+    .lean();
+
+  return events.reduce((acc, event) => {
+    const adId = event.ad.toString();
+    if (!acc[adId]) {
+      acc[adId] = {
+        recentReports: [],
+        recentHides: [],
+      };
+    }
+
+    if (event.type === 'report' && acc[adId].recentReports.length < 3) {
+      acc[adId].recentReports.push({
+        occurredAt: event.occurredAt,
+        reason: (event.metadata?.reason || '').toString(),
+      });
+    }
+
+    if (event.type === 'hide' && acc[adId].recentHides.length < 3) {
+      acc[adId].recentHides.push({
+        occurredAt: event.occurredAt,
+      });
+    }
+
     return acc;
   }, {});
 };
@@ -521,6 +596,7 @@ exports.listAdminAds = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
     const statsByAd = await aggregateAdStats(ads.map((ad) => ad._id));
+    const moderationByAd = await aggregateAdModeration(ads.map((ad) => ad._id));
 
     res.json({
       ads: ads.map((ad) => ({
@@ -531,12 +607,150 @@ exports.listAdminAds = async (req, res) => {
           closes: 0,
           hides: 0,
           reports: 0,
+          totalWatchSeconds: 0,
+          averageWatchSeconds: 0,
+          uniqueUsers: 0,
+        },
+        moderation: moderationByAd[ad._id.toString()] || {
+          recentReports: [],
+          recentHides: [],
         },
       })),
     });
   } catch (error) {
     console.error('Failed to load ads:', error);
     res.status(500).json({ error: 'Failed to load ads' });
+  }
+};
+
+exports.getAdminContentAnalytics = async (req, res) => {
+  try {
+    const now = new Date();
+    const [ads, updates] = await Promise.all([
+      AppAd.find({}).populate('createdBy', 'name email isSuperAdmin').lean(),
+      AppUpdate.find({})
+        .populate('createdBy', 'name email isSuperAdmin')
+        .lean(),
+    ]);
+
+    const adIds = ads.map((ad) => ad._id);
+    const updateIds = updates.map((update) => update._id);
+    const [statsByAd, moderationByAd, readStatsByUpdate] = await Promise.all([
+      aggregateAdStats(adIds),
+      aggregateAdModeration(adIds),
+      aggregateUpdateReadStats(updateIds),
+    ]);
+
+    const adItems = ads.map((ad) => {
+      const stats = statsByAd[ad._id.toString()] || {
+        impressions: 0,
+        clicks: 0,
+        closes: 0,
+        hides: 0,
+        reports: 0,
+        totalWatchSeconds: 0,
+        averageWatchSeconds: 0,
+        uniqueUsers: 0,
+      };
+      const ctr = stats.impressions > 0 ? (stats.clicks / stats.impressions) * 100 : 0;
+      return {
+        ...toAdResponse(req, ad),
+        stats: {
+          ...stats,
+          ctr: Number(ctr.toFixed(1)),
+        },
+        moderation: moderationByAd[ad._id.toString()] || {
+          recentReports: [],
+          recentHides: [],
+        },
+      };
+    });
+
+    const updateItems = updates.map((update) => ({
+      ...toUpdateResponse(req, update),
+      stats: readStatsByUpdate[update._id.toString()] || {
+        readCount: 0,
+        lastReadAt: null,
+      },
+    }));
+
+    const adSummary = adItems.reduce(
+      (acc, ad) => {
+        acc.totalAds += 1;
+        if (ad.active) acc.activeAds += 1;
+        if (ad.startsAt && new Date(ad.startsAt) > now) acc.scheduledAds += 1;
+        acc.totalImpressions += ad.stats.impressions || 0;
+        acc.totalClicks += ad.stats.clicks || 0;
+        acc.totalReports += ad.stats.reports || 0;
+        acc.totalHides += ad.stats.hides || 0;
+        acc.totalWatchSeconds += ad.stats.totalWatchSeconds || 0;
+        acc.totalReach += ad.stats.uniqueUsers || 0;
+        return acc;
+      },
+      {
+        totalAds: 0,
+        activeAds: 0,
+        scheduledAds: 0,
+        totalImpressions: 0,
+        totalClicks: 0,
+        totalReports: 0,
+        totalHides: 0,
+        totalWatchSeconds: 0,
+        totalReach: 0,
+      }
+    );
+
+    const updateSummary = updateItems.reduce(
+      (acc, update) => {
+        acc.totalUpdates += 1;
+        const status = (update.status || 'published').toString();
+        if (status === 'published') acc.publishedUpdates += 1;
+        if (status === 'draft') acc.draftUpdates += 1;
+        if (status === 'scheduled') acc.scheduledUpdates += 1;
+        if ((update.importance || 'normal') === 'critical') acc.criticalUpdates += 1;
+        acc.totalReads += update.stats.readCount || 0;
+        return acc;
+      },
+      {
+        totalUpdates: 0,
+        publishedUpdates: 0,
+        draftUpdates: 0,
+        scheduledUpdates: 0,
+        criticalUpdates: 0,
+        totalReads: 0,
+      }
+    );
+
+    const ctr =
+      adSummary.totalImpressions > 0
+        ? (adSummary.totalClicks / adSummary.totalImpressions) * 100
+        : 0;
+
+    res.json({
+      summary: {
+        ...adSummary,
+        ...updateSummary,
+        averageCtr: Number(ctr.toFixed(1)),
+      },
+      topAds: [...adItems]
+        .sort((a, b) => (b.stats.clicks || 0) - (a.stats.clicks || 0))
+        .slice(0, 5),
+      topUpdates: [...updateItems]
+        .sort((a, b) => (b.stats.readCount || 0) - (a.stats.readCount || 0))
+        .slice(0, 5),
+      moderationQueue: [...adItems]
+        .filter(
+          (ad) =>
+            (ad.stats.reports || 0) > 0 ||
+            (ad.stats.hides || 0) > 0 ||
+            (ad.moderation.recentReports || []).length > 0
+        )
+        .sort((a, b) => (b.stats.reports || 0) - (a.stats.reports || 0))
+        .slice(0, 10),
+    });
+  } catch (error) {
+    console.error('Failed to load admin content analytics:', error);
+    res.status(500).json({ error: 'Failed to load content analytics' });
   }
 };
 
@@ -762,17 +976,28 @@ exports.getRandomActiveAd = async (req, res) => {
       dailyEvents.map((item) => [item._id.toString(), item.count])
     );
 
+    const hideWindowStart = new Date(now);
+    hideWindowStart.setDate(hideWindowStart.getDate() - 7);
+
     const hiddenAdIds = userId
       ? new Set(
           (
             await AppAdEvent.find({
               user: userId,
               type: 'hide',
-              occurredAt: { $gte: startOfDay },
+              occurredAt: { $gte: hideWindowStart },
             })
-              .select('ad')
+              .select('ad metadata occurredAt')
               .lean()
-          ).map((item) => item.ad.toString())
+          )
+            .filter((item) => {
+              const mode = (item.metadata?.hideMode || 'today').toString();
+              if (mode === 'week' || mode === 'not_interested') {
+                return true;
+              }
+              return new Date(item.occurredAt) >= startOfDay;
+            })
+            .map((item) => item.ad.toString())
         )
       : new Set();
 

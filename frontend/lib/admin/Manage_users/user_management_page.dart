@@ -1,11 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:convert';
+import 'dart:io';
 import 'user_details_page.dart';
 import 'user_edit_page.dart';
 import '../../utils/api_client.dart';
 
 class UserManagementPage extends StatefulWidget {
-  const UserManagementPage({super.key});
+  final String initialStatusFilter;
+
+  const UserManagementPage({
+    super.key,
+    this.initialStatusFilter = 'All',
+  });
 
   @override
   State<UserManagementPage> createState() => _UserManagementPageState();
@@ -15,16 +26,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
   bool _isLoading = false;
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _filteredUsers = [];
+  Map<String, dynamic>? _currentAdmin;
   String _searchQuery = '';
   String _statusFilter = 'All';
   String _sortBy = 'name';
   bool _sortAscending = true;
+  final Set<String> _selectedUserIds = {};
 
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _statusFilter = widget.initialStatusFilter;
     _loadUsers();
   }
 
@@ -47,6 +61,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
         setState(() {
           _users = List<Map<String, dynamic>>.from(data['users']);
           _filteredUsers = List.from(_users);
+          _currentAdmin = data['currentAdmin'] is Map
+              ? Map<String, dynamic>.from(data['currentAdmin'])
+              : null;
         });
         _applyFilters();
       } else {
@@ -75,6 +92,665 @@ class _UserManagementPageState extends State<UserManagementPage> {
         });
       }
     }
+  }
+
+  void _showStyledBanner({
+    required String title,
+    required String message,
+    required IconData icon,
+    required Color accentColor,
+  }) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+        content: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                accentColor.withValues(alpha: 0.14),
+                Colors.white,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: accentColor.withValues(alpha: 0.18),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.14),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: accentColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: accentColor,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      message,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool get _canManageUsers =>
+      _currentAdmin?['isSuperAdmin'] == true ||
+      ((_currentAdmin?['permissions'] is Map)
+          ? Map<String, dynamic>.from(_currentAdmin!['permissions'])['canManageUsers'] !=
+              false
+          : true);
+
+  Future<void> _bulkUpdateStatus(bool isActive) async {
+    if (_selectedUserIds.isEmpty) return;
+    try {
+      final response = await ApiClient.patch(
+        '/api/admin/users/bulk-status',
+        body: {
+          'userIds': _selectedUserIds.toList(),
+          'isActive': isActive,
+        },
+      );
+      final data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        await _loadUsers();
+        setState(() => _selectedUserIds.clear());
+        if (!mounted) return;
+        _showStyledBanner(
+          title: isActive ? 'Users Activated' : 'Users Deactivated',
+          message: (data['message'] ?? 'Users updated').toString(),
+          icon: isActive ? Icons.check_circle_rounded : Icons.block_rounded,
+          accentColor: isActive ? Colors.green : Colors.deepOrange,
+        );
+      } else {
+        throw Exception((data['message'] ?? 'Failed to update users').toString());
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showStyledBanner(
+        title: 'Bulk Action Failed',
+        message: e.toString().replaceFirst('Exception: ', ''),
+        icon: Icons.error_outline,
+        accentColor: Colors.red,
+      );
+    }
+  }
+
+  Future<void> _exportUsers() async {
+    try {
+      final ids = _selectedUserIds.join(',');
+      final path = ids.isEmpty
+          ? '/api/admin/users/export'
+          : '/api/admin/users/export?userIds=${Uri.encodeQueryComponent(ids)}';
+      final response = await ApiClient.get(path);
+      if (response.statusCode != 200) {
+        throw Exception('Failed to export users');
+      }
+      if (!mounted) return;
+      _showExportOptions('User Export CSV', response.body);
+    } catch (e) {
+      if (!mounted) return;
+      _showStyledBanner(
+        title: 'Export Failed',
+        message: e.toString().replaceFirst('Exception: ', ''),
+        icon: Icons.file_download_off_rounded,
+        accentColor: Colors.red,
+      );
+    }
+  }
+
+  Future<void> _clearPendingUsers() async {
+    try {
+      final response = await ApiClient.patch(
+        '/api/admin/users/clear-pending',
+        body: const {},
+      );
+      final data = json.decode(response.body);
+      if (response.statusCode == 200) {
+        await _loadUsers();
+        if (!mounted) return;
+        final modifiedCount = (data['modifiedCount'] ?? 0) as num;
+        _showStyledBanner(
+          title: modifiedCount > 0 ? 'Pending Reviewed' : 'All Clear',
+          message: (data['message'] ??
+                  'No pending users were left to review')
+              .toString(),
+          icon: modifiedCount > 0
+              ? Icons.verified_user_rounded
+              : Icons.auto_awesome_rounded,
+          accentColor:
+              modifiedCount > 0 ? const Color(0xFF00B4D8) : Colors.green,
+        );
+      } else {
+        throw Exception(
+          (data['message'] ?? 'Failed to clear pending users').toString(),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showStyledBanner(
+        title: 'Review Failed',
+        message: e.toString().replaceFirst('Exception: ', ''),
+        icon: Icons.error_outline,
+        accentColor: Colors.red,
+      );
+    }
+  }
+
+  Future<void> _reviewPendingUser(Map<String, dynamic> user) async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final createdAt = DateTime.tryParse((user['createdAt'] ?? '').toString());
+        final joinedText = createdAt != null
+            ? DateFormat('dd MMM yyyy, hh:mm a').format(createdAt)
+            : 'Date unavailable';
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _buildTriBorder(
+              radius: 28,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(26),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Icon(
+                            Icons.pending_actions_rounded,
+                            color: Colors.orange,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Review Pending User',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Verify this user individually instead of clearing everyone together.',
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    _buildInfoPill(Icons.person_outline, user['name'] ?? 'Unknown'),
+                    const SizedBox(height: 10),
+                    _buildInfoPill(Icons.email_outlined, user['email'] ?? 'No email'),
+                    const SizedBox(height: 10),
+                    _buildInfoPill(Icons.alternate_email_rounded,
+                        '@${user['username'] ?? 'unknown'}'),
+                    const SizedBox(height: 10),
+                    _buildInfoPill(Icons.schedule_rounded, 'Joined: $joinedText'),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(false),
+                            child: const Text('Keep Pending'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => Navigator.of(context).pop(true),
+                            icon: const Icon(Icons.verified_rounded),
+                            label: const Text('Mark Verified'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF00B4D8),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final response = await ApiClient.patch(
+        '/api/admin/users/${user['_id']}/review-pending',
+        body: const {},
+      );
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      if (response.statusCode != 200) {
+        throw Exception(
+          (data['message'] ?? 'Failed to review pending user').toString(),
+        );
+      }
+
+      setState(() {
+        final userIndex = _users.indexWhere((item) => item['_id'] == user['_id']);
+        if (userIndex != -1) {
+          _users[userIndex] = {
+            ..._users[userIndex],
+            'isVerified': true,
+          };
+        }
+      });
+      _applyFilters();
+
+      if (!mounted) return;
+      _showStyledBanner(
+        title: 'User Reviewed',
+        message: (data['message'] ?? 'Pending user marked as verified').toString(),
+        icon: Icons.verified_user_rounded,
+        accentColor: Colors.green,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showStyledBanner(
+        title: 'Review Failed',
+        message: e.toString().replaceFirst('Exception: ', ''),
+        icon: Icons.error_outline,
+        accentColor: Colors.red,
+      );
+    }
+  }
+
+  Widget _buildInfoPill(IconData icon, String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FAFD),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF00B4D8)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showExportOptions(String title, String content) {
+    final previewLines = content.split('\n').take(5).join('\n');
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: _buildTriBorder(
+            radius: 28,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Export Users',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Choose how you want to send or review this export. Share options now carry the full export payload to the selected destination, just like the referral flow.',
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF6FBFE),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: SelectableText(
+                      previewLines,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      _buildExportActionChip(
+                        icon: Icons.visibility_rounded,
+                        label: 'Preview',
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          _showExportPreview(title, content);
+                        },
+                      ),
+                      _buildExportActionChip(
+                        icon: Icons.copy_rounded,
+                        label: 'Copy',
+                        onTap: () async {
+                          await Clipboard.setData(ClipboardData(text: content));
+                          if (!mounted) return;
+                          Navigator.of(context).pop();
+                          _showStyledBanner(
+                            title: 'Copied',
+                            message: 'Export content was copied to clipboard.',
+                            icon: Icons.copy_rounded,
+                            accentColor: const Color(0xFF00B4D8),
+                          );
+                        },
+                      ),
+                      _buildExportActionChip(
+                        icon: Icons.mail_outline_rounded,
+                        label: 'Email',
+                        onTap: () => _launchExportOption(
+                          channel: 'email',
+                          title: title,
+                          content: content,
+                        ),
+                      ),
+                      _buildExportActionChip(
+                        icon: Icons.chat_bubble_outline_rounded,
+                        label: 'WhatsApp',
+                        onTap: () => _launchExportOption(
+                          channel: 'whatsapp',
+                          title: title,
+                          content: content,
+                        ),
+                      ),
+                      _buildExportActionChip(
+                        icon: Icons.send_rounded,
+                        label: 'Telegram',
+                        onTap: () => _launchExportOption(
+                          channel: 'telegram',
+                          title: title,
+                          content: content,
+                        ),
+                      ),
+                      _buildExportActionChip(
+                        icon: Icons.open_in_new_rounded,
+                        label: 'Others',
+                        onTap: () => _launchExportOption(
+                          channel: 'others',
+                          title: title,
+                          content: content,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExportActionChip({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F6FA),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: const Color(0xFF00B4D8)),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchExportOption({
+    required String channel,
+    required String title,
+    required String content,
+  }) async {
+    try {
+      if (channel == 'others') {
+        final directory = await getTemporaryDirectory();
+        final file = File(
+          '${directory.path}/${title.toLowerCase().replaceAll(' ', '_')}_${DateTime.now().millisecondsSinceEpoch}.csv',
+        );
+        await file.writeAsString(content);
+        if (!mounted) return;
+        Navigator.of(context).pop();
+        await OpenFile.open(file.path);
+        _showStyledBanner(
+          title: 'Export Ready',
+          message: 'The full export file was prepared and opened for external sharing.',
+          icon: Icons.file_open_rounded,
+          accentColor: const Color(0xFF00B4D8),
+        );
+        return;
+      }
+
+      Uri uri;
+      if (channel == 'email') {
+        uri = Uri(
+          scheme: 'mailto',
+          queryParameters: {
+            'subject': title,
+            'body': content,
+          },
+        );
+      } else if (channel == 'whatsapp') {
+        uri = Uri.parse(
+          'https://wa.me/?text=${Uri.encodeComponent(content)}',
+        );
+      } else {
+        uri = Uri.parse(
+          'https://t.me/share/url?text=${Uri.encodeComponent(content)}',
+        );
+      }
+
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      if (!launched) {
+        _showStyledBanner(
+          title: 'Share App Unavailable',
+          message: 'That app could not be opened on this device right now. You can still use Preview or Others.',
+          icon: Icons.info_outline,
+          accentColor: Colors.orange,
+        );
+        return;
+      }
+      _showStyledBanner(
+        title: 'Export Sent Out',
+        message: 'Your export was prepared for ${channel[0].toUpperCase()}${channel.substring(1)}.',
+        icon: Icons.outbound_rounded,
+        accentColor: Colors.green,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      _showStyledBanner(
+        title: 'Export Failed',
+        message: e.toString(),
+        icon: Icons.error_outline,
+        accentColor: Colors.red,
+      );
+    }
+  }
+
+  void _showExportPreview(String title, String content) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: _buildTriBorder(
+          radius: 28,
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(26),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.file_present_rounded,
+                        color: Color(0xFF00B4D8)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: 520,
+                  height: 420,
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFD),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: SingleChildScrollView(
+                      child: SelectableText(
+                        content,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Close'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _applyFilters() {
@@ -149,11 +825,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
+      _showStyledBanner(
+        title: 'Status Update Failed',
+        message: 'Error: ${e.toString()}',
+        icon: Icons.error_outline,
+        accentColor: Colors.red,
       );
     }
   }
@@ -463,21 +1139,92 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     ],
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (_users.any((u) => u['isVerified'] == false))
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _statusFilter = 'Pending';
+                            });
+                            _applyFilters();
+                          },
+                          icon: const Icon(Icons.fact_check_outlined),
+                          label: const Text('Review One by One'),
+                        ),
+                      TextButton.icon(
+                        onPressed: _canManageUsers ? _clearPendingUsers : null,
+                        icon: const Icon(Icons.verified_rounded),
+                        label: const Text('Review All Pending'),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
+                if (_selectedUserIds.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${_selectedUserIds.length} users selected',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _canManageUsers
+                              ? () => _bulkUpdateStatus(true)
+                              : null,
+                          child: const Text('Activate'),
+                        ),
+                        TextButton(
+                          onPressed: _canManageUsers
+                              ? () => _bulkUpdateStatus(false)
+                              : null,
+                          child: const Text('Deactivate'),
+                        ),
+                        TextButton(
+                          onPressed: _exportUsers,
+                          child: const Text('Export CSV'),
+                        ),
+                        IconButton(
+                          onPressed: () => setState(() => _selectedUserIds.clear()),
+                          icon: const Icon(Icons.clear),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (_selectedUserIds.isNotEmpty) const SizedBox(height: 12),
                 Expanded(
                   child: _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : _filteredUsers.isEmpty
-                          ? const Center(
+                          ? Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.people_outline,
-                                      size: 64, color: Colors.grey),
-                                  SizedBox(height: 16),
+                                  Icon(
+                                    _statusFilter == 'Pending'
+                                        ? Icons.auto_awesome_rounded
+                                        : Icons.people_outline,
+                                    size: 64,
+                                    color: Colors.grey,
+                                  ),
+                                  const SizedBox(height: 16),
                                   Text(
-                                    'No users found',
-                                    style: TextStyle(
+                                    _statusFilter == 'Pending'
+                                        ? 'No pending users were left to review'
+                                        : 'No users found',
+                                    style: const TextStyle(
                                         fontSize: 18, color: Colors.grey),
                                   ),
                                 ],
@@ -639,6 +1386,42 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     ),
                 ],
               ),
+              if (!isVerified) ...[
+                const SizedBox(height: 10),
+                InkWell(
+                  onTap: _canManageUsers ? () => _reviewPendingUser(user) : null,
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.verified_user_outlined,
+                          size: 16,
+                          color: Colors.orange,
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Review this pending user',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           trailing: PopupMenuButton<String>(
@@ -662,6 +1445,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   break;
                 case 'toggle':
                   _toggleUserStatus(user['_id'], isActive);
+                  break;
+                case 'review_pending':
+                  _reviewPendingUser(user);
                   break;
                 case 'delete':
                   _deleteUser(user['_id'], user['name']);
@@ -699,6 +1485,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   ],
                 ),
               ),
+              if (!isVerified)
+                const PopupMenuItem(
+                  value: 'review_pending',
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified_user_outlined,
+                          size: 16, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text('Review Pending'),
+                    ],
+                  ),
+                ),
               const PopupMenuItem(
                 value: 'delete',
                 child: Row(
@@ -710,7 +1508,24 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 ),
               ),
             ],
-            child: const Icon(Icons.more_vert),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Checkbox(
+                  value: _selectedUserIds.contains(user['_id']),
+                  onChanged: (value) {
+                    setState(() {
+                      if (value == true) {
+                        _selectedUserIds.add(user['_id']);
+                      } else {
+                        _selectedUserIds.remove(user['_id']);
+                      }
+                    });
+                  },
+                ),
+                const Icon(Icons.more_vert),
+              ],
+            ),
           ),
           onTap: () {
             Navigator.push(
