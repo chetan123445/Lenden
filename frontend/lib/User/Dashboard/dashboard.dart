@@ -32,8 +32,8 @@ import '../Connections/friends_page.dart';
 import '../Digitise/offers_page.dart';
 import '../Connections/counterparties_page.dart';
 import '../Digitise/lenden_coins_page.dart';
-import '../Info/updates_page.dart';
-import '../Info/ad_popup_dialog.dart';
+import '../Ads&Updates/updates_page.dart';
+import '../Ads&Updates/ad_popup_dialog.dart';
 import 'package:elegant_notification/elegant_notification.dart';
 
 class UserDashboardPage extends StatefulWidget {

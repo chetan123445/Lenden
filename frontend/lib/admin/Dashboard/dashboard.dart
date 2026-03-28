@@ -16,9 +16,9 @@ import '../Digitise/manage_subscriptions_page.dart';
 import '../Digitise/manage_gift_cards_page.dart';
 import '../Digitise/manage_referral_settings_page.dart';
 import '../Digitise/manage_offers_page.dart';
-import '../Info/manage_updates_page.dart';
-import '../Info/manage_ads_page.dart';
-import '../Info/content_analytics_page.dart';
+import '../Ads&Updates/manage_updates_page.dart';
+import '../Ads&Updates/manage_ads_page.dart';
+import '../Ads&Updates/content_analytics_page.dart';
 import '../Manage_users/admin_roles_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {

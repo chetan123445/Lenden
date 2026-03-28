@@ -15,7 +15,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:string_similarity/string_similarity.dart';
 import '../../otp_input.dart';
 import '../chats/chat_page.dart';
-
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 

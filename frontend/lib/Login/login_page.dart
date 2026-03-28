@@ -11,7 +11,6 @@ import 'email_otp_login.dart';
 import 'package:uuid/uuid.dart';
 import '../widgets/tricolor_border_text_field.dart';
 import 'dart:ui' as ui;
-
 import '../utils/http_interceptor.dart';
 
 /// Minimal ApiClient stub to satisfy references from this file.

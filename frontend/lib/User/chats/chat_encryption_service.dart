@@ -1,8 +1,6 @@
 import 'dart:convert';
-
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
 import '../../utils/api_client.dart';
 import 'chat_codec.dart';
 

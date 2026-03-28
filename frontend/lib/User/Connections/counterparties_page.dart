@@ -1,9 +1,7 @@
 import 'dart:convert';
-
 import 'package:elegant_notification/elegant_notification.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../../utils/api_client.dart';
 import '../../session.dart';
 
