@@ -41,6 +41,32 @@ const appAdSchema = new mongoose.Schema(
       enum: ['none', 'image', 'video'],
       default: 'none',
     },
+    audience: {
+      type: String,
+      enum: ['all', 'subscribed', 'nonsubscribed'],
+      default: 'nonsubscribed',
+      index: true,
+    },
+    placements: {
+      type: [String],
+      default: ['dashboard'],
+    },
+    tags: {
+      type: [String],
+      default: [],
+    },
+    priorityWeight: {
+      type: Number,
+      default: 1,
+      min: 1,
+      max: 100,
+    },
+    dailyCapPerUser: {
+      type: Number,
+      default: 3,
+      min: 1,
+      max: 50,
+    },
     videoCloseAtPercent: {
       type: Number,
       enum: [25, 50, 75, 100],
@@ -71,5 +97,6 @@ const appAdSchema = new mongoose.Schema(
 );
 
 appAdSchema.index({ active: 1, startsAt: 1, endsAt: 1 });
+appAdSchema.index({ audience: 1, active: 1, startsAt: 1, endsAt: 1 });
 
 module.exports = mongoose.model('AppAd', appAdSchema);

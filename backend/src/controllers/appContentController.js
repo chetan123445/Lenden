@@ -1,8 +1,11 @@
 const mongoose = require('mongoose');
 const fs = require('fs');
 const Admin = require('../models/admin');
+const AppAdEvent = require('../models/appAdEvent');
 const AppUpdate = require('../models/appUpdate');
+const AppUpdateRead = require('../models/appUpdateRead');
 const AppAd = require('../models/appAd');
+const Subscription = require('../models/subscription');
 const { getAdMediaBucket } = require('../utils/adMediaBucket');
 
 const normalizeCreator = (creator) => {
@@ -22,14 +25,23 @@ const canManageContent = (admin, content) => {
   if (!admin || !content) return false;
   if (admin.isSuperAdmin === true) return true;
   const creatorId = content.createdBy?._id || content.createdBy;
-  return creatorId?.toString() === admin._id.toString();
+  const adminId = admin._id || admin.userId || admin.id;
+  return creatorId?.toString() === adminId?.toString();
 };
 
 const toUpdateResponse = (req, update, currentAdmin = null) => ({
   _id: update._id,
   title: update.title,
   body: update.body,
+  summary: update.summary || '',
   versionTag: update.versionTag || '',
+  category: update.category || 'general',
+  importance: update.importance || 'normal',
+  targetAudience: update.targetAudience || 'all',
+  platforms: Array.isArray(update.platforms) ? update.platforms : ['all'],
+  tags: Array.isArray(update.tags) ? update.tags : [],
+  status: update.status || 'published',
+  scheduledFor: update.scheduledFor || null,
   pinned: !!update.pinned,
   publishedAt: update.publishedAt,
   createdAt: update.createdAt,
@@ -45,6 +57,11 @@ const toAdResponse = (req, ad, currentAdmin = null) => ({
   callToActionText: ad.callToActionText || '',
   callToActionUrl: ad.callToActionUrl || '',
   mediaKind: ad.mediaKind || 'none',
+  audience: ad.audience || 'nonsubscribed',
+  placements: Array.isArray(ad.placements) ? ad.placements : ['dashboard'],
+  tags: Array.isArray(ad.tags) ? ad.tags : [],
+  priorityWeight: ad.priorityWeight || 1,
+  dailyCapPerUser: ad.dailyCapPerUser || 3,
   mediaFilename: ad.mediaFilename || '',
   mediaMimeType: ad.mediaMimeType || '',
   videoCloseAtPercent: normalizeVideoClosePercent(ad.videoCloseAtPercent),
@@ -62,8 +79,19 @@ const toAdResponse = (req, ad, currentAdmin = null) => ({
 });
 
 const getCurrentAdmin = async (req) => {
-  if (!req.user?._id || req.user.role !== 'admin') return null;
-  return Admin.findById(req.user._id).select('_id email name isSuperAdmin').lean();
+  const adminId = req.user?._id || req.user?.userId || req.user?.id;
+  if (req.user?.role !== 'admin') return null;
+
+  let admin = null;
+  if (adminId) {
+    admin = await Admin.findById(adminId).select('_id email name isSuperAdmin').lean();
+  }
+  if (!admin && req.user?.email) {
+    admin = await Admin.findOne({ email: req.user.email })
+      .select('_id email name isSuperAdmin')
+      .lean();
+  }
+  return admin;
 };
 
 const detectMediaKind = (mimeType = '') => {
@@ -75,6 +103,144 @@ const detectMediaKind = (mimeType = '') => {
 const normalizeVideoClosePercent = (value) => {
   const parsed = Number.parseInt(value, 10);
   return [25, 50, 75, 100].includes(parsed) ? parsed : 100;
+};
+
+const normalizeCategory = (value) => {
+  const allowed = ['general', 'feature', 'bug_fix', 'security', 'maintenance'];
+  return allowed.includes(value) ? value : 'general';
+};
+
+const normalizeImportance = (value) => {
+  const allowed = ['normal', 'important', 'critical'];
+  return allowed.includes(value) ? value : 'normal';
+};
+
+const normalizeUpdateStatus = (value) => {
+  const allowed = ['draft', 'published', 'scheduled'];
+  return allowed.includes(value) ? value : 'published';
+};
+
+const normalizeAudience = (value, fallback = 'all') => {
+  const allowed = ['all', 'subscribed', 'nonsubscribed'];
+  return allowed.includes(value) ? value : fallback;
+};
+
+const normalizeStringArray = (value, fallback = []) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => item?.toString().trim())
+      .filter((item) => item);
+  }
+  if (typeof value === 'string' && value.trim().startsWith('[')) {
+    try {
+      const parsed = JSON.parse(value);
+      return normalizeStringArray(parsed, fallback);
+    } catch (_) {
+      return fallback;
+    }
+  }
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item);
+  }
+  return fallback;
+};
+
+const normalizePlatforms = (value) => {
+  const normalized = normalizeStringArray(value, ['all']);
+  return normalized.length ? normalized : ['all'];
+};
+
+const normalizeWeight = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return 1;
+  return Math.min(100, Math.max(1, parsed));
+};
+
+const normalizeDailyCap = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed)) return 3;
+  return Math.min(50, Math.max(1, parsed));
+};
+
+const getPlatformFromRequest = (req) => {
+  const platformHeader = (req.headers['x-platform'] || '').toString().toLowerCase();
+  if (platformHeader) return platformHeader;
+  const userAgent = (req.headers['user-agent'] || '').toString().toLowerCase();
+  if (userAgent.includes('windows')) return 'windows';
+  if (userAgent.includes('android')) return 'android';
+  if (userAgent.includes('iphone') || userAgent.includes('ios')) return 'ios';
+  if (userAgent.includes('macintosh') || userAgent.includes('mac os')) return 'macos';
+  if (userAgent.includes('chrome') || userAgent.includes('edge')) return 'web';
+  return 'all';
+};
+
+const isUserSubscribed = async (userId) => {
+  if (!userId) return false;
+  const subscription = await Subscription.findOne({
+    user: userId,
+    subscribed: true,
+    endDate: { $gte: new Date() },
+  })
+    .sort({ endDate: -1 })
+    .lean();
+  return !!subscription;
+};
+
+const aggregateAdStats = async (adIds) => {
+  if (!adIds.length) return {};
+  const stats = await AppAdEvent.aggregate([
+    { $match: { ad: { $in: adIds } } },
+    {
+      $group: {
+        _id: { ad: '$ad', type: '$type' },
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  return stats.reduce((acc, item) => {
+    const adId = item._id.ad.toString();
+    if (!acc[adId]) {
+      acc[adId] = {
+        impressions: 0,
+        clicks: 0,
+        closes: 0,
+        hides: 0,
+        reports: 0,
+      };
+    }
+    if (item._id.type === 'impression') acc[adId].impressions = item.count;
+    if (item._id.type === 'click') acc[adId].clicks = item.count;
+    if (item._id.type === 'close') acc[adId].closes = item.count;
+    if (item._id.type === 'hide') acc[adId].hides = item.count;
+    if (item._id.type === 'report') acc[adId].reports = item.count;
+    return acc;
+  }, {});
+};
+
+const aggregateUpdateReadStats = async (updateIds) => {
+  if (!updateIds.length) return {};
+  const stats = await AppUpdateRead.aggregate([
+    { $match: { update: { $in: updateIds } } },
+    {
+      $group: {
+        _id: '$update',
+        readCount: { $sum: 1 },
+        lastReadAt: { $max: '$readAt' },
+      },
+    },
+  ]);
+
+  return stats.reduce((acc, item) => {
+    acc[item._id.toString()] = {
+      readCount: item.readCount || 0,
+      lastReadAt: item.lastReadAt || null,
+    };
+    return acc;
+  }, {});
 };
 
 const uploadAdMedia = async (file) => {
@@ -141,13 +307,58 @@ const removeAdMedia = async (fileId) => {
 exports.listUpdates = async (req, res) => {
   try {
     const currentAdmin = await getCurrentAdmin(req);
+    const isSubscribed =
+      req.user?.role === 'user' ? await isUserSubscribed(req.user._id) : false;
+    const userPlatform = getPlatformFromRequest(req);
     const updates = await AppUpdate.find({})
       .populate('createdBy', 'name email isSuperAdmin')
       .sort({ pinned: -1, publishedAt: -1 })
       .lean();
 
+    const visibleUpdates = updates.filter((update) => {
+      if (req.user?.role === 'user') {
+        if ((update.status || 'published') === 'draft') return false;
+        const scheduledFor = update.scheduledFor ? new Date(update.scheduledFor) : null;
+        if (scheduledFor && scheduledFor > new Date()) return false;
+      }
+      const audience = update.targetAudience || 'all';
+      if (req.user?.role === 'user') {
+        if (audience === 'subscribed' && !isSubscribed) return false;
+        if (audience === 'nonsubscribed' && isSubscribed) return false;
+        const platforms = Array.isArray(update.platforms) ? update.platforms : ['all'];
+        if (!platforms.includes('all') && !platforms.includes(userPlatform)) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    let readMap = new Map();
+    if (req.user?.role === 'user' && visibleUpdates.length) {
+      const reads = await AppUpdateRead.find({
+        user: req.user._id,
+        update: { $in: visibleUpdates.map((item) => item._id) },
+      })
+        .select('update readAt')
+        .lean();
+      readMap = new Map(reads.map((item) => [item.update.toString(), item.readAt]));
+    }
+
+    const readStatsByUpdate =
+      req.user?.role === 'admin'
+        ? await aggregateUpdateReadStats(visibleUpdates.map((item) => item._id))
+        : {};
+
     res.json({
-      updates: updates.map((update) => toUpdateResponse(req, update, currentAdmin)),
+      updates: visibleUpdates.map((update) => ({
+        ...toUpdateResponse(req, update, currentAdmin),
+        isRead: readMap.has(update._id.toString()),
+        readAt: readMap.get(update._id.toString()) || null,
+        stats: readStatsByUpdate[update._id.toString()] || {
+          readCount: 0,
+          lastReadAt: null,
+        },
+      })),
     });
   } catch (error) {
     console.error('Failed to list updates:', error);
@@ -157,16 +368,44 @@ exports.listUpdates = async (req, res) => {
 
 exports.createUpdate = async (req, res) => {
   try {
-    const { title, body, versionTag, pinned } = req.body;
+    const {
+      title,
+      body,
+      summary,
+      versionTag,
+      pinned,
+      category,
+      importance,
+      targetAudience,
+      platforms,
+      tags,
+      status,
+      scheduledFor,
+    } = req.body;
     if (!title?.trim() || !body?.trim()) {
       return res.status(400).json({ error: 'Title and body are required.' });
     }
 
+    const normalizedStatus = normalizeUpdateStatus(status);
+    const scheduledDate =
+      normalizedStatus === 'scheduled' && scheduledFor ? new Date(scheduledFor) : null;
+    const publishedAt =
+      normalizedStatus === 'scheduled' && scheduledDate ? scheduledDate : new Date();
+
     const update = await AppUpdate.create({
       title: title.trim(),
       body: body.trim(),
+      summary: (summary || '').trim(),
       versionTag: (versionTag || '').trim(),
+      category: normalizeCategory(category),
+      importance: normalizeImportance(importance),
+      targetAudience: normalizeAudience(targetAudience, 'all'),
+      platforms: normalizePlatforms(platforms),
+      tags: normalizeStringArray(tags),
+      status: normalizedStatus,
+      scheduledFor: scheduledDate,
       pinned: pinned === true || pinned === 'true',
+      publishedAt,
       createdBy: req.user._id,
     });
 
@@ -198,18 +437,46 @@ exports.updateUpdate = async (req, res) => {
       return res.status(403).json({ error: 'You can only edit your own updates unless you are a superadmin.' });
     }
 
-    const { title, body, versionTag, pinned } = req.body;
+    const {
+      title,
+      body,
+      summary,
+      versionTag,
+      pinned,
+      category,
+      importance,
+      targetAudience,
+      platforms,
+      tags,
+      status,
+      scheduledFor,
+    } = req.body;
     if (!title?.trim() || !body?.trim()) {
       return res.status(400).json({ error: 'Title and body are required.' });
     }
+
+    const normalizedStatus = normalizeUpdateStatus(status);
+    const scheduledDate =
+      normalizedStatus === 'scheduled' && scheduledFor ? new Date(scheduledFor) : null;
+    const publishedAt =
+      normalizedStatus === 'scheduled' && scheduledDate ? scheduledDate : existing.publishedAt || new Date();
 
     const update = await AppUpdate.findByIdAndUpdate(
       req.params.updateId,
       {
         title: title.trim(),
         body: body.trim(),
+        summary: (summary || '').trim(),
         versionTag: (versionTag || '').trim(),
+        category: normalizeCategory(category),
+        importance: normalizeImportance(importance),
+        targetAudience: normalizeAudience(targetAudience, 'all'),
+        platforms: normalizePlatforms(platforms),
+        tags: normalizeStringArray(tags),
+        status: normalizedStatus,
+        scheduledFor: scheduledDate,
         pinned: pinned === true || pinned === 'true',
+        publishedAt,
       },
       { new: true }
     )
@@ -253,9 +520,19 @@ exports.listAdminAds = async (req, res) => {
       .populate('createdBy', 'name email isSuperAdmin')
       .sort({ createdAt: -1 })
       .lean();
+    const statsByAd = await aggregateAdStats(ads.map((ad) => ad._id));
 
     res.json({
-      ads: ads.map((ad) => toAdResponse(req, ad, currentAdmin)),
+      ads: ads.map((ad) => ({
+        ...toAdResponse(req, ad, currentAdmin),
+        stats: statsByAd[ad._id.toString()] || {
+          impressions: 0,
+          clicks: 0,
+          closes: 0,
+          hides: 0,
+          reports: 0,
+        },
+      })),
     });
   } catch (error) {
     console.error('Failed to load ads:', error);
@@ -272,6 +549,11 @@ exports.createAd = async (req, res) => {
       callToActionUrl,
       startsAt,
       endsAt,
+      audience,
+      placements,
+      tags,
+      priorityWeight,
+      dailyCapPerUser,
       videoCloseAtPercent,
     } = req.body;
 
@@ -291,6 +573,11 @@ exports.createAd = async (req, res) => {
       body: (body || '').trim(),
       callToActionText: (callToActionText || '').trim(),
       callToActionUrl: (callToActionUrl || '').trim(),
+      audience: normalizeAudience(audience, 'nonsubscribed'),
+      placements: normalizeStringArray(placements, ['dashboard']),
+      tags: normalizeStringArray(tags),
+      priorityWeight: normalizeWeight(priorityWeight),
+      dailyCapPerUser: normalizeDailyCap(dailyCapPerUser),
       videoCloseAtPercent: normalizeVideoClosePercent(videoCloseAtPercent),
       startsAt: startsAt ? new Date(startsAt) : new Date(),
       endsAt: endsAt ? new Date(endsAt) : null,
@@ -334,6 +621,11 @@ exports.updateAd = async (req, res) => {
       startsAt,
       endsAt,
       active,
+      audience,
+      placements,
+      tags,
+      priorityWeight,
+      dailyCapPerUser,
       videoCloseAtPercent,
     } = req.body;
 
@@ -359,6 +651,11 @@ exports.updateAd = async (req, res) => {
         body: (body || '').trim(),
         callToActionText: (callToActionText || '').trim(),
         callToActionUrl: (callToActionUrl || '').trim(),
+        audience: normalizeAudience(audience, 'nonsubscribed'),
+        placements: normalizeStringArray(placements, ['dashboard']),
+        tags: normalizeStringArray(tags),
+        priorityWeight: normalizeWeight(priorityWeight),
+        dailyCapPerUser: normalizeDailyCap(dailyCapPerUser),
         videoCloseAtPercent: normalizeVideoClosePercent(videoCloseAtPercent),
         startsAt: startsAt ? new Date(startsAt) : new Date(),
         endsAt: endsAt ? new Date(endsAt) : null,
@@ -435,18 +732,79 @@ exports.deleteAd = async (req, res) => {
 exports.getRandomActiveAd = async (req, res) => {
   try {
     const now = new Date();
-    const ads = await AppAd.aggregate([
-      {
-        $match: {
-          active: true,
-          startsAt: { $lte: now },
-          $or: [{ endsAt: null }, { endsAt: { $gte: now } }],
-        },
-      },
-      { $sample: { size: 1 } },
-    ]);
+    const platform = getPlatformFromRequest(req);
+    const userId = req.user?._id;
+    const subscribed =
+      req.user?.role === 'user' ? await isUserSubscribed(userId) : false;
 
-    const ad = ads[0];
+    const ads = await AppAd.find({
+      active: true,
+      startsAt: { $lte: now },
+      $or: [{ endsAt: null }, { endsAt: { $gte: now } }],
+    }).lean();
+
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const dailyEvents = userId
+      ? await AppAdEvent.aggregate([
+          {
+            $match: {
+              user: userId,
+              type: 'impression',
+              occurredAt: { $gte: startOfDay },
+            },
+          },
+          { $group: { _id: '$ad', count: { $sum: 1 } } },
+        ])
+      : [];
+    const dailyCounts = new Map(
+      dailyEvents.map((item) => [item._id.toString(), item.count])
+    );
+
+    const hiddenAdIds = userId
+      ? new Set(
+          (
+            await AppAdEvent.find({
+              user: userId,
+              type: 'hide',
+              occurredAt: { $gte: startOfDay },
+            })
+              .select('ad')
+              .lean()
+          ).map((item) => item.ad.toString())
+        )
+      : new Set();
+
+    const eligibleAds = ads.filter((ad) => {
+      const audience = ad.audience || 'nonsubscribed';
+      if (audience === 'subscribed' && !subscribed) return false;
+      if (audience === 'nonsubscribed' && subscribed) return false;
+      const placements = Array.isArray(ad.placements) ? ad.placements : ['dashboard'];
+      if (!placements.includes('all') && !placements.includes('dashboard')) return false;
+      if (hiddenAdIds.has(ad._id.toString())) return false;
+      const cap = normalizeDailyCap(ad.dailyCapPerUser);
+      if ((dailyCounts.get(ad._id.toString()) || 0) >= cap) return false;
+      return true;
+    });
+
+    let ad = null;
+    if (eligibleAds.length) {
+      const totalWeight = eligibleAds.reduce(
+        (sum, item) => sum + normalizeWeight(item.priorityWeight),
+        0
+      );
+      let draw = Math.random() * totalWeight;
+      for (const item of eligibleAds) {
+        draw -= normalizeWeight(item.priorityWeight);
+        if (draw <= 0) {
+          ad = item;
+          break;
+        }
+      }
+      ad = ad || eligibleAds[eligibleAds.length - 1];
+    }
+
     if (!ad) {
       return res.json({ ad: null });
     }
@@ -455,6 +813,110 @@ exports.getRandomActiveAd = async (req, res) => {
   } catch (error) {
     console.error('Failed to fetch random ad:', error);
     res.status(500).json({ error: 'Failed to fetch ad' });
+  }
+};
+
+exports.markUpdateRead = async (req, res) => {
+  try {
+    if (req.user?.role !== 'user') {
+      return res.status(403).json({ error: 'Only users can mark updates as read.' });
+    }
+    const update = await AppUpdate.findById(req.params.updateId).lean();
+    if (!update) {
+      return res.status(404).json({ error: 'Update not found.' });
+    }
+
+    await AppUpdateRead.findOneAndUpdate(
+      { update: update._id, user: req.user._id },
+      { $set: { readAt: new Date() } },
+      { upsert: true, new: true }
+    );
+
+    res.json({ message: 'Update marked as read.' });
+  } catch (error) {
+    console.error('Failed to mark update as read:', error);
+    res.status(500).json({ error: 'Failed to mark update as read' });
+  }
+};
+
+exports.markAllUpdatesRead = async (req, res) => {
+  try {
+    if (req.user?.role !== 'user') {
+      return res.status(403).json({ error: 'Only users can mark updates as read.' });
+    }
+
+    const now = new Date();
+    const isSubscribed = await isUserSubscribed(req.user._id);
+    const userPlatform = getPlatformFromRequest(req);
+    const updates = await AppUpdate.find({
+      status: { $ne: 'draft' },
+      $or: [{ scheduledFor: null }, { scheduledFor: { $lte: now } }],
+      $or: [{ publishedAt: null }, { publishedAt: { $lte: now } }],
+    })
+      .select('_id targetAudience platforms')
+      .lean();
+
+    const visibleIds = updates
+      .filter((update) => {
+        const audience = update.targetAudience || 'all';
+        if (audience === 'subscribed' && !isSubscribed) return false;
+        if (audience === 'nonsubscribed' && isSubscribed) return false;
+        const platforms = Array.isArray(update.platforms) ? update.platforms : ['all'];
+        if (!platforms.includes('all') && !platforms.includes(userPlatform)) return false;
+        return true;
+      })
+      .map((update) => update._id);
+
+    if (!visibleIds.length) {
+      return res.json({ message: 'No visible updates to mark as read.' });
+    }
+
+    await Promise.all(
+      visibleIds.map((updateId) =>
+        AppUpdateRead.findOneAndUpdate(
+          { update: updateId, user: req.user._id },
+          { $set: { readAt: now } },
+          { upsert: true, new: true }
+        )
+      )
+    );
+
+    res.json({ message: 'All visible updates marked as read.' });
+  } catch (error) {
+    console.error('Failed to mark all updates as read:', error);
+    res.status(500).json({ error: 'Failed to mark all updates as read' });
+  }
+};
+
+exports.trackAdEvent = async (req, res) => {
+  try {
+    if (req.user?.role !== 'user') {
+      return res.status(403).json({ error: 'Only users can track ad events.' });
+    }
+
+    const { type, watchSeconds, metadata } = req.body || {};
+    if (!['impression', 'click', 'close', 'hide', 'report'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid ad event type.' });
+    }
+
+    const ad = await AppAd.findById(req.params.adId).select('_id').lean();
+    if (!ad) {
+      return res.status(404).json({ error: 'Ad not found.' });
+    }
+
+    await AppAdEvent.create({
+      ad: ad._id,
+      user: req.user._id,
+      type,
+      watchSeconds: Number.parseInt(watchSeconds, 10) || 0,
+      metadata: metadata && typeof metadata === 'object' ? metadata : {},
+      occurredAt: new Date(),
+    });
+
+    res.json({ message: 'Ad event tracked.' });
+  } catch (error) {
+    console.error('Failed to track ad event:', error);
+    res.status(500).json({ error: 'Failed to track ad event' });
   }
 };
 

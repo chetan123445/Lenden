@@ -54,6 +54,9 @@ class _UserDashboardPageState extends State<UserDashboardPage>
   final Random _adRandom = Random();
   Timer? _adTimer;
   bool _adDialogOpen = false;
+  int _unreadUpdatesCount = 0;
+  int _adsShownThisSession = 0;
+  DateTime? _lastAdShownAt;
 
   bool _hasRatedApp = false;
   bool _ratingDialogShown = false;
@@ -139,6 +142,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     super.initState();
     fetchTransactions();
     _fetchFriends();
+    _fetchUnreadUpdatesCount();
     _checkAndShowRatingDialog();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -170,6 +174,14 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     if (!mounted) return;
     final session = Provider.of<SessionProvider>(context, listen: false);
     if (session.isSubscribed) return;
+    if (_adsShownThisSession >= 3) return;
+    if (_lastAdShownAt != null &&
+        DateTime.now().difference(_lastAdShownAt!) < const Duration(minutes: 8)) {
+      final remaining = const Duration(minutes: 8) -
+          DateTime.now().difference(_lastAdShownAt!);
+      _adTimer = Timer(remaining, _showRandomAdIfNeeded);
+      return;
+    }
 
     final delaySeconds = 45 + _adRandom.nextInt(76);
     _adTimer = Timer(Duration(seconds: delaySeconds), _showRandomAdIfNeeded);
@@ -194,6 +206,8 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       }
 
       _adDialogOpen = true;
+      _adsShownThisSession += 1;
+      _lastAdShownAt = DateTime.now();
       await showDialog(
         context: context,
         barrierDismissible: true,
@@ -209,6 +223,21 @@ class _UserDashboardPageState extends State<UserDashboardPage>
         _scheduleNextAd();
       }
     }
+  }
+
+  Future<void> _fetchUnreadUpdatesCount() async {
+    try {
+      final res = await ApiClient.get('/api/app-updates');
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body);
+      final updates = (data['updates'] as List? ?? const []);
+      final unread = updates.where((item) {
+        if (item is! Map) return false;
+        return item['isRead'] != true;
+      }).length;
+      if (!mounted) return;
+      setState(() => _unreadUpdatesCount = unread);
+    } catch (_) {}
   }
 
   void _performSearch(String query) {
@@ -773,12 +802,34 @@ class _UserDashboardPageState extends State<UserDashboardPage>
               ListTile(
                 leading: const Icon(Icons.campaign_outlined),
                 title: const Text('Updates'),
-                onTap: () {
+                trailing: _unreadUpdatesCount > 0
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '$_unreadUpdatesCount',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      )
+                    : null,
+                onTap: () async {
                   Navigator.of(context).pop();
-                  Navigator.push(
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const UserUpdatesPage()),
                   );
+                  if (mounted) {
+                    _fetchUnreadUpdatesCount();
+                  }
                 },
               ),
               ListTile(

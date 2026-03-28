@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+
+import '../../utils/api_client.dart';
 import '../Digitise/subscriptions_page.dart';
 
 class UserAdPopupDialog extends StatefulWidget {
@@ -15,6 +17,40 @@ class UserAdPopupDialog extends StatefulWidget {
 
 class _UserAdPopupDialogState extends State<UserAdPopupDialog> {
   bool _videoCanClose = false;
+  bool _impressionTracked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_trackAdEvent('impression'));
+  }
+
+  Future<void> _trackAdEvent(String type, {int watchSeconds = 0}) async {
+    final adId = widget.ad['_id']?.toString();
+    if (adId == null || adId.isEmpty) return;
+    if (type == 'impression' && _impressionTracked) return;
+    try {
+      await ApiClient.post(
+        '/api/ads/$adId/events',
+        body: {
+          'type': type,
+          'watchSeconds': watchSeconds,
+          'metadata': {'mediaKind': (widget.ad['mediaKind'] ?? 'none').toString()},
+        },
+      );
+      if (type == 'impression') {
+        _impressionTracked = true;
+      }
+    } catch (_) {}
+  }
+
+  int _watchSeconds() =>
+      int.tryParse((widget.ad['_watchSeconds'] ?? '0').toString()) ?? 0;
+
+  void _closeAd(BuildContext context, {String eventType = 'close'}) {
+    unawaited(_trackAdEvent(eventType, watchSeconds: _watchSeconds()));
+    Navigator.of(context).pop();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +159,9 @@ class _UserAdPopupDialogState extends State<UserAdPopupDialog> {
                             if (!mounted || _videoCanClose) return;
                             setState(() => _videoCanClose = true);
                           },
+                          onWatchSecondsChanged: (seconds) {
+                            widget.ad['_watchSeconds'] = seconds;
+                          },
                         )
                       : Image.network(
                           mediaUrl,
@@ -140,6 +179,7 @@ class _UserAdPopupDialogState extends State<UserAdPopupDialog> {
                     onPressed: () async {
                       final uri = Uri.tryParse(ctaUrl);
                       if (uri != null) {
+                        await _trackAdEvent('click', watchSeconds: _watchSeconds());
                         await launchUrl(uri, mode: LaunchMode.externalApplication);
                       }
                     },
@@ -197,27 +237,38 @@ class _UserAdPopupDialogState extends State<UserAdPopupDialog> {
                     const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.centerRight,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const SubscriptionsPage(),
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        alignment: WrapAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => _closeAd(context, eventType: 'hide'),
+                            child: const Text('Hide Today'),
+                          ),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const SubscriptionsPage(),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0077B6),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0077B6),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+                            icon: const Icon(Icons.arrow_forward_rounded),
+                            label: const Text('Subscribe'),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        icon: const Icon(Icons.arrow_forward_rounded),
-                        label: const Text('Subscribe'),
+                        ],
                       ),
                     ),
                   ],
@@ -238,7 +289,7 @@ class _UserAdPopupDialogState extends State<UserAdPopupDialog> {
       ),
       child: IconButton(
         icon: const Icon(Icons.close, color: Color(0xFF00B4D8)),
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: () => _closeAd(context),
       ),
     );
   }
@@ -261,11 +312,13 @@ class _AdVideoPlayer extends StatefulWidget {
   final String url;
   final int closeAtPercent;
   final VoidCallback onCloseUnlocked;
+  final ValueChanged<int>? onWatchSecondsChanged;
 
   const _AdVideoPlayer({
     required this.url,
     required this.closeAtPercent,
     required this.onCloseUnlocked,
+    this.onWatchSecondsChanged,
   });
 
   @override
@@ -307,6 +360,9 @@ class _AdVideoPlayerState extends State<_AdVideoPlayer> {
         _refreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
           if (!mounted || !_controller.value.isInitialized) return;
           _checkCloseUnlock();
+          widget.onWatchSecondsChanged?.call(
+            _controller.value.position.inSeconds.clamp(0, 86400),
+          );
           setState(() {});
         });
       }).catchError((_) {

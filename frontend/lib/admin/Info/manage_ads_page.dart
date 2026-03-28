@@ -21,10 +21,15 @@ class _ManageAdsPageState extends State<ManageAdsPage>
   final _ctaUrlController = TextEditingController();
   final _startsAtController = TextEditingController();
   final _endsAtController = TextEditingController();
+  final _tagsController = TextEditingController();
+  final _placementsController = TextEditingController(text: 'dashboard');
 
   late final TabController _tabController;
   PlatformFile? _selectedMedia;
   int _videoCloseAtPercent = 100;
+  int _priorityWeight = 1;
+  int _dailyCapPerUser = 3;
+  String _audience = 'nonsubscribed';
   bool _active = true;
   bool _loading = true;
   bool _submitting = false;
@@ -71,6 +76,8 @@ class _ManageAdsPageState extends State<ManageAdsPage>
     _ctaUrlController.dispose();
     _startsAtController.dispose();
     _endsAtController.dispose();
+    _tagsController.dispose();
+    _placementsController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -188,6 +195,15 @@ class _ManageAdsPageState extends State<ManageAdsPage>
       _ctaUrlController.text = (ad['callToActionUrl'] ?? '').toString();
       _startsAtController.text = _toEditableDateTime(ad['startsAt']);
       _endsAtController.text = _toEditableDateTime(ad['endsAt']);
+      _tagsController.text =
+          ((ad['tags'] as List?) ?? const []).map((e) => '$e').join(', ');
+      _placementsController.text =
+          ((ad['placements'] as List?) ?? const ['dashboard']).map((e) => '$e').join(', ');
+      _audience = (ad['audience'] ?? 'nonsubscribed').toString();
+      _priorityWeight =
+          int.tryParse((ad['priorityWeight'] ?? '1').toString()) ?? 1;
+      _dailyCapPerUser =
+          int.tryParse((ad['dailyCapPerUser'] ?? '3').toString()) ?? 3;
       _videoCloseAtPercent =
           int.tryParse((ad['videoCloseAtPercent'] ?? '100').toString()) ?? 100;
       _active = ad['active'] == true;
@@ -206,7 +222,12 @@ class _ManageAdsPageState extends State<ManageAdsPage>
       _ctaUrlController.clear();
       _startsAtController.clear();
       _endsAtController.clear();
+      _tagsController.clear();
+      _placementsController.text = 'dashboard';
       _selectedMedia = null;
+      _audience = 'nonsubscribed';
+      _priorityWeight = 1;
+      _dailyCapPerUser = 3;
       _videoCloseAtPercent = 100;
       _active = true;
       _error = null;
@@ -244,6 +265,11 @@ class _ManageAdsPageState extends State<ManageAdsPage>
         'callToActionUrl': _ctaUrlController.text.trim(),
         'startsAt': _startsAtController.text.trim(),
         'endsAt': _endsAtController.text.trim(),
+        'audience': _audience,
+        'tags': _tagsController.text.trim(),
+        'placements': _placementsController.text.trim(),
+        'priorityWeight': _priorityWeight.toString(),
+        'dailyCapPerUser': _dailyCapPerUser.toString(),
         'videoCloseAtPercent': _videoCloseAtPercent.toString(),
         'active': _active.toString(),
       };
@@ -657,6 +683,21 @@ class _ManageAdsPageState extends State<ManageAdsPage>
               ),
             ),
             const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _audience,
+              decoration: const InputDecoration(
+                labelText: 'Audience',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All Users')),
+                DropdownMenuItem(value: 'subscribed', child: Text('Subscribed Only')),
+                DropdownMenuItem(value: 'nonsubscribed', child: Text('Non-Subscribed Only')),
+              ],
+              onChanged: (value) =>
+                  setState(() => _audience = value ?? 'nonsubscribed'),
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _startsAtController,
               readOnly: true,
@@ -712,6 +753,66 @@ class _ManageAdsPageState extends State<ManageAdsPage>
                   ],
                 ),
               ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _placementsController,
+              decoration: const InputDecoration(
+                labelText: 'Placements',
+                hintText: 'dashboard, home, offers',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _tagsController,
+              decoration: const InputDecoration(
+                labelText: 'Tags',
+                hintText: 'festival, finance, rewards',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    value: _priorityWeight,
+                    decoration: const InputDecoration(
+                      labelText: 'Priority Weight',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 1, child: Text('1')),
+                      DropdownMenuItem(value: 2, child: Text('2')),
+                      DropdownMenuItem(value: 3, child: Text('3')),
+                      DropdownMenuItem(value: 5, child: Text('5')),
+                      DropdownMenuItem(value: 8, child: Text('8')),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _priorityWeight = value ?? 1),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonFormField<int>(
+                    value: _dailyCapPerUser,
+                    decoration: const InputDecoration(
+                      labelText: 'Daily Cap / User',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 1, child: Text('1')),
+                      DropdownMenuItem(value: 2, child: Text('2')),
+                      DropdownMenuItem(value: 3, child: Text('3')),
+                      DropdownMenuItem(value: 5, child: Text('5')),
+                      DropdownMenuItem(value: 10, child: Text('10')),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _dailyCapPerUser = value ?? 3),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 14),
             const Text(
@@ -959,6 +1060,9 @@ class _ManageAdsPageState extends State<ManageAdsPage>
               children: [
                 _buildMetaChip(Icons.person_outline, 'By: $createdByEmail'),
                 _buildMetaChip(Icons.schedule, 'Published: ${_formatDateTime(ad['createdAt'])}'),
+                _buildMetaChip(Icons.filter_alt_outlined, 'Audience: ${(ad['audience'] ?? 'nonsubscribed')}'),
+                _buildMetaChip(Icons.remove_red_eye_outlined, 'Views: ${((ad['stats'] ?? {})['impressions'] ?? 0)}'),
+                _buildMetaChip(Icons.ads_click, 'Clicks: ${((ad['stats'] ?? {})['clicks'] ?? 0)}'),
                 if (wasEdited)
                   _buildMetaChip(Icons.edit_outlined, 'Edited: ${_formatDateTime(ad['updatedAt'])}'),
                 if ((ad['mediaKind'] ?? 'none').toString() == 'video')
@@ -966,6 +1070,8 @@ class _ManageAdsPageState extends State<ManageAdsPage>
                     Icons.timer_outlined,
                     'Close at: ${_videoCloseLabel(ad['videoCloseAtPercent'])}',
                   ),
+                _buildMetaChip(Icons.speed_outlined, 'Weight: ${(ad['priorityWeight'] ?? 1)}'),
+                _buildMetaChip(Icons.today_outlined, 'Cap: ${(ad['dailyCapPerUser'] ?? 3)}/day'),
               ],
             ),
             const SizedBox(height: 14),

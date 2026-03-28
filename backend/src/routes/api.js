@@ -272,7 +272,10 @@ module.exports = (io) => {
   router.get('/referral/me', auth, referralController.getReferralInfo);
   router.get('/coins/history', auth, coinLedgerController.getMyCoinHistory);
   router.get('/app-updates', auth, appContentController.listUpdates);
+  router.post('/app-updates/:updateId/read', auth, appContentController.markUpdateRead);
+  router.post('/app-updates/read-all', auth, appContentController.markAllUpdatesRead);
   router.get('/ads/random', auth, appContentController.getRandomActiveAd);
+  router.post('/ads/:adId/events', auth, appContentController.trackAdEvent);
   router.get('/ads/media/:fileId', appContentController.streamAdMedia);
   router.post('/referral/share', auth, referralController.logReferralShare);
   router.get('/admin/referral-config', auth, isAdmin, referralController.getReferralConfigForAdmin);

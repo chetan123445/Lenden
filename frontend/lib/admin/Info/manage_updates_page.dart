@@ -14,8 +14,11 @@ class ManageUpdatesPage extends StatefulWidget {
 class _ManageUpdatesPageState extends State<ManageUpdatesPage>
     with SingleTickerProviderStateMixin {
   final _titleController = TextEditingController();
+  final _summaryController = TextEditingController();
   final _bodyController = TextEditingController();
   final _versionController = TextEditingController();
+  final _tagsController = TextEditingController();
+  final _platformsController = TextEditingController();
 
   late final TabController _tabController;
   bool _pinned = false;
@@ -25,6 +28,11 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
   String _filter = 'all';
   String? _error;
   String? _editingId;
+  String _category = 'general';
+  String _importance = 'normal';
+  String _targetAudience = 'all';
+  String _status = 'published';
+  final _scheduledForController = TextEditingController();
   List<Map<String, dynamic>> _updates = [];
 
   bool get _isEditing => _editingId != null;
@@ -39,8 +47,12 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
   @override
   void dispose() {
     _titleController.dispose();
+    _summaryController.dispose();
     _bodyController.dispose();
     _versionController.dispose();
+    _tagsController.dispose();
+    _platformsController.dispose();
+    _scheduledForController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -72,8 +84,18 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
     setState(() {
       _editingId = update['_id']?.toString();
       _titleController.text = (update['title'] ?? '').toString();
+      _summaryController.text = (update['summary'] ?? '').toString();
       _bodyController.text = (update['body'] ?? '').toString();
       _versionController.text = (update['versionTag'] ?? '').toString();
+      _tagsController.text =
+          ((update['tags'] as List?) ?? const []).map((e) => '$e').join(', ');
+      _category = (update['category'] ?? 'general').toString();
+      _importance = (update['importance'] ?? 'normal').toString();
+      _targetAudience = (update['targetAudience'] ?? 'all').toString();
+      _status = (update['status'] ?? 'published').toString();
+      _platformsController.text =
+          ((update['platforms'] as List?) ?? const ['all']).map((e) => '$e').join(', ');
+      _scheduledForController.text = (update['scheduledFor'] ?? '').toString();
       _pinned = update['pinned'] == true;
       _error = null;
     });
@@ -84,8 +106,16 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
     setState(() {
       _editingId = null;
       _titleController.clear();
+      _summaryController.clear();
       _bodyController.clear();
       _versionController.clear();
+      _tagsController.clear();
+      _platformsController.text = 'all';
+      _scheduledForController.clear();
+      _category = 'general';
+      _importance = 'normal';
+      _targetAudience = 'all';
+      _status = 'published';
       _pinned = false;
       _error = null;
     });
@@ -105,8 +135,16 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
     try {
       final body = {
         'title': _titleController.text.trim(),
+        'summary': _summaryController.text.trim(),
         'body': _bodyController.text.trim(),
         'versionTag': _versionController.text.trim(),
+        'category': _category,
+        'importance': _importance,
+        'targetAudience': _targetAudience,
+        'status': _status,
+        'scheduledFor': _scheduledForController.text.trim(),
+        'platforms': _platformsController.text.trim(),
+        'tags': _tagsController.text.trim(),
         'pinned': _pinned,
       };
 
@@ -462,9 +500,107 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
             ),
             const SizedBox(height: 12),
             TextField(
+              controller: _summaryController,
+              decoration: const InputDecoration(
+                labelText: 'Short Summary',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
               controller: _versionController,
               decoration: const InputDecoration(
                 labelText: 'Version Tag',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _category,
+              decoration: const InputDecoration(
+                labelText: 'Category',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'general', child: Text('General')),
+                DropdownMenuItem(value: 'feature', child: Text('Feature')),
+                DropdownMenuItem(value: 'bug_fix', child: Text('Bug Fix')),
+                DropdownMenuItem(value: 'security', child: Text('Security')),
+                DropdownMenuItem(value: 'maintenance', child: Text('Maintenance')),
+              ],
+              onChanged: (value) => setState(() => _category = value ?? 'general'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _importance,
+              decoration: const InputDecoration(
+                labelText: 'Importance',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'normal', child: Text('Normal')),
+                DropdownMenuItem(value: 'important', child: Text('Important')),
+                DropdownMenuItem(value: 'critical', child: Text('Critical')),
+              ],
+              onChanged: (value) =>
+                  setState(() => _importance = value ?? 'normal'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _targetAudience,
+              decoration: const InputDecoration(
+                labelText: 'Audience',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'all', child: Text('All Users')),
+                DropdownMenuItem(value: 'subscribed', child: Text('Subscribed Only')),
+                DropdownMenuItem(value: 'nonsubscribed', child: Text('Non-Subscribed Only')),
+              ],
+              onChanged: (value) =>
+                  setState(() => _targetAudience = value ?? 'all'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _status,
+              decoration: const InputDecoration(
+                labelText: 'Publish Status',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'published', child: Text('Publish Now')),
+                DropdownMenuItem(value: 'draft', child: Text('Save as Draft')),
+                DropdownMenuItem(value: 'scheduled', child: Text('Schedule for Later')),
+              ],
+              onChanged: (value) =>
+                  setState(() => _status = value ?? 'published'),
+            ),
+            if (_status == 'scheduled') ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _scheduledForController,
+                decoration: const InputDecoration(
+                  labelText: 'Scheduled For',
+                  hintText: '2026-03-28T10:30:00.000Z',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _tagsController,
+              decoration: const InputDecoration(
+                labelText: 'Tags',
+                hintText: 'security, release, dashboard',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _platformsController,
+              decoration: const InputDecoration(
+                labelText: 'Platforms',
+                hintText: 'all, windows, android, ios, web',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -674,6 +810,16 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
                 ),
               ),
             ],
+            if ((update['summary'] ?? '').toString().trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                (update['summary'] ?? '').toString(),
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             Text(
               (update['body'] ?? '').toString(),
@@ -686,6 +832,10 @@ class _ManageUpdatesPageState extends State<ManageUpdatesPage>
               children: [
                 _buildMetaChip(Icons.person_outline, 'Published by: $createdByEmail'),
                 _buildMetaChip(Icons.schedule, 'Published: $publishedAt'),
+                _buildMetaChip(Icons.category_outlined, 'Category: ${(update['category'] ?? 'general').toString()}'),
+                _buildMetaChip(Icons.priority_high, 'Importance: ${(update['importance'] ?? 'normal').toString()}'),
+                _buildMetaChip(Icons.event_note, 'Status: ${(update['status'] ?? 'published').toString()}'),
+                _buildMetaChip(Icons.visibility, 'Reads: ${((update['stats'] ?? {})['readCount'] ?? 0)}'),
                 if (wasEdited)
                   _buildMetaChip(Icons.edit_outlined, 'Edited: $editedAt'),
               ],
