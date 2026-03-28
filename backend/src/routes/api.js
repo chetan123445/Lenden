@@ -13,10 +13,56 @@ module.exports = (io) => {
   const editProfileController = require('../controllers/editProfileController');
   const auth = require('../middleware/auth');
   const sessionTimeout = require('../middleware/sessionTimeout');
+  const fs = require('fs');
   const multer = require('multer');
+  const os = require('os');
   const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 } // 10 MB per file (industry standard for images/PDFs)
   });
+  const adUploadStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+    filename: (_req, file, cb) => {
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+      cb(
+        null,
+        `ad-${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeName}`
+      );
+    },
+  });
+  const adUpload = multer({
+    storage: adUploadStorage,
+    limits: { fileSize: 150 * 1024 * 1024 },
+  });
+  const handleAdUpload = (req, res, next) => {
+    adUpload.single('media')(req, res, (error) => {
+      const cleanupTempFile = () => {
+        if (req.file?.path) {
+          fs.promises.unlink(req.file.path).catch(() => {});
+        }
+      };
+
+      if (!error) return next();
+
+      if (error instanceof multer.MulterError) {
+        cleanupTempFile();
+        if (error.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            error: 'Ad media file is too large. Please upload a file smaller than 150 MB.',
+          });
+        }
+
+        return res.status(400).json({
+          error: error.message || 'Failed to process ad media upload.',
+        });
+      }
+
+      console.error('Ad upload middleware failed:', error);
+      cleanupTempFile();
+      return res.status(400).json({
+        error: error?.message || 'Failed to process ad media upload.',
+      });
+    });
+  };
   const transactionController = require('../controllers/transactionController');
   const analyticController = require('../controllers/analyticController');
   const counterpartyController = require('../controllers/counterpartyController');
@@ -40,6 +86,7 @@ module.exports = (io) => {
   const offerController = require('../controllers/offerController');
   const contactConfigController = require('../controllers/contactConfigController');
   const coinLedgerController = require('../controllers/coinLedgerController');
+  const appContentController = require('../controllers/appContentController');
   const handleUsage = require('../middleware/handleUsage');
 
   // Middleware to check for admin role
@@ -224,6 +271,9 @@ module.exports = (io) => {
   // Referral routes
   router.get('/referral/me', auth, referralController.getReferralInfo);
   router.get('/coins/history', auth, coinLedgerController.getMyCoinHistory);
+  router.get('/app-updates', auth, appContentController.listUpdates);
+  router.get('/ads/random', auth, appContentController.getRandomActiveAd);
+  router.get('/ads/media/:fileId', appContentController.streamAdMedia);
   router.post('/referral/share', auth, referralController.logReferralShare);
   router.get('/admin/referral-config', auth, isAdmin, referralController.getReferralConfigForAdmin);
   router.put('/admin/referral-config', auth, isAdmin, referralController.updateReferralConfigForAdmin);
@@ -241,6 +291,14 @@ module.exports = (io) => {
   router.get('/admin/offers/:offerId/claims', auth, isAdmin, offerController.getOfferClaimsAudit);
   router.put('/admin/offers/:offerId', auth, isAdmin, offerController.updateOffer);
   router.delete('/admin/offers/:offerId', auth, isAdmin, offerController.deleteOffer);
+  router.post('/admin/app-updates', auth, isAdmin, appContentController.createUpdate);
+  router.put('/admin/app-updates/:updateId', auth, isAdmin, appContentController.updateUpdate);
+  router.delete('/admin/app-updates/:updateId', auth, isAdmin, appContentController.deleteUpdate);
+  router.get('/admin/ads', auth, isAdmin, appContentController.listAdminAds);
+  router.post('/admin/ads', auth, isAdmin, handleAdUpload, appContentController.createAd);
+  router.put('/admin/ads/:adId', auth, isAdmin, handleAdUpload, appContentController.updateAd);
+  router.patch('/admin/ads/:adId', auth, isAdmin, appContentController.toggleAd);
+  router.delete('/admin/ads/:adId', auth, isAdmin, appContentController.deleteAd);
 
   // Notes routes
   router.post('/notes', auth, noteController.createNote);

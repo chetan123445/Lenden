@@ -14,6 +14,8 @@ import '../Digitise/manage_subscriptions_page.dart';
 import '../Digitise/manage_gift_cards_page.dart';
 import '../Digitise/manage_referral_settings_page.dart';
 import '../Digitise/manage_offers_page.dart';
+import '../Info/manage_updates_page.dart';
+import '../Info/manage_ads_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -388,6 +390,30 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       context,
                       MaterialPageRoute(
                           builder: (_) => ManageSupportQueriesPage()));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.campaign_outlined),
+                title: const Text('Updates'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ManageUpdatesPage(),
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.ondemand_video_outlined),
+                title: const Text('Ads'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ManageAdsPage()),
+                  );
                 },
               ),
               ListTile(

@@ -7,6 +7,7 @@ import 'dart:convert';
 import '../../api_config.dart';
 import '../../Profile/edit_profile_page.dart';
 import 'dart:async';
+import 'dart:math';
 import '../../otp_input.dart';
 import '../../utils/api_client.dart';
 import '../Transaction/secure_transaction_page.dart';
@@ -31,6 +32,8 @@ import '../Connections/friends_page.dart';
 import '../Digitise/offers_page.dart';
 import '../Connections/counterparties_page.dart';
 import '../Digitise/lenden_coins_page.dart';
+import '../Info/updates_page.dart';
+import '../Info/ad_popup_dialog.dart';
 import 'package:elegant_notification/elegant_notification.dart';
 
 class UserDashboardPage extends StatefulWidget {
@@ -48,6 +51,9 @@ class _UserDashboardPageState extends State<UserDashboardPage>
   bool loading = true;
   int _imageRefreshKey = 0;
   final ScrollController _scrollController = ScrollController();
+  final Random _adRandom = Random();
+  Timer? _adTimer;
+  bool _adDialogOpen = false;
 
   bool _hasRatedApp = false;
   bool _ratingDialogShown = false;
@@ -138,6 +144,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final session = Provider.of<SessionProvider>(context, listen: false);
       session.addListener(_onSessionChanged);
+      _scheduleNextAd();
     });
   }
 
@@ -147,6 +154,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     session.removeListener(_onSessionChanged);
     _scrollController.dispose();
     _searchController.dispose();
+    _adTimer?.cancel();
     super.dispose();
   }
 
@@ -154,6 +162,53 @@ class _UserDashboardPageState extends State<UserDashboardPage>
     setState(() {
       _imageRefreshKey++;
     });
+    _scheduleNextAd();
+  }
+
+  void _scheduleNextAd() {
+    _adTimer?.cancel();
+    if (!mounted) return;
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (session.isSubscribed) return;
+
+    final delaySeconds = 45 + _adRandom.nextInt(76);
+    _adTimer = Timer(Duration(seconds: delaySeconds), _showRandomAdIfNeeded);
+  }
+
+  Future<void> _showRandomAdIfNeeded() async {
+    if (!mounted || _adDialogOpen) {
+      _scheduleNextAd();
+      return;
+    }
+
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    if (session.isSubscribed) return;
+
+    try {
+      final res = await ApiClient.get('/api/ads/random');
+      final data = jsonDecode(res.body);
+      final ad = data['ad'];
+      if (!mounted || ad == null) {
+        _scheduleNextAd();
+        return;
+      }
+
+      _adDialogOpen = true;
+      await showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => UserAdPopupDialog(
+          ad: Map<String, dynamic>.from(ad),
+        ),
+      );
+    } catch (_) {
+      // ignore ad failures quietly
+    } finally {
+      _adDialogOpen = false;
+      if (mounted) {
+        _scheduleNextAd();
+      }
+    }
   }
 
   void _performSearch(String query) {
@@ -713,6 +768,17 @@ class _UserDashboardPageState extends State<UserDashboardPage>
                   Navigator.of(context).pop();
                   Navigator.push(context,
                       MaterialPageRoute(builder: (_) => ActivityPage()));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.campaign_outlined),
+                title: const Text('Updates'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const UserUpdatesPage()),
+                  );
                 },
               ),
               ListTile(

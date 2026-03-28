@@ -202,6 +202,21 @@ class ApiClient {
     );
   }
 
+  static Future<http.Response> putMultipart(
+    String path, {
+    Map<String, dynamic>? fields,
+    List<ApiMultipartFile>? files,
+    Map<String, String>? headers,
+  }) async {
+    return _multipartRequest(
+      'PUT',
+      path,
+      fields: fields,
+      files: files,
+      extraHeaders: headers,
+    );
+  }
+
   static Future<http.Response> _multipartRequest(
     String method,
     String path, {
