@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+import '../Digitise/subscriptions_page.dart';
 
 class UserAdPopupDialog extends StatefulWidget {
   final Map<String, dynamic> ad;
@@ -153,6 +154,75 @@ class _UserAdPopupDialogState extends State<UserAdPopupDialog> {
                   ),
                 ),
               ],
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF5FF),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFBDE7F3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.workspace_premium_outlined,
+                          color: Color(0xFF00B4D8),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Subscribe to remove ads',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0077B6),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Upgrade once to enjoy an ad-free experience across your account.',
+                      style: TextStyle(
+                        color: Colors.grey.shade800,
+                        fontWeight: FontWeight.w600,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SubscriptionsPage(),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0077B6),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        icon: const Icon(Icons.arrow_forward_rounded),
+                        label: const Text('Subscribe'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -205,16 +275,32 @@ class _AdVideoPlayer extends StatefulWidget {
 class _AdVideoPlayerState extends State<_AdVideoPlayer> {
   late final VideoPlayerController _controller;
   Timer? _refreshTimer;
+  Timer? _loadingCountdownTimer;
   bool _ready = false;
   bool _closeUnlocked = false;
+  bool _loadFailed = false;
+  late int _fallbackUnlockSeconds;
 
   @override
   void initState() {
     super.initState();
+    _fallbackUnlockSeconds = _fallbackSecondsFor(widget.closeAtPercent);
+    _loadingCountdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || _ready || _closeUnlocked) return;
+      if (_fallbackUnlockSeconds > 0) {
+        setState(() => _fallbackUnlockSeconds -= 1);
+      }
+      if (_fallbackUnlockSeconds <= 0) {
+        _unlockClose();
+      }
+    });
     _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url))
       ..initialize().then((_) {
         if (!mounted) return;
-        setState(() => _ready = true);
+        setState(() {
+          _ready = true;
+          _loadFailed = false;
+        });
         _controller
           ..setLooping(true)
           ..play();
@@ -223,7 +309,29 @@ class _AdVideoPlayerState extends State<_AdVideoPlayer> {
           _checkCloseUnlock();
           setState(() {});
         });
+      }).catchError((_) {
+        if (!mounted) return;
+        setState(() => _loadFailed = true);
       });
+  }
+
+  int _fallbackSecondsFor(int closeAtPercent) {
+    switch (closeAtPercent) {
+      case 25:
+        return 4;
+      case 50:
+        return 8;
+      case 75:
+        return 12;
+      default:
+        return 16;
+    }
+  }
+
+  void _unlockClose() {
+    if (_closeUnlocked) return;
+    _closeUnlocked = true;
+    widget.onCloseUnlocked();
   }
 
   void _checkCloseUnlock() {
@@ -234,14 +342,14 @@ class _AdVideoPlayerState extends State<_AdVideoPlayer> {
     final unlockAtMs =
         (duration.inMilliseconds * widget.closeAtPercent / 100).round();
     if (position.inMilliseconds >= unlockAtMs) {
-      _closeUnlocked = true;
-      widget.onCloseUnlocked();
+      _unlockClose();
     }
   }
 
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _loadingCountdownTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -252,8 +360,61 @@ class _AdVideoPlayerState extends State<_AdVideoPlayer> {
       return Container(
         height: 210,
         color: Colors.black12,
-        alignment: Alignment.center,
-        child: const CircularProgressIndicator(),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 14),
+                  Text(
+                    _loadFailed
+                        ? 'Video is taking too long to load.'
+                        : 'Loading video...',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _closeUnlocked
+                        ? 'You can close this ad now.'
+                        : 'Close unlocks in ${_fallbackUnlockSeconds.clamp(0, 999)}s.',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.62),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  _closeUnlocked
+                      ? '0s'
+                      : '${_fallbackUnlockSeconds.clamp(0, 999)}s',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
