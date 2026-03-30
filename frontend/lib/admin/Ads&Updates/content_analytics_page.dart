@@ -34,7 +34,8 @@ class _AdminContentAnalyticsPageState extends State<AdminContentAnalyticsPage> {
       final response = await ApiClient.get('/api/admin/content-analytics');
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       if (response.statusCode != 200) {
-        throw Exception((data['error'] ?? 'Failed to load analytics').toString());
+        throw Exception(
+            (data['error'] ?? 'Failed to load analytics').toString());
       }
 
       setState(() {
@@ -133,7 +134,8 @@ class _AdminContentAnalyticsPageState extends State<AdminContentAnalyticsPage> {
                           const SizedBox(height: 16),
                           _buildSectionCard(
                             title: 'Top Ads',
-                            subtitle: 'Best performing ads by clicks and reach.',
+                            subtitle:
+                                'Best performing ads by clicks and reach.',
                             child: _topAds.isEmpty
                                 ? _buildEmpty('No ad analytics available yet.')
                                 : Column(
@@ -146,7 +148,8 @@ class _AdminContentAnalyticsPageState extends State<AdminContentAnalyticsPage> {
                             title: 'Top Updates',
                             subtitle: 'Most-read updates across users.',
                             child: _topUpdates.isEmpty
-                                ? _buildEmpty('No update analytics available yet.')
+                                ? _buildEmpty(
+                                    'No update analytics available yet.')
                                 : Column(
                                     children: _topUpdates
                                         .map(_buildTopUpdateTile)
@@ -182,21 +185,21 @@ class _AdminContentAnalyticsPageState extends State<AdminContentAnalyticsPage> {
   Widget _buildSummarySection() {
     final cards = [
       _summaryCard('Ads', '${_summary['totalAds'] ?? 0}', Icons.ondemand_video),
-      _summaryCard(
-          'Active Ads', '${_summary['activeAds'] ?? 0}', Icons.play_circle_fill),
-      _summaryCard(
-          'Ad Views', '${_summary['totalImpressions'] ?? 0}', Icons.remove_red_eye),
+      _summaryCard('Active Ads', '${_summary['activeAds'] ?? 0}',
+          Icons.play_circle_fill),
+      _summaryCard('Ad Views', '${_summary['totalImpressions'] ?? 0}',
+          Icons.remove_red_eye),
       _summaryCard(
           'Ad CTR', '${_summary['averageCtr'] ?? 0}%', Icons.ads_click),
       _summaryCard('Reports', '${_summary['totalReports'] ?? 0}', Icons.report),
-      _summaryCard(
-          'Updates', '${_summary['totalUpdates'] ?? 0}', Icons.campaign_outlined),
-      _summaryCard('Published',
-          '${_summary['publishedUpdates'] ?? 0}', Icons.publish_outlined),
+      _summaryCard('Updates', '${_summary['totalUpdates'] ?? 0}',
+          Icons.campaign_outlined),
+      _summaryCard('Published', '${_summary['publishedUpdates'] ?? 0}',
+          Icons.publish_outlined),
       _summaryCard(
           'Reads', '${_summary['totalReads'] ?? 0}', Icons.visibility_outlined),
-      _summaryCard('Critical',
-          '${_summary['criticalUpdates'] ?? 0}', Icons.priority_high),
+      _summaryCard('Critical', '${_summary['criticalUpdates'] ?? 0}',
+          Icons.priority_high),
     ];
 
     return LayoutBuilder(

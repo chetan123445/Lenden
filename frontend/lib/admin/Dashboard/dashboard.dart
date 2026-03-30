@@ -145,9 +145,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  (modifiedCount > 0
-                          ? const Color(0xFF00B4D8)
-                          : Colors.green)
+                  (modifiedCount > 0 ? const Color(0xFF00B4D8) : Colors.green)
                       .withValues(alpha: 0.14),
                   Colors.white,
                 ],
@@ -162,8 +160,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   modifiedCount > 0
                       ? Icons.verified_user_rounded
                       : Icons.auto_awesome_rounded,
-                  color:
-                      modifiedCount > 0 ? const Color(0xFF00B4D8) : Colors.green,
+                  color: modifiedCount > 0
+                      ? const Color(0xFF00B4D8)
+                      : Colors.green,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -242,7 +241,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Map<String, dynamic> get _adminPermissions {
-    final sessionUser = Provider.of<SessionProvider>(context, listen: false).user;
+    final sessionUser =
+        Provider.of<SessionProvider>(context, listen: false).user;
     if (sessionUser?['permissions'] is Map) {
       return Map<String, dynamic>.from(sessionUser!['permissions']);
     }
@@ -250,7 +250,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   bool get _isSuperAdmin =>
-      Provider.of<SessionProvider>(context, listen: false).user?['isSuperAdmin'] ==
+      Provider.of<SessionProvider>(context, listen: false)
+          .user?['isSuperAdmin'] ==
       true;
 
   bool _hasPermission(String key) {
@@ -1041,7 +1042,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   }
 
   Widget _buildOverviewSection() {
-    final sessionUser = Provider.of<SessionProvider>(context, listen: false).user;
+    final sessionUser =
+        Provider.of<SessionProvider>(context, listen: false).user;
     final summary = _dashboardSummary ?? const <String, dynamic>{};
     final admin = summary['admin'] is Map<String, dynamic>
         ? Map<String, dynamic>.from(summary['admin'])
@@ -1095,7 +1097,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  ((admin['isSuperAdmin'] ?? sessionUser?['isSuperAdmin']) == true)
+                  ((admin['isSuperAdmin'] ?? sessionUser?['isSuperAdmin']) ==
+                          true)
                       ? 'Superadmin control is active for this session.'
                       : 'Admin control is active for this session.',
                   style: TextStyle(
@@ -1122,7 +1125,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       childAspectRatio: 1.0,
                       mainAxisSpacing: 14,
@@ -1159,7 +1163,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           Expanded(
                             child: _buildHealthChip(
                               'Unread Admin Alerts',
-                              (health['unreadAdminNotifications'] ?? 0).toString(),
+                              (health['unreadAdminNotifications'] ?? 0)
+                                  .toString(),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -1217,7 +1222,11 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20),
                             gradient: const LinearGradient(
-                              colors: [Colors.orange, Colors.white, Colors.green],
+                              colors: [
+                                Colors.orange,
+                                Colors.white,
+                                Colors.green
+                              ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -1232,7 +1241,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 8),
                                 decoration: BoxDecoration(
                                   color: Colors.white,
                                   borderRadius: BorderRadius.circular(18),
@@ -1241,7 +1251,9 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      _expandHealthAlerts ? 'Show Less' : 'View More Alerts',
+                                      _expandHealthAlerts
+                                          ? 'Show Less'
+                                          : 'View More Alerts',
                                       style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
