@@ -76,7 +76,8 @@ class UsernamePasswordLogin {
             'dailyLoginReward': responseData['dailyLoginReward'],
           };
         }
-      } else if (response.statusCode == 403 && responseData['canRecover'] == true) {
+      } else if (response.statusCode == 403 &&
+          responseData['canRecover'] == true) {
         return {
           'success': false,
           'canRecover': true,

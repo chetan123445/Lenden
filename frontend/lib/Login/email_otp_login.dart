@@ -78,8 +78,7 @@ class EmailOtpLogin {
       print('📥 OTP verification response data: $responseData');
 
       if (response.statusCode == 200) {
-        final userOrAdmin =
-            responseData['user'] ?? responseData['admin'];
+        final userOrAdmin = responseData['user'] ?? responseData['admin'];
         final userType = responseData['userType'] ?? 'user';
         final accessToken = responseData['accessToken'];
         final refreshToken = responseData['refreshToken'];
@@ -87,8 +86,10 @@ class EmailOtpLogin {
         print('✅ OTP verification successful');
         print('👤 User data: $userOrAdmin');
         print('🔑 User type: $userType');
-        print('🎫 Access Token: ${accessToken != null ? 'Present' : 'Missing'}');
-        print('🎫 Refresh Token: ${refreshToken != null ? 'Present' : 'Missing'}');
+        print(
+            '🎫 Access Token: ${accessToken != null ? 'Present' : 'Missing'}');
+        print(
+            '🎫 Refresh Token: ${refreshToken != null ? 'Present' : 'Missing'}');
         print('🎫 Access Token length: ${accessToken?.length ?? 0}');
         print('🎫 Refresh Token length: ${refreshToken?.length ?? 0}');
         print('📋 Full response data: $responseData');
@@ -97,8 +98,7 @@ class EmailOtpLogin {
         // Check if userOrAdmin is null or empty
         if (userOrAdmin == null) {
           print('❌ ERROR: userOrAdmin is null!');
-          print(
-              '❌ Available keys in data: ${responseData.keys.toList()}');
+          print('❌ Available keys in data: ${responseData.keys.toList()}');
         }
 
         // Check if tokens are null or empty

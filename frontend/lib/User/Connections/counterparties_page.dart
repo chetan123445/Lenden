@@ -85,13 +85,11 @@ class _CounterpartiesPageState extends State<CounterpartiesPage> {
         }
 
         // Filter out the logged-in user from counterparties
-        final filtered = merged
-            .where((cp) {
-              final cpEmail = (cp['email'] ?? '').toString().toLowerCase().trim();
-              final currentUserEmail = email.toLowerCase().trim();
-              return cpEmail != currentUserEmail;
-            })
-            .toList();
+        final filtered = merged.where((cp) {
+          final cpEmail = (cp['email'] ?? '').toString().toLowerCase().trim();
+          final currentUserEmail = email.toLowerCase().trim();
+          return cpEmail != currentUserEmail;
+        }).toList();
 
         if (mounted) {
           setState(() {
@@ -608,7 +606,9 @@ class _CounterpartyGridCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          isDeactivated ? 'Account inactive' : 'Private profile',
+                          isDeactivated
+                              ? 'Account inactive'
+                              : 'Private profile',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
