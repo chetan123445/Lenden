@@ -199,10 +199,26 @@ class _AdminContentAnalyticsPageState extends State<AdminContentAnalyticsPage> {
           '${_summary['criticalUpdates'] ?? 0}', Icons.priority_high),
     ];
 
-    return Wrap(
-      spacing: 12,
-      runSpacing: 12,
-      children: cards,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = (constraints.maxWidth - 24) / 3;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: cards
+                .map(
+                  (card) => SizedBox(
+                    width: cardWidth,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: card,
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        );
+      },
     );
   }
 

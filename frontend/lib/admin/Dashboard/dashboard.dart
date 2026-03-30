@@ -32,6 +32,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
   int _imageRefreshKey = 0; // Key to force avatar rebuild
   bool _useCompactAdminOptions = true;
   bool _loadingOverview = false;
+  bool _expandHealthAlerts = false; // Toggle for health alerts expansion
   String? _overviewError;
   Map<String, dynamic>? _dashboardSummary;
   final ScrollController _scrollController = ScrollController();
@@ -1118,46 +1119,149 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     onRetry: _loadDashboardSummary,
                   )
                 else ...[
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: cards
-                        .map(
-                          (card) => _buildOverviewCard(
-                            label: (card['label'] ?? '').toString(),
-                            value: (card['value'] ?? 0).toString(),
-                            helper: (card['helper'] ?? '').toString(),
-                            onTap: () => _openSectionById(
-                              card['sectionId']?.toString(),
-                            ),
-                          ),
-                        )
-                        .toList(),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: 1.0,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                    ),
+                    itemCount: cards.length,
+                    itemBuilder: (context, index) {
+                      final card = cards[index];
+                      final colors = [
+                        const Color(0xFFEDEBFA), // Users - purple
+                        const Color(0xFFE8F4EC), // Transactions - green
+                        const Color(0xFFF3F2E8), // Groups - yellow
+                        const Color(0xFFEAF8F6), // Support - teal
+                      ];
+                      final backgroundColor = colors[index % colors.length];
+                      return _buildOverviewCard(
+                        label: (card['label'] ?? '').toString(),
+                        value: (card['value'] ?? 0).toString(),
+                        helper: (card['helper'] ?? '').toString(),
+                        backgroundColor: backgroundColor,
+                        onTap: () => _openSectionById(
+                          card['sectionId']?.toString(),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildHealthChip(
-                        'Unread Admin Alerts',
-                        (health['unreadAdminNotifications'] ?? 0).toString(),
+                      // First row - always visible
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildHealthChip(
+                              'Unread Admin Alerts',
+                              (health['unreadAdminNotifications'] ?? 0).toString(),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildHealthChip(
+                              'Reported Ads',
+                              (health['reportedAds'] ?? 0).toString(),
+                            ),
+                          ),
+                        ],
                       ),
-                      _buildHealthChip(
-                        'Reported Ads',
-                        (health['reportedAds'] ?? 0).toString(),
-                      ),
-                      _buildHealthChip(
-                        'Draft Updates',
-                        (health['draftUpdates'] ?? 0).toString(),
-                      ),
-                      _buildHealthChip(
-                        'Scheduled Updates',
-                        (health['scheduledUpdates'] ?? 0).toString(),
-                      ),
-                      _buildHealthChip(
-                        'Superadmins',
-                        (health['superAdmins'] ?? 0).toString(),
+                      if (_expandHealthAlerts) ...[
+                        const SizedBox(height: 10),
+                        // Second row - appears when expanded
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildHealthChip(
+                                'Draft Updates',
+                                (health['draftUpdates'] ?? 0).toString(),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _buildHealthChip(
+                                'Scheduled Updates',
+                                (health['scheduledUpdates'] ?? 0).toString(),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // Third row - appears when expanded
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildHealthChip(
+                                'Superadmins',
+                                (health['superAdmins'] ?? 0).toString(),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: SizedBox.shrink(),
+                            ),
+                          ],
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      // Expand/Collapse button
+                      Align(
+                        alignment: Alignment.center,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: const LinearGradient(
+                              colors: [Colors.orange, Colors.white, Colors.green],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(18),
+                              onTap: () {
+                                setState(() {
+                                  _expandHealthAlerts = !_expandHealthAlerts;
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _expandHealthAlerts ? 'Show Less' : 'View More Alerts',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF00B4D8),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      _expandHealthAlerts
+                                          ? Icons.keyboard_arrow_up_rounded
+                                          : Icons.keyboard_arrow_down_rounded,
+                                      color: const Color(0xFF00B4D8),
+                                      size: 18,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -1217,54 +1321,72 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     required String label,
     required String value,
     required String helper,
+    required Color backgroundColor,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 148,
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(22),
+          gradient: const LinearGradient(
+            colors: [Colors.orange, Colors.white, Colors.green],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF00B4D8),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: onTap,
+            child: Container(
+              margin: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF00B4D8),
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        helper,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              helper,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[700],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
