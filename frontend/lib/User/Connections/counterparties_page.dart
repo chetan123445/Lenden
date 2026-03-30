@@ -84,12 +84,21 @@ class _CounterpartiesPageState extends State<CounterpartiesPage> {
           }
         }
 
+        // Filter out the logged-in user from counterparties
+        final filtered = merged
+            .where((cp) {
+              final cpEmail = (cp['email'] ?? '').toString().toLowerCase().trim();
+              final currentUserEmail = email.toLowerCase().trim();
+              return cpEmail != currentUserEmail;
+            })
+            .toList();
+
         if (mounted) {
           setState(() {
-            _counterparties = merged;
+            _counterparties = filtered;
           });
         }
-        session.setCounterparties(merged);
+        session.setCounterparties(filtered);
       }
     } catch (_) {
       // Keep the page resilient if the request fails.

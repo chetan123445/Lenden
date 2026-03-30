@@ -118,6 +118,7 @@ class EmailOtpLogin {
           'userType': userType,
           'accessToken': accessToken,
           'refreshToken': refreshToken,
+          'dailyLoginReward': responseData['dailyLoginReward'],
         };
       } else if (response.statusCode == 403 &&
           responseData['canRecover'] == true) {

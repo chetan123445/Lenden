@@ -62,7 +62,8 @@ class EmailPasswordLogin {
             'userOrAdmin': responseData['user'],
             'accessToken': responseData['accessToken'],
             'refreshToken': responseData['refreshToken'],
-            'userType': 'user'
+            'userType': 'user',
+            'dailyLoginReward': responseData['dailyLoginReward'],
           };
         }
         // Check if it's an admin login
@@ -73,7 +74,8 @@ class EmailPasswordLogin {
             'userOrAdmin': responseData['admin'],
             'accessToken': responseData['accessToken'],
             'refreshToken': responseData['refreshToken'],
-            'userType': 'admin'
+            'userType': 'admin',
+            'dailyLoginReward': responseData['dailyLoginReward'],
           };
         }
       } else if (response.statusCode == 403 && responseData['canRecover'] == true) {

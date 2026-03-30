@@ -96,6 +96,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
     String? userType;
     String? token;
     String? refreshToken;
+    Map<String, dynamic>? dailyLoginReward;
     Map<String, dynamic>? recoverInfo;
     try {
       if (_loginMethod == 'Email + Password') {
@@ -111,6 +112,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
           userType = result['userType'];
           token = result['accessToken'];
           refreshToken = result['refreshToken'];
+          dailyLoginReward = result['dailyLoginReward'] as Map<String, dynamic>?;
         } else {
           error = result['error'];
           if (result['canRecover'] == true) {
@@ -130,6 +132,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
           userType = result['userType'];
           token = result['accessToken'];
           refreshToken = result['refreshToken'];
+          dailyLoginReward = result['dailyLoginReward'] as Map<String, dynamic>?;
         } else {
           error = result['error'];
           if (result['canRecover'] == true) {
@@ -180,6 +183,7 @@ class _UserLoginPageState extends State<UserLoginPage> {
             userType = result['userType'];
             token = result['accessToken'];
             refreshToken = result['refreshToken'];
+            dailyLoginReward = result['dailyLoginReward'] as Map<String, dynamic>?;
           } else {
             setState(() {
               _otpErrorMessage = result['error'];
@@ -286,6 +290,16 @@ class _UserLoginPageState extends State<UserLoginPage> {
       }
 
       if (userOrAdmin != null && userType != null) {
+        // Show daily login reward notification if user earned coins today
+        if (dailyLoginReward != null && dailyLoginReward['awarded'] == true) {
+          final coins = dailyLoginReward['coinsAwarded'] ?? 1;
+          if (mounted) {
+            _showDailyLoginRewardNotification(coins);
+          }
+          // Add a small delay to ensure the animation is visible
+          await Future.delayed(const Duration(seconds: 3));
+        }
+        
         // Navigate to dashboard
         if (userType == 'admin') {
           Navigator.pushReplacementNamed(context, '/admin/dashboard');
@@ -833,6 +847,157 @@ if (_isDeactivated) _buildDeactivatedAccountWidget(),
         ),
       );
     }
+  }
+
+  void _showDailyLoginRewardNotification(int coins) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 16,
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F9FF),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.elasticOut,
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: child,
+                    );
+                  },
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFFD700).withValues(alpha: 0.4),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.card_giftcard_rounded,
+                      color: Colors.white,
+                      size: 40,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Daily Bonus! 🎉',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black87,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'You earned',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.black54,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFD700).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFFFFD700),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Text(
+                        '$coins LenDen Coin${coins > 1 ? 's' : ''}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFF59E0B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Keep logging in daily to earn more coins!',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00B4D8),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 4,
+                    ),
+                    child: const Text(
+                      'Awesome!',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).then((_) {
+      // Ensure the dialog is fully closed before navigation
+      if (mounted) {
+        setState(() {});
+      }
+    });
   }
 }
 
