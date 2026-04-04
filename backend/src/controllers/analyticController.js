@@ -1,6 +1,8 @@
 const Transaction = require('../models/transaction');
 const GroupTransaction = require('../models/groupTransaction');
+const QuickTransaction = require('../models/quickTransaction');
 const User = require('../models/user');
+const { convertAmountToInr, INR } = require('../utils/currencyConverter');
 
 function buildRecentMonths() {
   const now = new Date();
@@ -31,6 +33,18 @@ function buildMetricCatalog(type) {
       { id: 'uncleared', title: 'Unsettled' },
       { id: 'total', title: 'Expenses' },
       { id: 'totalGroups', title: 'Groups' },
+      { id: 'monthly', title: 'Monthly Activity' },
+    ];
+  }
+
+  if (type === 'quick') {
+    return [
+      { id: 'totalLent', title: 'Total Lent' },
+      { id: 'totalBorrowed', title: 'Total Borrowed' },
+      { id: 'totalInterest', title: 'Outstanding' },
+      { id: 'cleared', title: 'Cleared' },
+      { id: 'uncleared', title: 'Uncleared' },
+      { id: 'total', title: 'Total Transactions' },
       { id: 'monthly', title: 'Monthly Activity' },
     ];
   }
@@ -89,7 +103,7 @@ exports.getUserAnalytics = async (req, res) => {
     let cleared = 0;
     let uncleared = 0;
 
-    transactions.forEach((transaction) => {
+    for (const transaction of transactions) {
       let isLender = false;
       let isBorrower = false;
 
@@ -101,8 +115,14 @@ exports.getUserAnalytics = async (req, res) => {
         isBorrower = transaction.role === 'lender';
       }
 
-      if (isLender) totalLent += transaction.amount;
-      if (isBorrower) totalBorrowed += transaction.amount;
+      const transactionCurrency = transaction.currency || INR;
+      const amountInInr = await convertAmountToInr(
+        transaction.amount || 0,
+        transactionCurrency
+      );
+
+      if (isLender) totalLent += amountInInr;
+      if (isBorrower) totalBorrowed += amountInInr;
 
       if (transaction.userCleared && transaction.counterpartyCleared) {
         cleared += 1;
@@ -124,23 +144,30 @@ exports.getUserAnalytics = async (req, res) => {
         const years = (effectiveEnd - start) / (365 * 24 * 60 * 60 * 1000);
 
         if (years > 0) {
+          let interestAmount = 0;
           if (transaction.interestType === 'simple') {
-            totalInterest += (principal * rate * years) / 100;
+            interestAmount = (principal * rate * years) / 100;
           } else if (transaction.interestType === 'compound') {
             const frequency = transaction.compoundingFrequency || 1;
-            totalInterest +=
+            interestAmount =
               principal * Math.pow(1 + rate / 100 / frequency, frequency * years) -
               principal;
           }
+
+          totalInterest += await convertAmountToInr(
+            interestAmount,
+            transactionCurrency
+          );
         }
       }
 
       applyMonthCount(months, monthlyCounts, transaction.date);
-    });
+    }
 
     return res.json({
       analyticsSharing: true,
       category: 'secure',
+      displayCurrency: INR,
       totalLent,
       totalBorrowed,
       totalInterest,
@@ -186,8 +213,8 @@ exports.getGroupAnalytics = async (req, res) => {
     let uncleared = 0;
     let totalExpenses = 0;
 
-    groups.forEach((group) => {
-      (group.expenses || []).forEach((expense) => {
+    for (const group of groups) {
+      for (const expense of group.expenses || []) {
         const userSplit = (expense.split || []).find(
           (split) => split.user?.toString() === userId
         );
@@ -195,31 +222,43 @@ exports.getGroupAnalytics = async (req, res) => {
           expense.addedBy === email || Boolean(userSplit);
 
         if (!userIsInExpense) {
-          return;
+          continue;
         }
 
         totalExpenses += 1;
         applyMonthCount(months, monthlyCounts, expense.date || group.createdAt);
 
+        const expenseCurrency = expense.currency || INR;
+
         if (expense.addedBy === email) {
-          totalContributed += expense.amount || 0;
+          totalContributed += await convertAmountToInr(
+            expense.amount || 0,
+            expenseCurrency
+          );
         }
 
         if (userSplit) {
-          totalShare += userSplit.amount || 0;
+          totalShare += await convertAmountToInr(
+            userSplit.amount || 0,
+            expenseCurrency
+          );
           if (userSplit.settled) {
             settled += 1;
           } else {
             uncleared += 1;
-            outstanding += userSplit.amount || 0;
+            outstanding += await convertAmountToInr(
+              userSplit.amount || 0,
+              expenseCurrency
+            );
           }
         }
-      });
-    });
+      }
+    }
 
     return res.json({
       analyticsSharing: true,
       category: 'group',
+      displayCurrency: INR,
       totalLent: totalContributed,
       totalBorrowed: totalShare,
       totalInterest: outstanding,
@@ -231,6 +270,82 @@ exports.getGroupAnalytics = async (req, res) => {
       months: months.map((month) => month.toISOString().slice(0, 7)),
       highlightedMetrics: ['totalLent', 'totalBorrowed'],
       availableInsights: buildMetricCatalog('group'),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getQuickAnalytics = async (req, res) => {
+  try {
+    const { email } = req.query;
+    const analyticsUser = await getAnalyticsUser(email);
+
+    if (analyticsUser.error) {
+      return res.status(analyticsUser.status).json({ error: analyticsUser.error });
+    }
+
+    if (analyticsUser.analyticsSharing === false) {
+      return res.json({ analyticsSharing: false });
+    }
+
+    const months = buildRecentMonths();
+    const monthlyCounts = Array(12).fill(0);
+
+    const quickTransactions = await QuickTransaction.find({ users: email });
+
+    let totalLent = 0;
+    let totalBorrowed = 0;
+    let outstanding = 0;
+    let cleared = 0;
+    let uncleared = 0;
+
+    for (const transaction of quickTransactions) {
+      const transactionCurrency = transaction.currency || INR;
+      const amountInInr = await convertAmountToInr(
+        transaction.amount || 0,
+        transactionCurrency
+      );
+      const creatorRole = (transaction.role || '').toString().toLowerCase();
+      const isCreator = transaction.creatorEmail === email;
+      const isLender =
+        (isCreator && creatorRole === 'lender') ||
+        (!isCreator && creatorRole === 'borrower');
+      const isBorrower =
+        (isCreator && creatorRole === 'borrower') ||
+        (!isCreator && creatorRole === 'lender');
+
+      if (isLender) totalLent += amountInInr;
+      if (isBorrower) totalBorrowed += amountInInr;
+
+      if (transaction.cleared) {
+        cleared += 1;
+      } else {
+        uncleared += 1;
+        outstanding += amountInInr;
+      }
+
+      applyMonthCount(
+        months,
+        monthlyCounts,
+        transaction.date || transaction.createdAt
+      );
+    }
+
+    return res.json({
+      analyticsSharing: true,
+      category: 'quick',
+      displayCurrency: INR,
+      totalLent,
+      totalBorrowed,
+      totalInterest: outstanding,
+      cleared,
+      uncleared,
+      total: quickTransactions.length,
+      monthlyCounts,
+      months: months.map((month) => month.toISOString().slice(0, 7)),
+      highlightedMetrics: ['totalLent', 'totalBorrowed'],
+      availableInsights: buildMetricCatalog('quick'),
     });
   } catch (error) {
     return res.status(500).json({ error: error.message });

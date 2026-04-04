@@ -42,6 +42,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
   final TextEditingController _expenseDescController = TextEditingController();
   final TextEditingController _expenseAmountController =
       TextEditingController();
+  String _expenseCurrency = 'INR';
   String splitType = 'equal';
   List<Map<String, dynamic>> customSplits = [];
   List<String> selectedMembers = []; // New: selected members for expense
@@ -49,6 +50,18 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       {}; // New: track custom split amounts for each member
   bool addingExpense = false;
   String? expenseError;
+  List<Map<String, String>> _currencies = [
+    {'code': 'INR', 'symbol': '₹'},
+    {'code': 'USD', 'symbol': '\$'},
+    {'code': 'EUR', 'symbol': '€'},
+    {'code': 'GBP', 'symbol': '£'},
+    {'code': 'JPY', 'symbol': '¥'},
+    {'code': 'CNY', 'symbol': '¥'},
+    {'code': 'CAD', 'symbol': '\$'},
+    {'code': 'AUD', 'symbol': '\$'},
+    {'code': 'CHF', 'symbol': 'Fr'},
+    {'code': 'RUB', 'symbol': '₽'},
+  ];
 
   List<Map<String, dynamic>> userGroups = [];
   List<Map<String, dynamic>> filteredGroups = [];
@@ -74,6 +87,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       showCreateGroupForm = true;
     }
     _loadFriends();
+    _loadSupportedCurrencies();
     _loadDailyLimits();
     _memberEmailController.addListener(_updateFriendSuggestions);
     _fetchUserGroups();
@@ -482,6 +496,58 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     final totalExpenseAmount =
         double.tryParse(_expenseAmountController.text.trim()) ?? 0.0;
     return totalExpenseAmount - _totalCustomSplitAmount;
+  }
+
+  Future<void> _loadSupportedCurrencies() async {
+    try {
+      final res = await ApiClient.get('/api/currency-conversions/supported');
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body);
+      final currencies =
+          List<Map<String, dynamic>>.from(data['currencies'] ?? const []);
+      if (currencies.isEmpty) return;
+      setState(() {
+        _currencies = currencies
+            .map(
+              (item) => {
+                'code': (item['code'] ?? 'INR').toString().toUpperCase(),
+                'symbol': (item['symbol'] ?? item['code'] ?? '₹').toString(),
+              },
+            )
+            .toList();
+        if (!_currencies.any((item) => item['code'] == _expenseCurrency)) {
+          _expenseCurrency = 'INR';
+        }
+      });
+    } catch (_) {}
+  }
+
+  String _currencySymbol([String? code]) {
+    final currencyCode = (code ?? _expenseCurrency).toUpperCase();
+    final match = _currencies.firstWhere(
+      (item) => item['code'] == currencyCode,
+      orElse: () => const {'code': 'INR', 'symbol': '₹'},
+    );
+    return match['symbol'] ?? '₹';
+  }
+
+  String _formatAmountWithCurrency(dynamic amount, [String? code]) {
+    final parsedAmount = amount is num
+        ? amount.toDouble()
+        : double.tryParse((amount ?? 0).toString()) ?? 0.0;
+    return '${_currencySymbol(code)}${parsedAmount.toStringAsFixed(2)}';
+  }
+
+  String? _lockedCurrencyForCurrentUser() {
+    if (group == null || userEmail == null) return null;
+    final expenses = List<Map<String, dynamic>>.from(group!['expenses'] ?? []);
+    for (final expense in expenses) {
+      final addedBy = (expense['addedBy'] ?? '').toString().toLowerCase().trim();
+      if (addedBy == userEmail!.toLowerCase().trim()) {
+        return (expense['currency'] ?? 'INR').toString().toUpperCase();
+      }
+    }
+    return null;
   }
 
   // Calculate member's total split amount from all expenses in the group (excluding settled amounts)
@@ -1231,6 +1297,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       final requestData = {
         'description': _expenseDescController.text.trim(),
         'amount': double.tryParse(_expenseAmountController.text.trim()),
+        'currency': _expenseCurrency,
         'splitType': splitType,
         'split': splitData,
         'selectedMembers': selectedMembers,
@@ -1254,6 +1321,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           customSplits.clear();
           selectedMembers.clear();
           customSplitAmounts.clear(); // Clear custom split amounts
+          _expenseCurrency = _lockedCurrencyForCurrentUser() ?? 'INR';
         });
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -4422,7 +4490,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                              'Amount: ${_formatAmountWithCurrency(expense['amount'], expense['currency']?.toString())}',
                               style: TextStyle(
                                 color: Colors.green[700],
                                 fontWeight: FontWeight.bold,
@@ -4513,7 +4581,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                                     ),
                                                   ),
                                                   Text(
-                                                    '\$${splitItem['amount'].toStringAsFixed(2)}',
+                                                    _formatAmountWithCurrency(
+                                                      splitItem['amount'],
+                                                      expense['currency']
+                                                          ?.toString(),
+                                                    ),
                                                     style: TextStyle(
                                                       fontSize: 11,
                                                       fontWeight:
@@ -6170,7 +6242,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                            'Amount: ${_formatAmountWithCurrency(expense['amount'], expense['currency']?.toString())}',
                             style: TextStyle(
                               color: Colors.green[700],
                               fontWeight: FontWeight.bold,
@@ -6258,7 +6330,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                                   ),
                                                 ),
                                                 Text(
-                                                  '\$${splitItem['amount'].toStringAsFixed(2)}',
+                                                  _formatAmountWithCurrency(
+                                                    splitItem['amount'],
+                                                    expense['currency']
+                                                        ?.toString(),
+                                                  ),
                                                   style: TextStyle(
                                                     fontSize: 11,
                                                     fontWeight: FontWeight.w600,
@@ -7284,7 +7360,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                          'Amount: ${_formatAmountWithCurrency(expense['amount'], expense['currency']?.toString())}',
                           style: TextStyle(
                             fontSize: 14,
                             color: Colors.green[700],
@@ -7349,7 +7425,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             ),
                           ),
                           subtitle: Text(
-                            'Amount: \$${(splitItem?['amount'] ?? 0).toStringAsFixed(2)}',
+                            'Amount: ${_formatAmountWithCurrency(splitItem?['amount'] ?? 0, expense['currency']?.toString())}',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[600],
@@ -7421,10 +7497,23 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     await _loadGroupExpenseLimit();
     // Initialize selected members with all active members
     _initializeSelectedMembers();
+    final lockedCurrency = _lockedCurrencyForCurrentUser();
+    _expenseCurrency = lockedCurrency ?? _expenseCurrency;
+    final dialogScrollController = ScrollController();
 
     // Local error state for the dialog
     String? dialogError;
     bool dialogAddingExpense = false;
+    void scrollDialogToBottom() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!dialogScrollController.hasClients) return;
+        dialogScrollController.animateTo(
+          dialogScrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOut,
+        );
+      });
+    }
 
     showDialog(
       context: context,
@@ -7466,6 +7555,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             content: Container(
               width: double.maxFinite,
               child: SingleChildScrollView(
+                controller: dialogScrollController,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -7579,18 +7669,91 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           ),
                         ],
                       ),
+                      child: DropdownButtonFormField<String>(
+                        value: _expenseCurrency,
+                        items: _currencies
+                            .map(
+                              (currency) => DropdownMenuItem(
+                                value: currency['code'],
+                                child: Text(
+                                    '${currency['symbol']} ${currency['code']}'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: lockedCurrency != null
+                            ? null
+                            : (value) {
+                                setDialogState(() {
+                                  _expenseCurrency = value ?? 'INR';
+                                });
+                              },
+                        decoration: InputDecoration(
+                          labelText: 'Currency',
+                          labelStyle: TextStyle(
+                            color: Color(0xFF1E3A8A),
+                            fontWeight: FontWeight.w500,
+                          ),
+                          prefixIcon: Icon(Icons.currency_exchange,
+                              color: Color(0xFF1E3A8A)),
+                          helperText: lockedCurrency != null
+                              ? 'Locked to $lockedCurrency because your first expense in this group used that currency.'
+                              : 'You can choose a different currency in other groups.',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                                color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                                color: Color(0xFF1E3A8A).withOpacity(0.3)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide:
+                                BorderSide(color: Color(0xFF1E3A8A), width: 2),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: Color(0xFF1E3A8A).withOpacity(0.2)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
                       child: TextField(
                         controller: _expenseAmountController,
                         keyboardType:
                             TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
-                          labelText: 'Amount (\$)',
+                          labelText: 'Amount (${_currencySymbol()})',
                           labelStyle: TextStyle(
                             color: Color(0xFF1E3A8A),
                             fontWeight: FontWeight.w500,
                           ),
-                          prefixIcon: Icon(Icons.attach_money,
-                              color: Color(0xFF1E3A8A)),
+                          prefixIcon: Padding(
+                            padding: EdgeInsets.all(14),
+                            child: Text(
+                              _currencySymbol(),
+                              style: TextStyle(
+                                color: Color(0xFF1E3A8A),
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
                             borderSide: BorderSide(
@@ -7806,7 +7969,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                     ),
                                   ),
                                   Text(
-                                    '\$${_totalCustomSplitAmount.toStringAsFixed(2)}',
+                                    '${_currencySymbol()}${_totalCustomSplitAmount.toStringAsFixed(2)}',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
@@ -7840,7 +8003,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                     ),
                                   ),
                                   Text(
-                                    '\$${_remainingCustomSplitAmount.toStringAsFixed(2)}',
+                                    '${_currencySymbol()}${_remainingCustomSplitAmount.toStringAsFixed(2)}',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
@@ -7896,7 +8059,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                                   ),
                                                 ),
                                                 Text(
-                                                  'Amount: \$${(customSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2)}',
+                                                  'Amount: ${_currencySymbol()}${(customSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2)}',
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     color: Colors.grey[600],
@@ -7914,7 +8077,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                                       decimal: true),
                                               decoration: InputDecoration(
                                                 hintText: '0.00',
-                                                prefixText: '\$',
+                                                prefixText: _currencySymbol(),
                                                 border: OutlineInputBorder(
                                                   borderRadius:
                                                       BorderRadius.circular(8),
@@ -8035,6 +8198,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                     dialogError =
                                         'Please select at least one member for this expense';
                                   });
+                                  scrollDialogToBottom();
                                   return;
                                 }
 
@@ -8050,8 +8214,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                   if (totalSplitAmount != totalExpenseAmount) {
                                     setDialogState(() {
                                       dialogError =
-                                          'Total split amount (\$${totalSplitAmount.toStringAsFixed(2)}) must equal expense amount (\$${totalExpenseAmount.toStringAsFixed(2)})';
+                                          'Total split amount (${_currencySymbol()}${totalSplitAmount.toStringAsFixed(2)}) must equal expense amount (${_currencySymbol()}${totalExpenseAmount.toStringAsFixed(2)})';
                                     });
+                                    scrollDialogToBottom();
                                     return;
                                   }
                                 }
@@ -8090,6 +8255,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                     dialogAddingExpense = false;
                                     dialogError = e.toString();
                                   });
+                                  scrollDialogToBottom();
                                 }
                               },
                         style: ElevatedButton.styleFrom(
@@ -8125,7 +8291,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           );
         },
       ),
-    );
+    ).then((_) => dialogScrollController.dispose());
   }
 
   // Member Selection Dialog

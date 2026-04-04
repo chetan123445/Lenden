@@ -31,10 +31,23 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
   String? _favouritingGroupId;
   String? _chattingGroupId;
   int createdGroupsCount = 0; // Track groups created by user
+  List<Map<String, String>> _currencies = [
+    {'code': 'INR', 'symbol': '₹'},
+    {'code': 'USD', 'symbol': '\$'},
+    {'code': 'EUR', 'symbol': '€'},
+    {'code': 'GBP', 'symbol': '£'},
+    {'code': 'JPY', 'symbol': '¥'},
+    {'code': 'CNY', 'symbol': '¥'},
+    {'code': 'CAD', 'symbol': '\$'},
+    {'code': 'AUD', 'symbol': '\$'},
+    {'code': 'CHF', 'symbol': 'Fr'},
+    {'code': 'RUB', 'symbol': '₽'},
+  ];
 
   @override
   void initState() {
     super.initState();
+    _loadSupportedCurrencies();
     _fetchUserGroups();
     _searchController.addListener(_filterGroups);
   }
@@ -204,6 +217,77 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
     return months[month - 1];
   }
 
+  Future<void> _loadSupportedCurrencies() async {
+    try {
+      final res = await ApiClient.get('/api/currency-conversions/supported');
+      if (res.statusCode != 200) return;
+      final data = jsonDecode(res.body);
+      final currencies =
+          List<Map<String, dynamic>>.from(data['currencies'] ?? const []);
+      if (currencies.isEmpty) return;
+      setState(() {
+        _currencies = currencies
+            .map(
+              (item) => {
+                'code': (item['code'] ?? 'INR').toString().toUpperCase(),
+                'symbol': (item['symbol'] ?? item['code'] ?? '₹').toString(),
+              },
+            )
+            .toList();
+      });
+    } catch (_) {}
+  }
+
+  String _currencySymbol(String? code) {
+    final currencyCode = (code ?? 'INR').toUpperCase();
+    final match = _currencies.firstWhere(
+      (item) => item['code'] == currencyCode,
+      orElse: () => const {'code': 'INR', 'symbol': '₹'},
+    );
+    return match['symbol'] ?? '₹';
+  }
+
+  double _expenseAmountInInr(Map<String, dynamic> expense) {
+    return double.tryParse((expense['amountInr'] ?? expense['amount'] ?? 0).toString()) ??
+        0.0;
+  }
+
+  double _splitAmountInInr(Map<String, dynamic> splitItem) {
+    return double.tryParse(
+          (splitItem['amountInr'] ?? splitItem['amount'] ?? 0).toString(),
+        ) ??
+        0.0;
+  }
+
+  String _formatInr(num amount) => '₹${amount.toStringAsFixed(2)}';
+
+  Map<String, dynamic>? _findGroupById(String groupId) {
+    try {
+      return userGroups.firstWhere((group) => group['_id'] == groupId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _lockedCurrencyForUserInGroup(String groupId, String? userEmail,
+      {String? excludingExpenseId}) {
+    final group = _findGroupById(groupId);
+    if (group == null || userEmail == null) return null;
+    final normalizedEmail = userEmail.toLowerCase().trim();
+    final expenses = List<Map<String, dynamic>>.from(group['expenses'] ?? []);
+    for (final expense in expenses) {
+      if (excludingExpenseId != null &&
+          expense['_id']?.toString() == excludingExpenseId) {
+        continue;
+      }
+      final addedBy = (expense['addedBy'] ?? '').toString().toLowerCase().trim();
+      if (addedBy == normalizedEmail) {
+        return (expense['currency'] ?? 'INR').toString().toUpperCase();
+      }
+    }
+    return null;
+  }
+
   void _filterGroups() {
     final query = _searchController.text.toLowerCase().trim();
     final session = Provider.of<SessionProvider>(context, listen: false);
@@ -309,8 +393,8 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
       for (var splitItem in split) {
         // Check if this split item belongs to the current user and is not settled
         String splitUserId = splitItem['user'].toString();
-        double splitAmount =
-            double.parse((splitItem['amount'] ?? 0).toString());
+        double splitAmount = _splitAmountInInr(
+            Map<String, dynamic>.from(splitItem as Map));
         bool isSettled = splitItem['settled'] == true;
         print(
             'Split item - User ID: $splitUserId, Amount: $splitAmount, Settled: $isSettled');
@@ -328,39 +412,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
 
   // Get user's pending balance for a group
   double _getUserPendingBalance(Map<String, dynamic> group, String userEmail) {
-    // Calculate pending balance based on total split amounts for this user
-    double totalSplitAmount = _calculateUserTotalSplit(group, userEmail);
-
-    // Debug print to understand the calculation
-    print(
-        'Group: ${group['title']}, User: $userEmail, Total Split: $totalSplitAmount');
-
-    // Also check if there's a balance in the balances array (for backward compatibility)
-    final balances = group['balances'] ?? [];
-    final members = group['members'] ?? [];
-
-    // Find the member with this email
-    for (var member in members) {
-      if (member['email'] == userEmail) {
-        // Find the balance for this user
-        for (var balance in balances) {
-          if (balance['user'] == member['_id']) {
-            double balanceAmount =
-                double.parse((balance['balance'] ?? 0).toString());
-            print('Balance from array: $balanceAmount');
-            // If balance is 0 or null, use the calculated split amount
-            if (balanceAmount == 0) {
-              return totalSplitAmount;
-            }
-            return balanceAmount;
-          }
-        }
-        // If no balance found, return the calculated split amount
-        return totalSplitAmount;
-      }
-    }
-
-    return totalSplitAmount;
+    return _calculateUserTotalSplit(group, userEmail);
   }
 
   // Calculate total pending balance across all groups
@@ -434,6 +486,15 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
     final TextEditingController editAmountController =
         TextEditingController(text: (expense['amount'] ?? 0).toString());
     String editSplitType = 'equal';
+    final currentUserEmail =
+        Provider.of<SessionProvider>(context, listen: false).user?['email'];
+    final lockedCurrency = _lockedCurrencyForUserInGroup(
+      groupId,
+      currentUserEmail,
+      excludingExpenseId: expense['_id']?.toString(),
+    );
+    String editCurrency =
+        (expense['currency'] ?? lockedCurrency ?? 'INR').toString().toUpperCase();
 
     // Filter out members who have left the group from selected members
     List<String> editSelectedMembers =
@@ -519,7 +580,48 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                   ),
                   SizedBox(height: 16),
 
-                  // Amount
+                  Text(
+                    'Currency',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF00B4D8),
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: editCurrency,
+                    decoration: InputDecoration(
+                      helperText: lockedCurrency != null
+                          ? 'Locked to $lockedCurrency because your first expense in this group used that currency.'
+                          : 'You can use a different currency in other groups.',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            BorderSide(color: Color(0xFF00B4D8), width: 2),
+                      ),
+                    ),
+                    items: _currencies
+                        .map(
+                          (currency) => DropdownMenuItem(
+                            value: currency['code'],
+                            child:
+                                Text('${currency['symbol']} ${currency['code']}'),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: lockedCurrency != null
+                        ? null
+                        : (value) {
+                            setDialogState(() {
+                              editCurrency = value ?? 'INR';
+                            });
+                          },
+                  ),
+                  SizedBox(height: 16),
                   Text(
                     'Amount',
                     style: TextStyle(
@@ -534,7 +636,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       hintText: 'Enter amount',
-                      prefixText: '\$',
+                      prefixText: _currencySymbol(editCurrency),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -682,6 +784,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                         final expenseData = {
                           'description': editDescController.text.trim(),
                           'amount': amount,
+                          'currency': editCurrency,
                           'selectedMembers': editSelectedMembers,
                           'splitType': editSplitType,
                         };
@@ -819,7 +922,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Amount: \$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                            'Amount: ${_formatInr(_expenseAmountInInr(Map<String, dynamic>.from(expense)))}',
                             style: TextStyle(
                               color: Colors.green[700],
                               fontWeight: FontWeight.bold,
@@ -1342,7 +1445,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                             textAlign: TextAlign.center,
                                           ),
                                           Text(
-                                            '\$${_calculateTotalPendingBalance().toStringAsFixed(2)}',
+                                            _formatInr(_calculateTotalPendingBalance()),
                                             style: TextStyle(
                                               color: Colors.white,
                                               fontSize: 18,
@@ -1572,7 +1675,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                     Text(
                                                                         'Total Split Amount:'),
                                                                     Text(
-                                                                      '\$${userTotalSplit.toStringAsFixed(2)}',
+                                                                      _formatInr(userTotalSplit),
                                                                       style:
                                                                           TextStyle(
                                                                         fontWeight:
@@ -1593,7 +1696,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                     Text(
                                                                         'Pending Balance:'),
                                                                     Text(
-                                                                      '\$${userPendingBalance.toStringAsFixed(2)}',
+                                                                      _formatInr(userPendingBalance),
                                                                       style:
                                                                           TextStyle(
                                                                         fontWeight:
@@ -1777,7 +1880,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                           ),
                                                                         ),
                                                                         Text(
-                                                                          '\$${(expense['amount'] ?? 0).toStringAsFixed(2)}',
+                                                                          _formatInr(_expenseAmountInInr(Map<String, dynamic>.from(expense))),
                                                                           style:
                                                                               TextStyle(
                                                                             fontWeight:
@@ -1888,7 +1991,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                                       ),
                                                                                     ),
                                                                                     Text(
-                                                                                      '\$${splitItem['amount'].toStringAsFixed(2)}',
+                                                                                      _formatInr(_splitAmountInInr(Map<String, dynamic>.from(splitItem))),
                                                                                       style: TextStyle(
                                                                                         fontSize: 11,
                                                                                         fontWeight: FontWeight.w600,

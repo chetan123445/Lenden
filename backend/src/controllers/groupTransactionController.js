@@ -12,6 +12,12 @@ const { sendGroupReceiptEmail } = require('../utils/groupReceiptEmail');
 const { processReferralRewardOnFirstCreation } = require('../utils/referralService');
 const { validateCoinCreationAccess } = require('../utils/coinUsageGuard');
 const { recordCoinLedgerEntry } = require('../utils/coinLedgerService');
+const {
+  INR,
+  normalizeCurrency,
+  enrichExpenseWithInr,
+} = require('../utils/currencyConverter');
+const { getSupportedCurrencyCodes } = require('../utils/supportedCurrencies');
 
 const isBlockedBy = (user, other) =>
   (user.blockedUsers || []).some(
@@ -40,10 +46,34 @@ const getTodayRange = () => {
 
 // Helper function to process expenses and convert Object IDs to emails in addedBy field
 async function processExpenses(expenses) {
-  return await Promise.all((expenses || []).map(async expense => {
-    // Since we now store emails directly in addedBy, no conversion is needed
-    return expense;
-  }));
+  return await Promise.all(
+    (expenses || []).map(async (expense) =>
+      enrichExpenseWithInr({
+        ...expense,
+        currency: normalizeCurrency(expense.currency),
+      })
+    )
+  );
+}
+
+function getLockedCurrencyForUser(group, userEmail, excludedExpenseId = null) {
+  const normalizedEmail = (userEmail || '').toLowerCase().trim();
+  for (const expense of group.expenses || []) {
+    if (
+      excludedExpenseId &&
+      expense?._id?.toString() === excludedExpenseId.toString()
+    ) {
+      continue;
+    }
+    if ((expense.addedBy || '').toLowerCase().trim() === normalizedEmail) {
+      return normalizeCurrency(expense.currency);
+    }
+  }
+  return null;
+}
+
+function buildCurrencyLockError(lockedCurrency) {
+  return `You must use ${lockedCurrency} for all your expenses in this group because it was the currency used in your first expense here.`;
 }
 
 // Helper: check if all userIds exist in User collection
@@ -460,8 +490,24 @@ exports.addExpense = async (req, res) => {
   try {
     console.log('addExpense called with body:', req.body);
     const { groupId } = req.params;
-    const { description, amount, splitType, split, date, selectedMembers } = req.body;
-    console.log('Parsed data:', { groupId, description, amount, splitType, split, selectedMembers });
+    const {
+      description,
+      amount,
+      currency,
+      splitType,
+      split,
+      date,
+      selectedMembers,
+    } = req.body;
+    console.log('Parsed data:', {
+      groupId,
+      description,
+      amount,
+      currency,
+      splitType,
+      split,
+      selectedMembers,
+    });
     
     const group = await GroupTransaction.findById(groupId);
     if (!group) return res.status(404).json({ error: 'Group not found' });
@@ -478,6 +524,20 @@ exports.addExpense = async (req, res) => {
     
     if (!group.members.some(m => m.user.toString() === userId.toString() && !m.leftAt)) return res.status(403).json({ error: 'Not a group member' });
     if (!description || !amount || amount <= 0) return res.status(400).json({ error: 'Description and positive amount required' });
+
+    const normalizedCurrency = normalizeCurrency(currency);
+    const supportedCurrencyCodes = await getSupportedCurrencyCodes();
+    if (!supportedCurrencyCodes.includes(normalizedCurrency)) {
+      return res.status(400).json({ error: 'Unsupported currency selected' });
+    }
+
+    const lockedCurrency = getLockedCurrencyForUser(group, userEmail);
+    if (lockedCurrency && lockedCurrency !== normalizedCurrency) {
+      return res.status(400).json({
+        error: buildCurrencyLockError(lockedCurrency),
+        lockedCurrency,
+      });
+    }
 
     if (!(await isSubscribed(userId))) {
       const { start, end } = getTodayRange();
@@ -601,6 +661,7 @@ exports.addExpense = async (req, res) => {
     const expenseData = { 
       description, 
       amount, 
+      currency: normalizedCurrency,
       addedBy: userEmail, 
       date: date ? new Date(date) : new Date(), 
       selectedMembers: selectedMembers,
@@ -655,7 +716,7 @@ exports.addExpense = async (req, res) => {
       await logGroupActivityForAllMembers('expense_added', group, {
         expenseDescription: description,
         expenseAmount: amount,
-        currency: '₹' // Default currency, you might want to make this configurable
+        currency: normalizedCurrency,
       }, null, creatorInfo);
       groupTransactionEmail.sendExpenseAddedEmail(populatedGroup, expenseData, userEmail);
     } catch (e) {
@@ -754,6 +815,10 @@ exports.getUserGroups = async (req, res) => {
       
       // Process expenses to convert Object IDs to emails in addedBy field
       const processedExpenses = await processExpenses(obj.expenses);
+      const totalAmountInr = processedExpenses.reduce(
+        (sum, expense) => sum + Number(expense.amountInr || 0),
+        0
+      );
       
       return {
         _id: obj._id,
@@ -771,6 +836,7 @@ exports.getUserGroups = async (req, res) => {
           return null;
         }).filter(m => m !== null),
         expenses: processedExpenses,
+        totalAmountInr: Number(totalAmountInr.toFixed(2)),
         balances: obj.balances || [],
         color: obj.color,
         favourite: obj.favourite || [],
@@ -1021,7 +1087,7 @@ exports.deleteExpense = async (req, res) => {
       await logGroupActivityForAllMembers('expense_deleted', group, {
         expenseDescription: deletedExpense.description,
         expenseAmount: deletedExpense.amount,
-        currency: '₹' // Default currency, you might want to make this configurable
+        currency: normalizeCurrency(deletedExpense.currency),
       }, null, creatorInfo);
       groupTransactionEmail.sendExpenseDeletedEmail(populatedGroup, deletedExpense, req.user.email);
     } catch (e) {
@@ -1036,7 +1102,15 @@ exports.deleteExpense = async (req, res) => {
 exports.editExpense = async (req, res) => {
   try {
     const { groupId, expenseId } = req.params;
-    const { description, amount, selectedMembers, splitType, customSplitAmounts, date } = req.body;
+    const {
+      description,
+      amount,
+      currency,
+      selectedMembers,
+      splitType,
+      customSplitAmounts,
+      date,
+    } = req.body;
     // Handle both user and admin tokens (different field names)
     let userEmail = req.user.email;
     const userId = req.user._id;
@@ -1108,6 +1182,24 @@ exports.editExpense = async (req, res) => {
     if (!description || !amount || amount <= 0) {
       return res.status(400).json({ error: 'Description and valid amount are required' });
     }
+
+    const normalizedCurrency = normalizeCurrency(currency || expense.currency);
+    const supportedCurrencyCodes = await getSupportedCurrencyCodes();
+    if (!supportedCurrencyCodes.includes(normalizedCurrency)) {
+      return res.status(400).json({ error: 'Unsupported currency selected' });
+    }
+
+    const lockedCurrency = getLockedCurrencyForUser(
+      group,
+      userEmail,
+      expenseId
+    );
+    if (lockedCurrency && lockedCurrency !== normalizedCurrency) {
+      return res.status(400).json({
+        error: buildCurrencyLockError(lockedCurrency),
+        lockedCurrency,
+      });
+    }
     
     // Validate that all selected members are active (haven't left the group)
     const activeMembers = group.members.filter(m => !m.leftAt).map(m => m.user.email);
@@ -1165,6 +1257,7 @@ exports.editExpense = async (req, res) => {
     // Update the expense
     expense.description = description;
     expense.amount = amount;
+    expense.currency = normalizedCurrency;
     expense.date = date ? new Date(date) : new Date();
     expense.selectedMembers = selectedMembers;
     expense.split = splitArr;
@@ -1207,7 +1300,7 @@ exports.editExpense = async (req, res) => {
       await logGroupActivityForAllMembers('expense_edited', group, {
         expenseDescription: description,
         expenseAmount: amount,
-        currency: '₹' // Default currency, you might want to make this configurable
+        currency: normalizedCurrency,
       }, null, creatorInfo);
       groupTransactionEmail.sendExpenseEditedEmail(group, expense, userEmail);
     } catch (e) {

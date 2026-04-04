@@ -87,6 +87,7 @@ module.exports = (io) => {
   const contactConfigController = require('../controllers/contactConfigController');
   const coinLedgerController = require('../controllers/coinLedgerController');
   const appContentController = require('../controllers/appContentController');
+  const currencyConversionController = require('../controllers/currencyConversionController');
   const handleUsage = require('../middleware/handleUsage');
 
   // Middleware to check for admin role
@@ -251,8 +252,10 @@ module.exports = (io) => {
   // Analytics routes
   router.get('/analytics/user', analyticController.getUserAnalytics);
   router.get('/analytics/secure', analyticController.getUserAnalytics);
+  router.get('/analytics/quick', analyticController.getQuickAnalytics);
   router.get('/analytics/group', analyticController.getGroupAnalytics);
   router.get('/analytics/groups', analyticController.getGroupAnalytics);
+  router.get('/currency-conversions/supported', auth, currencyConversionController.getSupportedCurrencies);
   // Counterparty routes
   router.get('/counterparties/user', auth, counterpartyController.getUserCounterparties);
   router.get('/counterparties/stats', auth, counterpartyController.getCounterpartyStats);
@@ -420,6 +423,11 @@ module.exports = (io) => {
   // Security Settings
   router.get('/admin/security-settings', auth, isAdmin, adminController.getSecuritySettings);
   router.put('/admin/security-settings', auth, isAdmin, adminController.updateSecuritySettings);
+
+  // Currency Conversions
+  router.get('/admin/currency-conversions', auth, isAdmin, currencyConversionController.getAdminCurrencyConversions);
+  router.put('/admin/currency-conversions', auth, isAdmin, currencyConversionController.upsertAdminCurrencyConversion);
+  router.post('/admin/currency-conversions/currencies', auth, isAdmin, currencyConversionController.addSupportedCurrency);
 
   // Notification Settings
   router.get('/admin/notification-settings', auth, isAdmin, settingsController.getAdminNotificationSettings);

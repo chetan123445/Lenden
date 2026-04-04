@@ -19,17 +19,20 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   Map<String, dynamic>? _secureAnalytics;
+  Map<String, dynamic>? _quickAnalytics;
   Map<String, dynamic>? _groupAnalytics;
   bool _secureLoading = true;
+  bool _quickLoading = true;
   bool _groupLoading = true;
   String? _secureError;
+  String? _quickError;
   String? _groupError;
   bool? analyticsSharing;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _fetchAnalytics();
   }
 
@@ -45,16 +48,20 @@ class _AnalyticsPageState extends State<AnalyticsPage>
 
     setState(() {
       _secureLoading = true;
+      _quickLoading = true;
       _groupLoading = true;
       _secureError = null;
+      _quickError = null;
       _groupError = null;
     });
 
     if (email == null) {
       setState(() {
         _secureLoading = false;
+        _quickLoading = false;
         _groupLoading = false;
         _secureError = 'User email not found.';
+        _quickError = 'User email not found.';
         _groupError = 'User email not found.';
       });
       return;
@@ -62,6 +69,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
 
     await Future.wait([
       _fetchSecureAnalytics(email),
+      _fetchQuickAnalytics(email),
       _fetchGroupAnalytics(email),
     ]);
   }
@@ -128,6 +136,39 @@ class _AnalyticsPageState extends State<AnalyticsPage>
       setState(() {
         _groupError = 'Error: $e';
         _groupLoading = false;
+      });
+    }
+  }
+
+  Future<void> _fetchQuickAnalytics(String email) async {
+    try {
+      final res = await ApiClient.get('/api/analytics/quick?email=$email');
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        if (data['analyticsSharing'] == false) {
+          setState(() {
+            analyticsSharing = false;
+            _quickAnalytics = null;
+            _quickLoading = false;
+          });
+          return;
+        }
+
+        setState(() {
+          analyticsSharing = true;
+          _quickAnalytics = data;
+          _quickLoading = false;
+        });
+      } else {
+        setState(() {
+          _quickError = 'Failed to fetch quick transaction analytics.';
+          _quickLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _quickError = 'Error: $e';
+        _quickLoading = false;
       });
     }
   }
@@ -205,7 +246,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
               ),
               const SizedBox(height: 12),
               Text(
-                'Enable analytics sharing to view your secure and group transaction insights.',
+                'Enable analytics sharing to view your secure, quick, and group transaction insights.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15, color: Colors.grey.shade700),
               ),
@@ -279,6 +320,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                 overlayColor: WidgetStateProperty.all(Colors.transparent),
                 tabs: const [
                   Tab(text: 'Secure Trxns'),
+                  Tab(text: 'Quick Trxns'),
                   Tab(text: 'Groups Trxns'),
                 ],
               ),
@@ -347,6 +389,70 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                       id: 'monthly',
                       title: 'Monthly Activity',
                       subtitle: '12-month transaction trend',
+                      icon: Icons.show_chart_rounded,
+                      colors: [Color(0xFF6B7CFF), Color(0xFFB3BCFF)],
+                      isTrend: true,
+                    ),
+                  ],
+                ),
+              ),
+              _buildTabContent(
+                analytics: _quickAnalytics,
+                loading: _quickLoading,
+                error: _quickError,
+                config: const _AnalyticsTabConfig(
+                  tabTitle: 'Quick Analytics',
+                  tabSubtitle: 'Track your fast lending, borrowing, and pending quick records in INR.',
+                  metrics: [
+                    _MetricDefinition(
+                      id: 'totalLent',
+                      title: 'Total Lent',
+                      subtitle: 'Quick amount shared by you',
+                      icon: Icons.flash_on_rounded,
+                      colors: [Color(0xFF7C9DFF), Color(0xFFA9B8FF)],
+                      isCurrency: true,
+                    ),
+                    _MetricDefinition(
+                      id: 'totalBorrowed',
+                      title: 'Total Borrowed',
+                      subtitle: 'Quick amount taken by you',
+                      icon: Icons.bolt_rounded,
+                      colors: [Color(0xFFFF8B7B), Color(0xFFFFC2AE)],
+                      isCurrency: true,
+                    ),
+                    _MetricDefinition(
+                      id: 'totalInterest',
+                      title: 'Outstanding',
+                      subtitle: 'Uncleared quick amount',
+                      icon: Icons.account_balance_wallet_outlined,
+                      colors: [Color(0xFF58C4DD), Color(0xFF89E0EF)],
+                      isCurrency: true,
+                    ),
+                    _MetricDefinition(
+                      id: 'cleared',
+                      title: 'Cleared',
+                      subtitle: 'Quick transactions already closed',
+                      icon: Icons.check_circle_outline_rounded,
+                      colors: [Color(0xFF6BCB91), Color(0xFFA9E4A7)],
+                    ),
+                    _MetricDefinition(
+                      id: 'uncleared',
+                      title: 'Uncleared',
+                      subtitle: 'Quick transactions still open',
+                      icon: Icons.pending_actions_rounded,
+                      colors: [Color(0xFFFFB562), Color(0xFFFFD9A0)],
+                    ),
+                    _MetricDefinition(
+                      id: 'total',
+                      title: 'Total Transactions',
+                      subtitle: 'All quick records',
+                      icon: Icons.receipt_long_rounded,
+                      colors: [Color(0xFF57A4FF), Color(0xFF90C6FF)],
+                    ),
+                    _MetricDefinition(
+                      id: 'monthly',
+                      title: 'Monthly Activity',
+                      subtitle: '12-month quick trend',
                       icon: Icons.show_chart_rounded,
                       colors: [Color(0xFF6B7CFF), Color(0xFFB3BCFF)],
                       isTrend: true,
@@ -533,6 +639,8 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     Map<String, dynamic> analytics,
   ) {
     final total = ((analytics['total'] as num?) ?? 0).toInt();
+    final displayCurrency =
+        (analytics['displayCurrency'] ?? 'INR').toString().toUpperCase();
     final monthlyCounts = (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
         .map((value) => (value as num).toDouble())
         .toList();
@@ -574,6 +682,25 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                     fontSize: 13,
                     height: 1.35,
                     color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F7FB),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    'All monetary values in $displayCurrency',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0099B7),
+                    ),
                   ),
                 ),
               ],
@@ -850,7 +977,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
   }
 
   String _formatAmount(double value) {
-    return 'Rs ${value.toStringAsFixed(2)}';
+    return '₹${value.toStringAsFixed(2)}';
   }
 }
 

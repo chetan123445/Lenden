@@ -20,6 +20,7 @@ import '../Ads&Updates/manage_updates_page.dart';
 import '../Ads&Updates/manage_ads_page.dart';
 import '../Ads&Updates/content_analytics_page.dart';
 import '../Manage_users/admin_roles_page.dart';
+import '../Settings/manage_currency_conversions_page.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -31,6 +32,7 @@ class AdminDashboardPage extends StatefulWidget {
 class _AdminDashboardPageState extends State<AdminDashboardPage> {
   int _imageRefreshKey = 0; // Key to force avatar rebuild
   bool _useCompactAdminOptions = true;
+  bool _showOverviewPanel = false;
   bool _loadingOverview = false;
   bool _expandHealthAlerts = false; // Toggle for health alerts expansion
   String? _overviewError;
@@ -620,6 +622,21 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                     Navigator.pushNamed(context, '/admin/settings');
                   },
                 ),
+              if (_hasPermission('canManageSettings'))
+                ListTile(
+                  leading: const Icon(Icons.currency_exchange_rounded),
+                  title: const Text('Currency Rates'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const ManageCurrencyConversionsPage(),
+                      ),
+                    );
+                  },
+                ),
               if (_hasPermission('canManageSupport'))
                 ListTile(
                   leading: const Icon(Icons.help_center),
@@ -1063,224 +1080,352 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             ?.map((item) => Map<String, dynamic>.from(item as Map))
             .toList() ??
         const <Map<String, dynamic>>[];
+    final adminName =
+        (admin['name'] ?? sessionUser?['name'] ?? 'Admin').toString();
+    final adminRoleText =
+        ((admin['isSuperAdmin'] ?? sessionUser?['isSuperAdmin']) == true)
+            ? 'Superadmin control is active for this session.'
+            : 'Admin control is active for this session.';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: const LinearGradient(
-              colors: [Colors.orange, Colors.white, Colors.green],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEAF8FD),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Welcome back, ${(admin['name'] ?? sessionUser?['name'] ?? 'Admin').toString()}',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  ((admin['isSuperAdmin'] ?? sessionUser?['isSuperAdmin']) ==
-                          true)
-                      ? 'Superadmin control is active for this session.'
-                      : 'Admin control is active for this session.',
-                  style: TextStyle(
-                    color: Colors.grey[700],
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                if (_loadingOverview)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF00B4D8),
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ShaderMask(
+                      shaderCallback: (bounds) => const LinearGradient(
+                        colors: [
+                          Color(0xFF00B4D8),
+                          Color(0xFF3A7BFF),
+                          Color(0xFF2EAD62),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ).createShader(bounds),
+                      child: Text(
+                        'Welcome back, $adminName',
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.1,
+                        ),
                       ),
                     ),
-                  )
-                else if (_overviewError != null)
-                  _buildOverviewMessage(
-                    _overviewError!,
-                    onRetry: _loadDashboardSummary,
-                  )
-                else ...[
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 1.0,
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 14,
+                    const SizedBox(height: 8),
+                    Text(
+                      adminRoleText,
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
                     ),
-                    itemCount: cards.length,
-                    itemBuilder: (context, index) {
-                      final card = cards[index];
-                      final colors = [
-                        const Color(0xFFEDEBFA), // Users - purple
-                        const Color(0xFFE8F4EC), // Transactions - green
-                        const Color(0xFFF3F2E8), // Groups - yellow
-                        const Color(0xFFEAF8F6), // Support - teal
-                      ];
-                      final backgroundColor = colors[index % colors.length];
-                      return _buildOverviewCard(
-                        label: (card['label'] ?? '').toString(),
-                        value: (card['value'] ?? 0).toString(),
-                        helper: (card['helper'] ?? '').toString(),
-                        backgroundColor: backgroundColor,
-                        onTap: () => _openSectionById(
-                          card['sectionId']?.toString(),
-                        ),
-                      );
-                    },
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _showOverviewPanel = !_showOverviewPanel;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(22),
+                    gradient: const LinearGradient(
+                      colors: [Colors.orange, Colors.white, Colors.green],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                   ),
-                  const SizedBox(height: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // First row - always visible
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildHealthChip(
-                              'Unread Admin Alerts',
-                              (health['unreadAdminNotifications'] ?? 0)
-                                  .toString(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00B4D8).withValues(alpha: 0.08),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _showOverviewPanel
+                              ? Icons.visibility_off_rounded
+                              : Icons.auto_awesome_mosaic_rounded,
+                          color: const Color(0xFF00B4D8),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _showOverviewPanel ? 'Hide Box' : 'Open Box',
+                          style: const TextStyle(
+                            color: Color(0xFF00B4D8),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        AnimatedCrossFade(
+          duration: const Duration(milliseconds: 220),
+          crossFadeState: _showOverviewPanel
+              ? CrossFadeState.showFirst
+              : CrossFadeState.showSecond,
+          firstChild: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: const LinearGradient(
+                  colors: [Colors.orange, Colors.white, Colors.green],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF8FD),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Admin Snapshot',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.black,
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _buildHealthChip(
-                              'Reported Ads',
-                              (health['reportedAds'] ?? 0).toString(),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _showOverviewPanel = false;
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.keyboard_arrow_up_rounded,
+                            color: Color(0xFF00B4D8),
+                          ),
+                          label: const Text(
+                            'Hide',
+                            style: TextStyle(
+                              color: Color(0xFF00B4D8),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (_loadingOverview)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: CircularProgressIndicator(
+                            color: Color(0xFF00B4D8),
+                          ),
+                        ),
+                      )
+                    else if (_overviewError != null)
+                      _buildOverviewMessage(
+                        _overviewError!,
+                        onRetry: _loadDashboardSummary,
+                      )
+                    else ...[
+                      GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 1.0,
+                          mainAxisSpacing: 14,
+                          crossAxisSpacing: 14,
+                        ),
+                        itemCount: cards.length,
+                        itemBuilder: (context, index) {
+                          final card = cards[index];
+                          final colors = [
+                            const Color(0xFFEDEBFA),
+                            const Color(0xFFE8F4EC),
+                            const Color(0xFFF3F2E8),
+                            const Color(0xFFEAF8F6),
+                          ];
+                          final backgroundColor = colors[index % colors.length];
+                          return _buildOverviewCard(
+                            label: (card['label'] ?? '').toString(),
+                            value: (card['value'] ?? 0).toString(),
+                            helper: (card['helper'] ?? '').toString(),
+                            backgroundColor: backgroundColor,
+                            onTap: () => _openSectionById(
+                              card['sectionId']?.toString(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildHealthChip(
+                                  'Unread Admin Alerts',
+                                  (health['unreadAdminNotifications'] ?? 0)
+                                      .toString(),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _buildHealthChip(
+                                  'Reported Ads',
+                                  (health['reportedAds'] ?? 0).toString(),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_expandHealthAlerts) ...[
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildHealthChip(
+                                    'Draft Updates',
+                                    (health['draftUpdates'] ?? 0).toString(),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _buildHealthChip(
+                                    'Scheduled Updates',
+                                    (health['scheduledUpdates'] ?? 0)
+                                        .toString(),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildHealthChip(
+                                    'Superadmins',
+                                    (health['superAdmins'] ?? 0).toString(),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                const Expanded(child: SizedBox.shrink()),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.center,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Colors.orange,
+                                    Colors.white,
+                                    Colors.green
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(18),
+                                  onTap: () {
+                                    setState(() {
+                                      _expandHealthAlerts =
+                                          !_expandHealthAlerts;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 14,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          _expandHealthAlerts
+                                              ? 'Show Less'
+                                              : 'View More Alerts',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF00B4D8),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          _expandHealthAlerts
+                                              ? Icons.keyboard_arrow_up_rounded
+                                              : Icons
+                                                  .keyboard_arrow_down_rounded,
+                                          color: const Color(0xFF00B4D8),
+                                          size: 18,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      if (_expandHealthAlerts) ...[
-                        const SizedBox(height: 10),
-                        // Second row - appears when expanded
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildHealthChip(
-                                'Draft Updates',
-                                (health['draftUpdates'] ?? 0).toString(),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _buildHealthChip(
-                                'Scheduled Updates',
-                                (health['scheduledUpdates'] ?? 0).toString(),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        // Third row - appears when expanded
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildHealthChip(
-                                'Superadmins',
-                                (health['superAdmins'] ?? 0).toString(),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            const Expanded(
-                              child: SizedBox.shrink(),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      // Expand/Collapse button
-                      Align(
-                        alignment: Alignment.center,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(20),
-                            gradient: const LinearGradient(
-                              colors: [
-                                Colors.orange,
-                                Colors.white,
-                                Colors.green
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(18),
-                              onTap: () {
-                                setState(() {
-                                  _expandHealthAlerts = !_expandHealthAlerts;
-                                });
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 14, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _expandHealthAlerts
-                                          ? 'Show Less'
-                                          : 'View More Alerts',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF00B4D8),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Icon(
-                                      _expandHealthAlerts
-                                          ? Icons.keyboard_arrow_up_rounded
-                                          : Icons.keyboard_arrow_down_rounded,
-                                      color: const Color(0xFF00B4D8),
-                                      size: 18,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
                     ],
-                  ),
-                ],
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
+          secondChild: const SizedBox.shrink(),
         ),
         const SizedBox(height: 16),
         Text(
