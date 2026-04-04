@@ -21,6 +21,10 @@ class _LeaderboardPageState extends State<LeaderboardPage>
     'group': [],
     'trxns': [],
   };
+  final Set<String> _friendIds = {};
+  final Set<String> _incomingRequestUserIds = {};
+  final Set<String> _outgoingRequestUserIds = {};
+  final Set<String> _submittingFriendIds = {};
 
   bool _loading = true;
   bool _friendsOnly = false;
@@ -41,7 +45,7 @@ class _LeaderboardPageState extends State<LeaderboardPage>
         _loadLeaderboard();
       }
     });
-    _loadLeaderboard();
+    _loadInitialData();
   }
 
   @override
@@ -55,6 +59,167 @@ class _LeaderboardPageState extends State<LeaderboardPage>
     if (index == 1) return 'group';
     return 'trxns';
   }
+
+  Future<void> _loadInitialData() async {
+    await Future.wait([
+      _loadLeaderboard(),
+      _loadFriendState(),
+    ]);
+  }
+
+  Future<void> _loadFriendState() async {
+    try {
+      final responses = await Future.wait([
+        ApiClient.get('/api/friends'),
+        ApiClient.get('/api/friends/requests'),
+      ]);
+
+      final friendsRes = responses[0];
+      final requestsRes = responses[1];
+
+      if (!mounted) return;
+
+      final nextFriendIds = <String>{};
+      final nextIncomingIds = <String>{};
+      final nextOutgoingIds = <String>{};
+
+      if (friendsRes.statusCode == 200) {
+        final data = jsonDecode(friendsRes.body);
+        final friends = List<Map<String, dynamic>>.from(data['friends'] ?? []);
+        for (final friend in friends) {
+          final id = friend['_id']?.toString();
+          if (id != null && id.isNotEmpty) nextFriendIds.add(id);
+        }
+      }
+
+      if (requestsRes.statusCode == 200) {
+        final data = jsonDecode(requestsRes.body);
+        final incoming =
+            List<Map<String, dynamic>>.from(data['incoming'] ?? []);
+        final outgoing =
+            List<Map<String, dynamic>>.from(data['outgoing'] ?? []);
+
+        for (final request in incoming) {
+          final id = request['from']?['_id']?.toString();
+          if (id != null && id.isNotEmpty) nextIncomingIds.add(id);
+        }
+        for (final request in outgoing) {
+          final id = request['to']?['_id']?.toString();
+          if (id != null && id.isNotEmpty) nextOutgoingIds.add(id);
+        }
+      }
+
+      setState(() {
+        _friendIds
+          ..clear()
+          ..addAll(nextFriendIds);
+        _incomingRequestUserIds
+          ..clear()
+          ..addAll(nextIncomingIds);
+        _outgoingRequestUserIds
+          ..clear()
+          ..addAll(nextOutgoingIds);
+      });
+    } catch (_) {
+      // Keep leaderboard usable even if friend-state lookups fail.
+    }
+  }
+
+  Future<void> _sendFriendRequest(dynamic row) async {
+    final userId = row?['userId']?.toString();
+    if (_isCurrentUser(row) ||
+        userId == null ||
+        userId.isEmpty ||
+        _submittingFriendIds.contains(userId)) {
+      return;
+    }
+
+    setState(() => _submittingFriendIds.add(userId));
+    try {
+      final res =
+          await ApiClient.post('/api/friends/request', body: {'userId': userId});
+
+      if (!mounted) return;
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        final data = jsonDecode(res.body);
+        final message = (data['message'] ?? 'Request sent').toString();
+        await _loadFriendState();
+        if (!mounted) return;
+        _showStylishMessage(
+          title: 'Friend Request',
+          message: message == 'Already friends'
+              ? '${row['name'] ?? 'This user'} is already in your friends list.'
+              : message == 'Request already pending'
+                  ? 'A friend request is already pending for ${row['name'] ?? 'this user'}.'
+                  : 'Your friend request has been sent to ${row['name'] ?? 'this user'}.',
+          icon: message == 'Already friends'
+              ? Icons.people_alt_rounded
+              : Icons.person_add_alt_1_rounded,
+          color: const Color(0xFF00B4D8),
+        );
+      } else {
+        String message = 'Could not send friend request right now.';
+        try {
+          final data = jsonDecode(res.body);
+          final backendMessage =
+              (data['error'] ?? data['message'])?.toString().trim();
+          if (backendMessage != null && backendMessage.isNotEmpty) {
+            message = backendMessage;
+          }
+        } catch (_) {}
+        _showStylishMessage(
+          title: 'Unable To Add',
+          message: message,
+          icon: Icons.error_outline,
+          color: Colors.redAccent,
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      _showStylishMessage(
+        title: 'Network Error',
+        message: 'Could not send friend request right now.',
+        icon: Icons.wifi_off_rounded,
+        color: Colors.redAccent,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submittingFriendIds.remove(userId));
+      }
+    }
+  }
+
+  bool _isCurrentUser(dynamic row) {
+    if (row?['isCurrentUser'] == true) return true;
+    final myId = Provider.of<SessionProvider>(context, listen: false)
+        .user?['_id']
+        ?.toString();
+    final myEmail = Provider.of<SessionProvider>(context, listen: false)
+        .user?['email']
+        ?.toString()
+        .trim()
+        .toLowerCase();
+    final rowUserId = row?['userId']?.toString();
+    final rowEmail = row?['email']?.toString().trim().toLowerCase();
+    if (myId != null && myId.isNotEmpty && rowUserId == myId) return true;
+    return myEmail != null &&
+        myEmail.isNotEmpty &&
+        rowEmail != null &&
+        rowEmail.isNotEmpty &&
+        rowEmail == myEmail;
+  }
+
+  String _friendActionLabel(dynamic row) {
+    final userId = row?['userId']?.toString();
+    if (userId == null || userId.isEmpty || _isCurrentUser(row)) return '';
+    if (_friendIds.contains(userId)) return 'Friend';
+    if (_incomingRequestUserIds.contains(userId)) return 'Requested You';
+    if (_outgoingRequestUserIds.contains(userId)) return 'Requested';
+    return '';
+  }
+
+  bool _canAddFriend(dynamic row) => _friendActionLabel(row).isEmpty;
 
   Future<void> _loadLeaderboard() async {
     setState(() => _loading = true);
@@ -362,6 +527,12 @@ class _LeaderboardPageState extends State<LeaderboardPage>
     final name = row?['name']?.toString() ?? '-';
     final points = row?['points']?.toString() ?? '0';
     final displayedRank = row?['rank'] is int ? row['rank'] as int : fallbackRank;
+    final actionLabel = _friendActionLabel(row);
+    final buttonLabel = _isCurrentUser(row)
+        ? ''
+        : actionLabel.isEmpty
+            ? '+'
+            : actionLabel;
     return SizedBox(
       width: 95,
       child: Column(
@@ -388,6 +559,12 @@ class _LeaderboardPageState extends State<LeaderboardPage>
                   fontSize: 12)),
           const SizedBox(height: 2),
           _movementWidget(row),
+          const SizedBox(height: 6),
+          _buildFriendActionChip(
+            row,
+            compact: true,
+            labelOverride: buttonLabel,
+          ),
         ],
       ),
     );
@@ -464,9 +641,6 @@ class _LeaderboardPageState extends State<LeaderboardPage>
       );
     }
 
-    final myId =
-        Provider.of<SessionProvider>(context, listen: false).user?['_id']?.toString();
-
     return _triBorderCard(
       child: Container(
         decoration: BoxDecoration(
@@ -475,8 +649,14 @@ class _LeaderboardPageState extends State<LeaderboardPage>
         ),
         child: Column(
           children: others.map((row) {
-            final isMe = myId != null && row['userId']?.toString() == myId;
+            final isMe = _isCurrentUser(row);
             final breakdown = row['breakdown'] ?? {};
+            final actionLabel = _friendActionLabel(row);
+            final buttonLabel = isMe
+                ? ''
+                : actionLabel.isEmpty
+                    ? 'Add+'
+                    : actionLabel;
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
@@ -509,6 +689,12 @@ class _LeaderboardPageState extends State<LeaderboardPage>
                       ),
                       _movementWidget(row),
                       const SizedBox(width: 8),
+                      _buildFriendActionChip(
+                        row,
+                        compact: false,
+                        labelOverride: buttonLabel,
+                      ),
+                      if (buttonLabel.isNotEmpty) const SizedBox(width: 8),
                       Text('${row['points']} pts',
                           style: const TextStyle(
                               fontWeight: FontWeight.w700,
@@ -534,6 +720,124 @@ class _LeaderboardPageState extends State<LeaderboardPage>
         ),
       ),
     );
+  }
+
+  Widget _buildFriendActionChip(
+    dynamic row, {
+    required bool compact,
+    required String labelOverride,
+  }) {
+    final userId = row?['userId']?.toString() ?? '';
+    final canAdd = _canAddFriend(row);
+    final isLoading = _submittingFriendIds.contains(userId);
+    final isFriend = _friendIds.contains(userId);
+
+    if (labelOverride.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    if (isFriend) {
+      return Container(
+        width: compact ? 28 : null,
+        height: compact ? 28 : null,
+        padding: compact
+            ? EdgeInsets.zero
+            : const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEAFBF0),
+          borderRadius: BorderRadius.circular(compact ? 999 : 10),
+          border: Border.all(color: const Color(0xFF2EAF5D)),
+        ),
+        child: compact
+            ? const Icon(
+                Icons.check,
+                size: 16,
+                color: Color(0xFF2EAF5D),
+              )
+            : const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.check,
+                    size: 14,
+                    color: Color(0xFF2EAF5D),
+                  ),
+                ],
+              ),
+      );
+    }
+
+    if (!canAdd) {
+      return Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 8 : 10,
+          vertical: compact ? 6 : 5,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(compact ? 999 : 10),
+          border: Border.all(color: const Color(0xFFD7DEE8)),
+        ),
+        child: Text(
+          labelOverride,
+          style: TextStyle(
+            fontSize: compact ? 10 : 11,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF4F5D75),
+          ),
+        ),
+      );
+    }
+
+    return compact
+        ? SizedBox(
+            width: 28,
+            height: 28,
+            child: OutlinedButton(
+              onPressed: isLoading ? null : () => _sendFriendRequest(row),
+              style: OutlinedButton.styleFrom(
+                padding: EdgeInsets.zero,
+                side: const BorderSide(color: Color(0xFF00B4D8)),
+                backgroundColor: Colors.white,
+                shape: const CircleBorder(),
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      '+',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF00B4D8),
+                      ),
+                    ),
+            ),
+          )
+        : OutlinedButton(
+            onPressed: isLoading ? null : () => _sendFriendRequest(row),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF00B4D8),
+              backgroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              side: const BorderSide(color: Color(0xFF00B4D8)),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: isLoading
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    labelOverride,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+          );
   }
 
   Widget _chip(String label) {

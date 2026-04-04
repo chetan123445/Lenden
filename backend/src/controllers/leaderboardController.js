@@ -79,7 +79,7 @@ const calculateRanks = (items) => {
   let currentRank = 0;
   for (let i = 0; i < items.length; i += 1) {
     if (items[i].count !== previousCount) {
-      currentRank = i + 1; // competition ranking: 1,2,2,4
+      currentRank += 1; // dense ranking: 1,2,2,3
       previousCount = items[i].count;
     }
     ranked.push({ ...items[i], rank: currentRank });
@@ -239,6 +239,8 @@ exports.getDailyLeaderboard = async (req, res) => {
           previousRank: prevRank || null,
           movement,
           userId: user._id,
+          email: user.email || null,
+          isCurrentUser: user._id.toString() === req.user._id.toString(),
           name: user.name || 'Unknown User',
           gender: user.gender || 'Other',
           count: r.count,
