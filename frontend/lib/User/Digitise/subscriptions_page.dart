@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:provider/provider.dart';
 import '../../session.dart';
 import '../../utils/api_client.dart';
+import '../../utils/display_currency_helper.dart';
 
 // Models
 class SubscriptionPlan {
@@ -82,6 +83,9 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   String _searchQuery = '';
   String _filterOption = 'All'; // All, Active, Expired
   bool _showComparison = false;
+  DisplayCurrencyData? _displayCurrencyData;
+  String _selectedDisplayCurrency = 'INR';
+  String? _displayCurrencyError;
 
   List<SubscriptionPlan> _plans = [];
   List<PremiumBenefit> _benefits = [];
@@ -98,6 +102,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     super.initState();
     Provider.of<SessionProvider>(context, listen: false)
         .checkSubscriptionStatus();
+    _loadDisplayCurrencies();
     _fetchSubscriptionData();
   }
 
@@ -111,6 +116,105 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
     await _fetchPlans();
     await _fetchBenefits();
     await _fetchFaqs();
+  }
+
+  Future<void> _loadDisplayCurrencies() async {
+    try {
+      final data = await DisplayCurrencyHelper.load();
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = data;
+        _displayCurrencyError = null;
+        final exists = data.currencies.any(
+          (item) => item['code'] == _selectedDisplayCurrency,
+        );
+        if (!exists) {
+          _selectedDisplayCurrency = 'INR';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = null;
+        _selectedDisplayCurrency = 'INR';
+        _displayCurrencyError =
+            'Currency conversion options are not available right now.';
+      });
+    }
+  }
+
+  bool _hasMissingPlanConversion() {
+    if (_selectedDisplayCurrency.toUpperCase() == 'INR') return false;
+    if (_displayCurrencyData == null) return true;
+    return !_displayCurrencyData!.canConvert('INR', _selectedDisplayCurrency);
+  }
+
+  String _formatPlanAmount(double amountInInr) {
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final canConvert = _displayCurrencyData?.canConvert('INR', targetCurrency) ??
+        (targetCurrency == 'INR');
+    if (!canConvert) {
+      return '₹${amountInInr.toStringAsFixed(2)}';
+    }
+    final converted = _displayCurrencyData?.convert(
+          amountInInr,
+          'INR',
+          targetCurrency,
+        ) ??
+        amountInInr;
+    final symbol =
+        _displayCurrencyData?.symbolFor(targetCurrency) ??
+            (targetCurrency == 'INR' ? '₹' : targetCurrency);
+    return '$symbol${converted.toStringAsFixed(2)}';
+  }
+
+  Widget _buildCurrencySelector() {
+    final currencies = _displayCurrencyData?.currencies ??
+        const <Map<String, String>>[
+          {'code': 'INR', 'symbol': '₹', 'label': ''},
+        ];
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: _selectedDisplayCurrency,
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            borderRadius: BorderRadius.circular(16),
+            items: currencies
+                .map(
+                  (currency) => DropdownMenuItem<String>(
+                    value: currency['code'],
+                    child: Text(
+                      '${currency['symbol']} ${currency['code']}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _selectedDisplayCurrency = value;
+              });
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _fetchPlans() async {
@@ -731,6 +835,8 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
   }
 
   Widget _buildSubscribeView() {
+    final showWarning =
+        _displayCurrencyError != null || _hasMissingPlanConversion();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -777,6 +883,37 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Text(
+              'Show In',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 10),
+            _buildCurrencySelector(),
+          ],
+        ),
+        if (showWarning) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF1F1),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFFF6B6B)),
+            ),
+            child: Text(
+              _displayCurrencyError ??
+                  'Conversion to $_selectedDisplayCurrency is not available for subscription plans yet. Showing INR values instead.',
+              style: const TextStyle(
+                color: Color(0xFFC62828),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
 
         const SizedBox(height: 15),
 
@@ -996,7 +1133,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                               children: [
                                 if (plan.discount > 0)
                                   Text(
-                                    '\₹${plan.price}',
+                                    _formatPlanAmount(plan.price),
                                     style: TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
@@ -1006,7 +1143,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                                   ),
                                 SizedBox(width: 8),
                                 Text(
-                                  '\₹${discountedPrice.toStringAsFixed(2)}',
+                                  _formatPlanAmount(discountedPrice),
                                   style: TextStyle(
                                     fontSize: 24,
                                     fontWeight: FontWeight.bold,
@@ -1142,7 +1279,7 @@ class _SubscriptionsPageState extends State<SubscriptionsPage> {
                     ),
                     SizedBox(height: 8),
                     Text(
-                      '\₹${plan.price}',
+                      _formatPlanAmount(plan.price),
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
