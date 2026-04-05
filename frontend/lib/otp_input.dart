@@ -4,14 +4,19 @@ class OtpInput extends StatefulWidget {
   final void Function(String) onChanged;
   final bool enabled;
   final bool autoFocus;
-  const OtpInput({super.key, required this.onChanged, this.enabled = true, this.autoFocus = false});
+  const OtpInput(
+      {super.key,
+      required this.onChanged,
+      this.enabled = true,
+      this.autoFocus = false});
 
   @override
   State<OtpInput> createState() => _OtpInputState();
 }
 
 class _OtpInputState extends State<OtpInput> {
-  final List<TextEditingController> _controllers = List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _controllers =
+      List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   @override
@@ -59,25 +64,41 @@ class _OtpInputState extends State<OtpInput> {
         return Container(
           width: 40,
           margin: const EdgeInsets.symmetric(horizontal: 4),
-          child: TextField(
-            controller: _controllers[i],
-            focusNode: _focusNodes[i],
-            enabled: widget.enabled,
-            autofocus: widget.autoFocus && i == 0,
-            keyboardType: TextInputType.number,
-            textAlign: TextAlign.center,
-            maxLength: 1,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            decoration: const InputDecoration(
-              counterText: '',
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            onTap: () => _controllers[i].selection = TextSelection(baseOffset: 0, extentOffset: _controllers[i].text.length),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: TextField(
+              controller: _controllers[i],
+              focusNode: _focusNodes[i],
+              enabled: widget.enabled,
+              autofocus: widget.autoFocus && i == 0,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              maxLength: 1,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              decoration: const InputDecoration(
+                counterText: '',
+                filled: true,
+                fillColor: Colors.transparent,
+                border: InputBorder.none,
+              ),
+              onTap: () => _controllers[i].selection = TextSelection(
+                  baseOffset: 0, extentOffset: _controllers[i].text.length),
+            ),
           ),
         );
       }),
     );
   }
-} 
+}

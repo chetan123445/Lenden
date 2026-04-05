@@ -1160,15 +1160,13 @@ class _TransactionPageState extends State<TransactionPage> {
           : (val) => setState(() => _currency = val ?? 'INR'),
       decoration: InputDecoration(
         labelText: 'Currency',
-        border: OutlineInputBorder(),
-        helperText: _bothUsersVerified
-            ? 'Transaction details locked after verification'
-            : null,
+        prefixIcon: Icon(Icons.currency_exchange, color: Color(0xFF00B4D8)),
+        border: InputBorder.none,
       ),
     );
   }
 
-  Widget _buildDatePicker() {
+  Widget _buildDatePickerField() {
     return InkWell(
       onTap: _bothUsersVerified
           ? null
@@ -1182,14 +1180,25 @@ class _TransactionPageState extends State<TransactionPage> {
                   return Theme(
                     data: ThemeData.light().copyWith(
                       colorScheme: ColorScheme.light(
-                        primary: Colors.teal,
+                        primary: Color(0xFF00B4D8),
                         onPrimary: Colors.white,
-                        surface: Colors.teal.shade50,
-                        onSurface: Colors.black,
+                        surface: Colors.white,
+                        onSurface: Colors.black87,
+                        background: Colors.white,
                       ),
-                      dialogTheme: const DialogThemeData(
+                      dialogTheme: DialogTheme(
                         backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
+                      textButtonTheme: TextButtonThemeData(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Color(0xFF00B4D8),
+                        ),
+                      ),
+                      cardColor: Colors.white,
+                      canvasColor: Colors.white,
                     ),
                     child: child!,
                   );
@@ -1199,26 +1208,29 @@ class _TransactionPageState extends State<TransactionPage> {
             },
       child: InputDecorator(
         decoration: InputDecoration(
-          labelText: 'Date',
-          border: OutlineInputBorder(),
-          helperText: _bothUsersVerified
-              ? 'Transaction details locked after verification'
-              : null,
+          labelText: 'Transaction Date',
+          prefixIcon: Icon(Icons.calendar_today, color: Color(0xFF00B4D8)),
+          border: InputBorder.none,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(_selectedDate == null
-                ? 'Select date'
-                : DateFormat('yyyy-MM-dd').format(_selectedDate!)),
-            Icon(Icons.calendar_today, color: Colors.teal),
+            Text(
+              _selectedDate == null
+                  ? 'Select date'
+                  : DateFormat('MMM d, yyyy').format(_selectedDate!),
+              style: TextStyle(
+                color:
+                    _selectedDate == null ? Colors.grey[500] : Colors.black87,
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTimePicker() {
+  Widget _buildTimePickerField() {
     return InkWell(
       onTap: _bothUsersVerified
           ? null
@@ -1230,14 +1242,25 @@ class _TransactionPageState extends State<TransactionPage> {
                   return Theme(
                     data: ThemeData.light().copyWith(
                       colorScheme: ColorScheme.light(
-                        primary: Colors.teal,
+                        primary: Color(0xFF00B4D8),
                         onPrimary: Colors.white,
-                        surface: Colors.teal.shade50,
-                        onSurface: Colors.black,
+                        surface: Colors.white,
+                        onSurface: Colors.black87,
+                        background: Colors.white,
                       ),
-                      dialogTheme: const DialogThemeData(
+                      dialogTheme: DialogTheme(
                         backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
+                      textButtonTheme: TextButtonThemeData(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Color(0xFF00B4D8),
+                        ),
+                      ),
+                      cardColor: Colors.white,
+                      canvasColor: Colors.white,
                     ),
                     child: child!,
                   );
@@ -1248,18 +1271,21 @@ class _TransactionPageState extends State<TransactionPage> {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: 'Time',
-          border: OutlineInputBorder(),
-          helperText: _bothUsersVerified
-              ? 'Transaction details locked after verification'
-              : null,
+          prefixIcon: Icon(Icons.access_time, color: Color(0xFF00B4D8)),
+          border: InputBorder.none,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(_selectedTime == null
-                ? 'Select time'
-                : _selectedTime!.format(context)),
-            Icon(Icons.access_time, color: Colors.teal),
+            Text(
+              _selectedTime == null
+                  ? 'Select time'
+                  : _selectedTime!.format(context),
+              style: TextStyle(
+                color:
+                    _selectedTime == null ? Colors.grey[500] : Colors.black87,
+              ),
+            ),
           ],
         ),
       ),
@@ -1292,26 +1318,28 @@ class _TransactionPageState extends State<TransactionPage> {
           children: [
             Text(label, style: TextStyle(fontWeight: FontWeight.bold)),
             SizedBox(height: 8),
-            TextFormField(
-              controller: emailController,
-              enabled: !verified && !readOnlyEmail,
-              readOnly: readOnlyEmail,
-              decoration: InputDecoration(
-                labelText: 'Email',
-                border: OutlineInputBorder(),
-                errorText: emailError,
-                suffixIcon: onPickFriend != null
-                    ? IconButton(
-                        icon: const Icon(Icons.people),
-                        onPressed: onPickFriend,
-                      )
-                    : null,
+            _buildStylishField(
+              child: TextFormField(
+                controller: emailController,
+                enabled: !verified && !readOnlyEmail,
+                readOnly: readOnlyEmail,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  border: InputBorder.none,
+                  errorText: emailError,
+                  suffixIcon: onPickFriend != null
+                      ? IconButton(
+                          icon: const Icon(Icons.people),
+                          onPressed: onPickFriend,
+                        )
+                      : null,
+                ),
+                validator: (val) {
+                  if (val == null || val.isEmpty) return 'Email required';
+                  if (!val.contains('@')) return 'Invalid email';
+                  return null;
+                },
               ),
-              validator: (val) {
-                if (val == null || val.isEmpty) return 'Email required';
-                if (!val.contains('@')) return 'Invalid email';
-                return null;
-              },
             ),
             if (!verified) ...[
               SizedBox(height: 8),
@@ -1404,9 +1432,32 @@ class _TransactionPageState extends State<TransactionPage> {
     );
   }
 
+  Widget _buildStylishField({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: child,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F6FA),
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -1451,7 +1502,7 @@ class _TransactionPageState extends State<TransactionPage> {
               child: Column(
                 children: [
                   Text(
-                    'New Transaction',
+                    'New Secure Transaction',
                     style: TextStyle(
                       color: Colors.black,
                       fontSize: 28,
@@ -1465,19 +1516,18 @@ class _TransactionPageState extends State<TransactionPage> {
                       if (session.isSubscribed) {
                         return Text('You have unlimited transactions.',
                             style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
                                 color: Colors.white));
                       }
                       final remaining = session.freeUserTransactionsRemaining;
                       if (remaining == null) {
                         return SizedBox.shrink();
                       }
-                      return Text(
-                          'You have $remaining free transactions remaining.',
+                      return Text('$remaining free transactions remaining',
                           style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                               color: Colors.white));
                     },
                   ),
@@ -1487,9 +1537,9 @@ class _TransactionPageState extends State<TransactionPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        'Daily limit remaining: $_dailyUserTxRemaining',
+                        'Daily limit: $_dailyUserTxRemaining',
                         style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: Colors.white70),
                       ),
@@ -1512,7 +1562,7 @@ class _TransactionPageState extends State<TransactionPage> {
                           Icon(Icons.lock, color: Colors.white, size: 16),
                           SizedBox(width: 8),
                           Text(
-                            'Transaction Details Locked',
+                            'Details Locked',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -1530,236 +1580,304 @@ class _TransactionPageState extends State<TransactionPage> {
           Padding(
             padding: EdgeInsets.only(top: 120),
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(20),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DropdownButtonFormField<String>(
-                      value: _role,
-                      items: [
-                        DropdownMenuItem(
-                          value: 'lender',
-                          child: Text('Lender (giving money)'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'borrower',
-                          child: Text('Borrower (taking money)'),
-                        ),
-                      ],
-                      onChanged: _bothUsersVerified
-                          ? null
-                          : (val) => setState(() => _role = val ?? 'lender'),
-                      decoration: InputDecoration(
-                          labelText: 'Are you a Lender or Borrower?',
-                          border: OutlineInputBorder(),
-                          helperText: _bothUsersVerified
-                              ? 'Transaction details locked after verification'
-                              : 'Lender: You are giving money. Borrower: You are taking money.'),
-                    ),
-                    SizedBox(height: 12),
-                    _buildCurrencyDropdown(),
-                    SizedBox(height: 12),
-                    TextFormField(
-                      controller: _amountController,
-                      enabled: !_bothUsersVerified,
-                      keyboardType:
-                          TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: 'Amount (${_currencySymbol()})',
-                        prefixIcon: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Text(
-                            _currencySymbol(),
-                            style: const TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
+                    _buildStylishField(
+                      child: DropdownButtonFormField<String>(
+                        value: _role,
+                        items: [
+                          DropdownMenuItem(
+                            value: 'lender',
+                            child: Text('Lender (giving money)'),
                           ),
+                          DropdownMenuItem(
+                            value: 'borrower',
+                            child: Text('Borrower (taking money)'),
+                          ),
+                        ],
+                        onChanged: _bothUsersVerified
+                            ? null
+                            : (val) => setState(() => _role = val ?? 'lender'),
+                        decoration: InputDecoration(
+                          labelText: 'Your Role',
+                          prefixIcon:
+                              Icon(Icons.people, color: Color(0xFF00B4D8)),
+                          border: InputBorder.none,
+                          helperText:
+                              _bothUsersVerified ? 'Details locked' : null,
                         ),
-                        border: OutlineInputBorder(),
-                        helperText: _bothUsersVerified
-                            ? 'Transaction details locked after verification'
-                            : null,
                       ),
-                      validator: (val) =>
-                          val == null || val.isEmpty ? 'Amount required' : null,
                     ),
-                    SizedBox(height: 12),
-                    _buildDatePicker(),
-                    SizedBox(height: 12),
-                    _buildTimePicker(),
-                    SizedBox(height: 12),
-                    TextFormField(
-                      controller: _placeController,
-                      enabled: !_bothUsersVerified,
-                      decoration: InputDecoration(
-                        labelText: 'Place',
-                        border: OutlineInputBorder(),
-                        helperText: _bothUsersVerified
-                            ? 'Transaction details locked after verification'
-                            : null,
+                    SizedBox(height: 16),
+                    _buildStylishField(
+                      child: DropdownButtonFormField<String>(
+                        value: _currency,
+                        items: _currencies
+                            .map((c) => DropdownMenuItem(
+                                  value: c['code'],
+                                  child: Text('${c['symbol']} ${c['code']}'),
+                                ))
+                            .toList(),
+                        onChanged: _bothUsersVerified
+                            ? null
+                            : (val) => setState(() => _currency = val ?? 'INR'),
+                        decoration: InputDecoration(
+                          labelText: 'Currency',
+                          prefixIcon: Icon(Icons.currency_exchange,
+                              color: Color(0xFF00B4D8)),
+                          border: InputBorder.none,
+                        ),
                       ),
-                      validator: (val) =>
-                          val == null || val.isEmpty ? 'Place required' : null,
                     ),
-                    SizedBox(height: 12),
-                    _buildFilePicker(),
-                    SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: _interestType,
-                      items: [
-                        DropdownMenuItem(
-                            value: 'none',
-                            child: Text('No Interest (Default)')),
-                        DropdownMenuItem(
-                            value: 'simple', child: Text('Simple Interest')),
-                        DropdownMenuItem(
-                            value: 'compound',
-                            child: Text('Compound Interest')),
-                      ],
-                      onChanged: _bothUsersVerified
-                          ? null
-                          : (val) {
-                              setState(() {
-                                _interestType = val ?? 'none';
-                                // Reset expected return date and interest rate if switching back to no interest
-                                if (_interestType == 'none') {
-                                  _expectedReturnDate = null;
-                                  _interestRateController.clear();
-                                }
-                              });
-                            },
-                      decoration: InputDecoration(
-                          labelText: 'Interest Type (Optional)',
-                          border: OutlineInputBorder(),
-                          helperText: _bothUsersVerified
-                              ? 'Transaction details locked after verification'
-                              : 'Leave as "No Interest" if no interest applies to this transaction.'),
-                    ),
-                    if (_interestType != 'none') ...[
-                      SizedBox(height: 12),
-                      TextFormField(
-                        controller: _interestRateController,
+                    SizedBox(height: 16),
+                    _buildStylishField(
+                      child: TextFormField(
+                        controller: _amountController,
                         enabled: !_bothUsersVerified,
                         keyboardType:
                             TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
-                          labelText: 'Interest Rate (%)',
-                          border: OutlineInputBorder(),
+                          labelText: 'Amount',
+                          prefixIcon: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Text(
+                              _currencySymbol(),
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF00B4D8),
+                              ),
+                            ),
+                          ),
+                          border: InputBorder.none,
+                        ),
+                        validator: (val) => val == null || val.isEmpty
+                            ? 'Amount required'
+                            : null,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    _buildStylishField(
+                      child: _buildDatePickerField(),
+                    ),
+                    SizedBox(height: 16),
+                    _buildStylishField(
+                      child: _buildTimePickerField(),
+                    ),
+                    SizedBox(height: 16),
+                    _buildStylishField(
+                      child: TextFormField(
+                        controller: _placeController,
+                        enabled: !_bothUsersVerified,
+                        decoration: InputDecoration(
+                          labelText: 'Place',
+                          prefixIcon:
+                              Icon(Icons.location_on, color: Color(0xFF00B4D8)),
+                          border: InputBorder.none,
                           helperText: _bothUsersVerified
                               ? 'Transaction details locked after verification'
                               : null,
                         ),
-                        validator: (val) {
-                          // Only validate if interest type is selected
-                          if (_interestType == 'none') return null;
+                        validator: (val) => val == null || val.isEmpty
+                            ? 'Place required'
+                            : null,
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    _buildFilePicker(),
+                    SizedBox(height: 12),
+                    _buildStylishField(
+                      child: DropdownButtonFormField<String>(
+                        value: _interestType,
+                        items: [
+                          DropdownMenuItem(
+                              value: 'none',
+                              child: Text('No Interest (Default)')),
+                          DropdownMenuItem(
+                              value: 'simple', child: Text('Simple Interest')),
+                          DropdownMenuItem(
+                              value: 'compound',
+                              child: Text('Compound Interest')),
+                        ],
+                        onChanged: _bothUsersVerified
+                            ? null
+                            : (val) {
+                                setState(() {
+                                  _interestType = val ?? 'none';
+                                  // Reset expected return date and interest rate if switching back to no interest
+                                  if (_interestType == 'none') {
+                                    _expectedReturnDate = null;
+                                    _interestRateController.clear();
+                                  }
+                                });
+                              },
+                        decoration: InputDecoration(
+                            labelText: 'Interest Type (Optional)',
+                            border: InputBorder.none,
+                            helperText: _bothUsersVerified
+                                ? 'Transaction details locked after verification'
+                                : 'Leave as "No Interest" if no interest applies to this transaction.'),
+                      ),
+                    ),
+                    if (_interestType != 'none') ...[
+                      SizedBox(height: 12),
+                      _buildStylishField(
+                        child: TextFormField(
+                          controller: _interestRateController,
+                          enabled: !_bothUsersVerified,
+                          keyboardType:
+                              TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            labelText: 'Interest Rate (%)',
+                            border: InputBorder.none,
+                            helperText: _bothUsersVerified
+                                ? 'Transaction details locked after verification'
+                                : null,
+                          ),
+                          validator: (val) {
+                            // Only validate if interest type is selected
+                            if (_interestType == 'none') return null;
 
-                          if (val == null || val.isEmpty)
-                            return 'Interest rate required when interest type is selected';
-                          if (double.tryParse(val) == null)
-                            return 'Enter a valid number';
-                          if (double.tryParse(val)! <= 0)
-                            return 'Interest rate must be greater than 0';
-                          if (double.tryParse(val)! > 100)
-                            return 'Interest rate cannot exceed 100%';
-                          return null;
-                        },
+                            if (val == null || val.isEmpty)
+                              return 'Interest rate required when interest type is selected';
+                            if (double.tryParse(val) == null)
+                              return 'Enter a valid number';
+                            if (double.tryParse(val)! <= 0)
+                              return 'Interest rate must be greater than 0';
+                            if (double.tryParse(val)! > 100)
+                              return 'Interest rate cannot exceed 100%';
+                            return null;
+                          },
+                        ),
                       ),
                     ],
                     if (_interestType == 'compound') ...[
                       SizedBox(height: 12),
-                      DropdownButtonFormField<int>(
-                        value: _compoundingFrequency,
-                        items: [
-                          DropdownMenuItem(
-                              value: 1, child: Text('Annually (1x/year)')),
-                          DropdownMenuItem(
-                              value: 2, child: Text('Semi-annually (2x/year)')),
-                          DropdownMenuItem(
-                              value: 4, child: Text('Quarterly (4x/year)')),
-                          DropdownMenuItem(
-                              value: 12, child: Text('Monthly (12x/year)')),
-                        ],
-                        onChanged: _bothUsersVerified
-                            ? null
-                            : (val) => setState(
-                                () => _compoundingFrequency = val ?? 1),
-                        decoration: InputDecoration(
-                            labelText: 'Compounding Frequency',
-                            border: OutlineInputBorder(),
-                            helperText: _bothUsersVerified
-                                ? 'Transaction details locked after verification'
-                                : 'How often is interest compounded?'),
-                        validator: (val) {
-                          // Only validate if compound interest is selected
-                          if (_interestType != 'compound') return null;
+                      _buildStylishField(
+                        child: DropdownButtonFormField<int>(
+                          value: _compoundingFrequency,
+                          items: [
+                            DropdownMenuItem(
+                                value: 1, child: Text('Annually (1x/year)')),
+                            DropdownMenuItem(
+                                value: 2,
+                                child: Text('Semi-annually (2x/year)')),
+                            DropdownMenuItem(
+                                value: 4, child: Text('Quarterly (4x/year)')),
+                            DropdownMenuItem(
+                                value: 12, child: Text('Monthly (12x/year)')),
+                          ],
+                          onChanged: _bothUsersVerified
+                              ? null
+                              : (val) => setState(
+                                  () => _compoundingFrequency = val ?? 1),
+                          decoration: InputDecoration(
+                              labelText: 'Compounding Frequency',
+                              border: InputBorder.none,
+                              helperText: _bothUsersVerified
+                                  ? 'Transaction details locked after verification'
+                                  : 'How often is interest compounded?'),
+                          validator: (val) {
+                            // Only validate if compound interest is selected
+                            if (_interestType != 'compound') return null;
 
-                          if (val == null || val <= 0)
-                            return 'Select frequency';
-                          return null;
-                        },
+                            if (val == null || val <= 0)
+                              return 'Select frequency';
+                            return null;
+                          },
+                        ),
                       ),
                     ],
                     if (_interestType != 'none') ...[
                       SizedBox(height: 12),
-                      InkWell(
-                        onTap: _bothUsersVerified
-                            ? null
-                            : () async {
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate:
-                                      _expectedReturnDate ?? DateTime.now(),
-                                  firstDate: DateTime(2000),
-                                  lastDate: DateTime(2100),
-                                );
-                                if (picked != null)
-                                  setState(() => _expectedReturnDate = picked);
-                              },
-                        child: InputDecorator(
-                          decoration: InputDecoration(
-                            labelText: 'Expected Return Date *',
-                            border: OutlineInputBorder(
-                              borderSide: BorderSide(
+                      _buildStylishField(
+                        child: InkWell(
+                          onTap: _bothUsersVerified
+                              ? null
+                              : () async {
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate:
+                                        _expectedReturnDate ?? DateTime.now(),
+                                    firstDate: DateTime(2000),
+                                    lastDate: DateTime(2100),
+                                    builder: (context, child) {
+                                      return Theme(
+                                        data: ThemeData.light().copyWith(
+                                          colorScheme: ColorScheme.light(
+                                            primary: Color(0xFF00B4D8),
+                                            onPrimary: Colors.white,
+                                            surface: Colors.white,
+                                            onSurface: Colors.black87,
+                                            background: Colors.white,
+                                          ),
+                                          dialogTheme: DialogTheme(
+                                            backgroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(16),
+                                            ),
+                                          ),
+                                          textButtonTheme: TextButtonThemeData(
+                                            style: TextButton.styleFrom(
+                                              foregroundColor:
+                                                  Color(0xFF00B4D8),
+                                            ),
+                                          ),
+                                          cardColor: Colors.white,
+                                          canvasColor: Colors.white,
+                                        ),
+                                        child: child!,
+                                      );
+                                    },
+                                  );
+                                  if (picked != null)
+                                    setState(
+                                        () => _expectedReturnDate = picked);
+                                },
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: 'Expected Return Date *',
+                              border: InputBorder.none,
+                              helperText: _bothUsersVerified
+                                  ? 'Transaction details locked after verification'
+                                  : 'Required when interest is applied',
+                              prefixIcon: Icon(Icons.calendar_today,
                                   color: _bothUsersVerified
                                       ? Colors.grey.shade300
                                       : Colors.red.shade300),
                             ),
-                            helperText: _bothUsersVerified
-                                ? 'Transaction details locked after verification'
-                                : 'Required when interest is applied',
-                            prefixIcon: Icon(Icons.calendar_today,
-                                color: _bothUsersVerified
-                                    ? Colors.grey.shade300
-                                    : Colors.red.shade300),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(_expectedReturnDate == null
-                                  ? 'Select date'
-                                  : DateFormat('yyyy-MM-dd')
-                                      .format(_expectedReturnDate!)),
-                              Icon(Icons.calendar_today, color: Colors.teal),
-                            ],
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(_expectedReturnDate == null
+                                    ? 'Select date'
+                                    : DateFormat('yyyy-MM-dd')
+                                        .format(_expectedReturnDate!)),
+                                Icon(Icons.calendar_today, color: Colors.teal),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ],
                     SizedBox(height: 12),
-                    TextFormField(
-                      controller: _descriptionController,
-                      enabled: !_bothUsersVerified,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        labelText: 'Description (optional)',
-                        border: OutlineInputBorder(),
-                        hintText: _bothUsersVerified
-                            ? 'Transaction details locked after verification'
-                            : 'Add a note or description for this transaction',
+                    _buildStylishField(
+                      child: TextFormField(
+                        controller: _descriptionController,
+                        enabled: !_bothUsersVerified,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          labelText: 'Description (optional)',
+                          border: InputBorder.none,
+                          hintText: _bothUsersVerified
+                              ? 'Transaction details locked after verification'
+                              : 'Add a note or description for this transaction',
+                        ),
                       ),
                     ),
                     SizedBox(height: 12),
