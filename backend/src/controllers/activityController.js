@@ -456,6 +456,18 @@ exports.logQuickTransactionActivity = async (userId, type, transaction, metadata
       activityData.title = 'Quick Transaction Cleared';
       activityData.description = `You cleared a quick transaction of ${transaction.amount} ${transaction.currency} for "${transaction.description}"`;
       break;
+    case 'quick_transaction_settlement_requested':
+      activityData.title = 'Settlement Requested';
+      activityData.description = `You requested settlement for ${transaction.amount} ${transaction.currency} on "${transaction.description}"`;
+      break;
+    case 'quick_transaction_settlement_accepted':
+      activityData.title = 'Settlement Accepted';
+      activityData.description = `You accepted settlement for ${transaction.amount} ${transaction.currency} on "${transaction.description}"`;
+      break;
+    case 'quick_transaction_settlement_rejected':
+      activityData.title = 'Settlement Rejected';
+      activityData.description = `You rejected settlement for ${transaction.amount} ${transaction.currency} on "${transaction.description}"`;
+      break;
     case 'quick_transaction_cleared_all':
       activityData.title = 'All Quick Transactions Cleared';
       activityData.description = 'You cleared all your quick transactions.';

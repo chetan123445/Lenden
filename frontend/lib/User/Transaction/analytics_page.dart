@@ -25,11 +25,14 @@ class _AnalyticsPageState extends State<AnalyticsPage>
   bool _secureLoading = true;
   bool _quickLoading = true;
   bool _groupLoading = true;
+  bool _quickTransactionsLoading = true;
   String? _secureError;
   String? _quickError;
   String? _groupError;
+  String? _quickTransactionsError;
   bool? analyticsSharing;
   DisplayCurrencyData? _displayCurrencyData;
+  List<Map<String, dynamic>> _quickTransactions = [];
   String _selectedDisplayCurrency = 'INR';
   String? _displayCurrencyError;
 
@@ -39,6 +42,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     _tabController = TabController(length: 3, vsync: this);
     _loadDisplayCurrencies();
     _fetchAnalytics();
+    _fetchQuickTransactions();
   }
 
   @override
@@ -203,6 +207,41 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     }
   }
 
+  Future<void> _fetchQuickTransactions() async {
+    setState(() {
+      _quickTransactionsLoading = true;
+      _quickTransactionsError = null;
+    });
+    try {
+      final res = await ApiClient.get('/api/quick-transactions');
+      if (res.statusCode == 200) {
+        final body = json.decode(res.body);
+        final rawTransactions = body['quickTransactions'];
+        final fetchedTransactions = rawTransactions is List
+            ? rawTransactions.map((transaction) {
+                return Map<String, dynamic>.from(
+                  transaction is Map ? transaction : {},
+                );
+              }).toList()
+            : <Map<String, dynamic>>[];
+        setState(() {
+          _quickTransactions = fetchedTransactions;
+          _quickTransactionsLoading = false;
+        });
+      } else {
+        setState(() {
+          _quickTransactionsError = 'Failed to load quick transactions.';
+          _quickTransactionsLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _quickTransactionsError = 'Error: $e';
+        _quickTransactionsLoading = false;
+      });
+    }
+  }
+
   bool _hasMissingAnalyticsConversion() {
     if (_selectedDisplayCurrency.toUpperCase() == 'INR') return false;
     if (_displayCurrencyData == null) return true;
@@ -218,9 +257,8 @@ class _AnalyticsPageState extends State<AnalyticsPage>
         ) ??
         (sourceCurrency == targetCurrency);
     if (!canConvert) {
-      final sourceSymbol =
-          _displayCurrencyData?.symbolFor(sourceCurrency) ??
-              (sourceCurrency == 'INR' ? '₹' : sourceCurrency);
+      final sourceSymbol = _displayCurrencyData?.symbolFor(sourceCurrency) ??
+          (sourceCurrency == 'INR' ? '₹' : sourceCurrency);
       return '$sourceSymbol${value.toStringAsFixed(2)}';
     }
 
@@ -230,9 +268,8 @@ class _AnalyticsPageState extends State<AnalyticsPage>
           targetCurrency,
         ) ??
         value;
-    final symbol =
-        _displayCurrencyData?.symbolFor(targetCurrency) ??
-            (targetCurrency == 'INR' ? '₹' : targetCurrency);
+    final symbol = _displayCurrencyData?.symbolFor(targetCurrency) ??
+        (targetCurrency == 'INR' ? '₹' : targetCurrency);
     return '$symbol${converted.toStringAsFixed(2)}';
   }
 
@@ -280,6 +317,218 @@ class _AnalyticsPageState extends State<AnalyticsPage>
               });
             },
           ),
+        ),
+      ),
+    );
+  }
+
+  String _currentUserEmail() {
+    final session = Provider.of<SessionProvider>(context, listen: false);
+    return session.user?['email']?.toString().toLowerCase().trim() ?? '';
+  }
+
+  bool _isCurrentUserCreator(Map<String, dynamic> transaction) {
+    final currentUserEmail = _currentUserEmail();
+    final creatorEmail =
+        (transaction['creatorEmail'] ?? '').toString().toLowerCase().trim();
+    return currentUserEmail.isNotEmpty && creatorEmail == currentUserEmail;
+  }
+
+  String _roleForViewer(Map<String, dynamic> transaction) {
+    final storedRole =
+        (transaction['role'] ?? 'lender').toString().toLowerCase();
+    if (_isCurrentUserCreator(transaction)) {
+      return storedRole;
+    }
+    return storedRole == 'lender' ? 'borrower' : 'lender';
+  }
+
+  String _formatSelectedCurrencyValue(num value) {
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final symbol = _displayCurrencyData?.symbolFor(targetCurrency) ??
+        (targetCurrency == 'INR' ? '₹' : targetCurrency);
+    return '$symbol${value.toStringAsFixed(2)}';
+  }
+
+  double _displayAmountForTransaction(Map<String, dynamic> transaction) {
+    final amount = (transaction['amount'] as num?)?.toDouble() ??
+        double.tryParse('${transaction['amount']}') ??
+        0.0;
+    final sourceCurrency = (transaction['currency'] ?? 'INR').toString();
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final canConvert = _displayCurrencyData?.canConvert(
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        (sourceCurrency.toUpperCase() == targetCurrency);
+    return canConvert
+        ? (_displayCurrencyData?.convert(
+                amount, sourceCurrency, targetCurrency) ??
+            amount)
+        : amount;
+  }
+
+  Map<String, String> _buildQuickInsights() {
+    if (_quickTransactions.isEmpty) {
+      return {
+        'biggestPending': '₹0.00',
+        'mostFrequentCounterparty': 'No data',
+        'thisMonthNetFlow': '₹0.00',
+        'averageQuickAmount': '₹0.00',
+      };
+    }
+
+    Map<String, dynamic>? biggestPending;
+    final counterpartyCounts = <String, int>{};
+    final counterpartyNames = <String, String>{};
+    double monthNet = 0;
+    double totalAmount = 0;
+    final now = DateTime.now();
+
+    for (final transaction in _quickTransactions) {
+      final amount = _displayAmountForTransaction(transaction);
+      totalAmount += amount;
+      if (transaction['cleared'] != true) {
+        if (biggestPending == null ||
+            _displayAmountForTransaction(biggestPending) < amount) {
+          biggestPending = transaction;
+        }
+      }
+
+      final users = List<Map<String, dynamic>>.from(transaction['users'] ?? []);
+      final counterparty = users.firstWhere(
+        (user) =>
+            (user['email'] ?? '').toString().toLowerCase().trim() !=
+            _currentUserEmail(),
+        orElse: () => {},
+      );
+      final email = (counterparty['email'] ?? '').toString();
+      final name = (counterparty['name'] ?? email).toString();
+      if (email.isNotEmpty) {
+        counterpartyCounts[email] = (counterpartyCounts[email] ?? 0) + 1;
+        counterpartyNames[email] = name;
+      }
+
+      final date = DateTime.tryParse(
+        (transaction['date'] ?? transaction['createdAt'] ?? '').toString(),
+      )?.toLocal();
+      if (date != null && date.year == now.year && date.month == now.month) {
+        if (_roleForViewer(transaction) == 'lender') {
+          monthNet += amount;
+        } else {
+          monthNet -= amount;
+        }
+      }
+    }
+
+    String mostFrequent = 'No data';
+    if (counterpartyCounts.isNotEmpty) {
+      final top = counterpartyCounts.entries.reduce(
+        (a, b) => a.value >= b.value ? a : b,
+      );
+      mostFrequent = counterpartyNames[top.key] ?? top.key;
+    }
+
+    return {
+      'biggestPending': biggestPending == null
+          ? '₹0.00'
+          : _formatSelectedCurrencyValue(
+              _displayAmountForTransaction(biggestPending),
+            ),
+      'mostFrequentCounterparty': mostFrequent,
+      'thisMonthNetFlow':
+          '${monthNet >= 0 ? '+' : '-'}${_formatSelectedCurrencyValue(monthNet.abs())}',
+      'averageQuickAmount':
+          _formatSelectedCurrencyValue(totalAmount / _quickTransactions.length),
+    };
+  }
+
+  List<Map<String, dynamic>> _buildQuickNetBalances() {
+    final balances = <String, Map<String, dynamic>>{};
+    for (final transaction in _quickTransactions) {
+      final users = List<Map<String, dynamic>>.from(transaction['users'] ?? []);
+      final counterparty = users.firstWhere(
+        (user) =>
+            (user['email'] ?? '').toString().toLowerCase().trim() !=
+            _currentUserEmail(),
+        orElse: () => {},
+      );
+      final email = (counterparty['email'] ?? '').toString();
+      if (email.isEmpty) continue;
+      final amount = _displayAmountForTransaction(transaction);
+      final entry = balances.putIfAbsent(
+        email,
+        () => {
+          'email': email,
+          'name': (counterparty['name'] ?? email).toString(),
+          'net': 0.0,
+        },
+      );
+      if (_roleForViewer(transaction) == 'lender') {
+        entry['net'] = ((entry['net'] as double) + amount);
+      } else {
+        entry['net'] = ((entry['net'] as double) - amount);
+      }
+    }
+    final result = balances.values.toList();
+    result.sort((a, b) =>
+        ((b['net'] as double).abs()).compareTo((a['net'] as double).abs()));
+    return result;
+  }
+
+  Widget _buildSummaryCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required List<Color> colors,
+  }) {
+    return Container(
+      width: 190,
+      margin: const EdgeInsets.only(right: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: colors.last, size: 20),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -450,7 +699,8 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                 error: _secureError,
                 config: const _AnalyticsTabConfig(
                   tabTitle: 'Secure Analytics',
-                  tabSubtitle: 'See the most important lending and borrowing signals.',
+                  tabSubtitle:
+                      'See the most important lending and borrowing signals.',
                   metrics: [
                     _MetricDefinition(
                       id: 'totalLent',
@@ -514,7 +764,8 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                 error: _quickError,
                 config: const _AnalyticsTabConfig(
                   tabTitle: 'Quick Analytics',
-                  tabSubtitle: 'Track your fast lending, borrowing, and pending quick records.',
+                  tabSubtitle:
+                      'Track your fast lending, borrowing, and pending quick records.',
                   metrics: [
                     _MetricDefinition(
                       id: 'totalLent',
@@ -578,7 +829,8 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                 error: _groupError,
                 config: const _AnalyticsTabConfig(
                   tabTitle: 'Group Analytics',
-                  tabSubtitle: 'Track contributions, dues, expenses, and group movement.',
+                  tabSubtitle:
+                      'Track contributions, dues, expenses, and group movement.',
                   metrics: [
                     _MetricDefinition(
                       id: 'totalLent',
@@ -744,6 +996,177 @@ class _AnalyticsPageState extends State<AnalyticsPage>
               ),
             ),
             const SizedBox(height: 24),
+            if (config.tabTitle == 'Quick Analytics') ...[
+              const SizedBox(height: 4),
+              Text(
+                'Quick Insights',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (_quickTransactionsLoading)
+                const SizedBox(
+                  height: 110,
+                  child: Center(
+                    child: CircularProgressIndicator(color: Color(0xFF00B4D8)),
+                  ),
+                )
+              else if (_quickTransactionsError != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1F1),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFFF6B6B)),
+                  ),
+                  child: Text(
+                    _quickTransactionsError ?? 'Unable to load quick insights.',
+                    style: const TextStyle(
+                      color: Color(0xFFC62828),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              else ...[
+                SizedBox(
+                  height: 110,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    children: [
+                      _buildSummaryCard(
+                        title: 'Biggest Pending',
+                        value:
+                            _buildQuickInsights()['biggestPending'] ?? '₹0.00',
+                        icon: Icons.priority_high_rounded,
+                        colors: const [Color(0xFFFF8B7B), Color(0xFFFFC2AE)],
+                      ),
+                      _buildSummaryCard(
+                        title: 'Frequent Person',
+                        value:
+                            _buildQuickInsights()['mostFrequentCounterparty'] ??
+                                'No data',
+                        icon: Icons.person_search_rounded,
+                        colors: const [Color(0xFF7E74F1), Color(0xFFC0BCFF)],
+                      ),
+                      _buildSummaryCard(
+                        title: 'Month Net Flow',
+                        value: _buildQuickInsights()['thisMonthNetFlow'] ??
+                            '₹0.00',
+                        icon: Icons.swap_vert_circle_rounded,
+                        colors: const [Color(0xFF58C4DD), Color(0xFF89E0EF)],
+                      ),
+                      _buildSummaryCard(
+                        title: 'Average Amount',
+                        value: _buildQuickInsights()['averageQuickAmount'] ??
+                            '₹0.00',
+                        icon: Icons.analytics_rounded,
+                        colors: const [Color(0xFF6BCB91), Color(0xFFA9E4A7)],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Per-Person Ledger',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 108,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    itemCount: _buildQuickNetBalances().length,
+                    itemBuilder: (context, index) {
+                      final item = _buildQuickNetBalances()[index];
+                      final net = (item['net'] as double?) ?? 0.0;
+                      final isPositive = net >= 0;
+                      return Container(
+                        width: 190,
+                        margin: const EdgeInsets.only(right: 12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFF7C9DFF),
+                                  Color(0xFFFF8B7B),
+                                  Color(0xFF6BCB91),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.06),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    (item['name'] ?? item['email'] ?? 'Unknown')
+                                        .toString(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    isPositive ? 'You will get' : 'You owe',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _formatSelectedCurrencyValue(net.abs()),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: isPositive
+                                          ? Colors.green[700]
+                                          : Colors.red[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ],
+            const SizedBox(height: 24),
             Text(
               'Analytics Options',
               style: TextStyle(
@@ -792,9 +1215,10 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     final displayCurrency = _hasMissingAnalyticsConversion()
         ? 'INR'
         : _selectedDisplayCurrency.toUpperCase();
-    final monthlyCounts = (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
-        .map((value) => (value as num).toDouble())
-        .toList();
+    final monthlyCounts =
+        (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
+            .map((value) => (value as num).toDouble())
+            .toList();
     final peakMonth = monthlyCounts.isEmpty
         ? 0.0
         : monthlyCounts.reduce((a, b) => a > b ? a : b);
@@ -1063,9 +1487,10 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     List<_MetricDefinition> definitions,
     Map<String, dynamic> analytics,
   ) {
-    final monthlyCounts = (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
-        .map((value) => (value as num).toDouble())
-        .toList();
+    final monthlyCounts =
+        (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
+            .map((value) => (value as num).toDouble())
+            .toList();
 
     return definitions.map((definition) {
       final rawValue = definition.id == 'monthly'
@@ -1081,7 +1506,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
         value: rawValue,
         displayValue: definition.isTrend
             ? '${rawValue.toStringAsFixed(0)} events'
-                : definition.isCurrency
+            : definition.isCurrency
                 ? _formatAmount(rawValue)
                 : rawValue.toStringAsFixed(0),
         isCurrency: definition.isCurrency,
@@ -1167,18 +1592,16 @@ class _AnalyticsDetailPage extends StatelessWidget {
 
   String _formatAmount(double value, {String originalCurrency = 'INR'}) {
     final sourceCurrency = originalCurrency.toUpperCase();
-    final targetCurrency = hasMissingConversion
-        ? 'INR'
-        : selectedDisplayCurrency.toUpperCase();
+    final targetCurrency =
+        hasMissingConversion ? 'INR' : selectedDisplayCurrency.toUpperCase();
     final canConvert = displayCurrencyData?.canConvert(
           sourceCurrency,
           targetCurrency,
         ) ??
         (sourceCurrency == targetCurrency);
     if (!canConvert) {
-      final sourceSymbol =
-          displayCurrencyData?.symbolFor(sourceCurrency) ??
-              (sourceCurrency == 'INR' ? '₹' : sourceCurrency);
+      final sourceSymbol = displayCurrencyData?.symbolFor(sourceCurrency) ??
+          (sourceCurrency == 'INR' ? '₹' : sourceCurrency);
       return '$sourceSymbol${value.toStringAsFixed(2)}';
     }
     final converted = displayCurrencyData?.convert(
@@ -1187,27 +1610,25 @@ class _AnalyticsDetailPage extends StatelessWidget {
           targetCurrency,
         ) ??
         value;
-    final symbol =
-        displayCurrencyData?.symbolFor(targetCurrency) ??
-            (targetCurrency == 'INR' ? '₹' : targetCurrency);
+    final symbol = displayCurrencyData?.symbolFor(targetCurrency) ??
+        (targetCurrency == 'INR' ? '₹' : targetCurrency);
     return '$symbol${converted.toStringAsFixed(2)}';
   }
 
   @override
   Widget build(BuildContext context) {
     final months = List<String>.from(analytics['months'] ?? const []);
-    final monthlyCounts = (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
-        .map((value) => (value as num).toDouble())
-        .toList();
+    final monthlyCounts =
+        (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
+            .map((value) => (value as num).toDouble())
+            .toList();
     final total = ((analytics['total'] as num?) ?? 0).toDouble();
     final cleared = ((analytics['cleared'] as num?) ?? 0).toDouble();
     final pending = ((analytics['uncleared'] as num?) ?? 0).toDouble();
     final ratio = total == 0 ? 0.0 : (cleared / total).clamp(0.0, 1.0);
 
-    final secondaryMetrics = allMetrics
-        .where((item) => item.id != metric.id)
-        .take(2)
-        .toList();
+    final secondaryMetrics =
+        allMetrics.where((item) => item.id != metric.id).take(2).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8FC),
@@ -1380,9 +1801,11 @@ class _AnalyticsDetailPage extends StatelessWidget {
                   : Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _LegendDot(color: const Color(0xFF7C9DFF), label: 'Cleared'),
+                        _LegendDot(
+                            color: const Color(0xFF7C9DFF), label: 'Cleared'),
                         const SizedBox(width: 12),
-                        _LegendDot(color: const Color(0xFFFF8B7B), label: 'Pending'),
+                        _LegendDot(
+                            color: const Color(0xFFFF8B7B), label: 'Pending'),
                       ],
                     ),
               child: SizedBox(

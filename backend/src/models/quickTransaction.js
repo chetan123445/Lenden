@@ -21,6 +21,10 @@ const quickTransactionSchema = new mongoose.Schema({
     type: String,
     required: true,
   }],
+  favourite: {
+    type: [String],
+    default: [],
+  },
   creatorEmail: {
     type: String,
     required: true,
@@ -36,6 +40,27 @@ const quickTransactionSchema = new mongoose.Schema({
   cleared: {
     type: Boolean,
     default: false,
+  },
+  settlementStatus: {
+    type: String,
+    enum: ['none', 'pending', 'accepted', 'rejected'],
+    default: 'none',
+  },
+  settlementRequestedBy: {
+    type: String,
+    default: null,
+  },
+  settlementRequestedAt: {
+    type: Date,
+    default: null,
+  },
+  settlementRespondedBy: {
+    type: String,
+    default: null,
+  },
+  settlementRespondedAt: {
+    type: Date,
+    default: null,
   },
   createdAt: {
     type: Date,

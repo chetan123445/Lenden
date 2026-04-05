@@ -157,11 +157,14 @@ module.exports = (io) => {
 
   // Quick Transaction routes
   router.get('/quick-transactions', auth, quickTransactionController.getQuickTransactions);
+  router.put('/quick-transactions/:id/favourite', auth, quickTransactionController.toggleQuickTransactionFavourite);
   router.post('/quick-transactions', auth, handleUsage('quickTransaction'), quickTransactionController.createQuickTransaction);
   router.post('/quick-transactions/with-coins', auth, quickTransactionController.createQuickTransactionWithCoins);
   router.put('/quick-transactions/:id', auth, quickTransactionController.updateQuickTransaction);
   router.delete('/quick-transactions/:id', auth, quickTransactionController.deleteQuickTransaction);
   router.put('/quick-transactions/:id/clear', auth, quickTransactionController.clearQuickTransaction);
+  router.post('/quick-transactions/:id/request-settlement', auth, quickTransactionController.requestQuickTransactionSettlement);
+  router.post('/quick-transactions/:id/respond-settlement', auth, quickTransactionController.respondQuickTransactionSettlement);
   router.delete('/quick-transactions', auth, quickTransactionController.clearAllQuickTransactions);
 
   // Support routes (User)

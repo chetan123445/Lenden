@@ -32,6 +32,14 @@ const getTodayRange = () => {
   return { start, end };
 };
 
+const resetSettlementState = (quickTransaction) => {
+  quickTransaction.settlementStatus = 'none';
+  quickTransaction.settlementRequestedBy = null;
+  quickTransaction.settlementRequestedAt = null;
+  quickTransaction.settlementRespondedBy = null;
+  quickTransaction.settlementRespondedAt = null;
+};
+
 exports.createQuickTransaction = async (req, res) => {
   try {
     const { amount, currency, date, time, description, counterpartyEmail, role } = req.body;
@@ -237,6 +245,42 @@ exports.getQuickTransactions = async (req, res) => {
   }
 };
 
+exports.toggleQuickTransactionFavourite = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+
+    if (!id || !email) {
+      return res.status(400).json({ error: 'Quick transaction ID and email are required' });
+    }
+
+    const quickTransaction = await QuickTransaction.findById(id);
+    if (!quickTransaction) {
+      return res.status(404).json({ error: 'Quick transaction not found' });
+    }
+
+    if (!quickTransaction.users.includes(email)) {
+      return res.status(403).json({ error: 'You are not a party to this quick transaction' });
+    }
+
+    const isFavourited = quickTransaction.favourite.includes(email);
+    if (isFavourited) {
+      quickTransaction.favourite = quickTransaction.favourite.filter(favEmail => favEmail !== email);
+    } else {
+      quickTransaction.favourite.push(email);
+    }
+
+    await quickTransaction.save();
+    res.status(200).json({
+      success: true,
+      message: `Quick transaction ${isFavourited ? 'removed from' : 'added to'} favourites`,
+      favourite: quickTransaction.favourite,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 exports.updateQuickTransaction = async (req, res) => {
   try {
     const { id } = req.params;
@@ -263,6 +307,7 @@ exports.updateQuickTransaction = async (req, res) => {
     quickTransaction.time = time;
     quickTransaction.description = description;
     quickTransaction.role = role;
+    resetSettlementState(quickTransaction);
 
     await quickTransaction.save();
     await logQuickTransactionActivity(req.user._id, 'quick_transaction_updated', quickTransaction);
@@ -310,12 +355,118 @@ exports.clearQuickTransaction = async (req, res) => {
     }
 
     quickTransaction.cleared = true;
+    quickTransaction.settlementStatus = 'accepted';
+    quickTransaction.settlementRespondedBy = req.user.email;
+    quickTransaction.settlementRespondedAt = new Date();
     await quickTransaction.save();
     await logQuickTransactionActivity(req.user._id, 'quick_transaction_cleared', quickTransaction);
 
     res.status(200).json({ quickTransaction });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+};
+
+exports.requestQuickTransactionSettlement = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userEmail = req.user.email;
+    const quickTransaction = await QuickTransaction.findById(id);
+
+    if (!quickTransaction) {
+      return res.status(404).json({ error: 'Quick transaction not found' });
+    }
+    if (!quickTransaction.users.includes(userEmail)) {
+      return res.status(403).json({ error: 'User not authorized for this transaction' });
+    }
+    if (quickTransaction.cleared) {
+      return res.status(400).json({ error: 'This quick transaction is already settled' });
+    }
+    if (quickTransaction.settlementStatus === 'pending') {
+      return res.status(400).json({ error: 'Settlement request is already pending' });
+    }
+
+    quickTransaction.settlementStatus = 'pending';
+    quickTransaction.settlementRequestedBy = userEmail;
+    quickTransaction.settlementRequestedAt = new Date();
+    quickTransaction.settlementRespondedBy = null;
+    quickTransaction.settlementRespondedAt = null;
+    await quickTransaction.save();
+    await logQuickTransactionActivity(
+      req.user._id,
+      'quick_transaction_settlement_requested',
+      quickTransaction
+    );
+
+    return res.status(200).json({
+      message: 'Settlement request sent successfully',
+      quickTransaction,
+    });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+exports.respondQuickTransactionSettlement = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body;
+    const userEmail = req.user.email;
+    const quickTransaction = await QuickTransaction.findById(id);
+
+    if (!quickTransaction) {
+      return res.status(404).json({ error: 'Quick transaction not found' });
+    }
+    if (!quickTransaction.users.includes(userEmail)) {
+      return res.status(403).json({ error: 'User not authorized for this transaction' });
+    }
+    if (quickTransaction.settlementStatus !== 'pending') {
+      return res.status(400).json({ error: 'No pending settlement request found' });
+    }
+    if (
+      quickTransaction.settlementRequestedBy &&
+      quickTransaction.settlementRequestedBy.toLowerCase() === userEmail.toLowerCase()
+    ) {
+      return res.status(400).json({ error: 'You cannot respond to your own settlement request' });
+    }
+
+    const normalizedAction = (action || '').toString().toLowerCase();
+    if (!['accept', 'reject'].includes(normalizedAction)) {
+      return res.status(400).json({ error: 'Action must be accept or reject' });
+    }
+
+    quickTransaction.settlementRespondedBy = userEmail;
+    quickTransaction.settlementRespondedAt = new Date();
+
+    if (normalizedAction === 'accept') {
+      quickTransaction.cleared = true;
+      quickTransaction.settlementStatus = 'accepted';
+      await quickTransaction.save();
+      await logQuickTransactionActivity(
+        req.user._id,
+        'quick_transaction_settlement_accepted',
+        quickTransaction
+      );
+      return res.status(200).json({
+        message: 'Settlement accepted successfully',
+        quickTransaction,
+      });
+    }
+
+    quickTransaction.settlementStatus = 'rejected';
+    quickTransaction.cleared = false;
+    await quickTransaction.save();
+    await logQuickTransactionActivity(
+      req.user._id,
+      'quick_transaction_settlement_rejected',
+      quickTransaction
+    );
+    return res.status(200).json({
+      message: 'Settlement rejected successfully',
+      quickTransaction,
+    });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
   }
 };
 

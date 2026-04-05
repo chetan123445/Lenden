@@ -1,6 +1,11 @@
 import 'package:elegant_notification/elegant_notification.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:convert';
+import 'dart:async';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../api_config.dart';
 import 'package:provider/provider.dart';
 import '../../session.dart';
@@ -30,14 +35,23 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   bool loading = true;
   String? error;
   String searchQuery = '';
+  final TextEditingController _searchController = TextEditingController();
   String sortBy = 'created_desc';
   String filterBy = 'all'; // 'all', 'cleared', 'not_cleared'
+  String _roleFilter = 'all'; // 'all', 'lent', 'borrowed'
+  String _dateFilter = 'all'; // 'all', 'today', 'week', 'month'
+  String _selectedCounterparty = 'all';
+  bool _showFavouritesOnly = false;
   bool _showAll = false;
   Set<String> _blockedEmails = {};
+  Set<String> _pinnedTransactionIds = {};
   Map<String, dynamic>? _dailyLimits;
   DisplayCurrencyData? _displayCurrencyData;
   String _selectedDisplayCurrency = 'INR';
   String? _displayCurrencyError;
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  final Map<String, int> _deleteActionTokens = {};
+  final Map<String, int> _clearActionTokens = {};
 
   @override
   void initState() {
@@ -46,6 +60,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     _loadBlockedUsers();
     _loadDailyLimits();
     _loadDisplayCurrencies();
+    _loadPinnedTransactions();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.openCreateOnLoad &&
           (widget.prefillCounterpartyEmail ?? '').isNotEmpty) {
@@ -110,6 +125,121 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     }
   }
 
+  String? _currentUserEmail() {
+    return Provider.of<SessionProvider>(context, listen: false)
+        .user?['email']
+        ?.toString()
+        .toLowerCase()
+        .trim();
+  }
+
+  Future<void> _loadPinnedTransactions() async {
+    final currentUserEmail = _currentUserEmail();
+    if (currentUserEmail == null || currentUserEmail.isEmpty) return;
+    final raw = await _storage.read(key: 'quick_pins_$currentUserEmail');
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final ids = List<String>.from(jsonDecode(raw) as List<dynamic>);
+      if (!mounted) return;
+      setState(() {
+        _pinnedTransactionIds = ids.toSet();
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _persistPinnedTransactions() async {
+    final currentUserEmail = _currentUserEmail();
+    if (currentUserEmail == null || currentUserEmail.isEmpty) return;
+    await _storage.write(
+      key: 'quick_pins_$currentUserEmail',
+      value: jsonEncode(_pinnedTransactionIds.toList()),
+    );
+  }
+
+  Future<void> _togglePinTransaction(String id) async {
+    setState(() {
+      if (_pinnedTransactionIds.contains(id)) {
+        _pinnedTransactionIds.remove(id);
+      } else {
+        _pinnedTransactionIds.add(id);
+      }
+      sortTransactions();
+    });
+    await _persistPinnedTransactions();
+  }
+
+  bool _isCurrentUserCreator(Map<String, dynamic> transaction) {
+    final currentUserEmail = _currentUserEmail();
+    final creatorEmail =
+        (transaction['creatorEmail'] ?? '').toString().toLowerCase().trim();
+    return currentUserEmail != null && creatorEmail == currentUserEmail;
+  }
+
+  String _roleForViewer(Map<String, dynamic> transaction) {
+    final storedRole =
+        (transaction['role'] ?? 'lender').toString().toLowerCase();
+    if (_isCurrentUserCreator(transaction)) {
+      return storedRole;
+    }
+    return storedRole == 'lender' ? 'borrower' : 'lender';
+  }
+
+  Map<String, dynamic>? _counterpartyForViewer(
+      Map<String, dynamic> transaction) {
+    final currentUserEmail = _currentUserEmail();
+    final users = List<Map<String, dynamic>>.from(transaction['users'] ?? []);
+    for (final user in users) {
+      final email = (user['email'] ?? '').toString().toLowerCase().trim();
+      if (email.isNotEmpty && email != currentUserEmail) {
+        return user;
+      }
+    }
+    return users.isNotEmpty ? users.first : null;
+  }
+
+  bool _matchesDateFilter(Map<String, dynamic> transaction) {
+    if (_dateFilter == 'all') return true;
+    final rawDate =
+        (transaction['date'] ?? transaction['createdAt'] ?? '').toString();
+    final date = DateTime.tryParse(rawDate);
+    if (date == null) return false;
+    final now = DateTime.now();
+    final localDate = date.toLocal();
+    if (_dateFilter == 'today') {
+      return localDate.year == now.year &&
+          localDate.month == now.month &&
+          localDate.day == now.day;
+    }
+    if (_dateFilter == 'week') {
+      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+      final start = DateTime(weekStart.year, weekStart.month, weekStart.day);
+      return !localDate.isBefore(start);
+    }
+    if (_dateFilter == 'month') {
+      return localDate.year == now.year && localDate.month == now.month;
+    }
+    return true;
+  }
+
+  List<Map<String, String>> _counterpartyOptions() {
+    final seen = <String>{};
+    final options = <Map<String, String>>[
+      {'email': 'all', 'label': 'All People'}
+    ];
+    for (final transaction in transactions) {
+      final counterparty = _counterpartyForViewer(transaction);
+      final email = (counterparty?['email'] ?? '').toString().trim();
+      if (email.isEmpty || seen.contains(email.toLowerCase())) continue;
+      seen.add(email.toLowerCase());
+      final name = (counterparty?['name'] ?? '').toString().trim();
+      options.add({
+        'email': email,
+        'label': name.isNotEmpty ? name : email,
+      });
+    }
+    return options;
+  }
+
   String _formatDisplayAmount(dynamic amount, String? originalCurrency) {
     final numericAmount = amount is num
         ? amount.toDouble()
@@ -132,7 +262,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
           targetCurrency,
         ) ??
         numericAmount;
-    final symbol = _displayCurrencyData?.symbolFor(targetCurrency) ?? targetCurrency;
+    final symbol =
+        _displayCurrencyData?.symbolFor(targetCurrency) ?? targetCurrency;
     return '$symbol${converted.toStringAsFixed(2)}';
   }
 
@@ -242,10 +373,9 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
         context: context,
         builder: (context) => SubscriptionPrompt(
           title: 'No Free Quick Transactions Left',
-          subtitle:
-              dailyQuickRemaining != null && dailyQuickRemaining <= 0
-                  ? 'Your daily quick transaction limit is finished. You can still create one more now by spending 5 LenDen coins.'
-                  : 'You have no free quick transactions remaining. Would you like to use 5 LenDen coins to create one?',
+          subtitle: dailyQuickRemaining != null && dailyQuickRemaining <= 0
+              ? 'Your daily quick transaction limit is finished. You can still create one more now by spending 5 LenDen coins.'
+              : 'You have no free quick transactions remaining. Would you like to use 5 LenDen coins to create one?',
         ),
       );
       if (useCoins != true) {
@@ -260,9 +390,8 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
         useCoins: shouldUseCoins,
         prefillCounterpartyEmail: prefillEmail,
         blockedEmails: _blockedEmails,
-        dailyRemaining: _dailyLimits?['limits']?['quickTransactions']
-                ?['remaining'] ??
-            null,
+        dailyRemaining:
+            _dailyLimits?['limits']?['quickTransactions']?['remaining'] ?? null,
         isSubscribed: session.isSubscribed,
       ),
     );
@@ -314,33 +443,46 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   }
 
   void sortTransactions() {
-    setState(() {
-      filteredTransactions.sort((a, b) {
-        switch (sortBy) {
-          case 'created_asc':
-            return (a['createdAt'] ?? '').compareTo(b['createdAt'] ?? '');
-          case 'created_desc':
-            return (b['createdAt'] ?? '').compareTo(a['createdAt'] ?? '');
-          case 'updated_asc':
-            return (a['updatedAt'] ?? '').compareTo(b['updatedAt'] ?? '');
-          case 'updated_desc':
-            return (b['updatedAt'] ?? '').compareTo(a['updatedAt'] ?? '');
-          case 'amount_asc':
-            return (a['amount'] ?? 0).compareTo(b['amount'] ?? 0);
-          case 'amount_desc':
-            return (b['amount'] ?? 0).compareTo(a['amount'] ?? 0);
-          default:
-            return 0;
-        }
-      });
-    });
+    int compareTransactions(Map<String, dynamic> a, Map<String, dynamic> b) {
+      final aPinned =
+          _pinnedTransactionIds.contains((a['_id'] ?? '').toString());
+      final bPinned =
+          _pinnedTransactionIds.contains((b['_id'] ?? '').toString());
+      if (aPinned != bPinned) {
+        return aPinned ? -1 : 1;
+      }
+      switch (sortBy) {
+        case 'created_asc':
+          return (a['createdAt'] ?? '').compareTo(b['createdAt'] ?? '');
+        case 'created_desc':
+          return (b['createdAt'] ?? '').compareTo(a['createdAt'] ?? '');
+        case 'updated_asc':
+          return (a['updatedAt'] ?? '').compareTo(b['updatedAt'] ?? '');
+        case 'updated_desc':
+          return (b['updatedAt'] ?? '').compareTo(a['updatedAt'] ?? '');
+        case 'amount_asc':
+          return (a['amount'] ?? 0).compareTo(b['amount'] ?? 0);
+        case 'amount_desc':
+          return (b['amount'] ?? 0).compareTo(a['amount'] ?? 0);
+        default:
+          return 0;
+      }
+    }
+
+    transactions.sort(compareTransactions);
+    filteredTransactions.sort(compareTransactions);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void filterTransactions(String query) {
     setState(() {
       searchQuery = query;
       filteredTransactions = transactions.where((transaction) {
-        // Apply cleared/not cleared filter first
         bool matchesStatusFilter = true;
         if (filterBy == 'cleared') {
           matchesStatusFilter = transaction['cleared'] == true;
@@ -350,25 +492,49 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
 
         if (!matchesStatusFilter) return false;
 
-        // If no search query, return all that match status filter
+        if (_roleFilter == 'lent' && _roleForViewer(transaction) != 'lender') {
+          return false;
+        }
+        if (_roleFilter == 'borrowed' &&
+            _roleForViewer(transaction) != 'borrower') {
+          return false;
+        }
+
+        if (!_matchesDateFilter(transaction)) return false;
+
+        if (_showFavouritesOnly) {
+          final currentUserEmail = _currentUserEmail();
+          final favourites = List<dynamic>.from(transaction['favourite'] ?? []);
+          if (currentUserEmail == null ||
+              !favourites.contains(currentUserEmail)) {
+            return false;
+          }
+        }
+
+        final counterparty = _counterpartyForViewer(transaction);
+        final counterpartyEmail =
+            (counterparty?['email'] ?? '').toString().toLowerCase().trim();
+        if (_selectedCounterparty != 'all' &&
+            counterpartyEmail != _selectedCounterparty.toLowerCase().trim()) {
+          return false;
+        }
+
         if (query.isEmpty) return true;
 
-        // Search in description
         final description = (transaction['description'] ?? '').toLowerCase();
         final searchLower = query.toLowerCase();
-
-        // Search in amount
         final amount = transaction['amount']?.toString() ?? '';
-
-        // Search in counterparty names and emails
         final users = transaction['users'] as List? ?? [];
         final counterpartyInfo = users.map((u) {
           return '${u['name'] ?? ''} ${u['email'] ?? ''}'.toLowerCase();
         }).join(' ');
+        final roleLabel =
+            _roleForViewer(transaction) == 'lender' ? 'lent' : 'borrowed';
 
         return description.contains(searchLower) ||
             amount.contains(searchLower) ||
-            counterpartyInfo.contains(searchLower);
+            counterpartyInfo.contains(searchLower) ||
+            roleLabel.contains(searchLower);
       }).toList();
       sortTransactions();
     });
@@ -381,6 +547,147 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     });
   }
 
+  void _applyRoleFilter(String value) {
+    setState(() {
+      _roleFilter = value;
+      filterTransactions(searchQuery);
+    });
+  }
+
+  void _toggleShowFavourites() {
+    setState(() {
+      _showFavouritesOnly = !_showFavouritesOnly;
+      filterTransactions(searchQuery);
+    });
+  }
+
+  void _applyDateFilter(String value) {
+    setState(() {
+      _dateFilter = value;
+      filterTransactions(searchQuery);
+    });
+  }
+
+  void _applyCounterpartyFilter(String value) {
+    setState(() {
+      _selectedCounterparty = value;
+      filterTransactions(searchQuery);
+    });
+  }
+
+  bool _hasActiveFilters() {
+    return searchQuery.isNotEmpty ||
+        filterBy != 'all' ||
+        _roleFilter != 'all' ||
+        _dateFilter != 'all' ||
+        _selectedCounterparty != 'all' ||
+        _showFavouritesOnly;
+  }
+
+  bool _isQuickTransactionFavourited(Map<String, dynamic> transaction) {
+    final currentUserEmail = _currentUserEmail();
+    final favourites = List<dynamic>.from(transaction['favourite'] ?? []);
+    return currentUserEmail != null && favourites.contains(currentUserEmail);
+  }
+
+  Future<void> _toggleQuickTransactionFavourite(
+      Map<String, dynamic> transaction) async {
+    final currentUserEmail = _currentUserEmail();
+    if (currentUserEmail == null || currentUserEmail.isEmpty) return;
+    final transactionId = (transaction['_id'] ?? '').toString();
+    if (transactionId.isEmpty) return;
+
+    final isCurrentlyFav = _isQuickTransactionFavourited(transaction);
+    setState(() {
+      final favourites = List<String>.from(transaction['favourite'] ?? []);
+      if (isCurrentlyFav) {
+        favourites.remove(currentUserEmail);
+      } else {
+        favourites.add(currentUserEmail);
+      }
+      transaction['favourite'] = favourites;
+    });
+
+    try {
+      final res = await ApiClient.put(
+          '/api/quick-transactions/$transactionId/favourite',
+          body: {'email': currentUserEmail});
+      if (res.statusCode != 200) {
+        // Revert on failure
+        setState(() {
+          final favourites = List<String>.from(transaction['favourite'] ?? []);
+          if (isCurrentlyFav) {
+            favourites.add(currentUserEmail);
+          } else {
+            favourites.remove(currentUserEmail);
+          }
+          transaction['favourite'] = favourites;
+        });
+      }
+    } catch (_) {
+      setState(() {
+        final favourites = List<String>.from(transaction['favourite'] ?? []);
+        if (isCurrentlyFav) {
+          favourites.add(currentUserEmail);
+        } else {
+          favourites.remove(currentUserEmail);
+        }
+        transaction['favourite'] = favourites;
+      });
+    }
+  }
+
+  String _filterSummaryLabel() {
+    final labels = <String>[];
+    if (filterBy == 'cleared') labels.add('Cleared');
+    if (filterBy == 'not_cleared') labels.add('Pending');
+    if (_dateFilter == 'today') labels.add('Today');
+    if (_dateFilter == 'week') labels.add('This Week');
+    if (_dateFilter == 'month') labels.add('This Month');
+    if (_selectedCounterparty != 'all') {
+      final match = _counterpartyOptions().firstWhere(
+        (item) => item['email'] == _selectedCounterparty,
+        orElse: () => {'label': 'Person'},
+      );
+      labels.add(match['label'] ?? 'Person');
+    }
+    if (labels.isEmpty) return 'Filter';
+    if (labels.length == 1) return labels.first;
+    return '${labels.first} +${labels.length - 1}';
+  }
+
+  String _sortSummaryLabel() {
+    switch (sortBy) {
+      case 'created_asc':
+        return 'Oldest';
+      case 'updated_desc':
+        return 'Updated';
+      case 'updated_asc':
+        return 'Old Updated';
+      case 'amount_asc':
+        return 'Amt Low';
+      case 'amount_desc':
+        return 'Amt High';
+      case 'created_desc':
+      default:
+        return 'Newest';
+    }
+  }
+
+  void _resetFilters() {
+    setState(() {
+      searchQuery = '';
+      _searchController.clear();
+      filterBy = 'all';
+      _roleFilter = 'all';
+      _dateFilter = 'all';
+      _selectedCounterparty = 'all';
+      _showAll = false;
+      filteredTransactions = List<Map<String, dynamic>>.from(transactions);
+      sortTransactions();
+    });
+  }
+
   Future<void> fetchQuickTransactions() async {
     setState(() {
       loading = true;
@@ -390,11 +697,24 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     try {
       final res = await ApiClient.get('/api/quick-transactions');
       if (res.statusCode == 200) {
-        final fetchedTransactions = List<Map<String, dynamic>>.from(
-            json.decode(res.body)['quickTransactions']);
+        final body = json.decode(res.body);
+        final rawTransactions = body['quickTransactions'];
+        final fetchedTransactions = rawTransactions is List
+            ? rawTransactions.map((transaction) {
+                return Map<String, dynamic>.from(
+                  transaction is Map ? transaction : {},
+                );
+              }).toList()
+            : <Map<String, dynamic>>[];
         setState(() {
           transactions = fetchedTransactions;
           filteredTransactions = fetchedTransactions;
+          final counterpartyStillExists = _counterpartyOptions().any(
+            (item) => item['email'] == _selectedCounterparty,
+          );
+          if (!counterpartyStillExists) {
+            _selectedCounterparty = 'all';
+          }
           sortTransactions();
           filterTransactions(searchQuery); // Apply current filters
           loading = false;
@@ -664,20 +984,61 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
 
     if (confirmed == true) {
-      final res = await ApiClient.delete('/api/quick-transactions/$id');
-      if (res.statusCode == 200) {
-        fetchQuickTransactions();
-        ElegantNotification.success(
-          title: Text("Success"),
-          description: Text("Transaction has been successfully deleted!"),
-        ).show(context);
-      } else {
-        final error = json.decode(res.body)['error'];
-        ElegantNotification.error(
-          title: Text("Error"),
-          description: Text(error),
-        ).show(context);
-      }
+      final snapshotIndex = transactions.indexWhere((t) => t['_id'] == id);
+      if (snapshotIndex == -1) return;
+      final snapshot = Map<String, dynamic>.from(transactions[snapshotIndex]);
+      final token = DateTime.now().microsecondsSinceEpoch;
+      _deleteActionTokens[id] = token;
+
+      setState(() {
+        transactions.removeWhere((t) => t['_id'] == id);
+        filterTransactions(searchQuery);
+      });
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Quick transaction deleted'),
+          action: SnackBarAction(
+            label: 'UNDO',
+            onPressed: () {
+              _deleteActionTokens.remove(id);
+              setState(() {
+                transactions.insert(snapshotIndex, snapshot);
+                filterTransactions(searchQuery);
+              });
+            },
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+
+      unawaited(Future.delayed(const Duration(seconds: 4), () async {
+        if (_deleteActionTokens[id] != token) return;
+        _deleteActionTokens.remove(id);
+        final res = await ApiClient.delete('/api/quick-transactions/$id');
+        if (res.statusCode == 200) {
+          if (!mounted) return;
+          ElegantNotification.success(
+            title: Text("Success"),
+            description: Text("Transaction has been successfully deleted!"),
+          ).show(context);
+        } else {
+          final error = json.decode(res.body)['error'];
+          if (!mounted) return;
+          setState(() {
+            final insertIndex = snapshotIndex > transactions.length
+                ? transactions.length
+                : snapshotIndex;
+            transactions.insert(insertIndex, snapshot);
+            filterTransactions(searchQuery);
+          });
+          ElegantNotification.error(
+            title: Text("Error"),
+            description: Text(error),
+          ).show(context);
+        }
+      }));
     }
   }
 
@@ -708,28 +1069,560 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
 
     if (confirmed == true) {
-      final res =
-          await ApiClient.put('/api/quick-transactions/$id/clear', body: {});
-      if (res.statusCode == 200) {
-        setState(() {
-          final index = transactions.indexWhere((t) => t['_id'] == id);
-          if (index != -1) {
-            transactions[index]['cleared'] = true;
+      final index = transactions.indexWhere((t) => t['_id'] == id);
+      if (index == -1) return;
+      final previousValue = transactions[index]['cleared'] == true;
+      final token = DateTime.now().microsecondsSinceEpoch;
+      _clearActionTokens[id] = token;
+
+      setState(() {
+        transactions[index]['cleared'] = true;
+        filterTransactions(searchQuery);
+      });
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Quick transaction cleared'),
+          action: SnackBarAction(
+            label: 'UNDO',
+            onPressed: () {
+              _clearActionTokens.remove(id);
+              setState(() {
+                transactions[index]['cleared'] = previousValue;
+                filterTransactions(searchQuery);
+              });
+            },
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+
+      unawaited(Future.delayed(const Duration(seconds: 4), () async {
+        if (_clearActionTokens[id] != token) return;
+        _clearActionTokens.remove(id);
+        final res =
+            await ApiClient.put('/api/quick-transactions/$id/clear', body: {});
+        if (res.statusCode == 200) {
+          if (!mounted) return;
+          ElegantNotification.success(
+            title: Text("Success"),
+            description: Text("Transaction has been successfully cleared!"),
+          ).show(context);
+        } else {
+          final error = json.decode(res.body)['error'];
+          if (!mounted) return;
+          setState(() {
+            transactions[index]['cleared'] = previousValue;
             filterTransactions(searchQuery);
-          }
-        });
-        ElegantNotification.success(
-          title: Text("Success"),
-          description: Text("Transaction has been successfully cleared!"),
-        ).show(context);
+          });
+          ElegantNotification.error(
+            title: Text("Error"),
+            description: Text(error),
+          ).show(context);
+        }
+      }));
+    }
+  }
+
+  Future<void> _duplicateQuickTransaction(
+      Map<String, dynamic> transaction) async {
+    final counterpartyEmail =
+        (_counterpartyForViewer(transaction)?['email'] ?? '').toString();
+    final result = await showDialog(
+      context: context,
+      builder: (context) => _QuickTransactionDialog(
+        prefillCounterpartyEmail: counterpartyEmail,
+        initialAmount: transaction['amount']?.toString(),
+        initialCurrency: transaction['currency']?.toString(),
+        initialDescription: transaction['description']?.toString(),
+        initialRole: _roleForViewer(transaction),
+        blockedEmails: _blockedEmails,
+        dailyRemaining:
+            _dailyLimits?['limits']?['quickTransactions']?['remaining'] ?? null,
+        isSubscribed:
+            Provider.of<SessionProvider>(context, listen: false).isSubscribed,
+      ),
+    );
+
+    if (result is Map<String, dynamic>) {
+      fetchQuickTransactions();
+      Provider.of<SessionProvider>(context, listen: false).loadFreebieCounts();
+      ElegantNotification.success(
+        title: Text("Success"),
+        description: Text("Transaction duplicated successfully!"),
+      ).show(context);
+    } else if (result is String && mounted) {
+      ElegantNotification.error(
+        title: Text("Error"),
+        description: Text(result),
+      ).show(context);
+    }
+  }
+
+  String _buildReceiptText(Map<String, dynamic> transaction) {
+    final counterparty = _counterpartyForViewer(transaction);
+    final counterpartyName =
+        (counterparty?['name'] ?? counterparty?['email'] ?? 'Unknown')
+            .toString();
+    final viewerRole =
+        _roleForViewer(transaction) == 'lender' ? 'You Lent' : 'You Borrowed';
+    final status = transaction['cleared'] == true ? 'Cleared' : 'Pending';
+    return [
+      'LenDen Quick Transaction',
+      'Amount: ${_formatDisplayAmount(transaction['amount'], transaction['currency']?.toString())}',
+      'Currency: ${transaction['currency'] ?? 'INR'}',
+      'Role: $viewerRole',
+      'Counterparty: $counterpartyName',
+      'Description: ${transaction['description'] ?? ''}',
+      'Date: ${transaction['date']?.toString().split('T').first ?? ''}',
+      'Time: ${transaction['time'] ?? ''}',
+      'Status: $status',
+    ].join('\n');
+  }
+
+  Future<void> _showReceiptDialog(Map<String, dynamic> transaction) async {
+    final receiptText = _buildReceiptText(transaction);
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Quick Receipt'),
+        content: SingleChildScrollView(
+          child: Text(
+            receiptText,
+            style: const TextStyle(height: 1.5),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: receiptText));
+              if (!mounted) return;
+              Navigator.pop(context);
+              ElegantNotification.success(
+                title: Text("Copied"),
+                description: Text("Quick transaction receipt copied."),
+              ).show(context);
+            },
+            child: const Text('Copy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              await Share.share(
+                receiptText,
+                subject: 'LenDen Quick Transaction',
+              );
+              if (!mounted) return;
+              Navigator.pop(context);
+            },
+            child: const Text('Share'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, double> _buildSummaryMetrics() {
+    double totalLent = 0;
+    double totalBorrowed = 0;
+    double totalPending = 0;
+    double clearedCount = 0;
+
+    for (final transaction in filteredTransactions) {
+      final amount = (transaction['amount'] as num?)?.toDouble() ??
+          double.tryParse('${transaction['amount']}') ??
+          0.0;
+      final sourceCurrency = (transaction['currency'] ?? 'INR').toString();
+      final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+      final canConvert = _displayCurrencyData?.canConvert(
+            sourceCurrency,
+            targetCurrency,
+          ) ??
+          (sourceCurrency.toUpperCase() == targetCurrency);
+      final displayAmount = canConvert
+          ? (_displayCurrencyData?.convert(
+                  amount, sourceCurrency, targetCurrency) ??
+              amount)
+          : amount;
+
+      if (_roleForViewer(transaction) == 'lender') {
+        totalLent += displayAmount;
       } else {
-        final error = json.decode(res.body)['error'];
-        ElegantNotification.error(
-          title: Text("Error"),
-          description: Text(error),
-        ).show(context);
+        totalBorrowed += displayAmount;
+      }
+      if (transaction['cleared'] == true) {
+        clearedCount += 1;
+      } else {
+        totalPending += displayAmount;
       }
     }
+
+    return {
+      'lent': totalLent,
+      'borrowed': totalBorrowed,
+      'pending': totalPending,
+      'cleared': clearedCount,
+    };
+  }
+
+  double _displayAmountForTransaction(Map<String, dynamic> transaction) {
+    final amount = (transaction['amount'] as num?)?.toDouble() ??
+        double.tryParse('${transaction['amount']}') ??
+        0.0;
+    final sourceCurrency = (transaction['currency'] ?? 'INR').toString();
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final canConvert = _displayCurrencyData?.canConvert(
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        (sourceCurrency.toUpperCase() == targetCurrency);
+    return canConvert
+        ? (_displayCurrencyData?.convert(
+                amount, sourceCurrency, targetCurrency) ??
+            amount)
+        : amount;
+  }
+
+  Map<String, List<Map<String, dynamic>>> _groupDisplayedTransactions(
+      List<Map<String, dynamic>> items) {
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final transaction in items) {
+      final rawDate =
+          (transaction['date'] ?? transaction['createdAt'] ?? '').toString();
+      final date = DateTime.tryParse(rawDate)?.toLocal();
+      final now = DateTime.now();
+      String label = 'Older';
+      if (date != null) {
+        if (date.year == now.year &&
+            date.month == now.month &&
+            date.day == now.day) {
+          label = 'Today';
+        } else if (date.year == now.year &&
+            date.month == now.month &&
+            date.day == now.subtract(const Duration(days: 1)).day) {
+          label = 'Yesterday';
+        } else {
+          final weekStart = now.subtract(Duration(days: now.weekday - 1));
+          final start =
+              DateTime(weekStart.year, weekStart.month, weekStart.day);
+          if (!date.isBefore(start)) {
+            label = 'This Week';
+          }
+        }
+      }
+      grouped.putIfAbsent(label, () => []).add(transaction);
+    }
+    final order = ['Today', 'Yesterday', 'This Week', 'Older'];
+    final sorted = <String, List<Map<String, dynamic>>>{};
+    for (final label in order) {
+      if (grouped.containsKey(label)) {
+        sorted[label] = grouped[label]!;
+      }
+    }
+    return sorted;
+  }
+
+  List<Map<String, dynamic>> _buildNetBalances() {
+    final balances = <String, Map<String, dynamic>>{};
+    for (final transaction in filteredTransactions) {
+      final counterparty = _counterpartyForViewer(transaction);
+      final email = (counterparty?['email'] ?? '').toString();
+      if (email.isEmpty) continue;
+      final amount = _displayAmountForTransaction(transaction);
+      final entry = balances.putIfAbsent(
+        email,
+        () => {
+          'email': email,
+          'name': (counterparty?['name'] ?? email).toString(),
+          'net': 0.0,
+        },
+      );
+      if (_roleForViewer(transaction) == 'lender') {
+        entry['net'] = ((entry['net'] as double) + amount);
+      } else {
+        entry['net'] = ((entry['net'] as double) - amount);
+      }
+    }
+    final result = balances.values.toList();
+    result.sort((a, b) =>
+        ((b['net'] as double).abs()).compareTo((a['net'] as double).abs()));
+    return result;
+  }
+
+  String _settlementStatus(Map<String, dynamic> transaction) {
+    return (transaction['settlementStatus'] ?? 'none').toString().toLowerCase();
+  }
+
+  String _settlementStatusLabel(Map<String, dynamic> transaction) {
+    final status = _settlementStatus(transaction);
+    if (status == 'pending') return 'Settlement Pending';
+    if (status == 'accepted' || transaction['cleared'] == true) {
+      return 'Settled';
+    }
+    if (status == 'rejected') return 'Settlement Rejected';
+    return 'No Settlement';
+  }
+
+  bool _canRespondToSettlement(Map<String, dynamic> transaction) {
+    final currentUserEmail = _currentUserEmail();
+    final requestedBy =
+        (transaction['settlementRequestedBy'] ?? '').toString().toLowerCase();
+    return _settlementStatus(transaction) == 'pending' &&
+        currentUserEmail != null &&
+        requestedBy.isNotEmpty &&
+        requestedBy != currentUserEmail;
+  }
+
+  Future<void> _requestSettlement(Map<String, dynamic> transaction) async {
+    final res = await ApiClient.post(
+      '/api/quick-transactions/${transaction['_id']}/request-settlement',
+      body: {},
+    );
+    final body = jsonDecode(res.body);
+    if (res.statusCode == 200) {
+      setState(() {
+        final index = transactions
+            .indexWhere((item) => item['_id'] == transaction['_id']);
+        if (index != -1) {
+          transactions[index] =
+              Map<String, dynamic>.from(body['quickTransaction'] ?? {});
+          filterTransactions(searchQuery);
+        }
+      });
+      ElegantNotification.success(
+        title: Text("Settlement Requested"),
+        description: Text("The other user can now accept or reject it."),
+      ).show(context);
+    } else {
+      ElegantNotification.error(
+        title: Text("Error"),
+        description:
+            Text((body['error'] ?? 'Unable to request settlement').toString()),
+      ).show(context);
+    }
+  }
+
+  Future<void> _respondSettlement(
+      Map<String, dynamic> transaction, String action) async {
+    final res = await ApiClient.post(
+      '/api/quick-transactions/${transaction['_id']}/respond-settlement',
+      body: {'action': action},
+    );
+    final body = jsonDecode(res.body);
+    if (res.statusCode == 200) {
+      setState(() {
+        final index = transactions
+            .indexWhere((item) => item['_id'] == transaction['_id']);
+        if (index != -1) {
+          transactions[index] =
+              Map<String, dynamic>.from(body['quickTransaction'] ?? {});
+          filterTransactions(searchQuery);
+        }
+      });
+      ElegantNotification.success(
+        title: Text(
+            action == 'accept' ? "Settlement Accepted" : "Settlement Rejected"),
+        description:
+            Text((body['message'] ?? 'Updated successfully').toString()),
+      ).show(context);
+    } else {
+      ElegantNotification.error(
+        title: Text("Error"),
+        description: Text(
+            (body['error'] ?? 'Unable to respond to settlement').toString()),
+      ).show(context);
+    }
+  }
+
+  Map<String, String?> _buildInsights() {
+    if (filteredTransactions.isEmpty) {
+      return {
+        'biggestPending': '₹0.00',
+        'mostFrequentCounterparty': 'No data',
+        'thisMonthNetFlow': '₹0.00',
+        'averageQuickAmount': '₹0.00',
+      };
+    }
+
+    Map<String, dynamic>? biggestPending;
+    final counterpartyCounts = <String, int>{};
+    final counterpartyNames = <String, String>{};
+    double monthNet = 0;
+    double totalAmount = 0;
+    final now = DateTime.now();
+
+    for (final transaction in filteredTransactions) {
+      final amount = _displayAmountForTransaction(transaction);
+      totalAmount += amount;
+      if (transaction['cleared'] != true) {
+        if (biggestPending == null ||
+            _displayAmountForTransaction(biggestPending) < amount) {
+          biggestPending = transaction;
+        }
+      }
+
+      final counterparty = _counterpartyForViewer(transaction);
+      final email = (counterparty?['email'] ?? '').toString();
+      final name = (counterparty?['name'] ?? email).toString();
+      if (email.isNotEmpty) {
+        counterpartyCounts[email] = (counterpartyCounts[email] ?? 0) + 1;
+        counterpartyNames[email] = name;
+      }
+
+      final date = DateTime.tryParse(
+        (transaction['date'] ?? transaction['createdAt'] ?? '').toString(),
+      )?.toLocal();
+      if (date != null && date.year == now.year && date.month == now.month) {
+        if (_roleForViewer(transaction) == 'lender') {
+          monthNet += amount;
+        } else {
+          monthNet -= amount;
+        }
+      }
+    }
+
+    String mostFrequent = 'No data';
+    if (counterpartyCounts.isNotEmpty) {
+      final top = counterpartyCounts.entries.reduce(
+        (a, b) => a.value >= b.value ? a : b,
+      );
+      mostFrequent = counterpartyNames[top.key] ?? top.key;
+    }
+
+    return {
+      'biggestPending': biggestPending == null
+          ? '₹0.00'
+          : _formatSelectedCurrencyValue(
+              _displayAmountForTransaction(biggestPending),
+            ),
+      'mostFrequentCounterparty': mostFrequent,
+      'thisMonthNetFlow':
+          '${monthNet >= 0 ? '+' : '-'}${_formatSelectedCurrencyValue(monthNet.abs())}',
+      'averageQuickAmount': _formatSelectedCurrencyValue(
+          totalAmount / filteredTransactions.length),
+    };
+  }
+
+  String _formatSelectedCurrencyValue(num value) {
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final symbol = _displayCurrencyData?.symbolFor(targetCurrency) ??
+        (targetCurrency == 'INR' ? '₹' : targetCurrency);
+    return '$symbol${value.toStringAsFixed(2)}';
+  }
+
+  Widget _buildRoleChip(String label, String value, IconData icon) {
+    final isSelected = _roleFilter == value;
+    return GestureDetector(
+      onTap: () => _applyRoleFilter(value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF00B4D8) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF00B4D8) : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon,
+                size: 18,
+                color: isSelected ? Colors.white : Colors.grey.shade700),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.grey.shade800,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required List<Color> colors,
+  }) {
+    return Container(
+      width: 165,
+      margin: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          colors: colors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.first.withOpacity(0.25),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: Colors.white, size: 24),
+          const Spacer(),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String label, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSortOptions() {
@@ -774,20 +1667,39 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Filter By Status',
+              'Filter Transactions',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 16),
+            Text(
+              'Status',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[700],
+              ),
+            ),
             _buildFilterOption('All Transactions', 'all', Icons.list),
             _buildFilterOption('Cleared Only', 'cleared', Icons.check_circle),
             _buildFilterOption('Not Cleared', 'not_cleared', Icons.pending),
+            const SizedBox(height: 8),
+            Text(
+              'Date Range',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[700],
+              ),
+            ),
+            _buildDateFilterOption('All Time', 'all', Icons.all_inclusive),
+            _buildDateFilterOption('Today', 'today', Icons.today),
+            _buildDateFilterOption('This Week', 'week', Icons.date_range),
+            _buildDateFilterOption('This Month', 'month', Icons.calendar_month),
           ],
         ),
       ),
     );
   }
-
-
 
   Widget _buildFilterOption(String label, String value, IconData icon) {
     final isSelected = filterBy == value;
@@ -829,6 +1741,25 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
   }
 
+  Widget _buildDateFilterOption(String label, String value, IconData icon) {
+    final isSelected = _dateFilter == value;
+    return ListTile(
+      leading: Icon(icon, color: isSelected ? Color(0xFF00B4D8) : Colors.grey),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? Color(0xFF00B4D8) : Colors.black87,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      trailing: isSelected ? Icon(Icons.check, color: Color(0xFF00B4D8)) : null,
+      onTap: () {
+        _applyDateFilter(value);
+        Navigator.pop(context);
+      },
+    );
+  }
+
   Color _getNoteColor(int index) {
     final colors = [
       Color(0xFFFFF4E6), // Cream
@@ -845,353 +1776,556 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   Widget build(BuildContext context) {
     final displayedTransactions =
         _showAll ? filteredTransactions : filteredTransactions.take(3).toList();
+    final counterpartyOptions = _counterpartyOptions();
+    final groupedTransactions =
+        _groupDisplayedTransactions(displayedTransactions);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FA),
       body: Stack(
         children: [
           // Main content
-          Column(
-            children: [
-              SizedBox(height: 120), // Reduced space for smaller wave
-              Consumer<SessionProvider>(
-                builder: (context, session, child) {
-                  if (session.isSubscribed) {
-                    return Text('You have unlimited quick transactions.',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold));
-                  }
-                  final remaining = session.freeQuickTransactionsRemaining;
-                  if (remaining == null) {
-                    return SizedBox.shrink();
-                  }
-                  return Text(
-                      'You have $remaining free quick transactions remaining.',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold));
-                },
-              ),
-              // Search Bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(27),
-                    gradient: const LinearGradient(
-                      colors: [Colors.orange, Colors.white, Colors.green],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.08),
-                        blurRadius: 10,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.only(top: 90, bottom: 110),
+              child: Column(
+                children: [
+                  Consumer<SessionProvider>(
+                    builder: (context, session, child) {
+                      if (session.isSubscribed) {
+                        return Text('You have unlimited quick transactions.',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold));
+                      }
+                      final remaining = session.freeQuickTransactionsRemaining;
+                      if (remaining == null) {
+                        return SizedBox.shrink();
+                      }
+                      return Text(
+                          'You have $remaining free quick transactions remaining.',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold));
+                    },
                   ),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.search, color: Colors.grey[400], size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            onChanged: filterTransactions,
-                            decoration: InputDecoration(
-                              hintText:
-                                  'Search by description, amount, or user...',
-                              hintStyle: TextStyle(
-                                  color: Colors.grey[400], fontSize: 15),
-                              border: InputBorder.none,
-                              contentPadding:
-                                  const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            style: const TextStyle(fontSize: 15),
-                          ),
-                        ),
-                        if (searchQuery.isNotEmpty)
-                          IconButton(
-                            icon: Icon(Icons.clear,
-                                color: Colors.grey[400], size: 20),
-                            onPressed: () {
-                              setState(() {
-                                searchQuery = '';
-                              });
-                              filterTransactions('');
-                            },
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-              if (_displayCurrencyError != null ||
-                  _hasMissingConversionForQuickTransactions())
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF1F1),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFFF6B6B)),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.error_outline,
-                            color: Color(0xFFD62828), size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            _displayCurrencyError ??
-                                'Conversion to $_selectedDisplayCurrency is not available for one or more quick transactions. Showing original currencies instead.',
-                            style: const TextStyle(
-                              color: Color(0xFFD62828),
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    const Text(
-                      'Show In',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    _buildCurrencySelector(),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Filter and Sort buttons
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Filter button
-                    GestureDetector(
-                      onTap: _showFilterOptions,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          gradient: const LinearGradient(
-                            colors: [Colors.orange, Colors.white, Colors.green],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                filterBy == 'all'
-                                    ? Icons.filter_alt_outlined
-                                    : Icons.filter_alt,
-                                color: filterBy == 'all'
-                                    ? Colors.black87
-                                    : Color(0xFF00B4D8),
-                                size: 18,
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                filterBy == 'all'
-                                    ? 'Filter'
-                                    : filterBy == 'cleared'
-                                        ? 'Cleared'
-                                        : 'Not Cleared',
-                                style: TextStyle(
-                                  color: filterBy == 'all'
-                                      ? Colors.black87
-                                      : Color(0xFF00B4D8),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildRoleChip('All', 'all', Icons.apps_rounded),
+                          const SizedBox(width: 8),
+                          _buildRoleChip(
+                              'You Lent', 'lent', Icons.arrow_upward_rounded),
+                          const SizedBox(width: 8),
+                          _buildRoleChip('You Borrowed', 'borrowed',
+                              Icons.arrow_downward_rounded),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: _toggleShowFavourites,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _showFavouritesOnly
+                                    ? const Color(0xFF00B4D8)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: _showFavouritesOnly
+                                      ? const Color(0xFF00B4D8)
+                                      : Colors.grey.shade300,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Sort button
-                    GestureDetector(
-                      onTap: _showSortOptions,
-                      child: Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          gradient: const LinearGradient(
-                            colors: [Colors.orange, Colors.white, Colors.green],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.sort, color: Colors.black87, size: 18),
-                              SizedBox(width: 6),
-                              Text(
-                                'Sort',
-                                style: TextStyle(
-                                  color: Colors.black87,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Transactions List
-              Expanded(
-                child: loading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: Colors.black87))
-                    : error != null
-                        ? Center(
-                            child: Text(error!,
-                                style: const TextStyle(color: Colors.red)))
-                        : filteredTransactions.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.receipt_long,
-                                        size: 80, color: Colors.grey[400]),
-                                    const SizedBox(height: 20),
-                                    Text(
-                                      searchQuery.isNotEmpty ||
-                                              filterBy != 'all'
-                                          ? 'No transactions found'
-                                          : 'No quick transactions yet.',
-                                      style: TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.grey[600]),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.favorite,
+                                    size: 18,
+                                    color: _showFavouritesOnly
+                                        ? Colors.white
+                                        : Colors.grey.shade700,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'Favourites',
+                                    style: TextStyle(
+                                      color: _showFavouritesOnly
+                                          ? Colors.white
+                                          : Colors.grey.shade800,
+                                      fontWeight: FontWeight.w700,
                                     ),
-                                    const SizedBox(height: 10),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Search Bar
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(27),
+                        gradient: const LinearGradient(
+                          colors: [Colors.orange, Colors.white, Colors.green],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 10,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.search,
+                                color: Colors.grey[400], size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: _searchController,
+                                onChanged: filterTransactions,
+                                decoration: InputDecoration(
+                                  hintText:
+                                      'Search by description, amount, or user...',
+                                  hintStyle: TextStyle(
+                                      color: Colors.grey[400], fontSize: 15),
+                                  border: InputBorder.none,
+                                  contentPadding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                                style: const TextStyle(fontSize: 15),
+                              ),
+                            ),
+                            if (searchQuery.isNotEmpty)
+                              IconButton(
+                                icon: Icon(Icons.clear,
+                                    color: Colors.grey[400], size: 20),
+                                onPressed: () {
+                                  setState(() {
+                                    searchQuery = '';
+                                  });
+                                  filterTransactions('');
+                                },
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                  if (_displayCurrencyError != null ||
+                      _hasMissingConversionForQuickTransactions())
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF1F1),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFFF6B6B)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.error_outline,
+                                color: Color(0xFFD62828), size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _displayCurrencyError ??
+                                    'Conversion to $_selectedDisplayCurrency is not available for one or more quick transactions. Showing original currencies instead.',
+                                style: const TextStyle(
+                                  color: Color(0xFFD62828),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Colors.orange,
+                                  Colors.white,
+                                  Colors.green
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
+                            child: Container(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<String>(
+                                  isExpanded: true,
+                                  value: _selectedCounterparty,
+                                  icon: const Icon(
+                                      Icons.keyboard_arrow_down_rounded),
+                                  items: counterpartyOptions
+                                      .map(
+                                        (item) => DropdownMenuItem<String>(
+                                          value: item['email'],
+                                          child: Text(
+                                            item['label'] ?? 'All People',
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value == null) return;
+                                    _applyCounterpartyFilter(value);
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text(
+                              'Show In',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            _buildCurrencySelector(),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Filter and Sort buttons
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Filter button
+                        GestureDetector(
+                          onTap: _showFilterOptions,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Colors.orange,
+                                  Colors.white,
+                                  Colors.green
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    filterBy == 'all'
+                                        ? Icons.filter_alt_outlined
+                                        : Icons.filter_alt,
+                                    color: filterBy == 'all'
+                                        ? Colors.black87
+                                        : Color(0xFF00B4D8),
+                                    size: 18,
+                                  ),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    _filterSummaryLabel(),
+                                    style: TextStyle(
+                                      color: !_hasActiveFilters()
+                                          ? Colors.black87
+                                          : Color(0xFF00B4D8),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Sort button
+                        GestureDetector(
+                          onTap: _showSortOptions,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Colors.orange,
+                                  Colors.white,
+                                  Colors.green
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.sort,
+                                      color: Colors.black87, size: 18),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    _sortSummaryLabel(),
+                                    style: TextStyle(
+                                      color: Colors.black87,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (_hasActiveFilters()) ...[
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: _resetFilters,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Colors.orange,
+                                    Colors.white,
+                                    Colors.green
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(Icons.restart_alt_rounded,
+                                        color: Color(0xFFD62828), size: 18),
+                                    SizedBox(width: 6),
                                     Text(
-                                      searchQuery.isNotEmpty ||
-                                              filterBy != 'all'
-                                          ? 'Try adjusting your search or filters'
-                                          : 'Tap the "+" button to create your first one!',
-                                      textAlign: TextAlign.center,
+                                      'Reset',
                                       style: TextStyle(
-                                          fontSize: 16,
-                                          color: Colors.grey[500]),
+                                        color: Color(0xFFD62828),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ],
                                 ),
-                              )
-                            : Column(
-                                children: [
-                                  Expanded(
-                                    child: ListView.separated(
-                                      padding: const EdgeInsets.fromLTRB(
-                                          20.0,
-                                          8,
-                                          20.0,
-                                          110), // Added bottom padding to prevent bottom wave overlap
-                                      itemCount: displayedTransactions.length,
-                                      separatorBuilder: (_, __) =>
-                                          const SizedBox(height: 16),
-                                      itemBuilder: (context, i) {
-                                        final transaction =
-                                            displayedTransactions[i];
-                                        return _buildQuickTransactionCard(
-                                            transaction, i);
-                                      },
-                                    ),
-                                  ),
-                                  if (filteredTransactions.length > 3)
-                                    Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 100.0),
-                                      child: TextButton(
-                                        onPressed: () {
-                                          setState(() {
-                                            _showAll = !_showAll;
-                                          });
-                                        },
-                                        child: Text(
-                                          _showAll
-                                              ? 'Show Less'
-                                              : 'See All Transactions',
-                                          style: const TextStyle(
-                                            color:
-                                                Color.fromARGB(255, 6, 18, 20),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Transactions List
+                  loading
+                      ? const Center(
+                          child:
+                              CircularProgressIndicator(color: Colors.black87))
+                      : error != null
+                          ? Center(
+                              child: Text(error!,
+                                  style: const TextStyle(color: Colors.red)))
+                          : filteredTransactions.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.receipt_long,
+                                          size: 80, color: Colors.grey[400]),
+                                      const SizedBox(height: 20),
+                                      Text(
+                                        searchQuery.isNotEmpty ||
+                                                filterBy != 'all' ||
+                                                _roleFilter != 'all' ||
+                                                _dateFilter != 'all' ||
+                                                _selectedCounterparty != 'all'
+                                            ? 'No transactions found'
+                                            : 'No quick transactions yet.',
+                                        style: TextStyle(
+                                            fontSize: 22,
                                             fontWeight: FontWeight.bold,
+                                            color: Colors.grey[600]),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        searchQuery.isNotEmpty ||
+                                                filterBy != 'all' ||
+                                                _roleFilter != 'all' ||
+                                                _dateFilter != 'all' ||
+                                                _selectedCounterparty != 'all'
+                                            ? 'Try adjusting your search or filters'
+                                            : 'Tap the "+" button to create your first one!',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.grey[500]),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Column(
+                                  children: [
+                                    ListView(
+                                      shrinkWrap: true,
+                                      physics:
+                                          const NeverScrollableScrollPhysics(),
+                                      padding: const EdgeInsets.fromLTRB(
+                                          20.0, 8, 20.0, 20.0),
+                                      children: groupedTransactions.entries
+                                          .expand((entry) {
+                                        final sectionIndex = groupedTransactions
+                                            .keys
+                                            .toList()
+                                            .indexOf(entry.key);
+                                        return <Widget>[
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                                top: 6, bottom: 10),
+                                            child: Text(
+                                              entry.key,
+                                              style: const TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ),
+                                          ...entry.value
+                                              .asMap()
+                                              .entries
+                                              .map((item) {
+                                            return Padding(
+                                              key: ValueKey(
+                                                  (item.value['_id'] ?? '')
+                                                      .toString()),
+                                              padding: const EdgeInsets.only(
+                                                  bottom: 16),
+                                              child: _buildQuickTransactionCard(
+                                                item.value,
+                                                sectionIndex + item.key,
+                                              ),
+                                            );
+                                          }),
+                                        ];
+                                      }).toList(),
+                                    ),
+                                    if (filteredTransactions.length > 3)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 20.0),
+                                        child: TextButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              _showAll = !_showAll;
+                                            });
+                                          },
+                                          child: Text(
+                                            _showAll
+                                                ? 'Show Less'
+                                                : 'See All Transactions',
+                                            style: const TextStyle(
+                                              color: Color.fromARGB(
+                                                  255, 6, 18, 20),
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                ],
               ),
-            ],
+            ),
           ),
 
           // Bottom wave - same size as top wave
@@ -1314,133 +2448,378 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
 
   Widget _buildQuickTransactionCard(Map<String, dynamic> transaction, int i) {
     final bool isCleared = transaction['cleared'] == true;
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: const LinearGradient(
-          colors: [Colors.orange, Colors.white, Colors.green],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final roleForViewer = _roleForViewer(transaction);
+    final counterparty = _counterpartyForViewer(transaction);
+    final settlementStatus = _settlementStatus(transaction);
+    final settlementRequestedBy =
+        (transaction['settlementRequestedBy'] ?? '').toString().toLowerCase();
+    final requestedByYou = settlementRequestedBy.isNotEmpty &&
+        settlementRequestedBy == _currentUserEmail();
+    final creatorName =
+        (List<Map<String, dynamic>>.from(transaction['users'] ?? []))
+            .firstWhere(
+      (user) =>
+          (user['email'] ?? '').toString().toLowerCase().trim() ==
+          (transaction['creatorEmail'] ?? '').toString().toLowerCase().trim(),
+      orElse: () => {
+        'name': transaction['creatorEmail'] ?? 'Unknown',
+        'email': transaction['creatorEmail'] ?? 'Unknown',
+      },
+    );
+    final isPinned =
+        _pinnedTransactionIds.contains((transaction['_id'] ?? '').toString());
+    return Slidable(
+        key: ValueKey((transaction['_id'] ?? '').toString()),
+        startActionPane: ActionPane(
+          motion: const DrawerMotion(),
+          children: [
+            if (!isCleared && settlementStatus != 'pending')
+              SlidableAction(
+                onPressed: (_) => _requestSettlement(transaction),
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+                icon: Icons.handshake_rounded,
+                label: 'Settle',
+              ),
+            SlidableAction(
+              onPressed: (_) => _showReceiptDialog(transaction),
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
+              icon: Icons.share_rounded,
+              label: 'Share',
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+        endActionPane: ActionPane(
+          motion: const DrawerMotion(),
+          children: [
+            if (!isCleared)
+              SlidableAction(
+                onPressed: (_) =>
+                    createOrEditQuickTransaction(transaction: transaction),
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+                icon: Icons.edit,
+                label: 'Edit',
+              ),
+            SlidableAction(
+              onPressed: (_) => deleteQuickTransaction(transaction['_id']),
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              icon: Icons.delete,
+              label: 'Delete',
+            ),
+          ],
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _getNoteColor(i),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: SingleChildScrollView(
-          // Added vertical scroll
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Container(
+            decoration: BoxDecoration(
+              color: _getNoteColor(i),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: SingleChildScrollView(
+              // Added vertical scroll
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        // Added horizontal scroll for amount
-                        scrollDirection: Axis.horizontal,
-                        child: Text(
-                          '${_formatDisplayAmount(transaction['amount'], transaction['currency']?.toString())} • ${(_displayCurrencyData?.canConvert((transaction['currency'] ?? 'INR').toString(), _selectedDisplayCurrency) ?? ((transaction['currency'] ?? 'INR').toString().toUpperCase() == _selectedDisplayCurrency.toUpperCase())) ? _selectedDisplayCurrency : (transaction['currency'] ?? 'INR')}',
-                          style: const TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: SingleChildScrollView(
+                            // Added horizontal scroll for amount
+                            scrollDirection: Axis.horizontal,
+                            child: Text(
+                              '${_formatDisplayAmount(transaction['amount'], transaction['currency']?.toString())} • ${(_displayCurrencyData?.canConvert((transaction['currency'] ?? 'INR').toString(), _selectedDisplayCurrency) ?? ((transaction['currency'] ?? 'INR').toString().toUpperCase() == _selectedDisplayCurrency.toUpperCase())) ? _selectedDisplayCurrency : (transaction['currency'] ?? 'INR')}',
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        IconButton(
+                          onPressed: () => _togglePinTransaction(
+                              (transaction['_id'] ?? '').toString()),
+                          icon: Icon(
+                            isPinned ? Icons.star : Icons.star_border_rounded,
+                            color:
+                                isPinned ? Colors.amber[700] : Colors.grey[600],
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () =>
+                              _toggleQuickTransactionFavourite(transaction),
+                          icon: Icon(
+                            _isQuickTransactionFavourited(transaction)
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            color: _isQuickTransactionFavourited(transaction)
+                                ? Colors.redAccent
+                                : Colors.grey[600],
+                          ),
+                        ),
+                        if (isCleared)
+                          Text(
+                            'Cleared',
+                            style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        PopupMenuButton<String>(
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              createOrEditQuickTransaction(
+                                  transaction: transaction);
+                            } else if (value == 'duplicate') {
+                              _duplicateQuickTransaction(transaction);
+                            } else if (value == 'delete') {
+                              deleteQuickTransaction(transaction['_id']);
+                            } else if (value == 'request_settlement') {
+                              _requestSettlement(transaction);
+                            } else if (value == 'accept_settlement') {
+                              _respondSettlement(transaction, 'accept');
+                            } else if (value == 'reject_settlement') {
+                              _respondSettlement(transaction, 'reject');
+                            } else if (value == 'share') {
+                              _showReceiptDialog(transaction);
+                            } else if (value == 'pin') {
+                              _togglePinTransaction(
+                                  (transaction['_id'] ?? '').toString());
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            if (!isCleared)
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: Text('Edit'),
+                              ),
+                            if (!isCleared && settlementStatus != 'pending')
+                              const PopupMenuItem(
+                                value: 'request_settlement',
+                                child: Text('Request Settlement'),
+                              ),
+                            if (_canRespondToSettlement(transaction))
+                              const PopupMenuItem(
+                                value: 'accept_settlement',
+                                child: Text('Accept Settlement'),
+                              ),
+                            if (_canRespondToSettlement(transaction))
+                              const PopupMenuItem(
+                                value: 'reject_settlement',
+                                child: Text('Reject Settlement'),
+                              ),
+                            const PopupMenuItem(
+                              value: 'duplicate',
+                              child: Text('Duplicate'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'share',
+                              child: Text('Share / Receipt'),
+                            ),
+                            PopupMenuItem(
+                              value: 'pin',
+                              child: Text(isPinned ? 'Unpin' : 'Pin'),
+                            ),
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete'),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                    if (isCleared)
-                      Text(
-                        'Cleared',
-                        style: TextStyle(
-                            color: Colors.green, fontWeight: FontWeight.bold),
-                      ),
-                    PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          createOrEditQuickTransaction(
-                              transaction: transaction);
-                        } else if (value == 'delete') {
-                          deleteQuickTransaction(transaction['_id']);
-                        } else if (value == 'clear') {
-                          clearQuickTransaction(transaction['_id']);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        if (!isCleared)
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Text('Edit'),
-                          ),
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Delete'),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildStatusChip(
+                          isCleared
+                              ? 'Cleared'
+                              : settlementStatus == 'pending'
+                                  ? 'Pending'
+                                  : 'Open',
+                          isCleared
+                              ? Colors.green
+                              : settlementStatus == 'pending'
+                                  ? Colors.orange
+                                  : Colors.blueGrey,
+                          isCleared
+                              ? Icons.check_circle_outline
+                              : settlementStatus == 'pending'
+                                  ? Icons.pending_actions_rounded
+                                  : Icons.receipt_long_rounded,
                         ),
-                        if (!isCleared)
-                          const PopupMenuItem(
-                            value: 'clear',
-                            child: Text('Clear'),
+                        _buildStatusChip(
+                          roleForViewer == 'lender'
+                              ? 'You Lent'
+                              : 'You Borrowed',
+                          roleForViewer == 'lender'
+                              ? const Color(0xFF1B58B8)
+                              : const Color(0xFFD95F02),
+                          roleForViewer == 'lender'
+                              ? Icons.north_east_rounded
+                              : Icons.south_west_rounded,
+                        ),
+                        if (isPinned)
+                          _buildStatusChip(
+                            'Pinned',
+                            Colors.amber[800]!,
+                            Icons.star_rounded,
+                          ),
+                        if (settlementStatus != 'none')
+                          _buildStatusChip(
+                            _settlementStatusLabel(transaction),
+                            settlementStatus == 'accepted'
+                                ? Colors.green
+                                : settlementStatus == 'rejected'
+                                    ? Colors.red
+                                    : Colors.teal,
+                            settlementStatus == 'accepted'
+                                ? Icons.verified_rounded
+                                : settlementStatus == 'rejected'
+                                    ? Icons.close_rounded
+                                    : Icons.handshake_rounded,
                           ),
                       ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  // Added horizontal scroll for description
-                  scrollDirection: Axis.horizontal,
-                  child: Text(
-                    transaction['description'] ?? '',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  // Added horizontal scroll for user info
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        (transaction['users'] as List)
-                            .map((u) => u['name'] as String)
-                            .join(', '),
+                    const SizedBox(height: 12),
+                    SingleChildScrollView(
+                      // Added horizontal scroll for description
+                      scrollDirection: Axis.horizontal,
+                      child: Text(
+                        transaction['description'] ?? '',
                         style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
+                          fontSize: 16,
+                          color: Colors.grey[700],
                         ),
                       ),
-                      SizedBox(width: 16),
-                      Text(
-                        '${transaction['date']?.substring(0, 10)} at ${transaction['time']}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
+                    ),
+                    const SizedBox(height: 12),
+                    SingleChildScrollView(
+                      // Added horizontal scroll for user info
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            (counterparty?['name'] ??
+                                    counterparty?['email'] ??
+                                    'Unknown')
+                                .toString(),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Text(
+                            '${transaction['date']?.substring(0, 10)} at ${transaction['time']}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _isCurrentUserCreator(transaction)
+                          ? 'Created by you'
+                          : 'Created by ${creatorName['name'] ?? creatorName['email'] ?? 'Unknown'}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[700],
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    if (settlementStatus == 'pending') ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F7FB),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFF7AD7EA)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              requestedByYou
+                                  ? 'Settlement requested by you'
+                                  : 'Settlement requested by the other user',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF0087A8),
+                              ),
+                            ),
+                            if (_canRespondToSettlement(transaction)) ...[
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () => _respondSettlement(
+                                          transaction, 'reject'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.red,
+                                      ),
+                                      child: const Text(
+                                        'Reject',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () => _respondSettlement(
+                                          transaction, 'accept'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                      ),
+                                      child: const Text(
+                                        'Accept',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        ));
   }
 }
 
@@ -1448,6 +2827,10 @@ class _QuickTransactionDialog extends StatefulWidget {
   final Map<String, dynamic>? transaction;
   final bool useCoins;
   final String? prefillCounterpartyEmail;
+  final String? initialAmount;
+  final String? initialCurrency;
+  final String? initialDescription;
+  final String? initialRole;
   final Set<String> blockedEmails;
   final int? dailyRemaining;
   final bool isSubscribed;
@@ -1457,6 +2840,10 @@ class _QuickTransactionDialog extends StatefulWidget {
       this.transaction,
       this.useCoins = false,
       this.prefillCounterpartyEmail,
+      this.initialAmount,
+      this.initialCurrency,
+      this.initialDescription,
+      this.initialRole,
       this.blockedEmails = const {},
       this.dailyRemaining,
       this.isSubscribed = false})
@@ -1528,6 +2915,10 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
     } else if ((widget.prefillCounterpartyEmail ?? '').isNotEmpty) {
       _counterpartyEmailController.text =
           widget.prefillCounterpartyEmail!.trim();
+      _amountController.text = widget.initialAmount ?? '';
+      _currency = widget.initialCurrency ?? 'INR';
+      _descriptionController.text = widget.initialDescription ?? '';
+      _role = widget.initialRole ?? 'lender';
     }
   }
 
@@ -1626,8 +3017,7 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                         ),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: _getQuickNoteColor(
-                                email.hashCode.abs() % 6),
+                            color: _getQuickNoteColor(email.hashCode.abs() % 6),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: ListTile(
@@ -1935,14 +3325,18 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                           runSpacing: 8,
                           children: _suggestions.map((f) {
                             final email = (f['email'] ?? '').toString();
-                            final name = (f['name'] ?? f['username'] ?? '')
-                                .toString();
+                            final name =
+                                (f['name'] ?? f['username'] ?? '').toString();
                             return Container(
                               padding: const EdgeInsets.all(2),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(18),
                                 gradient: const LinearGradient(
-                                  colors: [Colors.orange, Colors.white, Colors.green],
+                                  colors: [
+                                    Colors.orange,
+                                    Colors.white,
+                                    Colors.green
+                                  ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
@@ -2071,7 +3465,8 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
 
                                       if (res.statusCode == 200 ||
                                           res.statusCode == 201) {
-                                        Navigator.pop(context, json.decode(res.body));
+                                        Navigator.pop(
+                                            context, json.decode(res.body));
                                       } else {
                                         final error =
                                             json.decode(res.body)['error'] ??
