@@ -6,6 +6,7 @@ import '../../Settings/privacy_settings_page.dart';
 import '../../session.dart';
 import '../../utils/api_client.dart';
 import '../../utils/display_currency_helper.dart';
+import 'quick_transactions_page.dart';
 
 class AnalyticsPage extends StatefulWidget {
   final List<dynamic>? transactions;
@@ -443,8 +444,28 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     };
   }
 
+  List<Map<String, dynamic>> _buildQuickBreakdown() {
+    final total = _quickTransactions.length.toDouble();
+    final lent = _quickTransactions
+        .where((t) => _roleForViewer(t) == 'lender')
+        .length
+        .toDouble();
+    final borrowed = total - lent;
+    final cleared =
+        _quickTransactions.where((t) => t['cleared'] == true).length.toDouble();
+    final pending = total - cleared;
+
+    return [
+      {'title': 'Lent', 'value': lent},
+      {'title': 'Borrowed', 'value': borrowed},
+      {'title': 'Cleared', 'value': cleared},
+      {'title': 'Pending', 'value': pending},
+    ];
+  }
+
   List<Map<String, dynamic>> _buildQuickNetBalances() {
     final balances = <String, Map<String, dynamic>>{};
+
     for (final transaction in _quickTransactions) {
       final users = List<Map<String, dynamic>>.from(transaction['users'] ?? []);
       final counterparty = users.firstWhere(
@@ -454,26 +475,198 @@ class _AnalyticsPageState extends State<AnalyticsPage>
         orElse: () => {},
       );
       final email = (counterparty['email'] ?? '').toString();
+      final name = (counterparty['name'] ?? email).toString();
       if (email.isEmpty) continue;
-      final amount = _displayAmountForTransaction(transaction);
-      final entry = balances.putIfAbsent(
-        email,
-        () => {
+
+      if (!balances.containsKey(email)) {
+        balances[email] = {
           'email': email,
-          'name': (counterparty['name'] ?? email).toString(),
+          'name': name,
           'net': 0.0,
-        },
-      );
-      if (_roleForViewer(transaction) == 'lender') {
-        entry['net'] = ((entry['net'] as double) + amount);
-      } else {
-        entry['net'] = ((entry['net'] as double) - amount);
+        };
       }
+
+      final amount = _displayAmountForTransaction(transaction);
+      final isLender = _roleForViewer(transaction) == 'lender';
+      if (isLender) {
+        (balances[email]!['net'] as double) + amount;
+      } else {
+        (balances[email]!['net'] as double) - amount;
+      }
+      balances[email]!['net'] = ((balances[email]!['net'] as double?) ?? 0.0) +
+          (isLender ? amount : -amount);
     }
-    final result = balances.values.toList();
-    result.sort((a, b) =>
-        ((b['net'] as double).abs()).compareTo((a['net'] as double).abs()));
-    return result;
+
+    return balances.values.toList();
+  }
+
+  List<Map<String, dynamic>> _buildTopQuickPartners() {
+    final totals = <String, double>{};
+    final names = <String, String>{};
+
+    for (final transaction in _quickTransactions) {
+      final users = List<Map<String, dynamic>>.from(transaction['users'] ?? []);
+      final counterparty = users.firstWhere(
+        (user) =>
+            (user['email'] ?? '').toString().toLowerCase().trim() !=
+            _currentUserEmail(),
+        orElse: () => {},
+      );
+      final email = (counterparty['email'] ?? '').toString();
+      final name = (counterparty['name'] ?? email).toString();
+      if (email.isEmpty) continue;
+      final amount = _displayAmountForTransaction(transaction).abs();
+      totals[email] = (totals[email] ?? 0) + amount;
+      names[email] = name;
+    }
+
+    final sorted = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return sorted
+        .take(3)
+        .map((entry) => {
+              'email': entry.key,
+              'name': names[entry.key] ?? entry.key,
+              'amount': entry.value,
+            })
+        .toList();
+  }
+
+  List<FlSpot> _buildQuickTrendSpots() {
+    final monthlyCounts = (_quickAnalytics?['monthlyCounts'] as List<dynamic>?)
+            ?.map((count) => (count as num).toDouble())
+            .toList() ??
+        [];
+    return List<FlSpot>.generate(
+      monthlyCounts.length,
+      (index) => FlSpot(index.toDouble(), monthlyCounts[index]),
+    );
+  }
+
+  List<String> _buildQuickTrendLabels() {
+    final months = List<String>.from(_quickAnalytics?['months'] ?? const []);
+    final spots = _buildQuickTrendSpots();
+    if (months.length == spots.length && months.isNotEmpty) {
+      return months;
+    }
+    return List<String>.generate(spots.length, (index) => 'M${index + 1}');
+  }
+
+  Widget _buildQuickTrendChart() {
+    final spots = _buildQuickTrendSpots();
+    final labels = _buildQuickTrendLabels();
+    if (spots.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: const Center(
+          child: Text('No quick trend data available yet.'),
+        ),
+      );
+    }
+
+    final maxY = spots.isEmpty
+        ? 1
+        : spots.map((e) => e.y).reduce((a, b) => a > b ? a : b);
+    final dynamicInterval = spots.length > 6 ? 2.0 : 1.0;
+
+    return Container(
+      height: 260,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: LineChart(
+        LineChartData(
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            horizontalInterval: maxY / 4,
+            getDrawingHorizontalLine: (value) => FlLine(
+              color: Colors.grey.withOpacity(0.16),
+              strokeWidth: 1,
+            ),
+          ),
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 42,
+                interval: maxY / 4,
+              ),
+            ),
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                interval: dynamicInterval,
+                reservedSize: 35,
+                getTitlesWidget: (value, meta) {
+                  final index = value.toInt();
+                  if (index < 0 || index >= labels.length) {
+                    return const SizedBox.shrink();
+                  }
+                  // Shorten label format for better fit
+                  final label = labels[index];
+                  final shortened = label.length > 7
+                      ? label.replaceAll(RegExp(r'/0'), '/')
+                      : label;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Transform.rotate(
+                      angle: -0.3,
+                      child: Text(
+                        shortened,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          lineBarsData: [
+            LineChartBarData(
+              spots: spots,
+              isCurved: true,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF7C9DFF), Color(0xFF58C4DD)],
+              ),
+              barWidth: 4,
+              dotData: FlDotData(show: true),
+              belowBarData: BarAreaData(
+                show: true,
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF7C9DFF).withOpacity(0.25),
+                    const Color(0xFF58C4DD).withOpacity(0.05)
+                  ],
+                ),
+              ),
+            ),
+          ],
+          borderData: FlBorderData(show: false),
+          minY: 0,
+        ),
+      ),
+    );
   }
 
   Widget _buildSummaryCard({
@@ -1164,6 +1357,178 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                     },
                   ),
                 ),
+                const SizedBox(height: 24),
+                Text(
+                  'Quick Activity Trend',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildQuickTrendChart(),
+                const SizedBox(height: 20),
+                Text(
+                  'Quick Breakdown',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 120,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemCount: _buildQuickBreakdown().length,
+                    itemBuilder: (context, index) {
+                      final item = _buildQuickBreakdown()[index];
+                      return _buildSummaryCard(
+                        title: item['title']!.toString(),
+                        value: item['value']!.toStringAsFixed(0),
+                        icon: index == 0
+                            ? Icons.arrow_upward_rounded
+                            : index == 1
+                                ? Icons.arrow_downward_rounded
+                                : index == 2
+                                    ? Icons.check_circle_outline_rounded
+                                    : Icons.pending_actions_rounded,
+                        colors: index == 0
+                            ? const [Color(0xFF7C9DFF), Color(0xFFA9B8FF)]
+                            : index == 1
+                                ? const [Color(0xFFFF8B7B), Color(0xFFFFC2AE)]
+                                : index == 2
+                                    ? const [
+                                        Color(0xFF6BCB91),
+                                        Color(0xFFA9E4A7)
+                                      ]
+                                    : const [
+                                        Color(0xFFFFB562),
+                                        Color(0xFFFFD9A0)
+                                      ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const QuickTransactionsPage(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.list_alt_rounded),
+                    label: const Text('View Quick Transactions'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00B4D8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Top Quick Partners',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Builder(
+                  builder: (context) {
+                    final partners = _buildTopQuickPartners();
+                    if (partners.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20),
+                        child: Text(
+                          'No partner data is available yet.',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      );
+                    }
+                    return SizedBox(
+                      height: 118,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        itemCount: partners.length,
+                        itemBuilder: (context, index) {
+                          final item = partners[index];
+                          return Container(
+                            width: 180,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(22),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF7C9DFF), Color(0xFF58C4DD)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.08),
+                                  blurRadius: 14,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  item['name'].toString(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Quick interaction',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.85),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _formatSelectedCurrencyValue(
+                                      (item['amount'] as double?) ?? 0.0),
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
               ],
             ],
             const SizedBox(height: 24),

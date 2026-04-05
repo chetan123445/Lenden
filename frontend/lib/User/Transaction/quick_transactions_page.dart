@@ -15,6 +15,7 @@ import '../../widgets/subscription_prompt.dart';
 import '../../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
 import '../Digitise/gift_card_page.dart';
+import 'analytics_page.dart';
 
 class QuickTransactionsPage extends StatefulWidget {
   final String? prefillCounterpartyEmail;
@@ -265,6 +266,53 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     final symbol =
         _displayCurrencyData?.symbolFor(targetCurrency) ?? targetCurrency;
     return '$symbol${converted.toStringAsFixed(2)}';
+  }
+
+  double _displayNumericAmount(Map<String, dynamic> transaction) {
+    final amount = (transaction['amount'] as num?)?.toDouble() ??
+        double.tryParse('${transaction['amount']}') ??
+        0.0;
+    final sourceCurrency = (transaction['currency'] ?? 'INR').toString();
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final canConvert = _displayCurrencyData?.canConvert(
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        (sourceCurrency.toUpperCase() == targetCurrency);
+    return canConvert
+        ? (_displayCurrencyData?.convert(
+                amount, sourceCurrency, targetCurrency) ??
+            amount)
+        : amount;
+  }
+
+  String _topQuickCounterpartyName(
+      List<Map<String, dynamic>> transactionsList) {
+    final totals = <String, double>{};
+    final names = <String, String>{};
+    final currentEmail = _currentUserEmail();
+
+    for (final transaction in transactionsList) {
+      final users = List<Map<String, dynamic>>.from(transaction['users'] ?? []);
+      final counterparty = users.firstWhere(
+        (user) =>
+            (user['email'] ?? '').toString().toLowerCase().trim() !=
+            currentEmail,
+        orElse: () => {},
+      );
+      final email = (counterparty['email'] ?? '').toString();
+      final name = (counterparty['name'] ?? email).toString();
+      if (email.isEmpty) continue;
+      totals[email] =
+          (totals[email] ?? 0.0) + _displayNumericAmount(transaction).abs();
+      names[email] = name;
+    }
+
+    if (totals.isEmpty) return 'No counterparty';
+    final topEntry = totals.entries.reduce(
+      (a, b) => a.value >= b.value ? a : b,
+    );
+    return names[topEntry.key] ?? topEntry.key;
   }
 
   bool _hasMissingConversionForQuickTransactions() {
@@ -1227,49 +1275,6 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
   }
 
-  Map<String, double> _buildSummaryMetrics() {
-    double totalLent = 0;
-    double totalBorrowed = 0;
-    double totalPending = 0;
-    double clearedCount = 0;
-
-    for (final transaction in filteredTransactions) {
-      final amount = (transaction['amount'] as num?)?.toDouble() ??
-          double.tryParse('${transaction['amount']}') ??
-          0.0;
-      final sourceCurrency = (transaction['currency'] ?? 'INR').toString();
-      final targetCurrency = _selectedDisplayCurrency.toUpperCase();
-      final canConvert = _displayCurrencyData?.canConvert(
-            sourceCurrency,
-            targetCurrency,
-          ) ??
-          (sourceCurrency.toUpperCase() == targetCurrency);
-      final displayAmount = canConvert
-          ? (_displayCurrencyData?.convert(
-                  amount, sourceCurrency, targetCurrency) ??
-              amount)
-          : amount;
-
-      if (_roleForViewer(transaction) == 'lender') {
-        totalLent += displayAmount;
-      } else {
-        totalBorrowed += displayAmount;
-      }
-      if (transaction['cleared'] == true) {
-        clearedCount += 1;
-      } else {
-        totalPending += displayAmount;
-      }
-    }
-
-    return {
-      'lent': totalLent,
-      'borrowed': totalBorrowed,
-      'pending': totalPending,
-      'cleared': clearedCount,
-    };
-  }
-
   double _displayAmountForTransaction(Map<String, dynamic> transaction) {
     final amount = (transaction['amount'] as num?)?.toDouble() ??
         double.tryParse('${transaction['amount']}') ??
@@ -1325,33 +1330,6 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       }
     }
     return sorted;
-  }
-
-  List<Map<String, dynamic>> _buildNetBalances() {
-    final balances = <String, Map<String, dynamic>>{};
-    for (final transaction in filteredTransactions) {
-      final counterparty = _counterpartyForViewer(transaction);
-      final email = (counterparty?['email'] ?? '').toString();
-      if (email.isEmpty) continue;
-      final amount = _displayAmountForTransaction(transaction);
-      final entry = balances.putIfAbsent(
-        email,
-        () => {
-          'email': email,
-          'name': (counterparty?['name'] ?? email).toString(),
-          'net': 0.0,
-        },
-      );
-      if (_roleForViewer(transaction) == 'lender') {
-        entry['net'] = ((entry['net'] as double) + amount);
-      } else {
-        entry['net'] = ((entry['net'] as double) - amount);
-      }
-    }
-    final result = balances.values.toList();
-    result.sort((a, b) =>
-        ((b['net'] as double).abs()).compareTo((a['net'] as double).abs()));
-    return result;
   }
 
   String _settlementStatus(Map<String, dynamic> transaction) {
@@ -1437,82 +1415,6 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
             (body['error'] ?? 'Unable to respond to settlement').toString()),
       ).show(context);
     }
-  }
-
-  Map<String, String?> _buildInsights() {
-    if (filteredTransactions.isEmpty) {
-      return {
-        'biggestPending': '₹0.00',
-        'mostFrequentCounterparty': 'No data',
-        'thisMonthNetFlow': '₹0.00',
-        'averageQuickAmount': '₹0.00',
-      };
-    }
-
-    Map<String, dynamic>? biggestPending;
-    final counterpartyCounts = <String, int>{};
-    final counterpartyNames = <String, String>{};
-    double monthNet = 0;
-    double totalAmount = 0;
-    final now = DateTime.now();
-
-    for (final transaction in filteredTransactions) {
-      final amount = _displayAmountForTransaction(transaction);
-      totalAmount += amount;
-      if (transaction['cleared'] != true) {
-        if (biggestPending == null ||
-            _displayAmountForTransaction(biggestPending) < amount) {
-          biggestPending = transaction;
-        }
-      }
-
-      final counterparty = _counterpartyForViewer(transaction);
-      final email = (counterparty?['email'] ?? '').toString();
-      final name = (counterparty?['name'] ?? email).toString();
-      if (email.isNotEmpty) {
-        counterpartyCounts[email] = (counterpartyCounts[email] ?? 0) + 1;
-        counterpartyNames[email] = name;
-      }
-
-      final date = DateTime.tryParse(
-        (transaction['date'] ?? transaction['createdAt'] ?? '').toString(),
-      )?.toLocal();
-      if (date != null && date.year == now.year && date.month == now.month) {
-        if (_roleForViewer(transaction) == 'lender') {
-          monthNet += amount;
-        } else {
-          monthNet -= amount;
-        }
-      }
-    }
-
-    String mostFrequent = 'No data';
-    if (counterpartyCounts.isNotEmpty) {
-      final top = counterpartyCounts.entries.reduce(
-        (a, b) => a.value >= b.value ? a : b,
-      );
-      mostFrequent = counterpartyNames[top.key] ?? top.key;
-    }
-
-    return {
-      'biggestPending': biggestPending == null
-          ? '₹0.00'
-          : _formatSelectedCurrencyValue(
-              _displayAmountForTransaction(biggestPending),
-            ),
-      'mostFrequentCounterparty': mostFrequent,
-      'thisMonthNetFlow':
-          '${monthNet >= 0 ? '+' : '-'}${_formatSelectedCurrencyValue(monthNet.abs())}',
-      'averageQuickAmount': _formatSelectedCurrencyValue(
-          totalAmount / filteredTransactions.length),
-    };
-  }
-
-  String _formatSelectedCurrencyValue(num value) {
-    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
-    final symbol = _displayCurrencyData?.symbolFor(targetCurrency) ??
-        (targetCurrency == 'INR' ? '₹' : targetCurrency);
-    return '$symbol${value.toStringAsFixed(2)}';
   }
 
   Widget _buildRoleChip(String label, String value, IconData icon) {
@@ -1619,6 +1521,83 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
               fontWeight: FontWeight.w700,
               fontSize: 12,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickStatCards() {
+    final visibleTransactions =
+        filteredTransactions.isEmpty ? transactions : filteredTransactions;
+    final total = visibleTransactions.length;
+    final cleared =
+        visibleTransactions.where((t) => t['cleared'] == true).length;
+    final pending = total - cleared;
+    final favorites =
+        visibleTransactions.where(_isQuickTransactionFavourited).length;
+    final lent =
+        visibleTransactions.where((t) => _roleForViewer(t) == 'lender').length;
+    final totalValue = visibleTransactions.fold<double>(
+      0.0,
+      (sum, transaction) => sum + _displayNumericAmount(transaction),
+    );
+    final pendingValue = visibleTransactions.fold<double>(
+      0.0,
+      (sum, transaction) => transaction['cleared'] == true
+          ? sum
+          : sum + _displayNumericAmount(transaction),
+    );
+    final largest = visibleTransactions.fold<double>(
+      0.0,
+      (maxAmount, transaction) {
+        final amount = _displayNumericAmount(transaction);
+        return amount > maxAmount ? amount : maxAmount;
+      },
+    );
+    final topCounterparty = _topQuickCounterpartyName(visibleTransactions);
+
+    return SizedBox(
+      height: 140,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        children: [
+          _buildSummaryCard(
+            title: 'Transactions',
+            value: '$total',
+            icon: Icons.receipt_long_rounded,
+            colors: const [Color(0xFF7C9DFF), Color(0xFFA9B8FF)],
+          ),
+          _buildSummaryCard(
+            title: 'Quick Value',
+            value: _formatDisplayAmount(totalValue, _selectedDisplayCurrency),
+            icon: Icons.currency_rupee_rounded,
+            colors: const [Color(0xFF4A8FFF), Color(0xFF7FB7FF)],
+          ),
+          _buildSummaryCard(
+            title: 'Pending Value',
+            value: _formatDisplayAmount(pendingValue, _selectedDisplayCurrency),
+            icon: Icons.pending_actions_rounded,
+            colors: const [Color(0xFFFFB562), Color(0xFFFFD9A0)],
+          ),
+          _buildSummaryCard(
+            title: 'Largest Quick',
+            value: _formatDisplayAmount(largest, _selectedDisplayCurrency),
+            icon: Icons.leaderboard_rounded,
+            colors: const [Color(0xFF7C9DFF), Color(0xFF58C4DD)],
+          ),
+          _buildSummaryCard(
+            title: 'Top Counterparty',
+            value: topCounterparty,
+            icon: Icons.person_search_rounded,
+            colors: const [Color(0xFF7E74F1), Color(0xFFC0BCFF)],
+          ),
+          _buildSummaryCard(
+            title: 'You Lent',
+            value: '$lent',
+            icon: Icons.arrow_upward_rounded,
+            colors: const [Color(0xFF00B4D8), Color(0xFF48CAE4)],
           ),
         ],
       ),
@@ -1807,6 +1786,39 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                               fontSize: 16, fontWeight: FontWeight.bold));
                     },
                   ),
+                  const SizedBox(height: 12),
+                  if (!loading && error == null && transactions.isNotEmpty) ...[
+                    _buildQuickStatCards(),
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      child: Align(
+                        alignment: Alignment.center,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const AnalyticsPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.analytics_outlined),
+                          label: const Text('Open Quick Analytics'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00B4D8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
