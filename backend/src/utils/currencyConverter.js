@@ -115,14 +115,45 @@ async function convertAmountToInr(amount, currency) {
   if (!Number.isFinite(numericAmount)) return 0;
   if (normalizedCurrency === INR) return numericAmount;
 
-  const manualGraph = await fetchManualRatesToInr();
-  let rate = Number(resolveGraphRate(manualGraph, normalizedCurrency, INR) || 0);
-  if (!rate) {
-    const ratesToInr = await fetchRatesToInr();
-    rate = Number(ratesToInr[normalizedCurrency] || 0);
-  }
+  const rate = await getConversionRate(normalizedCurrency, INR);
   if (!rate) {
     throw new Error(`Unsupported currency for INR conversion: ${normalizedCurrency}`);
+  }
+
+  return Number((numericAmount * rate).toFixed(2));
+}
+
+async function getConversionRate(fromCurrency, toCurrency) {
+  const from = normalizeCurrency(fromCurrency);
+  const to = normalizeCurrency(toCurrency);
+  if (from === to) return 1;
+
+  const manualGraph = await fetchManualRatesToInr();
+  let rate = Number(resolveGraphRate(manualGraph, from, to) || 0);
+  if (!rate) {
+    const ratesToInr = await fetchRatesToInr();
+    const fromToInr = Number(ratesToInr[from] || 0);
+    const toToInr = Number(ratesToInr[to] || 0);
+    if (from === INR && toToInr) {
+      rate = Number((1 / toToInr).toFixed(8));
+    } else if (to === INR && fromToInr) {
+      rate = fromToInr;
+    } else if (fromToInr && toToInr) {
+      rate = Number((fromToInr / toToInr).toFixed(8));
+    }
+  }
+
+  return rate || null;
+}
+
+async function convertAmount(amount, fromCurrency, toCurrency) {
+  const numericAmount = Number(amount || 0);
+  if (!Number.isFinite(numericAmount)) return 0;
+  const rate = await getConversionRate(fromCurrency, toCurrency);
+  if (!rate) {
+    throw new Error(
+      `Unsupported currency conversion: ${normalizeCurrency(fromCurrency)} to ${normalizeCurrency(toCurrency)}`
+    );
   }
 
   return Number((numericAmount * rate).toFixed(2));
@@ -148,6 +179,8 @@ async function enrichExpenseWithInr(expense) {
 module.exports = {
   INR,
   normalizeCurrency,
+  getConversionRate,
+  convertAmount,
   convertAmountToInr,
   enrichExpenseWithInr,
 };

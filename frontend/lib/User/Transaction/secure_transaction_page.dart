@@ -93,16 +93,25 @@ class _TransactionPageState extends State<TransactionPage> {
 
   final List<Map<String, String>> _currencies = [
     {'code': 'INR', 'symbol': '₹'},
-    {'code': 'USD', 'symbol': ' 24'},
+    {'code': 'USD', 'symbol': '\$'},
     {'code': 'EUR', 'symbol': '€'},
     {'code': 'GBP', 'symbol': '£'},
     {'code': 'JPY', 'symbol': '¥'},
     {'code': 'CNY', 'symbol': '¥'},
-    {'code': 'CAD', 'symbol': ' 24'},
-    {'code': 'AUD', 'symbol': ' 24'},
+    {'code': 'CAD', 'symbol': '\$'},
+    {'code': 'AUD', 'symbol': '\$'},
     {'code': 'CHF', 'symbol': 'Fr'},
     {'code': 'RUB', 'symbol': '₽'},
   ];
+
+  String _currencySymbol([String? code]) {
+    final selectedCode = (code ?? _currency).toUpperCase();
+    final match = _currencies.firstWhere(
+      (item) => item['code'] == selectedCode,
+      orElse: () => const {'code': 'INR', 'symbol': '₹'},
+    );
+    return match['symbol'] ?? '₹';
+  }
 
   @override
   void initState() {
@@ -1398,6 +1407,21 @@ class _TransactionPageState extends State<TransactionPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              Navigator.pushReplacementNamed(context, '/user/dashboard');
+            }
+          },
+        ),
+      ),
       body: Stack(
         children: [
           // Wavy blue background at the top
@@ -1535,13 +1559,26 @@ class _TransactionPageState extends State<TransactionPage> {
                               : 'Lender: You are giving money. Borrower: You are taking money.'),
                     ),
                     SizedBox(height: 12),
+                    _buildCurrencyDropdown(),
+                    SizedBox(height: 12),
                     TextFormField(
                       controller: _amountController,
                       enabled: !_bothUsersVerified,
                       keyboardType:
                           TextInputType.numberWithOptions(decimal: true),
                       decoration: InputDecoration(
-                        labelText: 'Amount',
+                        labelText: 'Amount (${_currencySymbol()})',
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Text(
+                            _currencySymbol(),
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
                         border: OutlineInputBorder(),
                         helperText: _bothUsersVerified
                             ? 'Transaction details locked after verification'
@@ -1550,8 +1587,6 @@ class _TransactionPageState extends State<TransactionPage> {
                       validator: (val) =>
                           val == null || val.isEmpty ? 'Amount required' : null,
                     ),
-                    SizedBox(height: 12),
-                    _buildCurrencyDropdown(),
                     SizedBox(height: 12),
                     _buildDatePicker(),
                     SizedBox(height: 12),

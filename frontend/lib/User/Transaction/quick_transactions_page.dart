@@ -5,6 +5,7 @@ import '../../api_config.dart';
 import 'package:provider/provider.dart';
 import '../../session.dart';
 import '../../utils/api_client.dart';
+import '../../utils/display_currency_helper.dart';
 import '../../widgets/subscription_prompt.dart';
 import '../../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
@@ -34,6 +35,9 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   bool _showAll = false;
   Set<String> _blockedEmails = {};
   Map<String, dynamic>? _dailyLimits;
+  DisplayCurrencyData? _displayCurrencyData;
+  String _selectedDisplayCurrency = 'INR';
+  String? _displayCurrencyError;
 
   @override
   void initState() {
@@ -41,6 +45,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     fetchQuickTransactions();
     _loadBlockedUsers();
     _loadDailyLimits();
+    _loadDisplayCurrencies();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.openCreateOnLoad &&
           (widget.prefillCounterpartyEmail ?? '').isNotEmpty) {
@@ -79,6 +84,120 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
         });
       }
     } catch (_) {}
+  }
+
+  Future<void> _loadDisplayCurrencies() async {
+    try {
+      final data = await DisplayCurrencyHelper.load();
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = data;
+        _displayCurrencyError = null;
+        if (!data.currencies.any(
+          (item) => item['code'] == _selectedDisplayCurrency,
+        )) {
+          _selectedDisplayCurrency = 'INR';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = null;
+        _selectedDisplayCurrency = 'INR';
+        _displayCurrencyError =
+            'Currency conversion options are not available right now.';
+      });
+    }
+  }
+
+  String _formatDisplayAmount(dynamic amount, String? originalCurrency) {
+    final numericAmount = amount is num
+        ? amount.toDouble()
+        : double.tryParse((amount ?? 0).toString()) ?? 0.0;
+    final sourceCurrency = (originalCurrency ?? 'INR').toUpperCase();
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final canConvert = _displayCurrencyData?.canConvert(
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        (sourceCurrency == targetCurrency);
+    if (!canConvert) {
+      final originalSymbol =
+          _displayCurrencyData?.symbolFor(sourceCurrency) ?? sourceCurrency;
+      return '$originalSymbol${numericAmount.toStringAsFixed(2)}';
+    }
+    final converted = _displayCurrencyData?.convert(
+          numericAmount,
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        numericAmount;
+    final symbol = _displayCurrencyData?.symbolFor(targetCurrency) ?? targetCurrency;
+    return '$symbol${converted.toStringAsFixed(2)}';
+  }
+
+  bool _hasMissingConversionForQuickTransactions() {
+    if (_selectedDisplayCurrency.toUpperCase() == 'INR') return false;
+    if (_displayCurrencyData == null) return true;
+    for (final transaction in filteredTransactions) {
+      final sourceCurrency = (transaction['currency'] ?? 'INR').toString();
+      if (!_displayCurrencyData!.canConvert(
+        sourceCurrency,
+        _selectedDisplayCurrency,
+      )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Widget _buildCurrencySelector() {
+    final currencies = _displayCurrencyData?.currencies ??
+        const <Map<String, String>>[
+          {'code': 'INR', 'symbol': '₹', 'label': ''},
+        ];
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: _selectedDisplayCurrency,
+            borderRadius: BorderRadius.circular(16),
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            items: currencies
+                .map(
+                  (currency) => DropdownMenuItem(
+                    value: currency['code'],
+                    child: Text(
+                      '${currency['symbol']} ${currency['code']}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _selectedDisplayCurrency = value;
+              });
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   bool _isBlockedEmail(String? email) {
@@ -818,6 +937,58 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
               ),
 
               const SizedBox(height: 16),
+              if (_displayCurrencyError != null ||
+                  _hasMissingConversionForQuickTransactions())
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF1F1),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFF6B6B)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.error_outline,
+                            color: Color(0xFFD62828), size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _displayCurrencyError ??
+                                'Conversion to $_selectedDisplayCurrency is not available for one or more quick transactions. Showing original currencies instead.',
+                            style: const TextStyle(
+                              color: Color(0xFFD62828),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'Show In',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _buildCurrencySelector(),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               // Filter and Sort buttons
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -1180,7 +1351,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                         // Added horizontal scroll for amount
                         scrollDirection: Axis.horizontal,
                         child: Text(
-                          '${transaction['amount']} ${transaction['currency']}',
+                          '${_formatDisplayAmount(transaction['amount'], transaction['currency']?.toString())} • ${(_displayCurrencyData?.canConvert((transaction['currency'] ?? 'INR').toString(), _selectedDisplayCurrency) ?? ((transaction['currency'] ?? 'INR').toString().toUpperCase() == _selectedDisplayCurrency.toUpperCase())) ? _selectedDisplayCurrency : (transaction['currency'] ?? 'INR')}',
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -1321,6 +1492,15 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
     {'code': 'CHF', 'symbol': 'Fr'},
     {'code': 'RUB', 'symbol': '₽'},
   ];
+
+  String _currencySymbol([String? code]) {
+    final selectedCode = (code ?? _currency).toUpperCase();
+    final match = _currencies.firstWhere(
+      (item) => item['code'] == selectedCode,
+      orElse: () => const {'code': 'INR', 'symbol': '₹'},
+    );
+    return match['symbol'] ?? '₹';
+  }
 
   @override
   void initState() {
@@ -1630,27 +1810,6 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                             ],
                           ),
                         ),
-                      // Amount field
-                      _buildStylishField(
-                        child: TextFormField(
-                          controller: _amountController,
-                          decoration: InputDecoration(
-                            labelText: 'Amount',
-                            prefixIcon: Icon(Icons.attach_money,
-                                color: Color(0xFF00B4D8)),
-                            border: InputBorder.none,
-                          ),
-                          keyboardType: TextInputType.number,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter an amount';
-                            }
-                            return null;
-                          },
-                        ),
-                      ),
-                      SizedBox(height: 16),
-
                       // Currency dropdown
                       _buildStylishField(
                         child: DropdownButtonFormField<String>(
@@ -1669,6 +1828,36 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                                 color: Color(0xFF00B4D8)),
                             border: InputBorder.none,
                           ),
+                        ),
+                      ),
+                      SizedBox(height: 16),
+
+                      // Amount field
+                      _buildStylishField(
+                        child: TextFormField(
+                          controller: _amountController,
+                          decoration: InputDecoration(
+                            labelText: 'Amount (${_currencySymbol()})',
+                            prefixIcon: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Text(
+                                _currencySymbol(),
+                                style: const TextStyle(
+                                  color: Color(0xFF00B4D8),
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            border: InputBorder.none,
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter an amount';
+                            }
+                            return null;
+                          },
                         ),
                       ),
                       SizedBox(height: 16),

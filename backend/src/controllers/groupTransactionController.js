@@ -56,24 +56,37 @@ async function processExpenses(expenses) {
   );
 }
 
-function getLockedCurrencyForUser(group, userEmail, excludedExpenseId = null) {
-  const normalizedEmail = (userEmail || '').toLowerCase().trim();
-  for (const expense of group.expenses || []) {
+function getLockedCurrencyForGroup(group, excludedExpenseId = null) {
+  const remainingExpenses = (group.expenses || []).filter((expense) => {
     if (
       excludedExpenseId &&
       expense?._id?.toString() === excludedExpenseId.toString()
     ) {
-      continue;
+      return false;
     }
-    if ((expense.addedBy || '').toLowerCase().trim() === normalizedEmail) {
-      return normalizeCurrency(expense.currency);
-    }
+    return true;
+  });
+
+  if (remainingExpenses.length === 0) {
+    return null;
   }
-  return null;
+
+  remainingExpenses.sort((a, b) => {
+    const firstDate = new Date(a?.date || a?.createdAt || 0).getTime();
+    const secondDate = new Date(b?.date || b?.createdAt || 0).getTime();
+    return firstDate - secondDate;
+  });
+
+  const firstExpense = remainingExpenses[0];
+  if (!firstExpense) {
+    return null;
+  }
+
+  return normalizeCurrency(firstExpense.currency || INR);
 }
 
 function buildCurrencyLockError(lockedCurrency) {
-  return `You must use ${lockedCurrency} for all your expenses in this group because it was the currency used in your first expense here.`;
+  return `You must use ${lockedCurrency} for all expenses in this group because it was the currency used in the first expense here.`;
 }
 
 // Helper: check if all userIds exist in User collection
@@ -487,6 +500,7 @@ exports.removeMember = async (req, res) => {
 };
 
 exports.addExpense = async (req, res) => {
+  const EXPENSE_COST = 5;
   try {
     console.log('addExpense called with body:', req.body);
     const { groupId } = req.params;
@@ -498,6 +512,7 @@ exports.addExpense = async (req, res) => {
       split,
       date,
       selectedMembers,
+      useCoins,
     } = req.body;
     console.log('Parsed data:', {
       groupId,
@@ -516,7 +531,9 @@ exports.addExpense = async (req, res) => {
     const userId = req.user._id;
     
     // Fetch user's email from database since req.user.email might not be populated
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select(
+      'email lenDenCoins blockedUsers'
+    );
     if (!user) return res.status(404).json({ error: 'User not found' });
     const userEmail = user.email;
     
@@ -531,7 +548,7 @@ exports.addExpense = async (req, res) => {
       return res.status(400).json({ error: 'Unsupported currency selected' });
     }
 
-    const lockedCurrency = getLockedCurrencyForUser(group, userEmail);
+    const lockedCurrency = getLockedCurrencyForGroup(group);
     if (lockedCurrency && lockedCurrency !== normalizedCurrency) {
       return res.status(400).json({
         error: buildCurrencyLockError(lockedCurrency),
@@ -550,7 +567,39 @@ exports.addExpense = async (req, res) => {
           expenseDate <= end
         );
       }).length;
-      if (todayExpenseCount >= 3) {
+      if (todayExpenseCount >= 3 && useCoins == true) {
+        const accessError = validateCoinCreationAccess({
+          subscribed: false,
+          freeRemaining: 0,
+          dailyCount: todayExpenseCount,
+          dailyLimit: 3,
+          dailyLimitMessage:
+              'Daily limit reached: You can add 3 expenses per group per day.',
+          coinBalance: user.lenDenCoins,
+          coinCost: EXPENSE_COST,
+          featureLabel: 'group expense',
+        });
+        if (accessError && accessError.error) {
+          return res.status(accessError.status).json({ error: accessError.error });
+        }
+
+        user.lenDenCoins -= EXPENSE_COST;
+        await user.save();
+        await recordCoinLedgerEntry({
+          userId: user._id,
+          direction: 'spent',
+          coins: EXPENSE_COST,
+          source: 'group_expense_with_coins',
+          title: 'Group Expense Added With Coins',
+          description: `Spent ${EXPENSE_COST} LenDen coins to add an extra expense in group "${group.title}".`,
+          metadata: {
+            groupId: group._id,
+            groupTitle: group.title,
+            amount,
+            currency: normalizedCurrency,
+          },
+        });
+      } else if (todayExpenseCount >= 3) {
         return res.status(429).json({
           error:
             'Daily limit reached: You can add 3 expenses per group per day.',
@@ -1189,11 +1238,7 @@ exports.editExpense = async (req, res) => {
       return res.status(400).json({ error: 'Unsupported currency selected' });
     }
 
-    const lockedCurrency = getLockedCurrencyForUser(
-      group,
-      userEmail,
-      expenseId
-    );
+    const lockedCurrency = getLockedCurrencyForGroup(group, expenseId);
     if (lockedCurrency && lockedCurrency !== normalizedCurrency) {
       return res.status(400).json({
         error: buildCurrencyLockError(lockedCurrency),

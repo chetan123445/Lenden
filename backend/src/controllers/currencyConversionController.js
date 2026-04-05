@@ -11,9 +11,13 @@ const normalizeCurrency = (currency) =>
 
 const buildGraph = (rows) => {
   const graph = new Map();
+  const seenPairs = new Set();
   for (const row of rows) {
     const from = normalizeCurrency(row.baseCurrency);
     const to = normalizeCurrency(row.quoteCurrency);
+    const pairKey = `${from}->${to}`;
+    if (seenPairs.has(pairKey)) continue;
+    seenPairs.add(pairKey);
     if (!graph.has(from)) graph.set(from, []);
     graph.get(from).push({
       to,
@@ -240,6 +244,31 @@ exports.getSupportedCurrencies = async (_req, res) => {
     res.json({
       currencies: currencyDefinitions,
       supportedCurrencies: currencyDefinitions.map((item) => item.code),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.getPublicCurrencyMatrix = async (_req, res) => {
+  try {
+    const currencyDefinitions = await getSupportedCurrencyDefinitions();
+    const supportedCurrencies = currencyDefinitions.map((item) => item.code);
+    const rows = await CurrencyConversionRate.find({
+      baseCurrency: { $in: supportedCurrencies },
+      quoteCurrency: { $in: supportedCurrencies },
+    })
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const matrix = buildMatrix(rows, supportedCurrencies);
+
+    res.json({
+      currencies: currencyDefinitions,
+      supportedCurrencies,
+      matrix,
+      displayBaseCurrency: 'INR',
+      generatedAt: new Date(),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -4,6 +4,7 @@ import 'dart:convert';
 import '../../api_config.dart';
 import '../../session.dart';
 import '../../utils/api_client.dart';
+import '../../utils/display_currency_helper.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
@@ -31,6 +32,9 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
   String? _favouritingGroupId;
   String? _chattingGroupId;
   int createdGroupsCount = 0; // Track groups created by user
+  DisplayCurrencyData? _displayCurrencyData;
+  String _selectedDisplayCurrency = 'INR';
+  String? _displayCurrencyError;
   List<Map<String, String>> _currencies = [
     {'code': 'INR', 'symbol': '₹'},
     {'code': 'USD', 'symbol': '\$'},
@@ -48,6 +52,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
   void initState() {
     super.initState();
     _loadSupportedCurrencies();
+    _loadDisplayCurrencies();
     _fetchUserGroups();
     _searchController.addListener(_filterGroups);
   }
@@ -217,6 +222,30 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
     return months[month - 1];
   }
 
+  Future<void> _loadDisplayCurrencies() async {
+    try {
+      final data = await DisplayCurrencyHelper.load();
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = data;
+        _displayCurrencyError = null;
+        if (!data.currencies.any(
+          (item) => item['code'] == _selectedDisplayCurrency,
+        )) {
+          _selectedDisplayCurrency = 'INR';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = null;
+        _selectedDisplayCurrency = 'INR';
+        _displayCurrencyError =
+            'Currency conversion options are not available right now.';
+      });
+    }
+  }
+
   Future<void> _loadSupportedCurrencies() async {
     try {
       final res = await ApiClient.get('/api/currency-conversions/supported');
@@ -261,6 +290,22 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
 
   String _formatInr(num amount) => '₹${amount.toStringAsFixed(2)}';
 
+  String _formatDisplayAmountFromInr(num amount) {
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    if (targetCurrency != 'INR' &&
+        !(_displayCurrencyData?.canConvert('INR', targetCurrency) ?? false)) {
+      return _formatInr(amount);
+    }
+    final converted = _displayCurrencyData?.convert(
+          amount,
+          'INR',
+          targetCurrency,
+        ) ??
+        amount.toDouble();
+    final symbol = _displayCurrencyData?.symbolFor(targetCurrency) ?? '₹';
+    return '$symbol${converted.toStringAsFixed(2)}';
+  }
+
   Map<String, dynamic>? _findGroupById(String groupId) {
     try {
       return userGroups.firstWhere((group) => group['_id'] == groupId);
@@ -272,16 +317,14 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
   String? _lockedCurrencyForUserInGroup(String groupId, String? userEmail,
       {String? excludingExpenseId}) {
     final group = _findGroupById(groupId);
-    if (group == null || userEmail == null) return null;
-    final normalizedEmail = userEmail.toLowerCase().trim();
+    if (group == null) return null;
     final expenses = List<Map<String, dynamic>>.from(group['expenses'] ?? []);
     for (final expense in expenses) {
       if (excludingExpenseId != null &&
           expense['_id']?.toString() == excludingExpenseId) {
         continue;
       }
-      final addedBy = (expense['addedBy'] ?? '').toString().toLowerCase().trim();
-      if (addedBy == normalizedEmail) {
+      if (expense['currency'] != null) {
         return (expense['currency'] ?? 'INR').toString().toUpperCase();
       }
     }
@@ -593,7 +636,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                     value: editCurrency,
                     decoration: InputDecoration(
                       helperText: lockedCurrency != null
-                          ? 'Locked to $lockedCurrency because your first expense in this group used that currency.'
+                          ? 'Locked to $lockedCurrency because the first expense in this group used that currency.'
                           : 'You can use a different currency in other groups.',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -922,7 +965,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Amount: ${_formatInr(_expenseAmountInInr(Map<String, dynamic>.from(expense)))}',
+                            'Amount: ${_formatDisplayAmountFromInr(_expenseAmountInInr(Map<String, dynamic>.from(expense)))}',
                             style: TextStyle(
                               color: Colors.green[700],
                               fontWeight: FontWeight.bold,
@@ -1027,6 +1070,40 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
         backgroundColor: Color(0xFF00B4D8),
         foregroundColor: Colors.black,
         elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Center(
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedDisplayCurrency,
+                  dropdownColor: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  items: (_displayCurrencyData?.currencies ?? _currencies)
+                      .map(
+                        (currency) => DropdownMenuItem(
+                          value: currency['code'],
+                          child: Text(
+                            '${currency['symbol']} ${currency['code']}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _selectedDisplayCurrency = value;
+                    });
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: loading
           ? Center(child: CircularProgressIndicator())
@@ -1078,6 +1155,47 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                 horizontal: 16, vertical: 8),
                             child: Column(
                               children: [
+                                if (_displayCurrencyError != null ||
+                                    (_selectedDisplayCurrency != 'INR' &&
+                                        !(_displayCurrencyData?.canConvert(
+                                              'INR',
+                                              _selectedDisplayCurrency,
+                                            ) ??
+                                            false)))
+                                  Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF1F1),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: const Color(0xFFFF6B6B)),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Icon(
+                                          Icons.error_outline,
+                                          color: Color(0xFFD62828),
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            _displayCurrencyError ??
+                                                'Conversion to $_selectedDisplayCurrency is not available yet. Showing INR values instead.',
+                                            style: const TextStyle(
+                                              color: Color(0xFFD62828),
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 Row(
                                   children: [
                                     // Search Bar
@@ -1445,7 +1563,9 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                             textAlign: TextAlign.center,
                                           ),
                                           Text(
-                                            _formatInr(_calculateTotalPendingBalance()),
+                                            _formatDisplayAmountFromInr(
+                                              _calculateTotalPendingBalance(),
+                                            ),
                                             style: TextStyle(
                                               color: Colors.white,
                                               fontSize: 18,
@@ -1675,7 +1795,9 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                     Text(
                                                                         'Total Split Amount:'),
                                                                     Text(
-                                                                      _formatInr(userTotalSplit),
+                                                                      _formatDisplayAmountFromInr(
+                                                                        userTotalSplit,
+                                                                      ),
                                                                       style:
                                                                           TextStyle(
                                                                         fontWeight:
@@ -1696,7 +1818,9 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                     Text(
                                                                         'Pending Balance:'),
                                                                     Text(
-                                                                      _formatInr(userPendingBalance),
+                                                                      _formatDisplayAmountFromInr(
+                                                                        userPendingBalance,
+                                                                      ),
                                                                       style:
                                                                           TextStyle(
                                                                         fontWeight:
@@ -1880,7 +2004,11 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                           ),
                                                                         ),
                                                                         Text(
-                                                                          _formatInr(_expenseAmountInInr(Map<String, dynamic>.from(expense))),
+                                                                          _formatDisplayAmountFromInr(
+                                                                            _expenseAmountInInr(
+                                                                              Map<String, dynamic>.from(expense),
+                                                                            ),
+                                                                          ),
                                                                           style:
                                                                               TextStyle(
                                                                             fontWeight:
@@ -1991,7 +2119,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                                                                                       ),
                                                                                     ),
                                                                                     Text(
-                                                                                      _formatInr(_splitAmountInInr(Map<String, dynamic>.from(splitItem))),
+                                                                                      _formatDisplayAmountFromInr(_splitAmountInInr(Map<String, dynamic>.from(splitItem))),
                                                                                       style: TextStyle(
                                                                                         fontSize: 11,
                                                                                         fontWeight: FontWeight.w600,

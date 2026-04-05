@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../Settings/privacy_settings_page.dart';
 import '../../session.dart';
 import '../../utils/api_client.dart';
+import '../../utils/display_currency_helper.dart';
 
 class AnalyticsPage extends StatefulWidget {
   final List<dynamic>? transactions;
@@ -28,11 +29,15 @@ class _AnalyticsPageState extends State<AnalyticsPage>
   String? _quickError;
   String? _groupError;
   bool? analyticsSharing;
+  DisplayCurrencyData? _displayCurrencyData;
+  String _selectedDisplayCurrency = 'INR';
+  String? _displayCurrencyError;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadDisplayCurrencies();
     _fetchAnalytics();
   }
 
@@ -72,6 +77,31 @@ class _AnalyticsPageState extends State<AnalyticsPage>
       _fetchQuickAnalytics(email),
       _fetchGroupAnalytics(email),
     ]);
+  }
+
+  Future<void> _loadDisplayCurrencies() async {
+    try {
+      final data = await DisplayCurrencyHelper.load();
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = data;
+        _displayCurrencyError = null;
+        final exists = data.currencies.any(
+          (item) => item['code'] == _selectedDisplayCurrency,
+        );
+        if (!exists) {
+          _selectedDisplayCurrency = 'INR';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = null;
+        _selectedDisplayCurrency = 'INR';
+        _displayCurrencyError =
+            'Currency conversion options are not available right now.';
+      });
+    }
   }
 
   Future<void> _fetchSecureAnalytics(String email) async {
@@ -171,6 +201,88 @@ class _AnalyticsPageState extends State<AnalyticsPage>
         _quickLoading = false;
       });
     }
+  }
+
+  bool _hasMissingAnalyticsConversion() {
+    if (_selectedDisplayCurrency.toUpperCase() == 'INR') return false;
+    if (_displayCurrencyData == null) return true;
+    return !_displayCurrencyData!.canConvert('INR', _selectedDisplayCurrency);
+  }
+
+  String _formatAmount(double value, {String originalCurrency = 'INR'}) {
+    final sourceCurrency = originalCurrency.toUpperCase();
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final canConvert = _displayCurrencyData?.canConvert(
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        (sourceCurrency == targetCurrency);
+    if (!canConvert) {
+      final sourceSymbol =
+          _displayCurrencyData?.symbolFor(sourceCurrency) ??
+              (sourceCurrency == 'INR' ? '₹' : sourceCurrency);
+      return '$sourceSymbol${value.toStringAsFixed(2)}';
+    }
+
+    final converted = _displayCurrencyData?.convert(
+          value,
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        value;
+    final symbol =
+        _displayCurrencyData?.symbolFor(targetCurrency) ??
+            (targetCurrency == 'INR' ? '₹' : targetCurrency);
+    return '$symbol${converted.toStringAsFixed(2)}';
+  }
+
+  Widget _buildCurrencySelector() {
+    final currencies = _displayCurrencyData?.currencies ??
+        const <Map<String, String>>[
+          {'code': 'INR', 'symbol': '₹', 'label': ''},
+        ];
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: _selectedDisplayCurrency,
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            borderRadius: BorderRadius.circular(16),
+            items: currencies
+                .map(
+                  (currency) => DropdownMenuItem<String>(
+                    value: currency['code'],
+                    child: Text(
+                      '${currency['symbol']} ${currency['code']}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _selectedDisplayCurrency = value;
+              });
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -402,7 +514,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                 error: _quickError,
                 config: const _AnalyticsTabConfig(
                   tabTitle: 'Quick Analytics',
-                  tabSubtitle: 'Track your fast lending, borrowing, and pending quick records in INR.',
+                  tabSubtitle: 'Track your fast lending, borrowing, and pending quick records.',
                   metrics: [
                     _MetricDefinition(
                       id: 'totalLent',
@@ -568,9 +680,14 @@ class _AnalyticsPageState extends State<AnalyticsPage>
 
     final metrics = _buildMetrics(config.metrics, analytics);
     final heroMetrics = metrics.take(2).toList();
+    final showWarning =
+        _displayCurrencyError != null || _hasMissingAnalyticsConversion();
 
     return RefreshIndicator(
-      onRefresh: _fetchAnalytics,
+      onRefresh: () async {
+        await _loadDisplayCurrencies();
+        await _fetchAnalytics();
+      },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 26),
@@ -578,6 +695,39 @@ class _AnalyticsPageState extends State<AnalyticsPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeaderCard(config, analytics),
+            if (showWarning) ...[
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F1),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFFF6B6B)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      color: Color(0xFFE53935),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _displayCurrencyError ??
+                            'Conversion to $_selectedDisplayCurrency is not available for analytics yet. Showing INR values instead.',
+                        style: const TextStyle(
+                          color: Color(0xFFC62828),
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 18),
             SizedBox(
               height: 132,
@@ -639,8 +789,9 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     Map<String, dynamic> analytics,
   ) {
     final total = ((analytics['total'] as num?) ?? 0).toInt();
-    final displayCurrency =
-        (analytics['displayCurrency'] ?? 'INR').toString().toUpperCase();
+    final displayCurrency = _hasMissingAnalyticsConversion()
+        ? 'INR'
+        : _selectedDisplayCurrency.toUpperCase();
     final monthlyCounts = (analytics['monthlyCounts'] as List<dynamic>? ?? const [])
         .map((value) => (value as num).toDouble())
         .toList();
@@ -702,6 +853,21 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                       color: Color(0xFF0099B7),
                     ),
                   ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Text(
+                      'Show In',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _buildCurrencySelector(),
+                  ],
                 ),
               ],
             ),
@@ -915,7 +1081,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
         value: rawValue,
         displayValue: definition.isTrend
             ? '${rawValue.toStringAsFixed(0)} events'
-            : definition.isCurrency
+                : definition.isCurrency
                 ? _formatAmount(rawValue)
                 : rawValue.toStringAsFixed(0),
         isCurrency: definition.isCurrency,
@@ -938,6 +1104,9 @@ class _AnalyticsPageState extends State<AnalyticsPage>
           metric: metric,
           analytics: analytics,
           allMetrics: allMetrics,
+          selectedDisplayCurrency: _selectedDisplayCurrency,
+          displayCurrencyData: _displayCurrencyData,
+          hasMissingConversion: _hasMissingAnalyticsConversion(),
         ),
       ),
     );
@@ -975,10 +1144,6 @@ class _AnalyticsPageState extends State<AnalyticsPage>
       ),
     );
   }
-
-  String _formatAmount(double value) {
-    return '₹${value.toStringAsFixed(2)}';
-  }
 }
 
 class _AnalyticsDetailPage extends StatelessWidget {
@@ -986,13 +1151,47 @@ class _AnalyticsDetailPage extends StatelessWidget {
   final _AnalyticsMetric metric;
   final Map<String, dynamic> analytics;
   final List<_AnalyticsMetric> allMetrics;
+  final String selectedDisplayCurrency;
+  final DisplayCurrencyData? displayCurrencyData;
+  final bool hasMissingConversion;
 
   const _AnalyticsDetailPage({
     required this.tabTitle,
     required this.metric,
     required this.analytics,
     required this.allMetrics,
+    required this.selectedDisplayCurrency,
+    required this.displayCurrencyData,
+    required this.hasMissingConversion,
   });
+
+  String _formatAmount(double value, {String originalCurrency = 'INR'}) {
+    final sourceCurrency = originalCurrency.toUpperCase();
+    final targetCurrency = hasMissingConversion
+        ? 'INR'
+        : selectedDisplayCurrency.toUpperCase();
+    final canConvert = displayCurrencyData?.canConvert(
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        (sourceCurrency == targetCurrency);
+    if (!canConvert) {
+      final sourceSymbol =
+          displayCurrencyData?.symbolFor(sourceCurrency) ??
+              (sourceCurrency == 'INR' ? '₹' : sourceCurrency);
+      return '$sourceSymbol${value.toStringAsFixed(2)}';
+    }
+    final converted = displayCurrencyData?.convert(
+          value,
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        value;
+    final symbol =
+        displayCurrencyData?.symbolFor(targetCurrency) ??
+            (targetCurrency == 'INR' ? '₹' : targetCurrency);
+    return '$symbol${converted.toStringAsFixed(2)}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1071,9 +1270,49 @@ class _AnalyticsDetailPage extends StatelessWidget {
                       color: Colors.white,
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      hasMissingConversion
+                          ? 'Showing INR values'
+                          : 'Showing in ${selectedDisplayCurrency.toUpperCase()}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
+            if (hasMissingConversion) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF1F1),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFFF6B6B)),
+                ),
+                child: const Text(
+                  'Selected analytics currency is not available yet. Showing INR values instead.',
+                  style: TextStyle(
+                    color: Color(0xFFC62828),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 22),
             Text(
               'Quick Facts',

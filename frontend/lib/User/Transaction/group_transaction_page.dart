@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../../session.dart';
 import '../../utils/api_client.dart';
+import '../../utils/display_currency_helper.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
@@ -50,6 +51,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       {}; // New: track custom split amounts for each member
   bool addingExpense = false;
   String? expenseError;
+  DisplayCurrencyData? _displayCurrencyData;
+  String _selectedDisplayCurrency = 'INR';
+  String? _displayCurrencyError;
   List<Map<String, String>> _currencies = [
     {'code': 'INR', 'symbol': '₹'},
     {'code': 'USD', 'symbol': '\$'},
@@ -88,6 +92,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     }
     _loadFriends();
     _loadSupportedCurrencies();
+    _loadDisplayCurrencies();
     _loadDailyLimits();
     _memberEmailController.addListener(_updateFriendSuggestions);
     _fetchUserGroups();
@@ -522,6 +527,30 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     } catch (_) {}
   }
 
+  Future<void> _loadDisplayCurrencies() async {
+    try {
+      final data = await DisplayCurrencyHelper.load();
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = data;
+        _displayCurrencyError = null;
+        if (!data.currencies.any(
+          (item) => item['code'] == _selectedDisplayCurrency,
+        )) {
+          _selectedDisplayCurrency = 'INR';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = null;
+        _selectedDisplayCurrency = 'INR';
+        _displayCurrencyError =
+            'Currency conversion options are not available right now.';
+      });
+    }
+  }
+
   String _currencySymbol([String? code]) {
     final currencyCode = (code ?? _expenseCurrency).toUpperCase();
     final match = _currencies.firstWhere(
@@ -535,15 +564,97 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     final parsedAmount = amount is num
         ? amount.toDouble()
         : double.tryParse((amount ?? 0).toString()) ?? 0.0;
-    return '${_currencySymbol(code)}${parsedAmount.toStringAsFixed(2)}';
+    final sourceCurrency = (code ?? 'INR').toUpperCase();
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final canConvert = _displayCurrencyData?.canConvert(
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        (sourceCurrency == targetCurrency);
+    if (!canConvert) {
+      return '${_currencySymbol(code)}${parsedAmount.toStringAsFixed(2)}';
+    }
+    final converted = _displayCurrencyData?.convert(
+          parsedAmount,
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        parsedAmount;
+    final displaySymbol =
+        _displayCurrencyData?.symbolFor(targetCurrency) ?? _currencySymbol(code);
+    return '$displaySymbol${converted.toStringAsFixed(2)}';
+  }
+
+  Widget _buildDisplayCurrencySelector() {
+    final currencies = _displayCurrencyData?.currencies ??
+        const <Map<String, String>>[
+          {'code': 'INR', 'symbol': '₹', 'label': ''},
+        ];
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: _selectedDisplayCurrency,
+            borderRadius: BorderRadius.circular(14),
+            items: currencies
+                .map(
+                  (currency) => DropdownMenuItem(
+                    value: currency['code'],
+                    child: Text(
+                      '${currency['symbol']} ${currency['code']}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _selectedDisplayCurrency = value;
+                _displayCurrencyError = null;
+              });
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  bool _hasMissingDisplayConversionForExpenses(List<dynamic> expenses) {
+    if (_selectedDisplayCurrency.toUpperCase() == 'INR') return false;
+    if (_displayCurrencyData == null) return true;
+    for (final rawExpense in expenses) {
+      final expense = Map<String, dynamic>.from(rawExpense as Map);
+      final sourceCurrency = (expense['currency'] ?? 'INR').toString();
+      if (!_displayCurrencyData!.canConvert(
+        sourceCurrency,
+        _selectedDisplayCurrency,
+      )) {
+        return true;
+      }
+    }
+    return false;
   }
 
   String? _lockedCurrencyForCurrentUser() {
-    if (group == null || userEmail == null) return null;
+    if (group == null) return null;
     final expenses = List<Map<String, dynamic>>.from(group!['expenses'] ?? []);
     for (final expense in expenses) {
-      final addedBy = (expense['addedBy'] ?? '').toString().toLowerCase().trim();
-      if (addedBy == userEmail!.toLowerCase().trim()) {
+      if (expense['currency'] != null) {
         return (expense['currency'] ?? 'INR').toString().toUpperCase();
       }
     }
@@ -1266,7 +1377,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     }
   }
 
-  Future<void> _addExpense() async {
+  Future<void> _addExpense({bool useCoins = false}) async {
     // Validation is now handled in the dialog, so we don't need to check here
 
     setState(() {
@@ -1301,6 +1412,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         'splitType': splitType,
         'split': splitData,
         'selectedMembers': selectedMembers,
+        'useCoins': useCoins,
       };
       print('Adding expense with data: ${json.encode(requestData)}');
 
@@ -1314,6 +1426,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
 
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
+        final session = Provider.of<SessionProvider>(context, listen: false);
+        await session.loadFreebieCounts();
         setState(() {
           group = data['group'];
           _expenseDescController.clear();
@@ -6146,24 +6260,75 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                 ],
               ),
               SizedBox(height: 24),
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Expenses:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  Spacer(),
-                  ElevatedButton.icon(
-                    onPressed: () => _showExpensesDialog(expenses),
-                    icon:
-                        Icon(Icons.receipt_long, color: Colors.white, size: 18),
-                    label: Text('View All (${expenses.length})',
-                        style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFF1E3A8A),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  if (_displayCurrencyError != null ||
+                      _hasMissingDisplayConversionForExpenses(expenses))
+                    Container(
+                      width: double.infinity,
+                      margin: EdgeInsets.only(bottom: 12),
+                      padding: EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFFFF1F1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Color(0xFFFF6B6B)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.error_outline,
+                              color: Color(0xFFD62828), size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _displayCurrencyError ??
+                                  'Conversion for one or more expenses is not available in $_selectedDisplayCurrency yet. Showing original expense currencies instead.',
+                              style: TextStyle(
+                                color: Color(0xFFD62828),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                  Row(
+                    children: [
+                      Text('Expenses:',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      Spacer(),
+                      ElevatedButton.icon(
+                        onPressed: () => _showExpensesDialog(expenses),
+                        icon: Icon(Icons.receipt_long,
+                            color: Colors.white, size: 18),
+                        label: Text('View All (${expenses.length})',
+                            style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(0xFF1E3A8A),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      const Text(
+                        'Show In',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      _buildDisplayCurrencySelector(),
+                    ],
                   ),
                 ],
               ),
@@ -7626,6 +7791,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       ),
                       child: TextField(
                         controller: _expenseDescController,
+                        enabled: !dialogAddingExpense,
                         decoration: InputDecoration(
                           labelText: 'Expense Description',
                           labelStyle: TextStyle(
@@ -7682,6 +7848,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                             .toList(),
                         onChanged: lockedCurrency != null
                             ? null
+                            : dialogAddingExpense
+                            ? null
                             : (value) {
                                 setDialogState(() {
                                   _expenseCurrency = value ?? 'INR';
@@ -7696,7 +7864,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           prefixIcon: Icon(Icons.currency_exchange,
                               color: Color(0xFF1E3A8A)),
                           helperText: lockedCurrency != null
-                              ? 'Locked to $lockedCurrency because your first expense in this group used that currency.'
+                              ? 'Locked to $lockedCurrency because the first expense in this group used that currency.'
                               : 'You can choose a different currency in other groups.',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -7735,6 +7903,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                       ),
                       child: TextField(
                         controller: _expenseAmountController,
+                        enabled: !dialogAddingExpense,
                         keyboardType:
                             TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
@@ -7791,7 +7960,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         ],
                       ),
                       child: InkWell(
-                        onTap: () => _showMemberSelectionDialog(),
+                        onTap: dialogAddingExpense
+                            ? null
+                            : () => _showMemberSelectionDialog(),
                         borderRadius: BorderRadius.circular(16),
                         child: Container(
                           padding: EdgeInsets.symmetric(
@@ -7873,6 +8044,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           ),
                         ],
                         onChanged: (v) {
+                          if (dialogAddingExpense) return;
                           setDialogState(() {
                             splitType = v ?? 'equal';
                             if (splitType == 'custom') {
@@ -8072,6 +8244,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                           Container(
                                             width: 100,
                                             child: TextField(
+                                              enabled: !dialogAddingExpense,
                                               keyboardType: TextInputType
                                                   .numberWithOptions(
                                                       decimal: true),
@@ -8162,7 +8335,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     child: Container(
                       margin: EdgeInsets.only(left: 16, right: 8),
                       child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: dialogAddingExpense
+                            ? null
+                            : () => Navigator.of(context).pop(),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.grey[300],
                           shape: RoundedRectangleBorder(
@@ -8184,7 +8359,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                     child: Container(
                       margin: EdgeInsets.only(left: 8, right: 16),
                       child: ElevatedButton(
-                        onPressed: dialogAddingExpense || limitReached
+                        onPressed: dialogAddingExpense
                             ? null
                             : () async {
                                 // Clear previous error
@@ -8226,15 +8401,32 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 });
                                 try {
                                   if (limitReached) {
-                                    showDailyLimitDialog(context,
-                                        message:
-                                            'Daily limit reached: You can add 3 expenses per day in a group.');
+                                    if ((session.lenDenCoins ?? 0) < 5) {
+                                      if ((session.lenDenCoins ?? 0) == 0) {
+                                        showZeroCoinsDialog(context);
+                                      } else {
+                                        showInsufficientCoinsDialog(context);
+                                      }
+                                      setDialogState(() {
+                                        dialogAddingExpense = false;
+                                      });
+                                      return;
+                                    }
+                                    final useCoins =
+                                        await _showExpenseCoinsDialog();
+                                    if (!useCoins) {
+                                      setDialogState(() {
+                                        dialogAddingExpense = false;
+                                      });
+                                      return;
+                                    }
                                     setDialogState(() {
-                                      dialogAddingExpense = false;
+                                      dialogAddingExpense = true;
                                     });
-                                    return;
+                                    await _addExpense(useCoins: true);
+                                  } else {
+                                    await _addExpense();
                                   }
-                                  await _addExpense();
                                   setDialogState(() {
                                     dialogAddingExpense = false;
                                   });
@@ -8292,6 +8484,149 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         },
       ),
     ).then((_) => dialogScrollController.dispose());
+  }
+
+  Future<bool> _showExpenseCoinsDialog() async {
+    final useCoins = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Container(
+            padding: EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.monetization_on, color: Colors.orange, size: 48),
+                SizedBox(height: 16),
+                Text(
+                  'Use LenDen Coins',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                  ),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Your daily expense limit is finished. You can still add this expense now by spending 5 LenDen coins.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 16, color: Colors.grey[800]),
+                ),
+                SizedBox(height: 12),
+                Text(
+                  'Warning: this will bypass today\'s free daily limit.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.orange[800],
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'OR',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Subscribe now for unlimited access',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.green,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 24),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[300],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: TextStyle(
+                            color: Colors.grey[800],
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context, false);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SubscriptionsPage(),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
+                      ),
+                      child: Text(
+                        'Subscribe',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 12),
+                      ),
+                      child: Text(
+                        'Use 5 LenDen Coins',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    return useCoins == true;
   }
 
   // Member Selection Dialog

@@ -256,6 +256,7 @@ module.exports = (io) => {
   router.get('/analytics/group', analyticController.getGroupAnalytics);
   router.get('/analytics/groups', analyticController.getGroupAnalytics);
   router.get('/currency-conversions/supported', auth, currencyConversionController.getSupportedCurrencies);
+  router.get('/currency-conversions/matrix', auth, currencyConversionController.getPublicCurrencyMatrix);
   // Counterparty routes
   router.get('/counterparties/user', auth, counterpartyController.getUserCounterparties);
   router.get('/counterparties/stats', auth, counterpartyController.getCounterpartyStats);

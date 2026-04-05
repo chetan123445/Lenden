@@ -15,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:string_similarity/string_similarity.dart';
 import '../../otp_input.dart';
 import '../chats/chat_page.dart';
+import '../../utils/display_currency_helper.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -57,11 +58,15 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   bool showFavouritesOnly = false;
   String? _favouritingTransactionId;
   String? _chattingTransactionId;
+  DisplayCurrencyData? _displayCurrencyData;
+  String _selectedDisplayCurrency = 'INR';
+  String? _displayCurrencyError;
 
   @override
   void initState() {
     super.initState();
     fetchTransactions();
+    _loadDisplayCurrencies();
     _counterpartyController.text = _searchCounterparty;
     _placeController.text = _searchPlace;
     _transactionIdController.text = _searchTransactionId;
@@ -76,6 +81,118 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     _amountController.dispose();
     _globalSearchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadDisplayCurrencies() async {
+    try {
+      final data = await DisplayCurrencyHelper.load();
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = data;
+        _displayCurrencyError = null;
+        if (!data.currencies.any(
+          (item) => item['code'] == _selectedDisplayCurrency,
+        )) {
+          _selectedDisplayCurrency = 'INR';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _displayCurrencyData = null;
+        _selectedDisplayCurrency = 'INR';
+        _displayCurrencyError =
+            'Currency conversion options are not available right now.';
+      });
+    }
+  }
+
+  String _formatDisplayAmount(num? amount, String? originalCurrency) {
+    final numericAmount = (amount ?? 0).toDouble();
+    final sourceCurrency = (originalCurrency ?? 'INR').toUpperCase();
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final canConvert = _displayCurrencyData?.canConvert(
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        (sourceCurrency == targetCurrency);
+    if (!canConvert) {
+      final originalSymbol =
+          _displayCurrencyData?.symbolFor(sourceCurrency) ?? sourceCurrency;
+      return '$originalSymbol${numericAmount.toStringAsFixed(2)} $sourceCurrency';
+    }
+    final converted = _displayCurrencyData?.convert(
+          numericAmount,
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        numericAmount;
+    final symbol = _displayCurrencyData?.symbolFor(targetCurrency) ?? targetCurrency;
+    return '$symbol${converted.toStringAsFixed(2)} $targetCurrency';
+  }
+
+  bool _hasMissingConversionForSecureTransactions() {
+    if (_selectedDisplayCurrency.toUpperCase() == 'INR') return false;
+    if (_displayCurrencyData == null) return true;
+    final allTransactions = [...lending, ...borrowing];
+    for (final transaction in allTransactions) {
+      final sourceCurrency = (transaction['currency'] ?? 'INR').toString();
+      if (!_displayCurrencyData!.canConvert(
+        sourceCurrency,
+        _selectedDisplayCurrency,
+      )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Widget _buildCurrencySelector() {
+    final currencies = _displayCurrencyData?.currencies ??
+        const <Map<String, String>>[
+          {'code': 'INR', 'symbol': '₹', 'label': ''},
+        ];
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: _selectedDisplayCurrency,
+            borderRadius: BorderRadius.circular(14),
+            items: currencies
+                .map(
+                  (currency) => DropdownMenuItem(
+                    value: currency['code'],
+                    child: Text(
+                      '${currency['symbol']} ${currency['code']}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() {
+                _selectedDisplayCurrency = value;
+              });
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> fetchTransactions() async {
@@ -595,8 +712,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         children: [
           Icon(Icons.attach_money, color: Colors.green, size: 20),
           SizedBox(width: 6),
-          Text(
-              'Expected Amount: ${expectedAmount.toStringAsFixed(2)} ${t['currency']} (expected amount till expected return date)',
+              Text(
+              'Expected Amount: ${_formatDisplayAmount(expectedAmount, t['currency']?.toString())} (expected amount till expected return date)',
               style: TextStyle(
                   fontWeight: FontWeight.bold, color: Colors.green[800]))
         ],
@@ -1195,7 +1312,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                 color: Colors.green, size: 20),
                             SizedBox(width: 6),
                             Text(
-                              'Amount: ${t['amount']} ${t['currency']}',
+                              'Amount: ${_formatDisplayAmount((t['amount'] as num?) ?? 0, t['currency']?.toString())}',
                               style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
@@ -1378,7 +1495,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                               color: Colors.green, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'Original Amount: ${t['amount']} ${t['currency']}',
+                                            'Original Amount: ${_formatDisplayAmount((t['amount'] as num?) ?? 0, t['currency']?.toString())}',
                                             style: TextStyle(
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w500),
@@ -1393,7 +1510,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                               color: Colors.green, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'Amount Paid Till Now: ${_calculateAmountPaidTillNow(t)} ${t['currency']}',
+                                            'Amount Paid Till Now: ${_formatDisplayAmount(double.tryParse(_calculateAmountPaidTillNow(t)) ?? 0, t['currency']?.toString())}',
                                             style: TextStyle(
                                               fontSize: 14,
                                               fontWeight: FontWeight.bold,
@@ -1410,7 +1527,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                               color: Colors.orange, size: 16),
                                           SizedBox(width: 6),
                                           Text(
-                                            'Remaining Amount: ${_calculateRemainingAmount(t)} ${t['currency']}',
+                                            'Remaining Amount: ${_formatDisplayAmount(double.tryParse(_calculateRemainingAmount(t)) ?? 0, t['currency']?.toString())}',
                                             style: TextStyle(
                                               fontSize: 14,
                                               fontWeight: FontWeight.bold,
@@ -2232,6 +2349,54 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                     _buildFilterChips(),
                     SizedBox(height: 8),
                     _buildClearanceFilterChips(),
+                    if (_displayCurrencyError != null ||
+                        _hasMissingConversionForSecureTransactions())
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1F1),
+                            borderRadius: BorderRadius.circular(14),
+                            border:
+                                Border.all(color: const Color(0xFFFF6B6B)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.error_outline,
+                                  color: Color(0xFFD62828), size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _displayCurrencyError ??
+                                      'Conversion to $_selectedDisplayCurrency is not available for one or more secure transactions. Showing original currencies instead.',
+                                  style: const TextStyle(
+                                    color: Color(0xFFD62828),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          const Text(
+                            'Show In',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(width: 10),
+                          _buildCurrencySelector(),
+                        ],
+                      ),
+                    ),
                     SizedBox(height: 8),
                     Expanded(
                       child: ListView(
@@ -2420,7 +2585,11 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return PartialPaymentHistoryDialog(transaction: transaction);
+        return PartialPaymentHistoryDialog(
+          transaction: transaction,
+          displayCurrencyData: _displayCurrencyData,
+          selectedDisplayCurrency: _selectedDisplayCurrency,
+        );
       },
     );
   }
@@ -3578,10 +3747,14 @@ class _PartialPaymentDialogState extends State<PartialPaymentDialog> {
 
 class PartialPaymentHistoryDialog extends StatelessWidget {
   final Map<String, dynamic> transaction;
+  final DisplayCurrencyData? displayCurrencyData;
+  final String selectedDisplayCurrency;
 
   const PartialPaymentHistoryDialog({
     Key? key,
     required this.transaction,
+    required this.displayCurrencyData,
+    required this.selectedDisplayCurrency,
   }) : super(key: key);
 
   String _getPaidByEmail(Map payment, Map transaction) {
@@ -3594,12 +3767,33 @@ class PartialPaymentHistoryDialog extends StatelessWidget {
     return paidBy;
   }
 
+  String _formatDisplayAmount(num amount, String? originalCurrency) {
+    final sourceCurrency = (originalCurrency ?? 'INR').toUpperCase();
+    final targetCurrency = selectedDisplayCurrency.toUpperCase();
+    final canConvert = displayCurrencyData?.canConvert(
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        (sourceCurrency == targetCurrency);
+    if (!canConvert) {
+      final originalSymbol =
+          displayCurrencyData?.symbolFor(sourceCurrency) ?? sourceCurrency;
+      return '$originalSymbol${amount.toStringAsFixed(2)} $sourceCurrency';
+    }
+    final converted = displayCurrencyData?.convert(
+          amount,
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        amount.toDouble();
+    final symbol = displayCurrencyData?.symbolFor(targetCurrency) ?? targetCurrency;
+    return '$symbol${converted.toStringAsFixed(2)} $targetCurrency';
+  }
+
   @override
   Widget build(BuildContext context) {
     final partialPayments = transaction['partialPayments'] as List? ?? [];
     final isPartiallyPaid = transaction['isPartiallyPaid'] == true;
-    final remainingAmount = transaction['remainingAmount'];
-    final originalAmount = transaction['amount'];
     final currency = transaction['currency'] ?? '';
 
     return Dialog(
@@ -3709,7 +3903,10 @@ class PartialPaymentHistoryDialog extends StatelessWidget {
                                       ),
                                       Spacer(),
                                       Text(
-                                        '${payment['amount']} $currency',
+                                        _formatDisplayAmount(
+                                          (payment['amount'] as num?) ?? 0,
+                                          currency.toString(),
+                                        ),
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: 16,
