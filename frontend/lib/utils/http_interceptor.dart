@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../api_config.dart';
+import 'auth_navigation.dart';
 
 class HttpInterceptor {
   static const _storage = FlutterSecureStorage();
@@ -77,6 +78,12 @@ class HttpInterceptor {
     // First attempt
     http.Response response = await request();
 
+    if (response.statusCode == 440) {
+      await _clearTokens();
+      AuthNavigation.redirectToLogin();
+      return response;
+    }
+
     // If unauthorized, try to refresh token and retry
     if (response.statusCode == 401) {
       final refreshToken = await _storage.read(key: 'refresh_token');
@@ -135,11 +142,13 @@ class HttpInterceptor {
           } else {
             // Refresh failed, clear tokens and process pending requests
             await _clearTokensAndProcessPending();
+            AuthNavigation.redirectToLogin();
             response = await request();
           }
         } catch (e) {
           // Refresh failed, clear tokens and process pending requests
           await _clearTokensAndProcessPending();
+          AuthNavigation.redirectToLogin();
           response = await request();
         } finally {
           _isRefreshing = false;
@@ -147,6 +156,7 @@ class HttpInterceptor {
       } else {
         // No refresh token available, clear tokens
         await _clearTokens();
+        AuthNavigation.redirectToLogin();
       }
     }
 
@@ -197,5 +207,6 @@ class HttpInterceptor {
   static Future<void> _clearTokens() async {
     await _storage.delete(key: 'access_token');
     await _storage.delete(key: 'refresh_token');
+    await _storage.delete(key: 'user_data');
   }
 }

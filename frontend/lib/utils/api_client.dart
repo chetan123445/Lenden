@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../api_config.dart';
+import 'auth_navigation.dart';
 
 class ApiMultipartFile {
   final String field;
@@ -38,6 +39,7 @@ class ApiClient {
   static Future<void> clearTokens() async {
     await _storage.delete(key: _kAccessToken);
     await _storage.delete(key: _kRefreshToken);
+    await _storage.delete(key: 'user_data');
   }
 
   static Future<String?> _getAccessToken() async {
@@ -93,6 +95,12 @@ class ApiClient {
       rethrow;
     }
 
+    if (resp.statusCode == 440) {
+      await clearTokens();
+      AuthNavigation.redirectToLogin();
+      return resp;
+    }
+
     // If unauthorized, try refresh and retry once
     if (resp.statusCode == 401) {
       final refreshed = await _refreshTokens();
@@ -124,6 +132,9 @@ class ApiClient {
             resp = await _client.delete(uri, headers: retryHeaders);
             break;
         }
+      } else {
+        await clearTokens();
+        AuthNavigation.redirectToLogin();
       }
     }
 
@@ -154,6 +165,7 @@ class ApiClient {
         }
       } else {
         await clearTokens();
+        AuthNavigation.redirectToLogin();
       }
     } catch (_) {
       // ignore
@@ -268,11 +280,20 @@ class ApiClient {
     }
 
     var response = await sendRequest(token);
+    if (response.statusCode == 440) {
+      await clearTokens();
+      AuthNavigation.redirectToLogin();
+      return response;
+    }
+
     if (response.statusCode == 401) {
       final refreshed = await _refreshTokens();
       if (refreshed) {
         token = await _getAccessToken();
         response = await sendRequest(token);
+      } else {
+        await clearTokens();
+        AuthNavigation.redirectToLogin();
       }
     }
 

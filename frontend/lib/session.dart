@@ -357,7 +357,7 @@ class SessionProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final user = jsonDecode(response.body);
         setUser(user);
-      } else if (response.statusCode == 401) {
+      } else if (response.statusCode == 401 || response.statusCode == 440) {
         await logout();
       }
     } catch (e) {
@@ -384,7 +384,7 @@ class SessionProvider extends ChangeNotifier {
       if (response.statusCode == 200) {
         final user = jsonDecode(response.body);
         setUser(user);
-      } else if (response.statusCode == 401) {
+      } else if (response.statusCode == 401 || response.statusCode == 440) {
         await logout();
       }
     } catch (e) {

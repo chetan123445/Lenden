@@ -2,6 +2,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../api_config.dart';
+import 'auth_navigation.dart';
 
 class AuthenticatedHttpClient {
   static const _storage = FlutterSecureStorage();
@@ -69,6 +70,14 @@ class AuthenticatedHttpClient {
       Future<http.Response> Function() request) async {
     http.Response response = await request();
 
+    if (response.statusCode == 440) {
+      await _storage.delete(key: 'access_token');
+      await _storage.delete(key: 'refresh_token');
+      await _storage.delete(key: 'user_data');
+      AuthNavigation.redirectToLogin();
+      return response;
+    }
+
     if (response.statusCode == 401) {
       final refreshToken = await _storage.read(key: 'refresh_token');
 
@@ -116,6 +125,13 @@ class AuthenticatedHttpClient {
           }
         }
       }
+    }
+
+    if (response.statusCode == 401) {
+      await _storage.delete(key: 'access_token');
+      await _storage.delete(key: 'refresh_token');
+      await _storage.delete(key: 'user_data');
+      AuthNavigation.redirectToLogin();
     }
 
     return response;

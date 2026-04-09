@@ -25,6 +25,7 @@ import 'user/connections/counterparties_page.dart';
 import 'dart:convert';
 import 'api_config.dart';
 import 'widgets/notification_icon.dart';
+import 'utils/auth_navigation.dart';
 
 void main() {
   runApp(
@@ -85,6 +86,7 @@ class _AppInitializerState extends State<AppInitializer>
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      navigatorKey: appNavigatorKey,
       title: 'Lenden App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
