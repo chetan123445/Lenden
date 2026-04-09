@@ -674,6 +674,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     required String value,
     required IconData icon,
     required List<Color> colors,
+    bool useTricolorBorder = false,
   }) {
     return Container(
       width: 190,
@@ -681,19 +682,23 @@ class _AnalyticsPageState extends State<AnalyticsPage>
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
-          colors: colors,
+          colors: useTricolorBorder
+              ? const [Colors.orange, Colors.white, Colors.green]
+              : colors,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: (useTricolorBorder ? colors.first : Colors.black)
+                .withOpacity(0.14),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Container(
+        margin: const EdgeInsets.all(2),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -1237,6 +1242,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                             _buildQuickInsights()['biggestPending'] ?? '₹0.00',
                         icon: Icons.priority_high_rounded,
                         colors: const [Color(0xFFFF8B7B), Color(0xFFFFC2AE)],
+                        useTricolorBorder: true,
                       ),
                       _buildSummaryCard(
                         title: 'Frequent Person',
@@ -1245,6 +1251,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                                 'No data',
                         icon: Icons.person_search_rounded,
                         colors: const [Color(0xFF7E74F1), Color(0xFFC0BCFF)],
+                        useTricolorBorder: true,
                       ),
                       _buildSummaryCard(
                         title: 'Month Net Flow',
@@ -1252,6 +1259,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                             '₹0.00',
                         icon: Icons.swap_vert_circle_rounded,
                         colors: const [Color(0xFF58C4DD), Color(0xFF89E0EF)],
+                        useTricolorBorder: true,
                       ),
                       _buildSummaryCard(
                         title: 'Average Amount',
@@ -1259,6 +1267,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                             '₹0.00',
                         icon: Icons.analytics_rounded,
                         colors: const [Color(0xFF6BCB91), Color(0xFFA9E4A7)],
+                        useTricolorBorder: true,
                       ),
                     ],
                   ),
@@ -1410,6 +1419,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                                         Color(0xFFFFB562),
                                         Color(0xFFFFD9A0)
                                       ],
+                        useTricolorBorder: true,
                       );
                     },
                   ),

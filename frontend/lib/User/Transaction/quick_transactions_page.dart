@@ -2262,6 +2262,59 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                                             fontSize: 16,
                                             color: Colors.grey[500]),
                                       ),
+                                      if (_hasActiveFilters()) ...[
+                                        const SizedBox(height: 18),
+                                        GestureDetector(
+                                          onTap: _resetFilters,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(2),
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(24),
+                                              gradient: const LinearGradient(
+                                                colors: [
+                                                  Colors.orange,
+                                                  Colors.white,
+                                                  Colors.green,
+                                                ],
+                                                begin: Alignment.topLeft,
+                                                end: Alignment.bottomRight,
+                                              ),
+                                            ),
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                horizontal: 18,
+                                                vertical: 10,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: Colors.white,
+                                                borderRadius:
+                                                    BorderRadius.circular(22),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: const [
+                                                  Icon(
+                                                    Icons.refresh_rounded,
+                                                    color: Color(0xFF00B4D8),
+                                                    size: 18,
+                                                  ),
+                                                  SizedBox(width: 8),
+                                                  Text(
+                                                    'Reset Filters',
+                                                    style: TextStyle(
+                                                      color: Colors.black87,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 )
