@@ -20,6 +20,23 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 class UserTransactionsPage extends StatefulWidget {
+  final String initialFilter;
+  final String initialClearanceFilter;
+  final String initialPartialClearedType;
+  final String initialInterestTypeFilter;
+  final String initialGlobalSearch;
+  final bool initialShowFavouritesOnly;
+
+  const UserTransactionsPage({
+    Key? key,
+    this.initialFilter = 'All',
+    this.initialClearanceFilter = 'All',
+    this.initialPartialClearedType = 'my',
+    this.initialInterestTypeFilter = 'All',
+    this.initialGlobalSearch = '',
+    this.initialShowFavouritesOnly = false,
+  }) : super(key: key);
+
   @override
   _UserTransactionsPageState createState() => _UserTransactionsPageState();
 }
@@ -61,16 +78,24 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   DisplayCurrencyData? _displayCurrencyData;
   String _selectedDisplayCurrency = 'INR';
   String? _displayCurrencyError;
+  final Set<String> _expandedTransactionIds = <String>{};
 
   @override
   void initState() {
     super.initState();
+    filter = widget.initialFilter;
+    clearanceFilter = widget.initialClearanceFilter;
+    partialClearedType = widget.initialPartialClearedType;
+    interestTypeFilter = widget.initialInterestTypeFilter;
+    globalSearch = widget.initialGlobalSearch;
+    showFavouritesOnly = widget.initialShowFavouritesOnly;
     fetchTransactions();
     _loadDisplayCurrencies();
     _counterpartyController.text = _searchCounterparty;
     _placeController.text = _searchPlace;
     _transactionIdController.text = _searchTransactionId;
     _amountController.text = _searchAmount?.toString() ?? '';
+    _globalSearchController.text = globalSearch;
   }
 
   @override
@@ -127,7 +152,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           targetCurrency,
         ) ??
         numericAmount;
-    final symbol = _displayCurrencyData?.symbolFor(targetCurrency) ?? targetCurrency;
+    final symbol =
+        _displayCurrencyData?.symbolFor(targetCurrency) ?? targetCurrency;
     return '$symbol${converted.toStringAsFixed(2)} $targetCurrency';
   }
 
@@ -532,8 +558,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   }
 
   Widget _buildTransactionCard(Map t, bool isLending) {
-    // Add state for expandable functionality
-    bool isExpanded = false;
+    final transactionKey = (t['transactionId'] ?? t['_id'] ?? '').toString();
+    final isExpanded = _expandedTransactionIds.contains(transactionKey);
 
     List<Map<String, dynamic>> attachments = [];
     if (t['files'] != null && t['files'] is List && t['files'].isNotEmpty) {
@@ -647,6 +673,18 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     bool otherCleared =
         (isLending ? t['counterpartyCleared'] : t['userCleared']) == true;
     bool fullyCleared = youCleared && otherCleared;
+    final hasPartialPayment = _hasPartialPayment(Map<String, dynamic>.from(t));
+    final expectedReturnDate =
+        DateTime.tryParse((t['expectedReturnDate'] ?? '').toString());
+    final now = DateTime.now();
+    final isOverdue = expectedReturnDate != null &&
+        expectedReturnDate.isBefore(now) &&
+        !fullyCleared;
+    final isDueSoon = expectedReturnDate != null &&
+        !isOverdue &&
+        expectedReturnDate.difference(now).inDays >= 0 &&
+        expectedReturnDate.difference(now).inDays <= 7 &&
+        !fullyCleared;
     // Interest/return info
     List<Widget> interestWidgets = [];
     if (t['interestType'] != null &&
@@ -712,7 +750,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         children: [
           Icon(Icons.attach_money, color: Colors.green, size: 20),
           SizedBox(width: 6),
-              Text(
+          Text(
               'Expected Amount: ${_formatDisplayAmount(expectedAmount, t['currency']?.toString())} (expected amount till expected return date)',
               style: TextStyle(
                   fontWeight: FontWeight.bold, color: Colors.green[800]))
@@ -726,7 +764,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         isLending ? t['counterpartyEmail'] : t['counterpartyEmail'];
     Color borderColor = fullyCleared
         ? Colors.green
-        : (t['isPartiallyPaid'] == true)
+        : hasPartialPayment
             ? Colors.purple
             : (youCleared || otherCleared)
                 ? Colors.orange
@@ -767,6 +805,13 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         SizedBox(width: 6),
         Text('Fully Cleared',
             style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))
+      ]));
+    } else if (hasPartialPayment) {
+      statusWidgets.add(Row(children: [
+        Icon(Icons.account_balance_wallet_outlined, color: Colors.purple),
+        SizedBox(width: 6),
+        Text('Partially Paid / Cleared',
+            style: TextStyle(color: Colors.purple, fontWeight: FontWeight.bold))
       ]));
     } else if (youCleared && !otherCleared) {
       statusWidgets.add(Row(children: [
@@ -855,6 +900,55 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
           ],
         ),
       ));
+    }
+    if (hasPartialPayment) {
+      final remainingAmount =
+          _calculateRemainingAmount(Map<String, dynamic>.from(t));
+      final paidAmount =
+          _calculateAmountPaidTillNow(Map<String, dynamic>.from(t));
+      statusWidgets.add(const SizedBox(height: 10));
+      statusWidgets.add(
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.purple.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.purple.withOpacity(0.22)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet_outlined,
+                      color: Colors.purple, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Partial payment in progress',
+                    style: TextStyle(
+                      color: Colors.purple.shade700,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Paid so far: ${_formatDisplayAmount(double.tryParse(paidAmount) ?? 0, t['currency']?.toString())}',
+                style: TextStyle(color: Colors.grey.shade800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Remaining amount: ${_formatDisplayAmount(double.tryParse(remainingAmount) ?? 0, t['currency']?.toString())}',
+                style: TextStyle(
+                  color: Colors.purple.shade700,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     // Always show See Description button
     Widget seeDescriptionButton = Padding(
@@ -959,672 +1053,705 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
 
     final isFavourited = (t['favourite'] as List<dynamic>).contains(email);
 
-    // Create expandable card using StatefulBuilder
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return Container(
-          margin: EdgeInsets.symmetric(vertical: 10, horizontal: 0),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
-            border: Border(
-              left: BorderSide(color: borderColor, width: 6),
-            ),
+    // Create expandable card with persisted expand/collapse state
+    return Container(
+      margin: EdgeInsets.symmetric(vertical: 10, horizontal: 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: Offset(0, 4),
           ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: IntrinsicWidth(
-              child: Column(
-                children: [
-                  // Main content (always visible)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+        border: Border(
+          left: BorderSide(color: borderColor, width: 6),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: IntrinsicWidth(
+          child: Column(
+            children: [
+              // Main content (always visible)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // New top row with Favourite, Chat, Date, and Time
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // New top row with Favourite, Chat, Date, and Time
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                // Favourite button with loading indicator
-                                if (_favouritingTransactionId ==
-                                    t['transactionId'])
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Row(
-                                      children: [
-                                        SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2),
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text((t['favourite'] as List<dynamic>)
-                                                .contains(email)
-                                            ? 'Adding to favourites...'
-                                            : 'Removing from favourites...'),
-                                      ],
+                            // Favourite button with loading indicator
+                            if (_favouritingTransactionId == t['transactionId'])
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
                                     ),
-                                  )
-                                else
-                                  IconButton(
-                                    icon: Icon(
-                                      isFavourited
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                      color: isFavourited
-                                          ? Colors.red
-                                          : Colors.grey,
-                                    ),
-                                    onPressed: () {
-                                      _toggleFavourite(
-                                          Map<String, dynamic>.from(t));
-                                    },
-                                  ),
+                                    SizedBox(width: 8),
+                                    Text((t['favourite'] as List<dynamic>)
+                                            .contains(email)
+                                        ? 'Adding to favourites...'
+                                        : 'Removing from favourites...'),
+                                  ],
+                                ),
+                              )
+                            else
+                              IconButton(
+                                icon: Icon(
+                                  isFavourited
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color:
+                                      isFavourited ? Colors.red : Colors.grey,
+                                ),
+                                onPressed: () {
+                                  _toggleFavourite(
+                                      Map<String, dynamic>.from(t));
+                                },
+                              ),
 
-                                // Chat button with loading indicator
-                                if (_chattingTransactionId ==
-                                    t['transactionId'])
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Row(
-                                      children: [
-                                        SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 2),
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text('Opening chat...'),
-                                      ],
+                            // Chat button with loading indicator
+                            if (_chattingTransactionId == t['transactionId'])
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
                                     ),
-                                  )
-                                else
-                                  IconButton(
-                                    icon: Icon(Icons.chat, color: Colors.blue),
-                                    onPressed: () async {
-                                      setState(() {
-                                        _chattingTransactionId =
-                                            t['transactionId'];
-                                      });
-                                      await _navigateToChat(
-                                          Map<String, dynamic>.from(t));
-                                      if (mounted) {
-                                        setState(() {
-                                          _chattingTransactionId = null;
-                                        });
-                                      }
-                                    },
-                                  ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                Icon(Icons.calendar_today,
-                                    color: Colors.blue, size: 18),
-                                SizedBox(width: 6),
-                                Text('Date: $dateStr',
-                                    style: TextStyle(fontSize: 14)),
-                                SizedBox(width: 10),
-                                Icon(Icons.access_time,
-                                    color: Colors.deepPurple, size: 18),
-                                SizedBox(width: 6),
-                                Text('Time: $timeStr',
-                                    style: TextStyle(fontSize: 14)),
-                              ],
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 10),
-                        // Header with expand/collapse arrow
-                        Row(
-                          children: [
-                            Icon(
-                                isLending
-                                    ? Icons.arrow_upward
-                                    : Icons.arrow_downward,
-                                color: isLending ? Colors.green : Colors.orange,
-                                size: 28),
-                            if (t['isPartiallyPaid'] == true) ...[
-                              SizedBox(width: 4),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.purple,
-                                  borderRadius: BorderRadius.circular(8),
+                                    SizedBox(width: 8),
+                                    Text('Opening chat...'),
+                                  ],
                                 ),
-                                child: Text(
-                                  'Partial',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                            SizedBox(width: 10),
-                            // Only one profile icon for the logged-in user
-                            GestureDetector(
-                              onTap: () async {
-                                final profile = user;
-                                final gender = profile?['gender'] ?? 'Other';
-                                dynamic imageUrl = profile?['profileImage'];
-                                if (imageUrl is Map && imageUrl['url'] != null)
-                                  imageUrl = imageUrl['url'];
-                                if (imageUrl != null && imageUrl is! String)
-                                  imageUrl = null;
-                                ImageProvider avatarProvider;
-                                if (imageUrl != null &&
-                                    imageUrl.toString().isNotEmpty &&
-                                    imageUrl != 'null') {
-                                  avatarProvider = NetworkImage(imageUrl);
-                                } else {
-                                  avatarProvider = AssetImage(
-                                    gender == 'Male'
-                                        ? 'assets/Male.png'
-                                        : gender == 'Female'
-                                            ? 'assets/Female.png'
-                                            : 'assets/Other.png',
-                                  );
-                                }
-                                final phoneStr =
-                                    (profile?['phone'] ?? '').toString();
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => _StylishProfileDialog(
-                                    title: 'You',
-                                    name: profile?['name'] ?? 'You',
-                                    avatarProvider: avatarProvider,
-                                    email: profile?['email'],
-                                    phone: phoneStr,
-                                    gender: profile?['gender'],
-                                  ),
-                                );
-                              },
-                              child: CircleAvatar(
-                                radius: 18,
-                                backgroundColor: Colors.teal.shade100,
-                                child: Icon(Icons.person,
-                                    color: Colors.teal, size: 22),
-                              ),
-                            ),
-                            SizedBox(width: 10),
-                            Text(
-                              isLending
-                                  ? 'Lending (You gave money)'
-                                  : 'Borrowing (You took money)',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: isLending
-                                      ? Colors.green
-                                      : Colors.orange,
-                                  fontSize: 16),
-                            ),
-                            // Expand/collapse arrow
-                            GestureDetector(
-                              onTap: () {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                              )
+                            else
+                              IconButton(
+                                icon: Icon(Icons.chat, color: Colors.blue),
+                                onPressed: () async {
+                                  setState(() {
+                                    _chattingTransactionId = t['transactionId'];
+                                  });
+                                  await _navigateToChat(
+                                      Map<String, dynamic>.from(t));
                                   if (mounted) {
                                     setState(() {
-                                      isExpanded = !isExpanded;
+                                      _chattingTransactionId = null;
                                     });
                                   }
-                                });
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: Colors.teal.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: AnimatedRotation(
-                                  turns: isExpanded ? 0.5 : 0,
-                                  duration: Duration(milliseconds: 300),
-                                  child: Icon(
-                                    Icons.keyboard_arrow_down,
-                                    color: Colors.teal,
-                                    size: 24,
-                                  ),
-                                ),
+                                },
                               ),
-                            ),
                           ],
                         ),
-                        SizedBox(height: 10),
-                        // Counterparty info (always visible)
                         Row(
                           children: [
-                            GestureDetector(
-                              onTap: () async {
-                                showDialog(
-                                  context: context,
-                                  builder: (_) =>
-                                      FutureBuilder<Map<String, dynamic>?>(
-                                    // Corrected type here
-                                    future: _fetchCounterpartyProfile(
-                                        context, counterpartyEmail),
-                                    builder: (context, snapshot) {
-                                      if (snapshot.connectionState ==
-                                          ConnectionState.waiting) {
-                                        return Center(
-                                            child: CircularProgressIndicator());
-                                      }
-                                      final profile = snapshot.data;
-                                      if (profile == null) {
-                                        return _StylishProfileDialog(
-                                          title: 'Counterparty Info',
-                                          name: 'No profile found.',
-                                          avatarProvider:
-                                              AssetImage('assets/Other.png'),
-                                        );
-                                      }
-                                      if (profile['deactivatedAccount'] ==
-                                          true) {
-                                        return _StylishProfileDialog(
-                                          title: 'Counterparty Info',
-                                          name: 'This account is Deactivated.',
-                                          avatarProvider:
-                                              AssetImage('assets/Other.png'),
-                                        );
-                                      }
-                                      if (profile['profileIsPrivate'] == true) {
-                                        return _StylishProfileDialog(
-                                          title: 'Counterparty Info',
-                                          name:
-                                              'This user\'s profile is private.',
-                                          avatarProvider:
-                                              AssetImage('assets/Other.png'),
-                                          email: null,
-                                          phone: null,
-                                          gender: null,
-                                        );
-                                      }
-                                      final gender =
-                                          profile['gender'] ?? 'Other';
-                                      dynamic imageUrl =
-                                          profile['profileImage'];
-                                      if (imageUrl is Map &&
-                                          imageUrl['url'] != null)
-                                        imageUrl = imageUrl['url'];
-                                      if (imageUrl != null &&
-                                          imageUrl is! String) imageUrl = null;
-                                      ImageProvider avatarProvider;
-                                      if (imageUrl != null &&
-                                          imageUrl.toString().isNotEmpty &&
-                                          imageUrl != 'null') {
-                                        avatarProvider = NetworkImage(imageUrl);
-                                      } else {
-                                        avatarProvider = AssetImage(
-                                          gender == 'Male'
-                                              ? 'assets/Male.png'
-                                              : gender == 'Female'
-                                                  ? 'assets/Female.png'
-                                                  : 'assets/Other.png',
-                                        );
-                                      }
-                                      final phoneStr =
-                                          (profile['phone'] ?? '').toString();
-                                      return _StylishProfileDialog(
-                                        title: 'Counterparty',
-                                        name: profile['name'] ?? 'Counterparty',
-                                        avatarProvider: avatarProvider,
-                                        email: profile['email'],
-                                        phone: phoneStr,
-                                        gender: profile['gender'],
-                                      );
-                                    },
-                                  ),
-                                );
-                              },
-                              child: CircleAvatar(
-                                radius: 14,
-                                backgroundColor: Colors.teal.shade100,
-                                child: Icon(Icons.person_outline,
-                                    color: Colors.teal, size: 16),
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Text('Counterparty: $counterpartyEmail',
-                                  style: TextStyle(
-                                      fontSize: 15, color: Colors.black87),
-                                  softWrap: false,
-                                  overflow: TextOverflow.fade),
-                          ],
-                        ),
-                        SizedBox(height: 6),
-                        // Amount (always visible - most important)
-                        Row(
-                          children: [
-                            Icon(Icons.attach_money,
-                                color: Colors.green, size: 20),
+                            Icon(Icons.calendar_today,
+                                color: Colors.blue, size: 18),
                             SizedBox(width: 6),
-                            Text(
-                              'Amount: ${_formatDisplayAmount((t['amount'] as num?) ?? 0, t['currency']?.toString())}',
+                            Text('Date: $dateStr',
+                                style: TextStyle(fontSize: 14)),
+                            SizedBox(width: 10),
+                            Icon(Icons.access_time,
+                                color: Colors.deepPurple, size: 18),
+                            SizedBox(width: 6),
+                            Text('Time: $timeStr',
+                                style: TextStyle(fontSize: 14)),
+                          ],
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    // Header with expand/collapse arrow
+                    Row(
+                      children: [
+                        Icon(
+                            isLending
+                                ? Icons.arrow_upward
+                                : Icons.arrow_downward,
+                            color: isLending ? Colors.green : Colors.orange,
+                            size: 28),
+                        if (t['isPartiallyPaid'] == true) ...[
+                          SizedBox(width: 4),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.purple,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              'Partial',
                               style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green[700]),
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                        SizedBox(width: 10),
+                        // Only one profile icon for the logged-in user
+                        GestureDetector(
+                          onTap: () async {
+                            final profile = user;
+                            final gender = profile?['gender'] ?? 'Other';
+                            dynamic imageUrl = profile?['profileImage'];
+                            if (imageUrl is Map && imageUrl['url'] != null)
+                              imageUrl = imageUrl['url'];
+                            if (imageUrl != null && imageUrl is! String)
+                              imageUrl = null;
+                            ImageProvider avatarProvider;
+                            if (imageUrl != null &&
+                                imageUrl.toString().isNotEmpty &&
+                                imageUrl != 'null') {
+                              avatarProvider = NetworkImage(imageUrl);
+                            } else {
+                              avatarProvider = AssetImage(
+                                gender == 'Male'
+                                    ? 'assets/Male.png'
+                                    : gender == 'Female'
+                                        ? 'assets/Female.png'
+                                        : 'assets/Other.png',
+                              );
+                            }
+                            final phoneStr =
+                                (profile?['phone'] ?? '').toString();
+                            showDialog(
+                              context: context,
+                              builder: (_) => _StylishProfileDialog(
+                                title: 'You',
+                                name: profile?['name'] ?? 'You',
+                                avatarProvider: avatarProvider,
+                                email: profile?['email'],
+                                phone: phoneStr,
+                                gender: profile?['gender'],
+                              ),
+                            );
+                          },
+                          child: CircleAvatar(
+                            radius: 18,
+                            backgroundColor: Colors.teal.shade100,
+                            child: Icon(Icons.person,
+                                color: Colors.teal, size: 22),
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Text(
+                          isLending
+                              ? 'Lending (You gave money)'
+                              : 'Borrowing (You took money)',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isLending ? Colors.green : Colors.orange,
+                              fontSize: 16),
+                        ),
+                        // Expand/collapse arrow
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              if (isExpanded) {
+                                _expandedTransactionIds.remove(transactionKey);
+                              } else {
+                                _expandedTransactionIds.add(transactionKey);
+                              }
+                            });
+                          },
+                          child: Container(
+                            padding: EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.teal.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: AnimatedRotation(
+                              turns: isExpanded ? 0.5 : 0,
+                              duration: Duration(milliseconds: 300),
+                              child: Icon(
+                                Icons.keyboard_arrow_down,
+                                color: Colors.teal,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 10),
+                    // Counterparty info (always visible)
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () async {
+                            showDialog(
+                              context: context,
+                              builder: (_) =>
+                                  FutureBuilder<Map<String, dynamic>?>(
+                                // Corrected type here
+                                future: _fetchCounterpartyProfile(
+                                    context, counterpartyEmail),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return Center(
+                                        child: CircularProgressIndicator());
+                                  }
+                                  final profile = snapshot.data;
+                                  if (profile == null) {
+                                    return _StylishProfileDialog(
+                                      title: 'Counterparty Info',
+                                      name: 'No profile found.',
+                                      avatarProvider:
+                                          AssetImage('assets/Other.png'),
+                                    );
+                                  }
+                                  if (profile['deactivatedAccount'] == true) {
+                                    return _StylishProfileDialog(
+                                      title: 'Counterparty Info',
+                                      name: 'This account is Deactivated.',
+                                      avatarProvider:
+                                          AssetImage('assets/Other.png'),
+                                    );
+                                  }
+                                  if (profile['profileIsPrivate'] == true) {
+                                    return _StylishProfileDialog(
+                                      title: 'Counterparty Info',
+                                      name: 'This user\'s profile is private.',
+                                      avatarProvider:
+                                          AssetImage('assets/Other.png'),
+                                      email: null,
+                                      phone: null,
+                                      gender: null,
+                                    );
+                                  }
+                                  final gender = profile['gender'] ?? 'Other';
+                                  dynamic imageUrl = profile['profileImage'];
+                                  if (imageUrl is Map &&
+                                      imageUrl['url'] != null)
+                                    imageUrl = imageUrl['url'];
+                                  if (imageUrl != null && imageUrl is! String)
+                                    imageUrl = null;
+                                  ImageProvider avatarProvider;
+                                  if (imageUrl != null &&
+                                      imageUrl.toString().isNotEmpty &&
+                                      imageUrl != 'null') {
+                                    avatarProvider = NetworkImage(imageUrl);
+                                  } else {
+                                    avatarProvider = AssetImage(
+                                      gender == 'Male'
+                                          ? 'assets/Male.png'
+                                          : gender == 'Female'
+                                              ? 'assets/Female.png'
+                                              : 'assets/Other.png',
+                                    );
+                                  }
+                                  final phoneStr =
+                                      (profile['phone'] ?? '').toString();
+                                  return _StylishProfileDialog(
+                                    title: 'Counterparty',
+                                    name: profile['name'] ?? 'Counterparty',
+                                    avatarProvider: avatarProvider,
+                                    email: profile['email'],
+                                    phone: phoneStr,
+                                    gender: profile['gender'],
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                          child: CircleAvatar(
+                            radius: 14,
+                            backgroundColor: Colors.teal.shade100,
+                            child: Icon(Icons.person_outline,
+                                color: Colors.teal, size: 16),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Text('Counterparty: $counterpartyEmail',
+                            style:
+                                TextStyle(fontSize: 15, color: Colors.black87),
+                            softWrap: false,
+                            overflow: TextOverflow.fade),
+                      ],
+                    ),
+                    SizedBox(height: 6),
+                    // Amount (always visible - most important)
+                    Row(
+                      children: [
+                        Icon(Icons.attach_money, color: Colors.green, size: 20),
+                        SizedBox(width: 6),
+                        Text(
+                          'Amount: ${_formatDisplayAmount((t['amount'] as num?) ?? 0, t['currency']?.toString())}',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green[700]),
+                        ),
+                      ],
+                    ),
+                    if (isOverdue || isDueSoon) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isOverdue
+                              ? Colors.red.withOpacity(0.10)
+                              : Colors.amber.withOpacity(0.14),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isOverdue
+                                ? Colors.red.withOpacity(0.24)
+                                : Colors.amber.withOpacity(0.28),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isOverdue
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.schedule_rounded,
+                              size: 16,
+                              color: isOverdue
+                                  ? Colors.red.shade700
+                                  : Colors.orange.shade800,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isOverdue
+                                  ? 'Overdue since ${DateFormat('MMM d').format(expectedReturnDate!)}'
+                                  : 'Due by ${DateFormat('MMM d').format(expectedReturnDate!)}',
+                              style: TextStyle(
+                                color: isOverdue
+                                    ? Colors.red.shade700
+                                    : Colors.orange.shade800,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ],
                         ),
-                        SizedBox(height: 6),
-                        // Status indicator (always visible)
-                        SizedBox(height: 8),
-                        Container(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: fullyCleared
-                                ? Colors.green.withOpacity(0.1)
+                      ),
+                    ],
+                    SizedBox(height: 6),
+                    // Status indicator (always visible)
+                    SizedBox(height: 8),
+                    Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: fullyCleared
+                            ? Colors.green.withOpacity(0.1)
+                            : hasPartialPayment
+                                ? Colors.purple.withOpacity(0.1)
                                 : (youCleared || otherCleared)
                                     ? Colors.orange.withOpacity(0.1)
                                     : Colors.grey.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border(
-                              left: BorderSide(color: borderColor, width: 6),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                fullyCleared
-                                    ? Icons.verified
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border(
+                          left: BorderSide(color: borderColor, width: 6),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            fullyCleared
+                                ? Icons.verified
+                                : hasPartialPayment
+                                    ? Icons.account_balance_wallet_outlined
                                     : (youCleared || otherCleared)
                                         ? Icons.check
                                         : Icons.hourglass_empty,
-                                color: fullyCleared
-                                    ? Colors.green
+                            color: fullyCleared
+                                ? Colors.green
+                                : hasPartialPayment
+                                    ? Colors.purple
                                     : (youCleared || otherCleared)
                                         ? Colors.orange
                                         : Colors.grey,
-                                size: 16,
-                              ),
-                              SizedBox(width: 6),
-                              Text(
-                                fullyCleared
-                                    ? 'Fully Cleared'
+                            size: 16,
+                          ),
+                          SizedBox(width: 6),
+                          Text(
+                            fullyCleared
+                                ? 'Fully Cleared'
+                                : hasPartialPayment
+                                    ? 'Partially Paid / Cleared'
                                     : (youCleared && !otherCleared)
                                         ? 'You cleared'
                                         : (!youCleared && otherCleared)
                                             ? 'Other cleared'
                                             : 'Uncleared',
-                                style: TextStyle(
-                                  color: fullyCleared
-                                      ? Colors.green
+                            style: TextStyle(
+                              color: fullyCleared
+                                  ? Colors.green
+                                  : hasPartialPayment
+                                      ? Colors.purple
                                       : (youCleared || otherCleared)
                                           ? Colors.orange
                                           : Colors.grey,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
+                ),
+              ),
 
-                  // Expandable content
-                  AnimatedContainer(
-                    duration: Duration(milliseconds: 300),
-                    height: isExpanded ? null : 0,
-                    child: isExpanded
-                        ? Padding(
-                            padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+              // Expandable content
+              AnimatedContainer(
+                duration: Duration(milliseconds: 300),
+                height: isExpanded ? null : 0,
+                child: isExpanded
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Divider
+                            Divider(
+                                color: Colors.grey.withOpacity(0.3),
+                                thickness: 1),
+                            SizedBox(height: 12),
+
+                            // Place
+                            Row(
                               children: [
-                                // Divider
-                                Divider(
-                                    color: Colors.grey.withOpacity(0.3),
-                                    thickness: 1),
-                                SizedBox(height: 12),
+                                Icon(Icons.place,
+                                    color: Colors.purple, size: 18),
+                                SizedBox(width: 6),
+                                Text('Place: ${t['place'] ?? ''}',
+                                    style: TextStyle(fontSize: 14)),
+                              ],
+                            ),
+                            SizedBox(height: 6),
 
-                                // Place
-                                Row(
-                                  children: [
-                                    Icon(Icons.place,
-                                        color: Colors.purple, size: 18),
-                                    SizedBox(width: 6),
-                                    Text('Place: ${t['place'] ?? ''}',
-                                        style: TextStyle(fontSize: 14)),
-                                  ],
-                                ),
-                                SizedBox(height: 6),
+                            // Transaction ID
+                            Row(
+                              children: [
+                                Icon(Icons.confirmation_number,
+                                    color: Colors.grey, size: 18),
+                                SizedBox(width: 6),
+                                Text('Transaction ID: ${t['transactionId']}',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey[700]),
+                                    softWrap: false,
+                                    overflow: TextOverflow.fade),
+                              ],
+                            ),
 
-                                // Transaction ID
-                                Row(
-                                  children: [
-                                    Icon(Icons.confirmation_number,
-                                        color: Colors.grey, size: 18),
-                                    SizedBox(width: 6),
-                                    Text(
-                                        'Transaction ID: ${t['transactionId']}',
+                            // Attachments
+                            if (attachments.isNotEmpty) ...[
+                              SizedBox(height: 10),
+                              ElevatedButton.icon(
+                                icon: Icon(Icons.attach_file),
+                                label: Text('View Attachments'),
+                                style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.teal),
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => _AttachmentCarouselDialog(
+                                        attachments: attachments),
+                                  );
+                                },
+                              ),
+                            ] else ...[
+                              SizedBox(height: 10),
+                              Text('No attachments',
+                                  style: TextStyle(
+                                      color: Colors.grey,
+                                      fontStyle: FontStyle.italic)),
+                            ],
+
+                            // File widgets
+                            if (fileWidgets.isNotEmpty) ...[
+                              SizedBox(height: 10),
+                              ...fileWidgets,
+                            ],
+
+                            // Interest widgets
+                            if (interestWidgets.isNotEmpty) ...[
+                              SizedBox(height: 10),
+                              ...interestWidgets,
+                            ],
+
+                            // Amount details section
+                            SizedBox(height: 10),
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Colors.blue.withOpacity(0.3)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.account_balance_wallet,
+                                          color: Colors.blue, size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Amount Details',
                                         style: TextStyle(
-                                            fontSize: 12, color: Colors.grey[700]),
-                                        softWrap: false,
-                                        overflow: TextOverflow.fade),
-                                  ],
-                                ),
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                          color: Colors.blue[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.attach_money,
+                                          color: Colors.green, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Original Amount: ${_formatDisplayAmount((t['amount'] as num?) ?? 0, t['currency']?.toString())}',
+                                        style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w500),
+                                      ),
+                                    ],
+                                  ),
+                                  // Amount Paid Till Now
+                                  SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.payments,
+                                          color: Colors.green, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Amount Paid Till Now: ${_formatDisplayAmount(double.tryParse(_calculateAmountPaidTillNow(t)) ?? 0, t['currency']?.toString())}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  // Remaining Amount (Original + Interest - Partial Payments)
+                                  SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.account_balance_wallet,
+                                          color: Colors.orange, size: 16),
+                                      SizedBox(width: 6),
+                                      Text(
+                                        'Remaining Amount: ${_formatDisplayAmount(double.tryParse(_calculateRemainingAmount(t)) ?? 0, t['currency']?.toString())}',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
 
-                                // Attachments
-                                if (attachments.isNotEmpty) ...[
-                                  SizedBox(height: 10),
+                            // Delete indicator
+                            if (deleteIndicator != null) ...[
+                              SizedBox(height: 10),
+                              deleteIndicator,
+                            ],
+
+                            // See description button
+                            SizedBox(height: 10),
+                            seeDescriptionButton,
+
+                            // Status widgets
+                            SizedBox(height: 10),
+                            ...statusWidgets,
+
+                            // Action buttons
+                            SizedBox(height: 10),
+                            Row(
+                              children: [
+                                // Delete button - only show if both parties have cleared
+                                if (fullyCleared) ...[
                                   ElevatedButton.icon(
-                                    icon: Icon(Icons.attach_file),
-                                    label: Text('View Attachments'),
+                                    icon: Icon(Icons.delete_forever,
+                                        color: Colors.white),
+                                    label: Text('Delete',
+                                        style: TextStyle(color: Colors.white)),
                                     style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.teal),
+                                      backgroundColor: Colors.red,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8)),
+                                    ),
                                     onPressed: () {
-                                      showDialog(
-                                        context: context,
-                                        builder: (_) =>
-                                            _AttachmentCarouselDialog(
-                                                attachments: attachments),
-                                      );
+                                      _showDeleteConfirmationDialog(
+                                          t['transactionId']);
                                     },
                                   ),
-                                ] else ...[
-                                  SizedBox(height: 10),
-                                  Text('No attachments',
-                                      style: TextStyle(
-                                          color: Colors.grey,
-                                          fontStyle: FontStyle.italic)),
+                                  SizedBox(width: 8),
                                 ],
-
-                                // File widgets
-                                if (fileWidgets.isNotEmpty) ...[
-                                  SizedBox(height: 10),
-                                  ...fileWidgets,
-                                ],
-
-                                // Interest widgets
-                                if (interestWidgets.isNotEmpty) ...[
-                                  SizedBox(height: 10),
-                                  ...interestWidgets,
-                                ],
-
-                                // Amount details section
-                                SizedBox(height: 10),
                                 Container(
-                                  padding: EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: Colors.blue.withOpacity(0.1),
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        Color(0xFFFF9933),
+                                        Color(0xFFFFFFFF),
+                                        Color(0xFF138808)
+                                      ],
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                        color: Colors.blue.withOpacity(0.3)),
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(Icons.account_balance_wallet,
-                                              color: Colors.blue, size: 20),
-                                          SizedBox(width: 8),
-                                          Text(
-                                            'Amount Details',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                              color: Colors.blue[700],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          Icon(Icons.attach_money,
-                                              color: Colors.green, size: 16),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'Original Amount: ${_formatDisplayAmount((t['amount'] as num?) ?? 0, t['currency']?.toString())}',
-                                            style: TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w500),
-                                          ),
-                                        ],
-                                      ),
-                                      // Amount Paid Till Now
-                                      SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Icon(Icons.payments,
-                                              color: Colors.green, size: 16),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'Amount Paid Till Now: ${_formatDisplayAmount(double.tryParse(_calculateAmountPaidTillNow(t)) ?? 0, t['currency']?.toString())}',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.green[700],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      // Remaining Amount (Original + Interest - Partial Payments)
-                                      SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Icon(Icons.account_balance_wallet,
-                                              color: Colors.orange, size: 16),
-                                          SizedBox(width: 6),
-                                          Text(
-                                            'Remaining Amount: ${_formatDisplayAmount(double.tryParse(_calculateRemainingAmount(t)) ?? 0, t['currency']?.toString())}',
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.orange[700],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                // Delete indicator
-                                if (deleteIndicator != null) ...[
-                                  SizedBox(height: 10),
-                                  deleteIndicator,
-                                ],
-
-                                // See description button
-                                SizedBox(height: 10),
-                                seeDescriptionButton,
-
-                                // Status widgets
-                                SizedBox(height: 10),
-                                ...statusWidgets,
-
-                                // Action buttons
-                                SizedBox(height: 10),
-                                Row(
-                                  children: [
-                                    // Delete button - only show if both parties have cleared
-                                    if (fullyCleared) ...[
-                                      ElevatedButton.icon(
-                                          icon: Icon(Icons.delete_forever,
-                                              color: Colors.white),
-                                          label: Text('Delete',
-                                              style: TextStyle(
-                                                  color: Colors.white)),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.red,
-                                            shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(8)),
-                                          ),
-                                          onPressed: () {
-                                            _showDeleteConfirmationDialog(
-                                                t['transactionId']);
-                                          },
-                                        ),
-                                      SizedBox(width: 8),
-                                    ],
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            Color(0xFFFF9933),
-                                            Color(0xFFFFFFFF),
-                                            Color(0xFF138808)
-                                          ],
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                        ),
-                                        borderRadius:
-                                            BorderRadius.circular(8),
-                                      ),
-                                      child: ElevatedButton.icon(
-                                        icon: Icon(Icons.receipt,
-                                            color: Colors.black),
-                                        label: Text('Generate Receipt',
-                                            style: TextStyle(
-                                                color: Colors.black)),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.transparent,
-                                          shadowColor: Colors.transparent,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                        onPressed: () {
-                                          _showReceiptOptionsDialog(
-                                              Map<String, dynamic>.from(t));
-                                        },
+                                  child: ElevatedButton.icon(
+                                    icon: Icon(Icons.receipt,
+                                        color: Colors.black),
+                                    label: Text('Generate Receipt',
+                                        style: TextStyle(color: Colors.black)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
                                     ),
-                                  ],
+                                    onPressed: () {
+                                      _showReceiptOptionsDialog(
+                                          Map<String, dynamic>.from(t));
+                                    },
+                                  ),
                                 ),
                               ],
                             ),
-                          )
-                                                : null,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),        );
-      },
+                          ],
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1665,6 +1792,19 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             selectedColor: Colors.red.withOpacity(0.2),
             labelStyle: TextStyle(color: Colors.red[800]),
           ),
+          if (_hasActiveFilters()) ...[
+            SizedBox(width: 8),
+            ActionChip(
+              label: const Text('Reset'),
+              avatar: const Icon(Icons.refresh_rounded, size: 18),
+              onPressed: _resetFilters,
+              backgroundColor: const Color(0xFF00B4D8).withOpacity(0.10),
+              labelStyle: const TextStyle(
+                color: Color(0xFF0077B6),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1809,11 +1949,203 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                   selectedColor: Colors.blue.withOpacity(0.2),
                   labelStyle: TextStyle(color: Colors.blue[800]),
                 ),
+                SizedBox(width: 8),
+                ChoiceChip(
+                  label: Text('With Interest'),
+                  selected: interestTypeFilter == 'with_interest',
+                  onSelected: (_) =>
+                      setState(() => interestTypeFilter = 'with_interest'),
+                  selectedColor: Colors.purple.withOpacity(0.2),
+                  labelStyle: TextStyle(color: Colors.purple[800]),
+                ),
               ],
             ),
           ),
         ),
       ],
+    );
+  }
+
+  int _activeFilterCount() {
+    int count = 0;
+    if (filter != 'All') count++;
+    if (showFavouritesOnly) count++;
+    if (clearanceFilter != 'All') count++;
+    if (interestTypeFilter != 'All') count++;
+    if (_startDate != null || _endDate != null) count++;
+    if (_minAmount != null || _maxAmount != null) count++;
+    return count;
+  }
+
+  Widget _buildFilterToolbar() {
+    final activeCount = _activeFilterCount();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Stack(
+        alignment: Alignment.centerRight,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 28),
+              child: Row(
+                children: [
+                  _buildPrimaryFilterTab(
+                    label: 'All',
+                    selected: filter == 'All',
+                    accentColor: const Color(0xFF00B4D8),
+                    onTap: () => setState(() => filter = 'All'),
+                  ),
+                  const SizedBox(width: 10),
+                  _buildPrimaryFilterTab(
+                    label: 'Lending',
+                    selected: filter == 'Lending',
+                    accentColor: Colors.green,
+                    onTap: () => setState(() => filter = 'Lending'),
+                  ),
+                  const SizedBox(width: 10),
+                  _buildPrimaryFilterTab(
+                    label: 'Borrowing',
+                    selected: filter == 'Borrowing',
+                    accentColor: Colors.orange,
+                    onTap: () => setState(() => filter = 'Borrowing'),
+                  ),
+                  const SizedBox(width: 10),
+                  _buildToolbarAction(
+                    icon: showFavouritesOnly
+                        ? Icons.favorite
+                        : Icons.favorite_border,
+                    label: 'Fav',
+                    accentColor: Colors.red,
+                    isActive: showFavouritesOnly,
+                    onTap: () => setState(
+                        () => showFavouritesOnly = !showFavouritesOnly),
+                  ),
+                  const SizedBox(width: 10),
+                  _buildToolbarAction(
+                    icon: Icons.tune_rounded,
+                    label:
+                        activeCount > 0 ? 'Filters ($activeCount)' : 'Filters',
+                    accentColor: const Color(0xFF00B4D8),
+                    isActive: activeCount > 0,
+                    onTap: _showFiltersBottomSheet,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IgnorePointer(
+            child: Container(
+              width: 34,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withOpacity(0.0),
+                    Colors.white.withOpacity(0.86),
+                    Colors.white,
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Text(
+                  '->',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrimaryFilterTab({
+    required String label,
+    required bool selected,
+    required Color accentColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        constraints: BoxConstraints(minWidth: label.length > 8 ? 112 : 74),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? accentColor.withOpacity(0.12) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected
+                ? accentColor.withOpacity(0.32)
+                : Colors.grey.withOpacity(0.16),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? accentColor : Colors.grey.shade700,
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToolbarAction({
+    required IconData icon,
+    required String label,
+    required Color accentColor,
+    required bool isActive,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: isActive ? accentColor.withOpacity(0.12) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isActive
+                ? accentColor.withOpacity(0.38)
+                : Colors.grey.withOpacity(0.18),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: accentColor),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: accentColor,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1905,6 +2237,689 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     );
   }
 
+  Future<DateTime?> _showStyledDatePicker({
+    required DateTime initialDate,
+  }) {
+    return showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF00B4D8),
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black87,
+              background: Colors.white,
+            ),
+            dialogTheme: DialogTheme(
+              backgroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF00B4D8),
+              ),
+            ),
+            cardColor: Colors.white,
+            canvasColor: Colors.white,
+          ),
+          child: child!,
+        );
+      },
+    );
+  }
+
+  Future<void> _showFiltersBottomSheet() async {
+    String tempClearanceFilter = clearanceFilter;
+    String tempInterestTypeFilter = interestTypeFilter;
+    DateTime? tempStartDate = _startDate;
+    DateTime? tempEndDate = _endDate;
+    double? tempMinAmount = _minAmount;
+    double? tempMaxAmount = _maxAmount;
+
+    final minAmountController =
+        TextEditingController(text: _minAmount?.toString() ?? '');
+    final maxAmountController =
+        TextEditingController(text: _maxAmount?.toString() ?? '');
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, modalSetState) {
+            Future<void> pickDate(bool isStart) async {
+              final picked = await _showStyledDatePicker(
+                initialDate: isStart
+                    ? (tempStartDate ?? DateTime.now())
+                    : (tempEndDate ?? DateTime.now()),
+              );
+              if (picked == null) return;
+              modalSetState(() {
+                if (isStart) {
+                  tempStartDate = picked;
+                } else {
+                  tempEndDate = picked;
+                }
+              });
+            }
+
+            Widget sectionTitle(String title, String subtitle) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            Widget tricolorSection({
+              required Widget child,
+              required Color backgroundColor,
+            }) {
+              return Container(
+                padding: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(22),
+                  gradient: const LinearGradient(
+                    colors: [Colors.orange, Colors.white, Colors.green],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: backgroundColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: child,
+                ),
+              );
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(26),
+                    gradient: const LinearGradient(
+                      colors: [Colors.orange, Colors.white, Colors.green],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 24,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFDFEFE),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF4FBFE),
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF00B4D8)
+                                        .withOpacity(0.10),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: const Icon(Icons.tune_rounded,
+                                      color: Color(0xFF00B4D8)),
+                                ),
+                                const SizedBox(width: 12),
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Refine Transactions',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        'Use smart filters to narrow the secure list quickly.',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  icon: const Icon(Icons.close),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          tricolorSection(
+                            backgroundColor: const Color(0xFFF8FBFD),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                sectionTitle(
+                                  'Clearance status',
+                                  'Choose how far the transaction has progressed.',
+                                ),
+                                const SizedBox(height: 10),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      'All',
+                                      'Totally Cleared',
+                                      'Totally Uncleared',
+                                      'Partially Cleared',
+                                    ]
+                                        .map(
+                                          (value) => Padding(
+                                            padding:
+                                                const EdgeInsets.only(right: 8),
+                                            child: ChoiceChip(
+                                              label: Text(value),
+                                              selected:
+                                                  tempClearanceFilter == value,
+                                              onSelected: (_) {
+                                                modalSetState(() {
+                                                  tempClearanceFilter = value;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          tricolorSection(
+                            backgroundColor: const Color(0xFFFFFCF7),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                sectionTitle(
+                                  'Interest type',
+                                  'Focus on the interest setup you want to review.',
+                                ),
+                                const SizedBox(height: 10),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      {'label': 'All', 'value': 'All'},
+                                      {
+                                        'label': 'Simple Interest',
+                                        'value': 'simple'
+                                      },
+                                      {
+                                        'label': 'Compound Interest',
+                                        'value': 'compound'
+                                      },
+                                      {
+                                        'label': 'With Interest',
+                                        'value': 'with_interest'
+                                      },
+                                    ]
+                                        .map(
+                                          (item) => Padding(
+                                            padding:
+                                                const EdgeInsets.only(right: 8),
+                                            child: ChoiceChip(
+                                              label: Text(item['label']!),
+                                              selected:
+                                                  tempInterestTypeFilter ==
+                                                      item['value'],
+                                              onSelected: (_) {
+                                                modalSetState(() {
+                                                  tempInterestTypeFilter =
+                                                      item['value']!;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          tricolorSection(
+                            backgroundColor: const Color(0xFFF7FBF8),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                sectionTitle(
+                                  'Date range',
+                                  'Limit results to a transaction period.',
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: InkWell(
+                                        onTap: () => pickDate(true),
+                                        child: InputDecorator(
+                                          decoration: InputDecoration(
+                                            labelText: 'Start Date',
+                                            border: InputBorder.none,
+                                            isDense: true,
+                                            prefixIcon: const Icon(
+                                              Icons.calendar_today,
+                                              color: Color(0xFF00B4D8),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                tempStartDate == null
+                                                    ? 'Any'
+                                                    : DateFormat('yyyy-MM-dd')
+                                                        .format(tempStartDate!),
+                                              ),
+                                              const Icon(Icons.calendar_today,
+                                                  color: Colors.teal),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: InkWell(
+                                        onTap: () => pickDate(false),
+                                        child: InputDecorator(
+                                          decoration: InputDecoration(
+                                            labelText: 'End Date',
+                                            border: InputBorder.none,
+                                            isDense: true,
+                                            prefixIcon: const Icon(
+                                              Icons.calendar_today,
+                                              color: Color(0xFF00B4D8),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Text(
+                                                tempEndDate == null
+                                                    ? 'Any'
+                                                    : DateFormat('yyyy-MM-dd')
+                                                        .format(tempEndDate!),
+                                              ),
+                                              const Icon(Icons.calendar_today,
+                                                  color: Colors.teal),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          tricolorSection(
+                            backgroundColor: const Color(0xFFF9F7FC),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                sectionTitle(
+                                  'Amount range',
+                                  'See only transactions within a value band.',
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: minAmountController,
+                                        decoration: InputDecoration(
+                                          labelText: 'Min Amount',
+                                          filled: true,
+                                          fillColor: Colors.white,
+                                          border: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                          ),
+                                          isDense: true,
+                                        ),
+                                        keyboardType: const TextInputType
+                                            .numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                        onChanged: (val) {
+                                          tempMinAmount = double.tryParse(val);
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: maxAmountController,
+                                        decoration: InputDecoration(
+                                          labelText: 'Max Amount',
+                                          filled: true,
+                                          fillColor: Colors.white,
+                                          border: OutlineInputBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(14),
+                                          ),
+                                          isDense: true,
+                                        ),
+                                        keyboardType: const TextInputType
+                                            .numberWithOptions(
+                                          decimal: true,
+                                        ),
+                                        onChanged: (val) {
+                                          tempMaxAmount = double.tryParse(val);
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Colors.orange,
+                                        Colors.white,
+                                        Colors.green
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                  ),
+                                  child: OutlinedButton(
+                                    onPressed: () {
+                                      modalSetState(() {
+                                        tempClearanceFilter = 'All';
+                                        tempInterestTypeFilter = 'All';
+                                        tempStartDate = null;
+                                        tempEndDate = null;
+                                        tempMinAmount = null;
+                                        tempMaxAmount = null;
+                                        minAmountController.clear();
+                                        maxAmountController.clear();
+                                      });
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      backgroundColor: Colors.white,
+                                      side: BorderSide.none,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 14),
+                                    ),
+                                    child: const Text(
+                                      'Clear Sheet',
+                                      style: TextStyle(
+                                        color: Color(0xFF0077B6),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.all(2),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Colors.orange,
+                                        Colors.white,
+                                        Colors.green
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                  ),
+                                  child: ElevatedButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        clearanceFilter = tempClearanceFilter;
+                                        interestTypeFilter =
+                                            tempInterestTypeFilter;
+                                        _startDate = tempStartDate;
+                                        _endDate = tempEndDate;
+                                        _minAmount = tempMinAmount;
+                                        _maxAmount = tempMaxAmount;
+                                      });
+                                      Navigator.pop(context);
+                                    },
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF00B4D8),
+                                      shadowColor: Colors.transparent,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 14),
+                                    ),
+                                    child: const Text(
+                                      'Apply Filters',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildActiveFilterSummary() {
+    final chips = <Map<String, dynamic>>[];
+    if (filter != 'All') {
+      chips.add({
+        'label': filter,
+        'color': filter == 'Lending' ? Colors.green : Colors.orange,
+      });
+    }
+    if (showFavouritesOnly) {
+      chips.add({'label': 'Favourites', 'color': Colors.red});
+    }
+    if (clearanceFilter != 'All') {
+      chips.add({
+        'label': clearanceFilter,
+        'color': clearanceFilter == 'Totally Cleared'
+            ? Colors.green
+            : clearanceFilter == 'Totally Uncleared'
+                ? Colors.orange
+                : Colors.blue,
+      });
+    }
+    if (interestTypeFilter != 'All') {
+      chips.add({
+        'label': interestTypeFilter == 'with_interest'
+            ? 'With Interest'
+            : interestTypeFilter == 'simple'
+                ? 'Simple Interest'
+                : 'Compound Interest',
+        'color': interestTypeFilter == 'simple'
+            ? Colors.green
+            : interestTypeFilter == 'compound'
+                ? Colors.blue
+                : Colors.purple,
+      });
+    }
+    if (_startDate != null || _endDate != null) {
+      chips.add({
+        'label':
+            'Dates: ${_startDate == null ? 'Any' : DateFormat('MMM d').format(_startDate!)} - ${_endDate == null ? 'Any' : DateFormat('MMM d').format(_endDate!)}',
+        'color': const Color(0xFF00B4D8),
+      });
+    }
+    if (_minAmount != null || _maxAmount != null) {
+      chips.add({
+        'label':
+            'Amount: ${_minAmount?.toStringAsFixed(0) ?? 'Any'} - ${_maxAmount?.toStringAsFixed(0) ?? 'Any'}',
+        'color': const Color(0xFF7C4DFF),
+      });
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.filter_alt_outlined,
+                    size: 18, color: Color(0xFF00B4D8)),
+                const SizedBox(width: 8),
+                const Text(
+                  'Active filters',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: _resetFilters,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Reset'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: chips
+                  .map(
+                    (chip) => Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: (chip['color'] as Color).withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: (chip['color'] as Color).withOpacity(0.24),
+                        ),
+                      ),
+                      child: Text(
+                        chip['label'] as String,
+                        style: TextStyle(
+                          color: chip['color'] as Color,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   bool _transactionMatchesFilters(Map t) {
     final date = t['date'] != null ? DateTime.tryParse(t['date']) : null;
     final amount = t['amount'] is num
@@ -1918,9 +2933,17 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       return false;
     if (_maxAmount != null && (amount == null || amount > _maxAmount!))
       return false;
-    if (interestTypeFilter != 'All' &&
-        (t['interestType'] ?? '').toString().toLowerCase() !=
-            interestTypeFilter) return false;
+    final transactionInterestType =
+        (t['interestType'] ?? '').toString().toLowerCase();
+    if (interestTypeFilter == 'with_interest') {
+      if (transactionInterestType == 'none' ||
+          transactionInterestType.isEmpty) {
+        return false;
+      }
+    } else if (interestTypeFilter != 'All' &&
+        transactionInterestType != interestTypeFilter) {
+      return false;
+    }
     // Global fuzzy search
     if (globalSearch.isNotEmpty) {
       final q = globalSearch.toLowerCase();
@@ -1950,6 +2973,248 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       }
     }
     return true;
+  }
+
+  bool _hasActiveFilters() {
+    return filter != 'All' ||
+        clearanceFilter != 'All' ||
+        _startDate != null ||
+        _endDate != null ||
+        _minAmount != null ||
+        _maxAmount != null ||
+        _searchCounterparty.isNotEmpty ||
+        _searchPlace.isNotEmpty ||
+        _searchTransactionId.isNotEmpty ||
+        _searchAmount != null ||
+        globalSearch.isNotEmpty ||
+        interestTypeFilter != 'All' ||
+        showFavouritesOnly ||
+        _sortBy != 'Date' ||
+        _sortAsc != false;
+  }
+
+  void _resetFilters() {
+    setState(() {
+      filter = 'All';
+      clearanceFilter = 'All';
+      partialClearedType = 'my';
+      _startDate = null;
+      _endDate = null;
+      _minAmount = null;
+      _maxAmount = null;
+      _searchCounterparty = '';
+      _searchPlace = '';
+      _searchTransactionId = '';
+      _searchAmount = null;
+      _sortBy = 'Date';
+      _sortAsc = false;
+      interestTypeFilter = 'All';
+      globalSearch = '';
+      showFavouritesOnly = false;
+      showAllTransactions = false;
+      _counterpartyController.clear();
+      _placeController.clear();
+      _transactionIdController.clear();
+      _amountController.clear();
+      _globalSearchController.clear();
+    });
+  }
+
+  String? _viewerEmail() {
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    return user?['email'];
+  }
+
+  bool _isTotallyCleared(Map t) =>
+      (t['userCleared'] == true && t['counterpartyCleared'] == true);
+
+  bool _hasPartialPayment(Map t) {
+    final partialPayments = t['partialPayments'];
+    return t['isPartiallyPaid'] == true ||
+        (partialPayments is List && partialPayments.isNotEmpty);
+  }
+
+  bool _isTotallyUncleared(Map t) => (t['userCleared'] != true &&
+      t['counterpartyCleared'] != true &&
+      !_hasPartialPayment(t));
+
+  bool _isPartiallyClearedMySide(Map t) {
+    final email = _viewerEmail();
+    if (t['userEmail'] == email) {
+      return t['userCleared'] == true && t['counterpartyCleared'] != true;
+    } else if (t['counterpartyEmail'] == email) {
+      return t['counterpartyCleared'] == true && t['userCleared'] != true;
+    }
+    return false;
+  }
+
+  bool _isPartiallyClearedOtherSide(Map t) {
+    final email = _viewerEmail();
+    if (t['userEmail'] == email) {
+      return t['counterpartyCleared'] == true && t['userCleared'] != true;
+    } else if (t['counterpartyEmail'] == email) {
+      return t['userCleared'] == true && t['counterpartyCleared'] != true;
+    }
+    return false;
+  }
+
+  bool _isPartiallyCleared(Map t) {
+    final userCleared = t['userCleared'] == true;
+    final counterpartyCleared = t['counterpartyCleared'] == true;
+    return userCleared != counterpartyCleared || _hasPartialPayment(t);
+  }
+
+  bool _matchesSearch(Map t) {
+    bool fuzzyMatch(String a, String b) {
+      if (a.isEmpty || b.isEmpty) return false;
+      a = a.toLowerCase();
+      b = b.toLowerCase();
+      if (a.contains(b) || b.contains(a)) return true;
+      return StringSimilarity.compareTwoStrings(a, b) > 0.6;
+    }
+
+    if (globalSearch.isNotEmpty) {
+      final q = globalSearch.toLowerCase();
+      final userEmail = _viewerEmail();
+      final isLending = userEmail == t['userEmail'];
+      final isBorrowing = userEmail == t['counterpartyEmail'];
+      if (fuzzyMatch((t['counterpartyEmail']?.toString() ?? ''), q) ||
+          fuzzyMatch((t['place']?.toString() ?? ''), q) ||
+          fuzzyMatch((t['interestType']?.toString() ?? ''), q) ||
+          fuzzyMatch((t['transactionId']?.toString() ?? ''), q) ||
+          (t['amount'] is num &&
+              (t['amount'] as num).toDouble().toString().contains(q)) ||
+          (isLending && 'lending'.contains(q)) ||
+          (isBorrowing && 'borrowing'.contains(q))) {
+        return true;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  List<dynamic> _applyCollectionFilters(List<dynamic> source) {
+    var filtered = source.where((item) {
+      final t = Map<String, dynamic>.from(item as Map);
+      return _transactionMatchesFilters(t) && _matchesSearch(t);
+    }).toList();
+
+    if (clearanceFilter == 'Totally Cleared') {
+      filtered = filtered
+          .where((item) =>
+              _isTotallyCleared(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    } else if (clearanceFilter == 'Totally Uncleared') {
+      filtered = filtered
+          .where((item) =>
+              _isTotallyUncleared(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    } else if (clearanceFilter == 'Partially Cleared') {
+      filtered = filtered
+          .where((item) =>
+              _isPartiallyCleared(Map<String, dynamic>.from(item as Map)))
+          .toList();
+    }
+
+    if (showFavouritesOnly) {
+      final email = _viewerEmail();
+      filtered = filtered.where((item) {
+        final favouriteList =
+            Map<String, dynamic>.from(item as Map)['favourite'] as List?;
+        return favouriteList?.contains(email) == true;
+      }).toList();
+    }
+
+    return filtered;
+  }
+
+  Map<String, List<dynamic>> _getFilteredTransactionBuckets() {
+    var lendingFiltered = _applyCollectionFilters(lending);
+    var borrowingFiltered = _applyCollectionFilters(borrowing);
+
+    int sortCompare(a, b) {
+      if (_sortBy == 'Date') {
+        final da = a['date'] != null ? DateTime.tryParse(a['date']) : null;
+        final db = b['date'] != null ? DateTime.tryParse(b['date']) : null;
+        if (da == null && db == null) return 0;
+        if (da == null) return _sortAsc ? -1 : 1;
+        if (db == null) return _sortAsc ? 1 : -1;
+        return _sortAsc ? da.compareTo(db) : db.compareTo(da);
+      } else if (_sortBy == 'Amount') {
+        final aa = a['amount'] is num
+            ? a['amount'].toDouble()
+            : double.tryParse(a['amount'].toString()) ?? 0.0;
+        final ab = b['amount'] is num
+            ? b['amount'].toDouble()
+            : double.tryParse(b['amount'].toString()) ?? 0.0;
+        return _sortAsc ? aa.compareTo(ab) : ab.compareTo(aa);
+      } else if (_sortBy == 'Status') {
+        final sa =
+            (a['userCleared'] == true && a['counterpartyCleared'] == true)
+                ? 2
+                : (a['userCleared'] == true || a['counterpartyCleared'] == true)
+                    ? 1
+                    : 0;
+        final sb =
+            (b['userCleared'] == true && b['counterpartyCleared'] == true)
+                ? 2
+                : (b['userCleared'] == true || b['counterpartyCleared'] == true)
+                    ? 1
+                    : 0;
+        return _sortAsc ? sa.compareTo(sb) : sb.compareTo(sa);
+      }
+      return 0;
+    }
+
+    lendingFiltered.sort(sortCompare);
+    borrowingFiltered.sort(sortCompare);
+
+    return {
+      'lending': lendingFiltered,
+      'borrowing': borrowingFiltered,
+    };
+  }
+
+  Widget _buildStatusLegend() {
+    Widget item(Color color, IconData icon, String label) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withOpacity(0.22)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          item(Colors.grey, Icons.hourglass_empty, 'Uncleared'),
+          item(Colors.orange, Icons.check_circle_outline, 'You cleared'),
+          item(Colors.blue, Icons.people_alt_outlined, 'Other cleared'),
+          item(Colors.green, Icons.verified, 'Fully cleared'),
+        ],
+      ),
+    );
   }
 
   Future<void> _clearTransaction(String transactionId) async {
@@ -1987,141 +3252,22 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
 
   List<Widget> _buildFilteredTransactionCards({int? limit}) {
     List<Widget> widgets = [];
-    final user = Provider.of<SessionProvider>(context, listen: false).user;
-    final email = user?['email'];
-
-    bool isTotallyCleared(t) =>
-        (t['userCleared'] == true && t['counterpartyCleared'] == true);
-    bool isTotallyUncleared(t) =>
-        (t['userCleared'] != true && t['counterpartyCleared'] != true);
-    bool isPartiallyClearedMySide(t) {
-      final user = Provider.of<SessionProvider>(context, listen: false).user;
-      final email = user?['email'];
-      if (t['userEmail'] == email) {
-        return t['userCleared'] == true && t['counterpartyCleared'] != true;
-      } else if (t['counterpartyEmail'] == email) {
-        return t['counterpartyCleared'] == true && t['userCleared'] != true;
-      }
-      return false;
-    }
-
-    bool isPartiallyClearedOtherSide(t) {
-      final user = Provider.of<SessionProvider>(context, listen: false).user;
-      final email = user?['email'];
-      if (t['userEmail'] == email) {
-        return t['counterpartyCleared'] == true && t['userCleared'] != true;
-      } else if (t['counterpartyEmail'] == email) {
-        return t['userCleared'] == true && t['counterpartyCleared'] != true;
-      }
-      return false;
-    }
-
-    List lendingFiltered = lending;
-    List borrowingFiltered = borrowing;
-    if (clearanceFilter == 'Totally Cleared') {
-      lendingFiltered = lending.where(isTotallyCleared).toList();
-      borrowingFiltered = borrowing.where(isTotallyCleared).toList();
-    } else if (clearanceFilter == 'Totally Uncleared') {
-      lendingFiltered = lending.where(isTotallyUncleared).toList();
-      borrowingFiltered = borrowing.where(isTotallyUncleared).toList();
-    } else if (clearanceFilter == 'Partially Cleared') {
-      if (partialClearedType == 'my') {
-        lendingFiltered = lending.where(isPartiallyClearedMySide).toList();
-        borrowingFiltered = borrowing.where(isPartiallyClearedMySide).toList();
-      } else {
-        lendingFiltered = lending.where(isPartiallyClearedOtherSide).toList();
-        borrowingFiltered =
-            borrowing.where(isPartiallyClearedOtherSide).toList();
-      }
-    }
-
-    if (showFavouritesOnly) {
-      lendingFiltered = lendingFiltered
-          .where((t) => (t['favourite'] as List<dynamic>).contains(email))
-          .toList();
-      borrowingFiltered = borrowingFiltered
-          .where((t) => (t['favourite'] as List<dynamic>).contains(email))
-          .toList();
-    }
-
-    bool matchesSearch(t) {
-      bool fuzzyMatch(String a, String b) {
-        if (a.isEmpty || b.isEmpty) return false;
-        a = a.toLowerCase();
-        b = b.toLowerCase();
-        if (a.contains(b) || b.contains(a)) return true;
-        return StringSimilarity.compareTwoStrings(a, b) > 0.6;
-      }
-
-      if (globalSearch.isNotEmpty) {
-        final q = globalSearch.toLowerCase();
-        bool match(String? s) => s != null && s.toLowerCase().contains(q);
-        final user = Provider.of<SessionProvider>(context, listen: false).user;
-        final userEmail = user?['email'];
-        final isLending = userEmail == t['userEmail'];
-        final isBorrowing = userEmail == t['counterpartyEmail'];
-        if (fuzzyMatch((t['counterpartyEmail']?.toString() ?? ''), q) ||
-            fuzzyMatch((t['place']?.toString() ?? ''), q) ||
-            fuzzyMatch((t['interestType']?.toString() ?? ''), q) ||
-            fuzzyMatch((t['transactionId']?.toString() ?? ''), q) ||
-            (t['amount'] is num &&
-                (t['amount'] as num).toDouble().toString().contains(q)) ||
-            (isLending && 'lending'.contains(q)) ||
-            (isBorrowing && 'borrowing'.contains(q))) {
-        } else {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    int sortCompare(a, b) {
-      if (_sortBy == 'Date') {
-        final da = a['date'] != null ? DateTime.tryParse(a['date']) : null;
-        final db = b['date'] != null ? DateTime.tryParse(b['date']) : null;
-        if (da == null && db == null) return 0;
-        if (da == null) return _sortAsc ? -1 : 1;
-        if (db == null) return _sortAsc ? 1 : -1;
-        return _sortAsc ? da.compareTo(db) : db.compareTo(da);
-      } else if (_sortBy == 'Amount') {
-        final aa = a['amount'] is num
-            ? a['amount'].toDouble()
-            : double.tryParse(a['amount'].toString()) ?? 0.0;
-        final ab = b['amount'] is num
-            ? b['amount'].toDouble()
-            : double.tryParse(b['amount'].toString()) ?? 0.0;
-        return _sortAsc ? aa.compareTo(ab) : ab.compareTo(aa);
-      } else if (_sortBy == 'Status') {
-        final sa =
-            (a['userCleared'] == true && a['counterpartyCleared'] == true)
-                ? 2
-                : (a['userCleared'] == true || a['counterpartyCleared'] == true)
-                    ? 1
-                    : 0;
-        final sb =
-            (b['userCleared'] == true && b['counterpartyCleared'] == true)
-                ? 2
-                : (b['userCleared'] == true || b['counterpartyCleared'] == true)
-                    ? 1
-                    : 0;
-        return _sortAsc ? sa.compareTo(sb) : sb.compareTo(sa);
-      }
-      return 0;
-    }
+    final buckets = _getFilteredTransactionBuckets();
+    final lendingFiltered = List<dynamic>.from(buckets['lending'] ?? const []);
+    final borrowingFiltered =
+        List<dynamic>.from(buckets['borrowing'] ?? const []);
 
     var allTransactions = <Map>[];
     if (filter == 'All' || filter == 'Lending') {
-      allTransactions.addAll(lendingFiltered
-          .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
-          .map((t) => {'type': 'lending', 'data': t}));
+      allTransactions.addAll(
+        lendingFiltered.map((t) => {'type': 'lending', 'data': t}),
+      );
     }
     if (filter == 'All' || filter == 'Borrowing') {
-      allTransactions.addAll(borrowingFiltered
-          .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
-          .map((t) => {'type': 'borrowing', 'data': t}));
+      allTransactions.addAll(
+        borrowingFiltered.map((t) => {'type': 'borrowing', 'data': t}),
+      );
     }
-
-    allTransactions.sort((a, b) => sortCompare(a['data'], b['data']));
 
     List limitedTransactions = allTransactions;
     if (limit != null && allTransactions.length > limit) {
@@ -2162,8 +3308,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.receipt_long,
-                size: 80, color: Colors.grey[400]),
+            Icon(Icons.receipt_long, size: 80, color: Colors.grey[400]),
             const SizedBox(height: 20),
             Text(
               'No transactions found',
@@ -2176,10 +3321,23 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
             Text(
               'Try adjusting your search or filters',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[500]),
+              style: TextStyle(fontSize: 16, color: Colors.grey[500]),
             ),
+            if (_hasActiveFilters()) ...[
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                onPressed: _resetFilters,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF00B4D8),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Reset Filters'),
+              ),
+            ],
           ],
         ),
       ));
@@ -2189,100 +3347,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final user = Provider.of<SessionProvider>(context, listen: false).user;
-    final email = user?['email'];
-
-    bool isTotallyCleared(t) =>
-        (t['userCleared'] == true && t['counterpartyCleared'] == true);
-    bool isTotallyUncleared(t) =>
-        (t['userCleared'] != true && t['counterpartyCleared'] != true);
-    bool isPartiallyClearedMySide(t) {
-      final user = Provider.of<SessionProvider>(context, listen: false).user;
-      final email = user?['email'];
-      if (t['userEmail'] == email) {
-        return t['userCleared'] == true && t['counterpartyCleared'] != true;
-      } else if (t['counterpartyEmail'] == email) {
-        return t['counterpartyCleared'] == true && t['userCleared'] != true;
-      }
-      return false;
-    }
-
-    bool isPartiallyClearedOtherSide(t) {
-      final user = Provider.of<SessionProvider>(context, listen: false).user;
-      final email = user?['email'];
-      if (t['userEmail'] == email) {
-        return t['counterpartyCleared'] == true && t['userCleared'] != true;
-      } else if (t['counterpartyEmail'] == email) {
-        return t['userCleared'] == true && t['counterpartyCleared'] != true;
-      }
-      return false;
-    }
-
-    List lendingFiltered = lending;
-    List borrowingFiltered = borrowing;
-    if (clearanceFilter == 'Totally Cleared') {
-      lendingFiltered = lending.where(isTotallyCleared).toList();
-      borrowingFiltered = borrowing.where(isTotallyCleared).toList();
-    } else if (clearanceFilter == 'Totally Uncleared') {
-      lendingFiltered = lending.where(isTotallyUncleared).toList();
-      borrowingFiltered = borrowing.where(isTotallyUncleared).toList();
-    } else if (clearanceFilter == 'Partially Cleared') {
-      if (partialClearedType == 'my') {
-        lendingFiltered = lending.where(isPartiallyClearedMySide).toList();
-        borrowingFiltered = borrowing.where(isPartiallyClearedMySide).toList();
-      } else {
-        lendingFiltered = lending.where(isPartiallyClearedOtherSide).toList();
-        borrowingFiltered =
-            borrowing.where(isPartiallyClearedOtherSide).toList();
-      }
-    }
-
-    if (showFavouritesOnly) {
-      lendingFiltered = lendingFiltered
-          .where((t) => (t['favourite'] as List<dynamic>).contains(email))
-          .toList();
-      borrowingFiltered = borrowingFiltered
-          .where((t) => (t['favourite'] as List<dynamic>).contains(email))
-          .toList();
-    }
-
-    bool matchesSearch(t) {
-      bool fuzzyMatch(String a, String b) {
-        if (a.isEmpty || b.isEmpty) return false;
-        a = a.toLowerCase();
-        b = b.toLowerCase();
-        if (a.contains(b) || b.contains(a)) return true;
-        return StringSimilarity.compareTwoStrings(a, b) > 0.6;
-      }
-
-      if (globalSearch.isNotEmpty) {
-        final q = globalSearch.toLowerCase();
-        bool match(String? s) => s != null && s.toLowerCase().contains(q);
-        final user = Provider.of<SessionProvider>(context, listen: false).user;
-        final userEmail = user?['email'];
-        final isLending = userEmail == t['userEmail'];
-        final isBorrowing = userEmail == t['counterpartyEmail'];
-        if (fuzzyMatch((t['counterpartyEmail']?.toString() ?? ''), q) ||
-            fuzzyMatch((t['place']?.toString() ?? ''), q) ||
-            fuzzyMatch((t['interestType']?.toString() ?? ''), q) ||
-            fuzzyMatch((t['transactionId']?.toString() ?? ''), q) ||
-            (t['amount'] is num &&
-                (t['amount'] as num).toDouble().toString().contains(q)) ||
-            (isLending && 'lending'.contains(q)) ||
-            (isBorrowing && 'borrowing'.contains(q))) {
-        } else {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    var filteredLending = lendingFiltered
-        .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
-        .toList();
-    var filteredBorrowing = borrowingFiltered
-        .where((t) => _transactionMatchesFilters(t) && matchesSearch(t))
-        .toList();
+    final buckets = _getFilteredTransactionBuckets();
+    final filteredLending = List<dynamic>.from(buckets['lending'] ?? const []);
+    final filteredBorrowing =
+        List<dynamic>.from(buckets['borrowing'] ?? const []);
 
     int totalCount = 0;
     if (filter == 'All' || filter == 'Lending') {
@@ -2345,10 +3413,10 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                         ),
                       ),
                     ),
-                    SizedBox(height: 8),
-                    _buildFilterChips(),
-                    SizedBox(height: 8),
-                    _buildClearanceFilterChips(),
+                    const SizedBox(height: 8),
+                    _buildFilterToolbar(),
+                    _buildActiveFilterSummary(),
+                    _buildStatusLegend(),
                     if (_displayCurrencyError != null ||
                         _hasMissingConversionForSecureTransactions())
                       Padding(
@@ -2359,8 +3427,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                           decoration: BoxDecoration(
                             color: const Color(0xFFFFF1F1),
                             borderRadius: BorderRadius.circular(14),
-                            border:
-                                Border.all(color: const Color(0xFFFF6B6B)),
+                            border: Border.all(color: const Color(0xFFFF6B6B)),
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -3786,7 +4853,8 @@ class PartialPaymentHistoryDialog extends StatelessWidget {
           targetCurrency,
         ) ??
         amount.toDouble();
-    final symbol = displayCurrencyData?.symbolFor(targetCurrency) ?? targetCurrency;
+    final symbol =
+        displayCurrencyData?.symbolFor(targetCurrency) ?? targetCurrency;
     return '$symbol${converted.toStringAsFixed(2)} $targetCurrency';
   }
 

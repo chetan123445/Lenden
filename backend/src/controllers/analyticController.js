@@ -124,9 +124,14 @@ exports.getUserAnalytics = async (req, res) => {
       if (isLender) totalLent += amountInInr;
       if (isBorrower) totalBorrowed += amountInInr;
 
+      const hasPartialPayment =
+        transaction.isPartiallyPaid === true ||
+        (Array.isArray(transaction.partialPayments) &&
+          transaction.partialPayments.length > 0);
+
       if (transaction.userCleared && transaction.counterpartyCleared) {
         cleared += 1;
-      } else {
+      } else if (!hasPartialPayment) {
         uncleared += 1;
       }
 

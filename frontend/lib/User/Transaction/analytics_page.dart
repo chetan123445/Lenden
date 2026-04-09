@@ -7,6 +7,7 @@ import '../../session.dart';
 import '../../utils/api_client.dart';
 import '../../utils/display_currency_helper.dart';
 import 'quick_transactions_page.dart';
+import 'view_secure_transactions_page.dart';
 
 class AnalyticsPage extends StatefulWidget {
   final List<dynamic>? transactions;
@@ -27,13 +28,16 @@ class _AnalyticsPageState extends State<AnalyticsPage>
   bool _quickLoading = true;
   bool _groupLoading = true;
   bool _quickTransactionsLoading = true;
+  bool _secureTransactionsLoading = true;
   String? _secureError;
   String? _quickError;
   String? _groupError;
   String? _quickTransactionsError;
+  String? _secureTransactionsError;
   bool? analyticsSharing;
   DisplayCurrencyData? _displayCurrencyData;
   List<Map<String, dynamic>> _quickTransactions = [];
+  List<Map<String, dynamic>> _secureTransactions = [];
   String _selectedDisplayCurrency = 'INR';
   String? _displayCurrencyError;
 
@@ -44,6 +48,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     _loadDisplayCurrencies();
     _fetchAnalytics();
     _fetchQuickTransactions();
+    _fetchSecureTransactions();
   }
 
   @override
@@ -239,6 +244,49 @@ class _AnalyticsPageState extends State<AnalyticsPage>
       setState(() {
         _quickTransactionsError = 'Error: $e';
         _quickTransactionsLoading = false;
+      });
+    }
+  }
+
+  Future<void> _fetchSecureTransactions() async {
+    setState(() {
+      _secureTransactionsLoading = true;
+      _secureTransactionsError = null;
+    });
+
+    try {
+      final session = Provider.of<SessionProvider>(context, listen: false);
+      final email = session.user?['email'];
+      if (email == null) {
+        setState(() {
+          _secureTransactionsError = 'User email not found.';
+          _secureTransactionsLoading = false;
+        });
+        return;
+      }
+
+      final res = await ApiClient.get(
+        '/api/transactions/user?email=${Uri.encodeComponent(email)}',
+      );
+      if (res.statusCode == 200) {
+        final body = json.decode(res.body);
+        final lending = List<Map<String, dynamic>>.from(body['lending'] ?? []);
+        final borrowing =
+            List<Map<String, dynamic>>.from(body['borrowing'] ?? []);
+        setState(() {
+          _secureTransactions = [...lending, ...borrowing];
+          _secureTransactionsLoading = false;
+        });
+      } else {
+        setState(() {
+          _secureTransactionsError = 'Failed to load secure transactions.';
+          _secureTransactionsLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _secureTransactionsError = 'Error: $e';
+        _secureTransactionsLoading = false;
       });
     }
   }
@@ -463,6 +511,171 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     ];
   }
 
+  double _secureDisplayAmount(Map<String, dynamic> transaction) {
+    final amount = (transaction['amount'] as num?)?.toDouble() ??
+        double.tryParse('${transaction['amount']}') ??
+        0.0;
+    final sourceCurrency = (transaction['currency'] ?? 'INR').toString();
+    final targetCurrency = _selectedDisplayCurrency.toUpperCase();
+    final canConvert = _displayCurrencyData?.canConvert(
+          sourceCurrency,
+          targetCurrency,
+        ) ??
+        (sourceCurrency.toUpperCase() == targetCurrency);
+    return canConvert
+        ? (_displayCurrencyData?.convert(amount, sourceCurrency, targetCurrency) ??
+            amount)
+        : amount;
+  }
+
+  String _secureViewerRole(Map<String, dynamic> transaction) {
+    final currentUserEmail = _currentUserEmail();
+    final userEmail = (transaction['userEmail'] ?? '').toString().toLowerCase().trim();
+    final storedRole = (transaction['role'] ?? 'lender').toString().toLowerCase();
+    if (currentUserEmail == userEmail) return storedRole;
+    return storedRole == 'lender' ? 'borrower' : 'lender';
+  }
+
+  String _secureCounterpartyLabel(Map<String, dynamic> transaction) {
+    final currentUserEmail = _currentUserEmail();
+    final userEmail = (transaction['userEmail'] ?? '').toString().trim();
+    final counterpartyEmail =
+        (transaction['counterpartyEmail'] ?? '').toString().trim();
+
+    if (currentUserEmail.isEmpty) {
+      return counterpartyEmail.isNotEmpty ? counterpartyEmail : userEmail;
+    }
+    if (userEmail.toLowerCase() == currentUserEmail) {
+      return counterpartyEmail.isNotEmpty ? counterpartyEmail : userEmail;
+    }
+    if (counterpartyEmail.toLowerCase() == currentUserEmail) {
+      return userEmail.isNotEmpty ? userEmail : counterpartyEmail;
+    }
+    return counterpartyEmail.isNotEmpty ? counterpartyEmail : userEmail;
+  }
+
+  Map<String, String> _buildSecureInsights() {
+    if (_secureTransactions.isEmpty) {
+      return {
+        'largestPending': '₹0.00',
+        'averageRepayment': 'No data',
+        'topCounterparty': 'No data',
+        'interestMix': '0 with interest / 0 no interest',
+      };
+    }
+
+    Map<String, dynamic>? largestPending;
+    final counterpartyCounts = <String, int>{};
+    int repaymentSamples = 0;
+    int totalRepaymentDays = 0;
+    int withInterest = 0;
+
+    for (final transaction in _secureTransactions) {
+      final fullyCleared =
+          transaction['userCleared'] == true && transaction['counterpartyCleared'] == true;
+      if (!fullyCleared) {
+        if (largestPending == null ||
+            _secureDisplayAmount(transaction) > _secureDisplayAmount(largestPending)) {
+          largestPending = transaction;
+        }
+      }
+
+      final counterparty = _secureCounterpartyLabel(transaction);
+      if (counterparty.isNotEmpty) {
+        counterpartyCounts[counterparty] = (counterpartyCounts[counterparty] ?? 0) + 1;
+      }
+
+      final expectedReturnDate =
+          DateTime.tryParse((transaction['expectedReturnDate'] ?? '').toString());
+      final startDate = DateTime.tryParse((transaction['date'] ?? '').toString());
+      if (expectedReturnDate != null && startDate != null) {
+        totalRepaymentDays += expectedReturnDate.difference(startDate).inDays.abs();
+        repaymentSamples += 1;
+      }
+
+      final interestType = (transaction['interestType'] ?? 'none').toString().toLowerCase();
+      if (interestType != 'none' && interestType.isNotEmpty) {
+        withInterest += 1;
+      }
+    }
+
+    final topCounterparty = counterpartyCounts.isEmpty
+        ? 'No data'
+        : counterpartyCounts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+    final averageRepayment = repaymentSamples == 0
+        ? 'No data'
+        : '${(totalRepaymentDays / repaymentSamples).round()} days avg';
+    final noInterest = _secureTransactions.length - withInterest;
+
+    return {
+      'largestPending': largestPending == null
+          ? '₹0.00'
+          : _formatSelectedCurrencyValue(_secureDisplayAmount(largestPending)),
+      'averageRepayment': averageRepayment,
+      'topCounterparty': topCounterparty,
+      'interestMix': '$withInterest with interest / $noInterest no interest',
+    };
+  }
+
+  List<Map<String, dynamic>> _buildSecureAttentionItems() {
+    final now = DateTime.now();
+    final overdue = _secureTransactions.where((transaction) {
+      final expected = DateTime.tryParse((transaction['expectedReturnDate'] ?? '').toString());
+      final fullyCleared =
+          transaction['userCleared'] == true && transaction['counterpartyCleared'] == true;
+      final interestType =
+          (transaction['interestType'] ?? 'none').toString().toLowerCase();
+      return expected != null &&
+          expected.isBefore(now) &&
+          !fullyCleared &&
+          interestType != 'none';
+    }).length;
+    final partiallyCleared = _secureTransactions.where((transaction) {
+      final userCleared = transaction['userCleared'] == true;
+      final counterpartyCleared = transaction['counterpartyCleared'] == true;
+      return userCleared != counterpartyCleared;
+    }).length;
+    final missingProof = _secureTransactions.where((transaction) {
+      final photos = transaction['photos'];
+      final files = transaction['files'];
+      final hasPhotos = photos is List && photos.isNotEmpty;
+      final hasFiles = files is List && files.isNotEmpty;
+      return !hasPhotos && !hasFiles;
+    }).length;
+
+    return [
+      {
+        'title': 'Overdue Interest',
+        'value': overdue,
+        'icon': Icons.warning_amber_rounded,
+        'colors': const [Color(0xFFFF8B7B), Color(0xFFFFC2AE)],
+      },
+      {
+        'title': 'Partially Cleared',
+        'value': partiallyCleared,
+        'icon': Icons.timelapse_rounded,
+        'colors': const [Color(0xFF7C9DFF), Color(0xFFA9B8FF)],
+      },
+      {
+        'title': 'Missing Proof Files',
+        'value': missingProof,
+        'icon': Icons.attach_file_rounded,
+        'colors': const [Color(0xFFFFB562), Color(0xFFFFD9A0)],
+      },
+    ];
+  }
+
+  String _buildSecureCurrencyContext() {
+    final currencies = _secureTransactions
+        .map((transaction) => (transaction['currency'] ?? 'INR').toString().toUpperCase())
+        .toSet();
+    if (currencies.isEmpty) return 'No secure currency data available yet.';
+    if (currencies.length == 1) {
+      return 'Most secure analytics are based on a single currency: ${currencies.first}.';
+    }
+    return 'Secure analytics include mixed currencies (${currencies.take(4).join(', ')}), so totals may blend converted and original values.';
+  }
+
   List<Map<String, dynamic>> _buildQuickNetBalances() {
     final balances = <String, Map<String, dynamic>>{};
 
@@ -675,58 +888,81 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     required IconData icon,
     required List<Color> colors,
     bool useTricolorBorder = false,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      width: 190,
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: useTricolorBorder
-              ? const [Colors.orange, Colors.white, Colors.green]
-              : colors,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: (useTricolorBorder ? colors.first : Colors.black)
-                .withOpacity(0.14),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return GestureDetector(
+      onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.all(2),
-        padding: const EdgeInsets.all(16),
+        width: 190,
+        margin: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
           borderRadius: BorderRadius.circular(18),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: colors.last, size: 20),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+          gradient: LinearGradient(
+            colors: useTricolorBorder
+                ? const [Colors.orange, Colors.white, Colors.green]
+                : colors,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: (useTricolorBorder ? colors.first : Colors.black)
+                  .withOpacity(0.14),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
             ),
           ],
+        ),
+        child: Container(
+          margin: const EdgeInsets.all(2),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: colors.last, size: 20),
+              const SizedBox(height: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openSecureFilteredPage({
+    String filter = 'All',
+    String clearanceFilter = 'All',
+    String interestTypeFilter = 'All',
+    String globalSearch = '',
+  }) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UserTransactionsPage(
+          initialFilter: filter,
+          initialClearanceFilter: clearanceFilter,
+          initialInterestTypeFilter: interestTypeFilter,
+          initialGlobalSearch: globalSearch,
         ),
       ),
     );
@@ -1137,6 +1373,8 @@ class _AnalyticsPageState extends State<AnalyticsPage>
       onRefresh: () async {
         await _loadDisplayCurrencies();
         await _fetchAnalytics();
+        await _fetchSecureTransactions();
+        await _fetchQuickTransactions();
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -1194,6 +1432,170 @@ class _AnalyticsPageState extends State<AnalyticsPage>
               ),
             ),
             const SizedBox(height: 24),
+            if (config.tabTitle == 'Secure Analytics') ...[
+              const SizedBox(height: 4),
+              Text(
+                'Secure Insights',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade900,
+                ),
+              ),
+              const SizedBox(height: 10),
+              if (_secureTransactionsLoading)
+                const SizedBox(
+                  height: 110,
+                  child: Center(
+                    child: CircularProgressIndicator(color: Color(0xFF00B4D8)),
+                  ),
+                )
+              else if (_secureTransactionsError != null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF1F1),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFFF6B6B)),
+                  ),
+                  child: Text(
+                    _secureTransactionsError!,
+                    style: const TextStyle(
+                      color: Color(0xFFC62828),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              else ...[
+                SizedBox(
+                  height: 110,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    children: [
+                      _buildSummaryCard(
+                        title: 'Largest Pending',
+                        value: _buildSecureInsights()['largestPending'] ?? '₹0.00',
+                        icon: Icons.priority_high_rounded,
+                        colors: const [Color(0xFFFF8B7B), Color(0xFFFFC2AE)],
+                        useTricolorBorder: true,
+                        onTap: () => _openSecureFilteredPage(
+                          clearanceFilter: 'Totally Uncleared',
+                        ),
+                      ),
+                      _buildSummaryCard(
+                        title: 'Repayment Speed',
+                        value:
+                            _buildSecureInsights()['averageRepayment'] ?? 'No data',
+                        icon: Icons.timer_outlined,
+                        colors: const [Color(0xFF58C4DD), Color(0xFF89E0EF)],
+                        useTricolorBorder: true,
+                        onTap: () => _openSecureFilteredPage(
+                          interestTypeFilter: 'with_interest',
+                        ),
+                      ),
+                      _buildSummaryCard(
+                        title: 'Top Counterparty',
+                        value: _buildSecureInsights()['topCounterparty'] ?? 'No data',
+                        icon: Icons.people_alt_rounded,
+                        colors: const [Color(0xFF7C9DFF), Color(0xFFA9B8FF)],
+                        useTricolorBorder: true,
+                        onTap: () => _openSecureFilteredPage(
+                          globalSearch:
+                              _buildSecureInsights()['topCounterparty'] == 'No data'
+                                  ? ''
+                                  : _buildSecureInsights()['topCounterparty']!,
+                        ),
+                      ),
+                      _buildSummaryCard(
+                        title: 'Interest Split',
+                        value: _buildSecureInsights()['interestMix'] ?? 'No data',
+                        icon: Icons.account_tree_outlined,
+                        colors: const [Color(0xFF6BCB91), Color(0xFFA9E4A7)],
+                        useTricolorBorder: true,
+                        onTap: () => _openSecureFilteredPage(
+                          interestTypeFilter: 'with_interest',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Risk / Attention',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 110,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    separatorBuilder: (_, __) => const SizedBox(width: 12),
+                    itemCount: _buildSecureAttentionItems().length,
+                    itemBuilder: (context, index) {
+                      final item = _buildSecureAttentionItems()[index];
+                      return _buildSummaryCard(
+                        title: item['title']!.toString(),
+                        value: item['value']!.toString(),
+                        icon: item['icon'] as IconData,
+                        colors: List<Color>.from(item['colors'] as List),
+                        useTricolorBorder: true,
+                        onTap: () {
+                          if (item['title'] == 'Overdue Interest') {
+                            _openSecureFilteredPage(
+                              interestTypeFilter: 'with_interest',
+                            );
+                          } else if (item['title'] == 'Partially Cleared') {
+                            _openSecureFilteredPage(
+                              clearanceFilter: 'Partially Cleared',
+                            );
+                          } else {
+                            _openSecureFilteredPage();
+                          }
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.currency_exchange_rounded,
+                        color: Colors.blueGrey.shade600,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _buildSecureCurrencyContext(),
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            height: 1.35,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+            ],
             if (config.tabTitle == 'Quick Analytics') ...[
               const SizedBox(height: 4),
               Text(
@@ -1896,6 +2298,29 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     List<_AnalyticsMetric> allMetrics,
     String tabTitle,
   ) {
+    if (tabTitle == 'Secure Analytics') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => UserTransactionsPage(
+            initialFilter: metric.id == 'totalLent'
+                ? 'Lending'
+                : metric.id == 'totalBorrowed'
+                    ? 'Borrowing'
+                    : 'All',
+            initialClearanceFilter: metric.id == 'cleared'
+                ? 'Totally Cleared'
+                : metric.id == 'uncleared'
+                    ? 'Totally Uncleared'
+                    : 'All',
+            initialInterestTypeFilter:
+                metric.id == 'totalInterest' ? 'with_interest' : 'All',
+          ),
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       MaterialPageRoute(

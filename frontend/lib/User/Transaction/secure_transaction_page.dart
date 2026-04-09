@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import '../../otp_input.dart';
 import 'package:provider/provider.dart';
 import 'package:http_parser/http_parser.dart';
@@ -16,6 +17,7 @@ import 'view_secure_transactions_page.dart';
 import '../Digitise/gift_card_page.dart';
 import '../../widgets/stylish_dialog.dart';
 import '../Digitise/subscriptions_page.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class TopWaveClipper extends CustomClipper<Path> {
   @override
@@ -54,6 +56,7 @@ class TransactionPage extends StatefulWidget {
 }
 
 class _TransactionPageState extends State<TransactionPage> {
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _amountController = TextEditingController();
   String _currency = 'INR';
@@ -87,6 +90,7 @@ class _TransactionPageState extends State<TransactionPage> {
   List<Map<String, dynamic>> _friendSuggestions = [];
   Set<String> _blockedEmails = {};
   int? _dailyUserTxRemaining;
+  bool _restoringDraft = false;
 
   // Computed property to check if both users are verified
   bool get _bothUsersVerified => _counterpartyVerified && _userVerified;
@@ -113,6 +117,434 @@ class _TransactionPageState extends State<TransactionPage> {
     return match['symbol'] ?? '₹';
   }
 
+  double? _parsedPrincipalAmount() {
+    return double.tryParse(_amountController.text.trim());
+  }
+
+  double? _parsedInterestRate() {
+    return double.tryParse(_interestRateController.text.trim());
+  }
+
+  DateTime _previewStartDate() {
+    final selectedDate = _selectedDate;
+    if (selectedDate == null) return DateTime.now();
+    final selectedTime = _selectedTime ?? TimeOfDay.now();
+    return DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
+  }
+
+  double _repaymentYears() {
+    if (_interestType == 'none' || _expectedReturnDate == null) return 0;
+    final days = _expectedReturnDate!
+        .difference(_previewStartDate())
+        .inDays
+        .clamp(0, 36500);
+    return days / 365.0;
+  }
+
+  double? _estimatedRepaymentAmount() {
+    final principal = _parsedPrincipalAmount();
+    if (principal == null) return null;
+    if (_interestType == 'none') return principal;
+
+    final rate = _parsedInterestRate();
+    final years = _repaymentYears();
+    if (rate == null || years <= 0) return principal;
+
+    final rateFraction = rate / 100.0;
+    if (_interestType == 'simple') {
+      return principal * (1 + (rateFraction * years));
+    }
+
+    if (_interestType == 'compound') {
+      final frequency = _compoundingFrequency <= 0 ? 1 : _compoundingFrequency;
+      return principal *
+          math
+              .pow(1 + (rateFraction / frequency), frequency * years)
+              .toDouble();
+    }
+
+    return principal;
+  }
+
+  String _formatPreviewAmount(double value) {
+    return '${_currencySymbol()}${value.toStringAsFixed(2)}';
+  }
+
+  String _repaymentTenureLabel() {
+    if (_interestType == 'none' || _expectedReturnDate == null) {
+      return 'No interest applied';
+    }
+    final days = _expectedReturnDate!
+        .difference(_previewStartDate())
+        .inDays
+        .clamp(0, 36500);
+    if (days == 0) return 'Same-day return';
+    if (days < 30) return '$days day${days == 1 ? '' : 's'}';
+    final months = (days / 30).toStringAsFixed(1);
+    return '$months months';
+  }
+
+  Widget _buildRepaymentPreviewCard() {
+    final principal = _parsedPrincipalAmount();
+    final repayment = _estimatedRepaymentAmount();
+    if (principal == null || repayment == null) return const SizedBox.shrink();
+
+    final interestValue = math.max(repayment - principal, 0).toDouble();
+    final needsReturnDate = _interestType != 'none' && _expectedReturnDate == null;
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00B4D8).withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.preview_rounded,
+                    color: Color(0xFF00B4D8),
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Repayment Preview',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _buildPreviewStat('Principal', _formatPreviewAmount(principal)),
+                _buildPreviewStat(
+                  'Est. Interest',
+                  _formatPreviewAmount(interestValue),
+                ),
+                _buildPreviewStat('Est. Repayment', _formatPreviewAmount(repayment)),
+                _buildPreviewStat('Tenure', _repaymentTenureLabel()),
+              ],
+            ),
+            if (needsReturnDate) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Pick an expected return date to calculate interest more accurately.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.orange.shade800,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewStat(String label, String value) {
+    return Container(
+      width: 150,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FBFD),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFBFE8F2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade600,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00B4D8).withOpacity(0.10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: const Color(0xFF00B4D8), size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressStepper() {
+    final step2Ready = _counterpartyVerified || _userVerified;
+    final step3Ready = _bothUsersVerified;
+
+    Widget step({
+      required int number,
+      required String title,
+      required bool active,
+      required bool complete,
+    }) {
+      final color = complete || active
+          ? const Color(0xFF00B4D8)
+          : Colors.grey.shade400;
+      return Expanded(
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    height: 3,
+                    color: number == 1 ? Colors.transparent : color,
+                  ),
+                ),
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: complete || active ? color : Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: color, width: 2),
+                  ),
+                  child: Center(
+                    child: complete
+                        ? const Icon(Icons.check, color: Colors.white, size: 16)
+                        : Text(
+                            '$number',
+                            style: TextStyle(
+                              color: active ? Colors.white : color,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+                Expanded(
+                  child: Container(
+                    height: 3,
+                    color: number == 3 ? Colors.transparent : color,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: complete || active ? Colors.black87 : Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          step(number: 1, title: 'Enter Details', active: !step2Ready, complete: step2Ready),
+          step(number: 2, title: 'Verify Emails', active: step2Ready && !step3Ready, complete: step3Ready),
+          step(number: 3, title: 'Create Txn', active: step3Ready, complete: false),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionPreviewCard() {
+    final amount = _parsedPrincipalAmount();
+    final roleLabel = _role == 'lender' ? 'You are lending' : 'You are borrowing';
+    final counterparty = _counterpartyEmailController.text.trim().isEmpty
+        ? 'Not selected yet'
+        : _counterpartyEmailController.text.trim();
+    final dateLabel = _selectedDate == null
+        ? 'Not selected'
+        : DateFormat('MMM d, yyyy').format(_selectedDate!);
+    final returnLabel = _expectedReturnDate == null
+        ? (_interestType == 'none' ? 'Not needed' : 'Select expected return date')
+        : DateFormat('MMM d, yyyy').format(_expectedReturnDate!);
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Transaction Preview',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                _buildPreviewStat('Role', roleLabel),
+                _buildPreviewStat(
+                  'Amount',
+                  amount == null ? 'Enter amount' : _formatPreviewAmount(amount),
+                ),
+                _buildPreviewStat('Counterparty', counterparty),
+                _buildPreviewStat(
+                  'Interest',
+                  _interestType == 'none'
+                      ? 'No interest'
+                      : _interestType == 'simple'
+                          ? 'Simple interest'
+                          : 'Compound interest',
+                ),
+                _buildPreviewStat('Txn Date', dateLabel),
+                _buildPreviewStat('Return Date', returnLabel),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInterestGuidanceCard() {
+    if (_interestType == 'none') return const SizedBox.shrink();
+
+    final guidance = _interestType == 'simple'
+        ? 'Simple interest grows only on the original principal for the selected period.'
+        : 'Compound interest grows on principal plus accumulated interest based on the compounding frequency.';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEAF7FB),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBFE8F2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.lightbulb_outline_rounded, color: Color(0xFF00B4D8)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              guidance,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade700,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -125,13 +557,453 @@ class _TransactionPageState extends State<TransactionPage> {
     _loadFriends();
     _loadDailyLimits();
     _counterpartyEmailController.addListener(_updateFriendSuggestions);
+    _amountController.addListener(_saveDraft);
+    _placeController.addListener(_saveDraft);
+    _counterpartyEmailController.addListener(_saveDraft);
+    _interestRateController.addListener(_saveDraft);
+    _descriptionController.addListener(_saveDraft);
     // Prefill user email from session
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = Provider.of<SessionProvider>(context, listen: false).user;
       if (user != null && user['email'] != null) {
         _userEmailController.text = user['email'];
       }
+      _restoreDraftIfAvailable();
     });
+  }
+
+  String _draftStorageKey() {
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    final email = (user?['email'] ?? 'guest').toString().toLowerCase().trim();
+    return 'secure_transaction_draft_$email';
+  }
+
+  Future<void> _saveDraft() async {
+    if (_restoringDraft) return;
+    final payload = {
+      'amount': _amountController.text,
+      'currency': _currency,
+      'selectedDate': _selectedDate?.toIso8601String(),
+      'selectedTime': _selectedTime == null
+          ? null
+          : {'hour': _selectedTime!.hour, 'minute': _selectedTime!.minute},
+      'place': _placeController.text,
+      'counterpartyEmail': _counterpartyEmailController.text,
+      'role': _role,
+      'interestType': _interestType,
+      'interestRate': _interestRateController.text,
+      'expectedReturnDate': _expectedReturnDate?.toIso8601String(),
+      'compoundingFrequency': _compoundingFrequency,
+      'description': _descriptionController.text,
+    };
+    await _storage.write(key: _draftStorageKey(), value: jsonEncode(payload));
+  }
+
+  Future<void> _saveDraftWithFeedback() async {
+    await _saveDraft();
+    if (!mounted) return;
+    await _showDraftStatusDialog(
+      title: 'Draft Saved',
+      message:
+          'Your secure transaction draft is saved. You can continue it anytime from this page.',
+      icon: Icons.save_outlined,
+      accentColor: const Color(0xFF00B4D8),
+      actionLabel: 'Continue',
+    );
+  }
+
+  Future<void> _clearDraft() async {
+    await _storage.delete(key: _draftStorageKey());
+  }
+
+  Future<void> _discardDraftWithConfirmation() async {
+    final shouldDiscard = await _showDraftChoiceDialog(
+      title: 'Discard Draft?',
+      message:
+          'This will remove your saved secure transaction draft from this device.',
+      icon: Icons.delete_outline,
+      accentColor: const Color(0xFFFF6B6B),
+      primaryLabel: 'Discard',
+      secondaryLabel: 'Keep Draft',
+    );
+    if (shouldDiscard != true) return;
+    await _clearDraft();
+    if (!mounted) return;
+    await _showDraftStatusDialog(
+      title: 'Draft Discarded',
+      message: 'The saved draft has been removed.',
+      icon: Icons.delete_sweep_outlined,
+      accentColor: const Color(0xFFFF6B6B),
+      actionLabel: 'OK',
+    );
+  }
+
+  Future<void> _restoreDraftIfAvailable() async {
+    final raw = await _storage.read(key: _draftStorageKey());
+    if (raw == null || raw.isEmpty || !mounted) return;
+
+    final shouldRestore = await _showDraftChoiceDialog(
+          title: 'Saved Draft Found',
+          message:
+              'A saved secure transaction draft was found. Do you want to continue from where you left off?',
+          icon: Icons.auto_awesome_outlined,
+          accentColor: const Color(0xFF00B4D8),
+          primaryLabel: 'Continue Draft',
+          secondaryLabel: 'Start Fresh',
+        ) ??
+        false;
+
+    if (!shouldRestore) {
+      await _clearDraft();
+      return;
+    }
+
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      _restoringDraft = true;
+      setState(() {
+        _amountController.text = (data['amount'] ?? '').toString();
+        _currency = (data['currency'] ?? 'INR').toString();
+        _placeController.text = (data['place'] ?? '').toString();
+        _counterpartyEmailController.text =
+            (data['counterpartyEmail'] ?? '').toString();
+        _role = (data['role'] ?? 'lender').toString();
+        _interestType = (data['interestType'] ?? 'none').toString();
+        _interestRateController.text = (data['interestRate'] ?? '').toString();
+        _descriptionController.text = (data['description'] ?? '').toString();
+        _compoundingFrequency =
+            int.tryParse('${data['compoundingFrequency']}') ?? 1;
+        _selectedDate = data['selectedDate'] == null
+            ? null
+            : DateTime.tryParse(data['selectedDate'].toString());
+        _expectedReturnDate = data['expectedReturnDate'] == null
+            ? null
+            : DateTime.tryParse(data['expectedReturnDate'].toString());
+        final time = data['selectedTime'];
+        if (time is Map) {
+          _selectedTime = TimeOfDay(
+            hour: int.tryParse('${time['hour']}') ?? 0,
+            minute: int.tryParse('${time['minute']}') ?? 0,
+          );
+        }
+      });
+    } catch (_) {
+      await _clearDraft();
+    } finally {
+      _restoringDraft = false;
+    }
+  }
+
+  Future<bool?> _showDraftChoiceDialog({
+    required String title,
+    required String message,
+    required IconData icon,
+    required Color accentColor,
+    required String primaryLabel,
+    required String secondaryLabel,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ClipPath(
+                      clipper: TopWaveClipper(),
+                      child: Container(
+                        height: 86,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              accentColor,
+                              accentColor.withOpacity(0.72),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 16,
+                      child: CircleAvatar(
+                        radius: 28,
+                        backgroundColor: Colors.white,
+                        child: Icon(icon, color: accentColor, size: 34),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: accentColor,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accentColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      primaryLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: accentColor.withOpacity(0.45)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      secondaryLabel,
+                      style: TextStyle(
+                        color: accentColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showDraftStatusDialog({
+    required String title,
+    required String message,
+    required IconData icon,
+    required Color accentColor,
+    required String actionLabel,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    ClipPath(
+                      clipper: TopWaveClipper(),
+                      child: Container(
+                        height: 86,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              accentColor,
+                              accentColor.withOpacity(0.72),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 16,
+                      child: CircleAvatar(
+                        radius: 28,
+                        backgroundColor: Colors.white,
+                        child: Icon(icon, color: accentColor, size: 34),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: accentColor,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accentColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(
+                      actionLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDraftActionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color accentColor,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: const LinearGradient(
+              colors: [Colors.orange, Colors.white, Colors.green],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: accentColor.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: accentColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _pickFriendForCounterparty() async {
@@ -248,6 +1120,11 @@ class _TransactionPageState extends State<TransactionPage> {
   @override
   void dispose() {
     _counterpartyEmailController.removeListener(_updateFriendSuggestions);
+    _amountController.removeListener(_saveDraft);
+    _placeController.removeListener(_saveDraft);
+    _counterpartyEmailController.removeListener(_saveDraft);
+    _interestRateController.removeListener(_saveDraft);
+    _descriptionController.removeListener(_saveDraft);
     _amountController.dispose();
     _placeController.dispose();
     _counterpartyEmailController.dispose();
@@ -323,6 +1200,7 @@ class _TransactionPageState extends State<TransactionPage> {
       setState(() {
         _pickedFiles.addAll(result.files);
       });
+      await _saveDraft();
     }
   }
 
@@ -331,6 +1209,7 @@ class _TransactionPageState extends State<TransactionPage> {
     setState(() {
       _pickedFiles.removeAt(idx);
     });
+    _saveDraft();
   }
 
   Widget _buildFileThumbnail(int i) {
@@ -729,6 +1608,7 @@ class _TransactionPageState extends State<TransactionPage> {
       if (res.statusCode == 201) {
         final data = jsonDecode(res.body);
         final giftCardAwarded = data['giftCardAwarded'] == true;
+        await _clearDraft();
         setState(() {
           _transactionId = data['transactionId'];
         });
@@ -929,6 +1809,7 @@ class _TransactionPageState extends State<TransactionPage> {
       if (res.statusCode == 200 || res.statusCode == 201) {
         final data = jsonDecode(res.body);
         final giftCardAwarded = data['giftCardAwarded'] == true;
+        await _clearDraft();
         setState(() {
           _transactionId = data['transactionId'];
         });
@@ -1204,7 +2085,10 @@ class _TransactionPageState extends State<TransactionPage> {
                   );
                 },
               );
-              if (picked != null) setState(() => _selectedDate = picked);
+              if (picked != null) {
+                setState(() => _selectedDate = picked);
+                _saveDraft();
+              }
             },
       child: InputDecorator(
         decoration: InputDecoration(
@@ -1266,7 +2150,10 @@ class _TransactionPageState extends State<TransactionPage> {
                   );
                 },
               );
-              if (picked != null) setState(() => _selectedTime = picked);
+              if (picked != null) {
+                setState(() => _selectedTime = picked);
+                _saveDraft();
+              }
             },
       child: InputDecorator(
         decoration: InputDecoration(
@@ -1586,6 +2473,38 @@ class _TransactionPageState extends State<TransactionPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildProgressStepper(),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _buildDraftActionCard(
+                          title: 'Save Draft',
+                          subtitle: 'Pause now and continue later',
+                          icon: Icons.save_outlined,
+                          accentColor: const Color(0xFF00B4D8),
+                          onTap: () {
+                            _saveDraftWithFeedback();
+                          },
+                        ),
+                        const SizedBox(width: 12),
+                        _buildDraftActionCard(
+                          title: 'Discard Draft',
+                          subtitle: 'Remove the saved version',
+                          icon: Icons.delete_outline,
+                          accentColor: const Color(0xFFFF6B6B),
+                          onTap: () {
+                            _discardDraftWithConfirmation();
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    _buildSectionHeader(
+                      title: 'Basic Details',
+                      subtitle:
+                          'Set the role, amount, date, place, and the other person involved in this secure transaction.',
+                      icon: Icons.edit_note_rounded,
+                    ),
                     _buildStylishField(
                       child: DropdownButtonFormField<String>(
                         value: _role,
@@ -1601,7 +2520,10 @@ class _TransactionPageState extends State<TransactionPage> {
                         ],
                         onChanged: _bothUsersVerified
                             ? null
-                            : (val) => setState(() => _role = val ?? 'lender'),
+                            : (val) => setState(() {
+                                  _role = val ?? 'lender';
+                                  _saveDraft();
+                                }),
                         decoration: InputDecoration(
                           labelText: 'Your Role',
                           prefixIcon:
@@ -1624,7 +2546,10 @@ class _TransactionPageState extends State<TransactionPage> {
                             .toList(),
                         onChanged: _bothUsersVerified
                             ? null
-                            : (val) => setState(() => _currency = val ?? 'INR'),
+                            : (val) => setState(() {
+                                  _currency = val ?? 'INR';
+                                  _saveDraft();
+                                }),
                         decoration: InputDecoration(
                           labelText: 'Currency',
                           prefixIcon: Icon(Icons.currency_exchange,
@@ -1640,6 +2565,7 @@ class _TransactionPageState extends State<TransactionPage> {
                         enabled: !_bothUsersVerified,
                         keyboardType:
                             TextInputType.numberWithOptions(decimal: true),
+                        onChanged: (_) => setState(() {}),
                         decoration: InputDecoration(
                           labelText: 'Amount',
                           prefixIcon: Padding(
@@ -1688,8 +2614,21 @@ class _TransactionPageState extends State<TransactionPage> {
                       ),
                     ),
                     SizedBox(height: 12),
+                    _buildSectionHeader(
+                      title: 'Proof Files',
+                      subtitle:
+                          'Attach any supporting screenshots or photos that help confirm this transaction later.',
+                      icon: Icons.attach_file_rounded,
+                    ),
+                    SizedBox(height: 12),
                     _buildFilePicker(),
                     SizedBox(height: 12),
+                    _buildSectionHeader(
+                      title: 'Interest',
+                      subtitle:
+                          'Choose whether interest applies and preview how repayment changes over time.',
+                      icon: Icons.percent_rounded,
+                    ),
                     _buildStylishField(
                       child: DropdownButtonFormField<String>(
                         value: _interestType,
@@ -1713,6 +2652,7 @@ class _TransactionPageState extends State<TransactionPage> {
                                     _expectedReturnDate = null;
                                     _interestRateController.clear();
                                   }
+                                  _saveDraft();
                                 });
                               },
                         decoration: InputDecoration(
@@ -1725,12 +2665,15 @@ class _TransactionPageState extends State<TransactionPage> {
                     ),
                     if (_interestType != 'none') ...[
                       SizedBox(height: 12),
+                      _buildInterestGuidanceCard(),
+                      SizedBox(height: 12),
                       _buildStylishField(
                         child: TextFormField(
                           controller: _interestRateController,
                           enabled: !_bothUsersVerified,
                           keyboardType:
                               TextInputType.numberWithOptions(decimal: true),
+                          onChanged: (_) => setState(() {}),
                           decoration: InputDecoration(
                             labelText: 'Interest Rate (%)',
                             border: InputBorder.none,
@@ -1773,8 +2716,10 @@ class _TransactionPageState extends State<TransactionPage> {
                           ],
                           onChanged: _bothUsersVerified
                               ? null
-                              : (val) => setState(
-                                  () => _compoundingFrequency = val ?? 1),
+                              : (val) => setState(() {
+                                  _compoundingFrequency = val ?? 1;
+                                  _saveDraft();
+                                }),
                           decoration: InputDecoration(
                               labelText: 'Compounding Frequency',
                               border: InputBorder.none,
@@ -1835,9 +2780,11 @@ class _TransactionPageState extends State<TransactionPage> {
                                       );
                                     },
                                   );
-                                  if (picked != null)
+                                  if (picked != null) {
                                     setState(
                                         () => _expectedReturnDate = picked);
+                                    _saveDraft();
+                                  }
                                 },
                           child: InputDecorator(
                             decoration: InputDecoration(
@@ -1865,6 +2812,19 @@ class _TransactionPageState extends State<TransactionPage> {
                         ),
                       ),
                     ],
+                    if (_amountController.text.trim().isNotEmpty) ...[
+                      SizedBox(height: 12),
+                      _buildTransactionPreviewCard(),
+                      SizedBox(height: 12),
+                      _buildRepaymentPreviewCard(),
+                    ],
+                    SizedBox(height: 12),
+                    _buildSectionHeader(
+                      title: 'Verification',
+                      subtitle:
+                          'Verify both email addresses with OTP. After both are verified, key transaction details get locked for safety.',
+                      icon: Icons.verified_user_rounded,
+                    ),
                     SizedBox(height: 12),
                     _buildStylishField(
                       child: TextFormField(
