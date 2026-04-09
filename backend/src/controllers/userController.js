@@ -42,6 +42,30 @@ function applyDailyLoginReward(user) {
   return { awarded: true, coinsAwarded: DAILY_LOGIN_COINS };
 }
 
+function getLogoutActorFromAccessToken(req) {
+  try {
+    const authHeader = req.get('Authorization') || '';
+    if (!authHeader.startsWith('Bearer ')) return null;
+
+    const token = authHeader.slice(7).trim();
+    if (!token) return null;
+
+    const jwtSecret =
+      process.env.JWT_SECRET || 'fallback-secret-key-for-development';
+    const decoded = jwt.verify(token, jwtSecret);
+
+    if (decoded?.role !== 'user') return null;
+
+    return {
+      userId: decoded.userId || decoded._id || null,
+      userType: decoded.role,
+      deviceId: decoded.deviceId || null,
+    };
+  } catch (_error) {
+    return null;
+  }
+}
+
 // Register user with OTP
 exports.register = async (req, res) => {
   try {
@@ -774,7 +798,36 @@ exports.refreshToken = async (req, res) => {
 exports.logout = async (req, res) => {
   try {
     const { refreshToken } = req.body;
-    
+    let logoutActor = null;
+
+    if (refreshToken) {
+      const tokenData = await TokenService.validateRefreshToken(refreshToken);
+
+      if (tokenData?.userType === 'user' && tokenData?.userId) {
+        logoutActor = {
+          userId: tokenData.userId,
+          userType: tokenData.userType,
+          deviceId: tokenData.deviceId,
+        };
+      }
+    }
+
+    if (!logoutActor) {
+      logoutActor = getLogoutActorFromAccessToken(req);
+    }
+
+    if (logoutActor?.userType === 'user' && logoutActor?.userId) {
+      try {
+        await logProfileActivity(logoutActor.userId, 'logout', {
+          ipAddress: req.ip,
+          userAgent: req.get('User-Agent'),
+          deviceId: logoutActor.deviceId,
+        });
+      } catch (activityError) {
+        console.error('Failed to log logout activity:', activityError);
+      }
+    }
+
     if (refreshToken) {
       await TokenService.revokeRefreshToken(refreshToken);
     }
