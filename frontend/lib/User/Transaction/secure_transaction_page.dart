@@ -91,6 +91,8 @@ class _TransactionPageState extends State<TransactionPage> {
   Set<String> _blockedEmails = {};
   int? _dailyUserTxRemaining;
   bool _restoringDraft = false;
+  DateTime? _lastDraftSavedAt;
+  String _draftStatusMessage = 'Auto-save ready';
 
   // Computed property to check if both users are verified
   bool get _bothUsersVerified => _counterpartyVerified && _userVerified;
@@ -139,7 +141,7 @@ class _TransactionPageState extends State<TransactionPage> {
   }
 
   double _repaymentYears() {
-    if (_interestType == 'none' || _expectedReturnDate == null) return 0;
+    if (_expectedReturnDate == null) return 0;
     final days = _expectedReturnDate!
         .difference(_previewStartDate())
         .inDays
@@ -177,7 +179,7 @@ class _TransactionPageState extends State<TransactionPage> {
   }
 
   String _repaymentTenureLabel() {
-    if (_interestType == 'none' || _expectedReturnDate == null) {
+    if (_expectedReturnDate == null) {
       return 'No interest applied';
     }
     final days = _expectedReturnDate!
@@ -188,6 +190,25 @@ class _TransactionPageState extends State<TransactionPage> {
     if (days < 30) return '$days day${days == 1 ? '' : 's'}';
     final months = (days / 30).toStringAsFixed(1);
     return '$months months';
+  }
+
+  int? _remainingDaysCount() {
+    if (_expectedReturnDate == null) return null;
+    final difference = _expectedReturnDate!.difference(_previewStartDate());
+    return difference.inDays;
+  }
+
+  String _remainingDaysLabel() {
+    final days = _remainingDaysCount();
+    if (days == null) return 'Not scheduled';
+    if (days < 0) return '${days.abs()} day(s) overdue';
+    return '$days day(s) remaining';
+  }
+
+  String _draftStatusLabel() {
+    final savedAt = _lastDraftSavedAt;
+    if (savedAt == null) return _draftStatusMessage;
+    return 'Draft saved ${DateFormat('hh:mm a').format(savedAt)}';
   }
 
   Widget _buildRepaymentPreviewCard() {
@@ -268,6 +289,118 @@ class _TransactionPageState extends State<TransactionPage> {
                 ),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRepaymentTimelineCard() {
+    if (_expectedReturnDate == null) return const SizedBox.shrink();
+
+    final startDate = _previewStartDate();
+    final estimatedRepayment =
+        _estimatedRepaymentAmount() ?? _parsedPrincipalAmount() ?? 0;
+
+    Widget item({
+      required IconData icon,
+      required String title,
+      required String value,
+      required Color color,
+    }) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Repayment Timeline',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            item(
+              icon: Icons.play_circle_outline_rounded,
+              title: 'Start date',
+              value: DateFormat('MMM d, yyyy • hh:mm a').format(startDate),
+              color: const Color(0xFF00B4D8),
+            ),
+            const SizedBox(height: 10),
+            item(
+              icon: Icons.event_available_rounded,
+              title: 'Expected return date',
+              value:
+                  DateFormat('MMM d, yyyy').format(_expectedReturnDate!),
+              color: Colors.green,
+            ),
+            const SizedBox(height: 10),
+            item(
+              icon: Icons.payments_outlined,
+              title: 'Estimated total repayment',
+              value: _formatPreviewAmount(estimatedRepayment),
+              color: Colors.orange,
+            ),
+            const SizedBox(height: 10),
+            item(
+              icon: Icons.schedule_rounded,
+              title: 'Remaining time',
+              value: _remainingDaysLabel(),
+              color: Colors.purple,
+            ),
           ],
         ),
       ),
@@ -597,6 +730,12 @@ class _TransactionPageState extends State<TransactionPage> {
       'description': _descriptionController.text,
     };
     await _storage.write(key: _draftStorageKey(), value: jsonEncode(payload));
+    _lastDraftSavedAt = DateTime.now();
+    if (mounted) {
+      setState(() {
+        _draftStatusMessage = 'Draft saved';
+      });
+    }
   }
 
   Future<void> _saveDraftWithFeedback() async {
@@ -614,6 +753,12 @@ class _TransactionPageState extends State<TransactionPage> {
 
   Future<void> _clearDraft() async {
     await _storage.delete(key: _draftStorageKey());
+    _lastDraftSavedAt = null;
+    if (mounted) {
+      setState(() {
+        _draftStatusMessage = 'No saved draft';
+      });
+    }
   }
 
   Future<void> _discardDraftWithConfirmation() async {
@@ -686,6 +831,7 @@ class _TransactionPageState extends State<TransactionPage> {
             minute: int.tryParse('${time['minute']}') ?? 0,
           );
         }
+        _draftStatusMessage = 'Draft restored';
       });
     } catch (_) {
       await _clearDraft();
@@ -1253,43 +1399,341 @@ class _TransactionPageState extends State<TransactionPage> {
   }
 
   Widget _buildFilePicker() {
+    final proofCount = _pickedFiles.length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                proofCount == 0
+                    ? 'No proof files added yet'
+                    : '$proofCount proof file${proofCount == 1 ? '' : 's'} attached',
+                style: TextStyle(
+                  color: Colors.grey.shade700,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00B4D8).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                proofCount == 0 ? 'Optional' : 'Ready',
+                style: const TextStyle(
+                  color: Color(0xFF0077B6),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
         ElevatedButton.icon(
           onPressed: _bothUsersVerified ? null : _pickFiles,
-          icon: Icon(Icons.attach_file),
-          label: Text('Add Images'),
+          icon: const Icon(Icons.attach_file),
+          label: const Text('Add Proof Files'),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
         ),
-        SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          children: List.generate(
-              _pickedFiles.length,
-              (i) => GestureDetector(
-                    onTap: () {},
-                    child: Stack(
-                      alignment: Alignment.topRight,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: _buildFileThumbnail(i),
-                        ),
-                        if (!_bothUsersVerified)
-                          GestureDetector(
-                            onTap: () => _removeFile(i),
-                            child: CircleAvatar(
-                                radius: 12,
-                                backgroundColor: Colors.red,
-                                child: Icon(Icons.close,
-                                    size: 16, color: Colors.white)),
+        const SizedBox(height: 12),
+        if (_pickedFiles.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7FBFD),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFBFE8F2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.image_outlined, color: Color(0xFF00B4D8)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Add screenshots or photos to make the secure transaction easier to verify later.',
+                    style: TextStyle(color: Colors.grey.shade700),
+                  ),
+                ),
+              ],
+            ),
+          )
+        else
+          SizedBox(
+            height: 112,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _pickedFiles.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, i) {
+                final file = _pickedFiles[i];
+                return Container(
+                  width: 108,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFBFE8F2)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Center(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: _buildFileThumbnail(i),
+                              ),
+                            ),
                           ),
-                      ],
-                    ),
-                  )),
-        ),
+                          const SizedBox(height: 6),
+                          Text(
+                            file.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (!_bothUsersVerified)
+                        GestureDetector(
+                          onTap: () => _removeFile(i),
+                          child: const CircleAvatar(
+                            radius: 11,
+                            backgroundColor: Colors.red,
+                            child: Icon(Icons.close,
+                                size: 14, color: Colors.white),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
       ],
+    );
+  }
+
+  Widget _buildDraftStatusCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6FBFD),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBFE8F2)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_done_outlined, color: Color(0xFF00B4D8)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _draftStatusLabel(),
+              style: TextStyle(
+                color: Colors.grey.shade800,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showReviewSheetAndSubmit() async {
+    final amount = _parsedPrincipalAmount();
+    final repayment = _estimatedRepaymentAmount();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: const LinearGradient(
+                  colors: [Colors.orange, Colors.white, Colors.green],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Review Secure Transaction',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPreviewStat('Role',
+                        _role == 'lender' ? 'You are lending' : 'You are borrowing'),
+                    const SizedBox(height: 10),
+                    _buildPreviewStat('Amount',
+                        amount == null ? 'Not entered' : _formatPreviewAmount(amount)),
+                    const SizedBox(height: 10),
+                    _buildPreviewStat(
+                        'Counterparty',
+                        _counterpartyEmailController.text.trim().isEmpty
+                            ? 'Not selected'
+                            : _counterpartyEmailController.text.trim()),
+                    const SizedBox(height: 10),
+                    _buildPreviewStat(
+                        'Expected return',
+                        _expectedReturnDate == null
+                            ? 'Not selected'
+                            : DateFormat('MMM d, yyyy')
+                                .format(_expectedReturnDate!)),
+                    const SizedBox(height: 10),
+                    _buildPreviewStat(
+                        'Proof files', '${_pickedFiles.length} attached'),
+                    if (repayment != null) ...[
+                      const SizedBox(height: 10),
+                      _buildPreviewStat(
+                          'Est. repayment', _formatPreviewAmount(repayment)),
+                    ],
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _submit();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00B4D8),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text(
+                          'Confirm and Submit',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStickySummaryBar() {
+    final amount = _parsedPrincipalAmount();
+    final canSubmit = _counterpartyVerified && _userVerified && !_isLoading;
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        amount == null
+                            ? 'Enter amount to build summary'
+                            : _formatPreviewAmount(amount),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _counterpartyEmailController.text.trim().isEmpty
+                            ? 'Counterparty not selected'
+                            : _counterpartyEmailController.text.trim(),
+                        style: TextStyle(color: Colors.grey.shade700),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _expectedReturnDate == null
+                            ? 'Return date not selected'
+                            : 'Return: ${DateFormat('MMM d').format(_expectedReturnDate!)}',
+                        style: TextStyle(
+                          color: const Color(0xFF0077B6),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: canSubmit ? _showReviewSheetAndSubmit : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00B4D8),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            canSubmit ? 'Review & Submit' : 'Verify to Submit',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1591,10 +2035,12 @@ class _TransactionPageState extends State<TransactionPage> {
         'description': _descriptionController.text,
       };
 
+      if (_expectedReturnDate != null) {
+        body['expectedReturnDate'] = _expectedReturnDate!.toIso8601String();
+      }
+
       if (_interestType != 'none') {
         body['interestRate'] = _interestRateController.text;
-        body['expectedReturnDate'] =
-            _expectedReturnDate?.toIso8601String() ?? '';
         if (_interestType == 'compound') {
           body['compoundingFrequency'] = _compoundingFrequency;
         }
@@ -1792,10 +2238,12 @@ class _TransactionPageState extends State<TransactionPage> {
         'description': _descriptionController.text,
       };
 
+      if (_expectedReturnDate != null) {
+        body['expectedReturnDate'] = _expectedReturnDate!.toIso8601String();
+      }
+
       if (_interestType != 'none') {
         body['interestRate'] = _interestRateController.text;
-        body['expectedReturnDate'] =
-            _expectedReturnDate?.toIso8601String() ?? '';
         if (_interestType == 'compound') {
           body['compoundingFrequency'] = _compoundingFrequency;
         }
@@ -2346,6 +2794,7 @@ class _TransactionPageState extends State<TransactionPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F6FA),
       extendBodyBehindAppBar: true,
+      bottomNavigationBar: _buildStickySummaryBar(),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -2467,7 +2916,7 @@ class _TransactionPageState extends State<TransactionPage> {
           Padding(
             padding: EdgeInsets.only(top: 120),
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -2498,6 +2947,8 @@ class _TransactionPageState extends State<TransactionPage> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    _buildDraftStatusCard(),
                     const SizedBox(height: 18),
                     _buildSectionHeader(
                       title: 'Basic Details',
@@ -2647,9 +3098,7 @@ class _TransactionPageState extends State<TransactionPage> {
                             : (val) {
                                 setState(() {
                                   _interestType = val ?? 'none';
-                                  // Reset expected return date and interest rate if switching back to no interest
                                   if (_interestType == 'none') {
-                                    _expectedReturnDate = null;
                                     _interestRateController.clear();
                                   }
                                   _saveDraft();
@@ -2737,86 +3186,93 @@ class _TransactionPageState extends State<TransactionPage> {
                         ),
                       ),
                     ],
-                    if (_interestType != 'none') ...[
-                      SizedBox(height: 12),
-                      _buildStylishField(
-                        child: InkWell(
-                          onTap: _bothUsersVerified
-                              ? null
-                              : () async {
-                                  final picked = await showDatePicker(
-                                    context: context,
-                                    initialDate:
-                                        _expectedReturnDate ?? DateTime.now(),
-                                    firstDate: DateTime(2000),
-                                    lastDate: DateTime(2100),
-                                    builder: (context, child) {
-                                      return Theme(
-                                        data: ThemeData.light().copyWith(
-                                          colorScheme: ColorScheme.light(
-                                            primary: Color(0xFF00B4D8),
-                                            onPrimary: Colors.white,
-                                            surface: Colors.white,
-                                            onSurface: Colors.black87,
-                                            background: Colors.white,
-                                          ),
-                                          dialogTheme: DialogTheme(
-                                            backgroundColor: Colors.white,
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                            ),
-                                          ),
-                                          textButtonTheme: TextButtonThemeData(
-                                            style: TextButton.styleFrom(
-                                              foregroundColor:
-                                                  Color(0xFF00B4D8),
-                                            ),
-                                          ),
-                                          cardColor: Colors.white,
-                                          canvasColor: Colors.white,
+                    SizedBox(height: 12),
+                    _buildStylishField(
+                      child: InkWell(
+                        onTap: _bothUsersVerified
+                            ? null
+                            : () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate:
+                                      _expectedReturnDate ?? DateTime.now(),
+                                  firstDate: DateTime(2000),
+                                  lastDate: DateTime(2100),
+                                  builder: (context, child) {
+                                    return Theme(
+                                      data: ThemeData.light().copyWith(
+                                        colorScheme: ColorScheme.light(
+                                          primary: Color(0xFF00B4D8),
+                                          onPrimary: Colors.white,
+                                          surface: Colors.white,
+                                          onSurface: Colors.black87,
+                                          background: Colors.white,
                                         ),
-                                        child: child!,
-                                      );
-                                    },
-                                  );
-                                  if (picked != null) {
-                                    setState(
-                                        () => _expectedReturnDate = picked);
-                                    _saveDraft();
-                                  }
-                                },
-                          child: InputDecorator(
-                            decoration: InputDecoration(
-                              labelText: 'Expected Return Date *',
-                              border: InputBorder.none,
-                              helperText: _bothUsersVerified
-                                  ? 'Transaction details locked after verification'
-                                  : 'Required when interest is applied',
-                              prefixIcon: Icon(Icons.calendar_today,
-                                  color: _bothUsersVerified
-                                      ? Colors.grey.shade300
+                                        dialogTheme: DialogTheme(
+                                          backgroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                          ),
+                                        ),
+                                        textButtonTheme: TextButtonThemeData(
+                                          style: TextButton.styleFrom(
+                                            foregroundColor:
+                                                Color(0xFF00B4D8),
+                                          ),
+                                        ),
+                                        cardColor: Colors.white,
+                                        canvasColor: Colors.white,
+                                      ),
+                                      child: child!,
+                                    );
+                                  },
+                                );
+                                if (picked != null) {
+                                  setState(() => _expectedReturnDate = picked);
+                                  _saveDraft();
+                                }
+                              },
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            labelText: _interestType == 'none'
+                                ? 'Expected Return Date (Optional)'
+                                : 'Expected Return Date *',
+                            border: InputBorder.none,
+                            helperText: _bothUsersVerified
+                                ? 'Transaction details locked after verification'
+                                : _interestType == 'none'
+                                    ? 'You can set a return date even without interest.'
+                                    : 'Required when interest is applied',
+                            prefixIcon: Icon(
+                              Icons.calendar_today,
+                              color: _bothUsersVerified
+                                  ? Colors.grey.shade300
+                                  : (_interestType == 'none'
+                                      ? const Color(0xFF00B4D8)
                                       : Colors.red.shade300),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(_expectedReturnDate == null
-                                    ? 'Select date'
-                                    : DateFormat('yyyy-MM-dd')
-                                        .format(_expectedReturnDate!)),
-                                Icon(Icons.calendar_today, color: Colors.teal),
-                              ],
-                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(_expectedReturnDate == null
+                                  ? 'Select date'
+                                  : DateFormat('yyyy-MM-dd')
+                                      .format(_expectedReturnDate!)),
+                              Icon(Icons.calendar_today, color: Colors.teal),
+                            ],
                           ),
                         ),
                       ),
-                    ],
+                    ),
                     if (_amountController.text.trim().isNotEmpty) ...[
                       SizedBox(height: 12),
                       _buildTransactionPreviewCard(),
                       SizedBox(height: 12),
                       _buildRepaymentPreviewCard(),
+                      SizedBox(height: 12),
+                      _buildRepaymentTimelineCard(),
                     ],
                     SizedBox(height: 12),
                     _buildSectionHeader(
@@ -2924,23 +3380,13 @@ class _TransactionPageState extends State<TransactionPage> {
                           style: TextStyle(color: Colors.red)),
                     ],
                     SizedBox(height: 20),
-                    if (_isLoading)
-                      Center(child: CircularProgressIndicator())
-                    else
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: (_counterpartyVerified &&
-                                  _userVerified &&
-                                  !_isLoading)
-                              ? _submit
-                              : null,
-                          child: Text('Submit Transaction'),
-                          style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.teal,
-                              padding: EdgeInsets.symmetric(vertical: 16)),
-                        ),
+                    Text(
+                      'Review and submit from the sticky summary bar below.',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w600,
                       ),
+                    ),
                     if (_transactionId != null) ...[
                       SizedBox(height: 20),
                       Center(

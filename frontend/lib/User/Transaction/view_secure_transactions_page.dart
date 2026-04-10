@@ -79,6 +79,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   String _selectedDisplayCurrency = 'INR';
   String? _displayCurrencyError;
   final Set<String> _expandedTransactionIds = <String>{};
+  Timer? _countdownTimer;
+  DateTime _now = DateTime.now();
 
   @override
   void initState() {
@@ -96,10 +98,17 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     _transactionIdController.text = _searchTransactionId;
     _amountController.text = _searchAmount?.toString() ?? '';
     _globalSearchController.text = globalSearch;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _now = DateTime.now();
+      });
+    });
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _counterpartyController.dispose();
     _placeController.dispose();
     _transactionIdController.dispose();
@@ -676,7 +685,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     final hasPartialPayment = _hasPartialPayment(Map<String, dynamic>.from(t));
     final expectedReturnDate =
         DateTime.tryParse((t['expectedReturnDate'] ?? '').toString());
-    final now = DateTime.now();
+    final now = _now;
     final isOverdue = expectedReturnDate != null &&
         expectedReturnDate.isBefore(now) &&
         !fullyCleared;
@@ -1401,22 +1410,26 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                         ),
                       ],
                     ),
-                    if (isOverdue || isDueSoon) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isOverdue
-                              ? Colors.red.withOpacity(0.10)
-                              : Colors.amber.withOpacity(0.14),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isOverdue
-                                ? Colors.red.withOpacity(0.24)
-                                : Colors.amber.withOpacity(0.28),
-                          ),
-                        ),
+                        if (expectedReturnDate != null && !fullyCleared) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isOverdue
+                                  ? Colors.red.withOpacity(0.10)
+                                  : isDueSoon
+                                      ? Colors.amber.withOpacity(0.14)
+                                      : Colors.teal.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isOverdue
+                                    ? Colors.red.withOpacity(0.24)
+                                    : isDueSoon
+                                        ? Colors.amber.withOpacity(0.28)
+                                        : Colors.teal.withOpacity(0.22),
+                              ),
+                            ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -1424,23 +1437,25 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                               isOverdue
                                   ? Icons.warning_amber_rounded
                                   : Icons.schedule_rounded,
-                              size: 16,
-                              color: isOverdue
-                                  ? Colors.red.shade700
-                                  : Colors.orange.shade800,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              isOverdue
-                                  ? 'Overdue since ${DateFormat('MMM d').format(expectedReturnDate!)}'
-                                  : 'Due by ${DateFormat('MMM d').format(expectedReturnDate!)}',
-                              style: TextStyle(
-                                color: isOverdue
-                                    ? Colors.red.shade700
-                                    : Colors.orange.shade800,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                                  size: 16,
+                                  color: isOverdue
+                                      ? Colors.red.shade700
+                                      : isDueSoon
+                                          ? Colors.orange.shade800
+                                          : Colors.teal.shade700,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _remainingTimeLabel(expectedReturnDate!),
+                                  style: TextStyle(
+                                    color: isOverdue
+                                        ? Colors.red.shade700
+                                        : isDueSoon
+                                            ? Colors.orange.shade800
+                                            : Colors.teal.shade700,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                           ],
                         ),
                       ),
@@ -3062,6 +3077,20 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     final userCleared = t['userCleared'] == true;
     final counterpartyCleared = t['counterpartyCleared'] == true;
     return userCleared != counterpartyCleared || _hasPartialPayment(t);
+  }
+
+  String _remainingTimeLabel(DateTime expectedReturnDate) {
+    final difference = expectedReturnDate.difference(_now);
+    if (difference.isNegative) {
+      return 'Overdue since ${DateFormat('MMM d').format(expectedReturnDate)}';
+    }
+    if (difference.inDays > 0) {
+      return '${difference.inDays} day(s) remaining';
+    }
+    final hours = difference.inHours;
+    final minutes = difference.inMinutes.remainder(60);
+    final seconds = difference.inSeconds.remainder(60);
+    return '${hours}h ${minutes}m ${seconds}s remaining';
   }
 
   bool _matchesSearch(Map t) {
