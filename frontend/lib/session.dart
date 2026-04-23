@@ -286,6 +286,38 @@ class SessionProvider extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>?> checkDailyLoginRewardOnAppOpen() async {
+    if (_accessToken == null || _role == 'admin') {
+      return null;
+    }
+
+    try {
+      final response = await HttpInterceptor.post('/api/users/daily-login-reward');
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final reward =
+          Map<String, dynamic>.from(data['dailyLoginReward'] ?? const {});
+
+      _lenDenCoins = (data['lenDenCoins'] as num?)?.toInt();
+
+      if (_user != null) {
+        _user!['lenDenCoins'] = _lenDenCoins;
+        _user!['lastDailyLoginRewardDate'] = data['lastDailyLoginRewardDate'];
+        _user!['lastDailyLoginRewardAt'] = data['lastDailyLoginRewardAt'];
+        await _saveUserData(_user!);
+      }
+
+      notifyListeners();
+      return reward;
+    } catch (e) {
+      print('Error checking daily login reward on app open: $e');
+      return null;
+    }
+  }
+
   void updateUserCoins(int totalCoins) {
     _lenDenCoins = totalCoins;
     notifyListeners();

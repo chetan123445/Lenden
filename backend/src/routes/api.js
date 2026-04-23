@@ -130,6 +130,7 @@ module.exports = (io) => {
   
   // All authenticated user routes should use sessionTimeout after auth
   router.get('/users/me', auth, sessionTimeout, profileController.getUserProfile);
+  router.post('/users/daily-login-reward', auth, sessionTimeout, userController.applyDailyLoginRewardOnAppOpen);
   router.get('/users/freebie-counts', auth, userController.getFreebieCounts);
   router.put('/users/me', auth, sessionTimeout, upload.single('profileImage'), editProfileController.updateUserProfile);
   router.put('/users/me/chat-public-key', auth, sessionTimeout, userController.updateChatEncryptionPublicKey);

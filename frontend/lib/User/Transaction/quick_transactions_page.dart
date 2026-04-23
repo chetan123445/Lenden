@@ -2932,6 +2932,20 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
   List<Map<String, dynamic>> _friends = [];
   List<Map<String, dynamic>> _suggestions = [];
 
+  bool _isEditingAsCreator() {
+    final creatorEmail =
+        (widget.transaction?['creatorEmail'] ?? '').toString().toLowerCase().trim();
+    final userEmail = (_userEmail ?? '').toLowerCase().trim();
+    return creatorEmail.isEmpty || creatorEmail == userEmail;
+  }
+
+  String _storedRoleForSubmission(String selectedRole) {
+    if (widget.transaction == null || _isEditingAsCreator()) {
+      return selectedRole;
+    }
+    return selectedRole == 'lender' ? 'borrower' : 'lender';
+  }
+
   final List<Map<String, String>> _currencies = [
     {'code': 'INR', 'symbol': '₹'},
     {'code': 'USD', 'symbol': '\$'},
@@ -2976,7 +2990,7 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
         _counterpartyEmailController.text =
             counterparty != null ? counterparty['email'] : '';
       }
-      _role = widget.transaction!['role'] ?? 'lender';
+      _role = widget.initialRole ?? widget.transaction!['role'] ?? 'lender';
     } else if ((widget.prefillCounterpartyEmail ?? '').isNotEmpty) {
       _counterpartyEmailController.text =
           widget.prefillCounterpartyEmail!.trim();
@@ -3433,14 +3447,18 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                           value: _role,
                           items: [
                             DropdownMenuItem(
-                                value: 'lender', child: Text('Lender')),
+                              value: 'lender',
+                              child: Text('Lending (You gave money)'),
+                            ),
                             DropdownMenuItem(
-                                value: 'borrower', child: Text('Borrower')),
+                              value: 'borrower',
+                              child: Text('Borrowing (You took money)'),
+                            ),
                           ],
                           onChanged: (val) =>
                               setState(() => _role = val ?? 'lender'),
                           decoration: InputDecoration(
-                            labelText: 'Your Role',
+                            labelText: 'Your Position',
                             prefixIcon:
                                 Icon(Icons.people, color: Color(0xFF00B4D8)),
                             border: InputBorder.none,
@@ -3512,7 +3530,7 @@ class __QuickTransactionDialogState extends State<_QuickTransactionDialog> {
                                           _descriptionController.text,
                                       'counterpartyEmail':
                                           _counterpartyEmailController.text,
-                                      'role': _role,
+                                      'role': _storedRoleForSubmission(_role),
                                       'date': DateTime.now().toIso8601String(),
                                       'time': TimeOfDay.now().format(context),
                                     };

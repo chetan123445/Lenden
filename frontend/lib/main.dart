@@ -48,6 +48,8 @@ class AppInitializer extends StatefulWidget {
 class _AppInitializerState extends State<AppInitializer>
     with WidgetsBindingObserver {
   late Future<void> _bootstrapFuture;
+  int? _pendingDailyRewardCoins;
+  bool _dailyRewardDialogVisible = false;
 
   @override
   void initState() {
@@ -58,10 +60,115 @@ class _AppInitializerState extends State<AppInitializer>
 
   Future<void> _initializeApp() async {
     final session = Provider.of<SessionProvider>(context, listen: false);
-    await Future.wait([
-      session.initSession(),
-      Future.delayed(const Duration(seconds: 2)),
-    ]);
+    final startedAt = DateTime.now();
+    await session.initSession();
+    await _maybeQueueDailyReward(session);
+
+    final elapsed = DateTime.now().difference(startedAt);
+    const minimumSplash = Duration(milliseconds: 700);
+    if (elapsed < minimumSplash) {
+      await Future.delayed(minimumSplash - elapsed);
+    }
+  }
+
+  Future<void> _maybeQueueDailyReward(SessionProvider session) async {
+    final reward = await session.checkDailyLoginRewardOnAppOpen();
+    if (reward != null && reward['awarded'] == true) {
+      _pendingDailyRewardCoins = (reward['coinsAwarded'] as num?)?.toInt() ?? 1;
+    }
+  }
+
+  void _showPendingDailyRewardIfNeeded() {
+    if (_dailyRewardDialogVisible || _pendingDailyRewardCoins == null || !mounted) {
+      return;
+    }
+
+    final coins = _pendingDailyRewardCoins!;
+    _dailyRewardDialogVisible = true;
+    _pendingDailyRewardCoins = null;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await _showDailyLoginRewardDialog(coins);
+      if (!mounted) return;
+      setState(() {
+        _dailyRewardDialogVisible = false;
+      });
+    });
+  }
+
+  Future<void> _showDailyLoginRewardDialog(int coins) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0F9FF),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.card_giftcard_rounded,
+                  color: Colors.white,
+                  size: 38,
+                ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Daily Bonus',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'You earned $coins LenDen Coin${coins > 1 ? 's' : ''} on your first app open today.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey[800]),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF00B4D8),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Nice',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -70,7 +177,15 @@ class _AppInitializerState extends State<AppInitializer>
       final session = Provider.of<SessionProvider>(context, listen: false);
       if (session.token != null && session.user == null) {
         setState(() {
-          _bootstrapFuture = session.initSession();
+          _bootstrapFuture = _initializeApp();
+        });
+        return;
+      }
+      if (session.token != null && !session.isAdmin) {
+        session.checkDailyLoginRewardOnAppOpen().then((reward) {
+          if (!mounted || reward == null || reward['awarded'] != true) return;
+          final coins = (reward['coinsAwarded'] as num?)?.toInt() ?? 1;
+          _showDailyLoginRewardDialog(coins);
         });
       }
     }
@@ -104,6 +219,7 @@ class _AppInitializerState extends State<AppInitializer>
           if (snapshot.connectionState != ConnectionState.done) {
             return const SplashScreen(autoNavigate: false);
           }
+          _showPendingDailyRewardIfNeeded();
           return const MyApp();
         },
       ),

@@ -76,27 +76,51 @@ class _SplashScreenState extends State<SplashScreen>
           Center(
             child: ScaleTransition(
               scale: _animation,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(32),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 16,
-                      offset: Offset(0, 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(32),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 16,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                padding: const EdgeInsets.all(24),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: Image.asset(
-                    'assets/icon.png',
-                    width: 140,
-                    height: 140,
+                    padding: const EdgeInsets.all(24),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Image.asset(
+                        'assets/icon.png',
+                        width: 140,
+                        height: 140,
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 24),
+                  const SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Color(0xFF00B4D8)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Loading your workspace...',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

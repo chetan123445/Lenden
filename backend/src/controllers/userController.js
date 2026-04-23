@@ -42,6 +42,22 @@ function applyDailyLoginReward(user) {
   return { awarded: true, coinsAwarded: DAILY_LOGIN_COINS };
 }
 
+async function recordDailyLoginRewardIfNeeded(user, dailyReward) {
+  if (!dailyReward?.awarded) {
+    return;
+  }
+
+  await recordCoinLedgerEntry({
+    userId: user._id,
+    direction: 'earned',
+    coins: dailyReward.coinsAwarded,
+    source: 'daily_login',
+    title: 'Daily Login Reward',
+    description: `Earned ${dailyReward.coinsAwarded} LenDen coin for logging in today.`,
+    occurredAt: user.lastDailyLoginRewardAt || new Date(),
+  });
+}
+
 function getLogoutActorFromAccessToken(req) {
   try {
     const authHeader = req.get('Authorization') || '';
@@ -299,17 +315,7 @@ exports.login = async (req, res) => {
       });
       const dailyReward = applyDailyLoginReward(user);
       await user.save();
-      if (dailyReward.awarded) {
-        await recordCoinLedgerEntry({
-          userId: user._id,
-          direction: 'earned',
-          coins: dailyReward.coinsAwarded,
-          source: 'daily_login',
-          title: 'Daily Login Reward',
-          description: `Earned ${dailyReward.coinsAwarded} LenDen coin for logging in today.`,
-          occurredAt: user.lastDailyLoginRewardAt || new Date(),
-        });
-      }
+      await recordDailyLoginRewardIfNeeded(user, dailyReward);
 
       res.json({ 
         message: 'Login successful', 
@@ -555,17 +561,7 @@ exports.verifyLoginOtp = async (req, res) => {
 
       const dailyReward = applyDailyLoginReward(user);
       await user.save();
-      if (dailyReward.awarded) {
-        await recordCoinLedgerEntry({
-          userId: user._id,
-          direction: 'earned',
-          coins: dailyReward.coinsAwarded,
-          source: 'daily_login',
-          title: 'Daily Login Reward',
-          description: `Earned ${dailyReward.coinsAwarded} LenDen coin for logging in today.`,
-          occurredAt: user.lastDailyLoginRewardAt || new Date(),
-        });
-      }
+      await recordDailyLoginRewardIfNeeded(user, dailyReward);
       
       delete otpStore[email];
       return res.status(200).json({ 
@@ -896,6 +892,30 @@ exports.getFreebieCounts = async (req, res) => {
       freeUserTransactionsRemaining: user.freeUserTransactionsRemaining,
       freeGroupsRemaining: user.freeGroupsRemaining,
       lenDenCoins: user.lenDenCoins,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.applyDailyLoginRewardOnAppOpen = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const dailyLoginReward = applyDailyLoginReward(user);
+    if (dailyLoginReward.awarded) {
+      await user.save();
+      await recordDailyLoginRewardIfNeeded(user, dailyLoginReward);
+    }
+
+    res.status(200).json({
+      dailyLoginReward,
+      lenDenCoins: user.lenDenCoins,
+      lastDailyLoginRewardDate: user.lastDailyLoginRewardDate,
+      lastDailyLoginRewardAt: user.lastDailyLoginRewardAt,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
