@@ -60,7 +60,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   String _searchPlace = '';
   String _searchTransactionId = '';
   double? _searchAmount;
-  String _sortBy = 'Date'; // 'Date', 'Amount', 'Status'
+  String _sortBy = 'Created'; // 'Created', 'Transaction Date', 'Amount', 'Status'
   bool _sortAsc = false;
   String interestTypeFilter = 'All'; // 'All', 'simple', 'compound'
   String globalSearch = '';
@@ -2293,6 +2293,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   Future<void> _showFiltersBottomSheet() async {
     String tempClearanceFilter = clearanceFilter;
     String tempInterestTypeFilter = interestTypeFilter;
+    String tempSortBy = _sortBy;
+    bool tempSortAsc = _sortAsc;
     DateTime? tempStartDate = _startDate;
     DateTime? tempEndDate = _endDate;
     double? tempMinAmount = _minAmount;
@@ -2557,6 +2559,82 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                           ),
                           const SizedBox(height: 18),
                           tricolorSection(
+                            backgroundColor: const Color(0xFFF7F9FD),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                sectionTitle(
+                                  'Sort transactions',
+                                  'Order secure transactions by creation time, transaction date, amount, or status.',
+                                ),
+                                const SizedBox(height: 10),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      'Created',
+                                      'Transaction Date',
+                                      'Amount',
+                                      'Status',
+                                    ]
+                                        .map(
+                                          (value) => Padding(
+                                            padding:
+                                                const EdgeInsets.only(right: 8),
+                                            child: ChoiceChip(
+                                              label: Text(value),
+                                              selected: tempSortBy == value,
+                                              onSelected: (_) {
+                                                modalSetState(() {
+                                                  tempSortBy = value;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: [
+                                      {
+                                        'label': 'Newest First',
+                                        'value': false,
+                                      },
+                                      {
+                                        'label': 'Oldest First',
+                                        'value': true,
+                                      },
+                                    ]
+                                        .map(
+                                          (item) => Padding(
+                                            padding:
+                                                const EdgeInsets.only(right: 8),
+                                            child: ChoiceChip(
+                                              label: Text(
+                                                  item['label'].toString()),
+                                              selected: tempSortAsc ==
+                                                  item['value'] as bool,
+                                              onSelected: (_) {
+                                                modalSetState(() {
+                                                  tempSortAsc =
+                                                      item['value'] as bool;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          tricolorSection(
                             backgroundColor: const Color(0xFFF7FBF8),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2720,6 +2798,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                       modalSetState(() {
                                         tempClearanceFilter = 'All';
                                         tempInterestTypeFilter = 'All';
+                                        tempSortBy = 'Created';
+                                        tempSortAsc = false;
                                         tempStartDate = null;
                                         tempEndDate = null;
                                         tempMinAmount = null;
@@ -2769,6 +2849,8 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
                                         clearanceFilter = tempClearanceFilter;
                                         interestTypeFilter =
                                             tempInterestTypeFilter;
+                                        _sortBy = tempSortBy;
+                                        _sortAsc = tempSortAsc;
                                         _startDate = tempStartDate;
                                         _endDate = tempEndDate;
                                         _minAmount = tempMinAmount;
@@ -2857,6 +2939,13 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         'label':
             'Amount: ${_minAmount?.toStringAsFixed(0) ?? 'Any'} - ${_maxAmount?.toStringAsFixed(0) ?? 'Any'}',
         'color': const Color(0xFF7C4DFF),
+      });
+    }
+    if (_sortBy != 'Created' || _sortAsc != false) {
+      chips.add({
+        'label':
+            'Sort: $_sortBy • ${_sortAsc ? 'Oldest First' : 'Newest First'}',
+        'color': const Color(0xFF1565C0),
       });
     }
 
@@ -3004,7 +3093,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
         globalSearch.isNotEmpty ||
         interestTypeFilter != 'All' ||
         showFavouritesOnly ||
-        _sortBy != 'Date' ||
+        _sortBy != 'Created' ||
         _sortAsc != false;
   }
 
@@ -3021,7 +3110,7 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
       _searchPlace = '';
       _searchTransactionId = '';
       _searchAmount = null;
-      _sortBy = 'Date';
+      _sortBy = 'Created';
       _sortAsc = false;
       interestTypeFilter = 'All';
       globalSearch = '';
@@ -3162,7 +3251,16 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
     var borrowingFiltered = _applyCollectionFilters(borrowing);
 
     int sortCompare(a, b) {
-      if (_sortBy == 'Date') {
+      if (_sortBy == 'Created') {
+        final da =
+            a['createdAt'] != null ? DateTime.tryParse(a['createdAt']) : null;
+        final db =
+            b['createdAt'] != null ? DateTime.tryParse(b['createdAt']) : null;
+        if (da == null && db == null) return 0;
+        if (da == null) return _sortAsc ? -1 : 1;
+        if (db == null) return _sortAsc ? 1 : -1;
+        return _sortAsc ? da.compareTo(db) : db.compareTo(da);
+      } else if (_sortBy == 'Transaction Date') {
         final da = a['date'] != null ? DateTime.tryParse(a['date']) : null;
         final db = b['date'] != null ? DateTime.tryParse(b['date']) : null;
         if (da == null && db == null) return 0;

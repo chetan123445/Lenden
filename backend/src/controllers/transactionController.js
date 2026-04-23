@@ -379,7 +379,7 @@ exports.createTransactionWithCoins = async (req, res) => {
     // Set default interest type if not provided
     const finalInterestType = interestType || 'none';
     const finalInterestRate = (finalInterestType === 'none') ? null : interestRate;
-    const finalExpectedReturnDate = (finalInterestType === 'none') ? null : expectedReturnDate;
+    const finalExpectedReturnDate = expectedReturnDate || null;
     const finalCompoundingFrequency = (finalInterestType === 'none') ? null : compoundingFrequency;
 
     // Check if both emails exist
@@ -569,7 +569,7 @@ exports.createTransaction = async (req, res) => {
     // Set default interest type if not provided
     const finalInterestType = interestType || 'none';
     const finalInterestRate = (finalInterestType === 'none') ? null : interestRate;
-    const finalExpectedReturnDate = (finalInterestType === 'none') ? null : expectedReturnDate;
+    const finalExpectedReturnDate = expectedReturnDate || null;
     const finalCompoundingFrequency = (finalInterestType === 'none') ? null : compoundingFrequency;
 
     // Check if both emails exist

@@ -761,6 +761,42 @@ class _TransactionPageState extends State<TransactionPage> {
     }
   }
 
+  Future<void> _resetFormForAnotherTransaction() async {
+    await _clearDraft();
+    if (!mounted) return;
+    final user = Provider.of<SessionProvider>(context, listen: false).user;
+    setState(() {
+      _formKey.currentState?.reset();
+      _amountController.clear();
+      _placeController.clear();
+      _counterpartyEmailController.clear();
+      _userEmailController.text = (user?['email'] ?? '').toString();
+      _interestRateController.clear();
+      _descriptionController.clear();
+      _pickedFiles = [];
+      _transactionId = null;
+      _role = 'lender';
+      _currency = 'INR';
+      _selectedDate = null;
+      _selectedTime = null;
+      _counterpartyOtp = null;
+      _userOtp = null;
+      _counterpartyOtpError = null;
+      _userOtpError = null;
+      _counterpartyEmailError = null;
+      _userEmailError = null;
+      _sameEmailError = null;
+      _counterpartyOtpSeconds = 0;
+      _userOtpSeconds = 0;
+      _counterpartyVerified = false;
+      _userVerified = false;
+      _interestType = 'none';
+      _expectedReturnDate = null;
+      _compoundingFrequency = 1;
+      _draftStatusMessage = 'Start your next secure transaction';
+    });
+  }
+
   Future<void> _discardDraftWithConfirmation() async {
     final shouldDiscard = await _showDraftChoiceDialog(
       title: 'Discard Draft?',
@@ -1559,9 +1595,324 @@ class _TransactionPageState extends State<TransactionPage> {
     );
   }
 
+  Widget _buildTricolorFrame({
+    required Widget child,
+    EdgeInsets padding = const EdgeInsets.all(16),
+    BorderRadius? borderRadius,
+  }) {
+    final radius = borderRadius ?? BorderRadius.circular(22);
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: radius,
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _buildReviewInfoTile({
+    required IconData icon,
+    required String title,
+    required String value,
+    required Color accent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withOpacity(0.20)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showTransactionSuccessDialog({
+    required bool giftCardAwarded,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: _buildTricolorFrame(
+            padding: EdgeInsets.zero,
+            borderRadius: BorderRadius.circular(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 78,
+                        height: 78,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF9FD),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF8DDCF0),
+                            width: 2,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.check_rounded,
+                          color: Color(0xFF00B4D8),
+                          size: 42,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Transaction Created!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 25,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.teal.shade700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Choose what you want to do next.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontSize: 14,
+                          height: 1.35,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FCFE),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: const Color(0xFFBFE8F2),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Transaction ID',
+                              style: TextStyle(
+                                color: Colors.grey.shade700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SelectableText(
+                              '${_transactionId ?? ''}',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00B4D8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                          ),
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => UserTransactionsPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.account_balance_wallet,
+                              color: Colors.white),
+                          label: const Text(
+                            'View Transactions',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                              color: Color(0xFF00B4D8),
+                              width: 1.3,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                          ),
+                          onPressed: () async {
+                            Navigator.of(context).pop();
+                            await _resetFormForAnotherTransaction();
+                          },
+                          icon: const Icon(
+                            Icons.add_task_rounded,
+                            color: Color(0xFF00B4D8),
+                          ),
+                          label: const Text(
+                            'Create Another Transaction',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Color(0xFF00B4D8),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (giftCardAwarded) ...[
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: Colors.green.shade400,
+                                width: 1.4,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 15,
+                              ),
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => GiftCardPage(),
+                                ),
+                              );
+                            },
+                            icon: Icon(
+                              Icons.card_giftcard_rounded,
+                              color: Colors.green.shade700,
+                            ),
+                            label: Text(
+                              'View Gift Card Reward',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.green.shade700,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showReviewSheetAndSubmit() async {
     final amount = _parsedPrincipalAmount();
     final repayment = _estimatedRepaymentAmount();
+    final roleLabel =
+        _role == 'lender' ? 'You are lending' : 'You are borrowing';
+    final counterparty = _counterpartyEmailController.text.trim().isEmpty
+        ? 'Not selected'
+        : _counterpartyEmailController.text.trim();
+    final transactionDate = _selectedDate == null
+        ? 'Not selected'
+        : DateFormat('MMM d, yyyy').format(_selectedDate!);
+    final returnDate = _expectedReturnDate == null
+        ? (_interestType == 'none'
+            ? 'Optional and not selected'
+            : 'Required before submit')
+        : DateFormat('MMM d, yyyy').format(_expectedReturnDate!);
+    final interestLabel = _interestType == 'none'
+        ? 'No interest'
+        : _interestType == 'simple'
+            ? 'Simple interest'
+            : 'Compound interest';
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1570,74 +1921,154 @@ class _TransactionPageState extends State<TransactionPage> {
         return SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Container(
-              padding: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
-                gradient: const LinearGradient(
-                  colors: [Colors.orange, Colors.white, Colors.green],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(22),
-                ),
+            child: _buildTricolorFrame(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+              borderRadius: BorderRadius.circular(28),
+              child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Review Secure Transaction',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF00B4D8).withOpacity(0.10),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.fact_check_outlined,
+                            color: Color(0xFF00B4D8),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Review and Submit',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              SizedBox(height: 3),
+                              Text(
+                                'Check the details once before creating the secure transaction.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.black54,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    _buildPreviewStat('Role',
-                        _role == 'lender' ? 'You are lending' : 'You are borrowing'),
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FCFE),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFFBFE8F2)),
+                      ),
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          _buildPreviewStat('Role', roleLabel),
+                          _buildPreviewStat(
+                            'Amount',
+                            amount == null
+                                ? 'Not entered'
+                                : _formatPreviewAmount(amount),
+                          ),
+                          _buildPreviewStat('Interest', interestLabel),
+                          _buildPreviewStat(
+                            'Proof Files',
+                            '${_pickedFiles.length} attached',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildReviewInfoTile(
+                      icon: Icons.person_outline_rounded,
+                      title: 'Counterparty',
+                      value: counterparty,
+                      accent: const Color(0xFF00B4D8),
+                    ),
                     const SizedBox(height: 10),
-                    _buildPreviewStat('Amount',
-                        amount == null ? 'Not entered' : _formatPreviewAmount(amount)),
+                    _buildReviewInfoTile(
+                      icon: Icons.event_available_rounded,
+                      title: 'Transaction Date',
+                      value: transactionDate,
+                      accent: Colors.orange,
+                    ),
                     const SizedBox(height: 10),
-                    _buildPreviewStat(
-                        'Counterparty',
-                        _counterpartyEmailController.text.trim().isEmpty
-                            ? 'Not selected'
-                            : _counterpartyEmailController.text.trim()),
-                    const SizedBox(height: 10),
-                    _buildPreviewStat(
-                        'Expected return',
-                        _expectedReturnDate == null
-                            ? 'Not selected'
-                            : DateFormat('MMM d, yyyy')
-                                .format(_expectedReturnDate!)),
-                    const SizedBox(height: 10),
-                    _buildPreviewStat(
-                        'Proof files', '${_pickedFiles.length} attached'),
+                    _buildReviewInfoTile(
+                      icon: Icons.update_rounded,
+                      title: 'Expected Return Date',
+                      value: returnDate,
+                      accent: Colors.green,
+                    ),
                     if (repayment != null) ...[
                       const SizedBox(height: 10),
-                      _buildPreviewStat(
-                          'Est. repayment', _formatPreviewAmount(repayment)),
+                      _buildReviewInfoTile(
+                        icon: Icons.payments_outlined,
+                        title: 'Estimated Repayment',
+                        value: _formatPreviewAmount(repayment),
+                        accent: Colors.purple,
+                      ),
+                    ],
+                    if (_expectedReturnDate != null) ...[
+                      const SizedBox(height: 10),
+                      _buildReviewInfoTile(
+                        icon: Icons.schedule_rounded,
+                        title: 'Time Until Return',
+                        value: _remainingDaysLabel(),
+                        accent: Colors.teal,
+                      ),
                     ],
                     const SizedBox(height: 18),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton(
+                      child: ElevatedButton.icon(
                         onPressed: () {
                           Navigator.pop(context);
                           _submit();
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF00B4D8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                        child: const Text(
-                          'Confirm and Submit',
-                          style: TextStyle(color: Colors.white),
+                        icon: const Icon(
+                          Icons.verified_rounded,
+                          color: Colors.white,
                         ),
+                        label: const Text(
+                          'Confirm and Submit',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Go Back and Edit'),
                       ),
                     ),
                   ],
@@ -2060,117 +2491,7 @@ class _TransactionPageState extends State<TransactionPage> {
         });
         final session = Provider.of<SessionProvider>(context, listen: false);
         session.loadFreebieCounts();
-        showDialog(
-          context: context,
-          builder: (_) => Dialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Container(
-              padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: Colors.white,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      ClipPath(
-                        clipper: TopWaveClipper(),
-                        child: Container(
-                          height: 80,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 16,
-                        child: CircleAvatar(
-                          radius: 28,
-                          backgroundColor: Colors.white,
-                          child: Icon(Icons.check_circle,
-                              color: Color(0xFF00B4D8), size: 48),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-                  Text('Transaction Created!',
-                      style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF00B4D8))),
-                  SizedBox(height: 12),
-                  Text('Transaction ID:',
-                      style: TextStyle(fontSize: 16, color: Colors.black87)),
-                  SizedBox(height: 4),
-                  SelectableText('${_transactionId ?? ''}',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black)),
-                  SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF00B4D8),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding: EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () {
-                        Navigator.of(context).pop(); // Close the success dialog
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => UserTransactionsPage(),
-                          ),
-                        );
-                      },
-                      child: Text('View Transactions',
-                          style: TextStyle(fontSize: 16, color: Colors.white)),
-                    ),
-                  ),
-                  if (giftCardAwarded) ...[
-                    SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          padding: EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context)
-                              .pop(); // Close the success dialog
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => GiftCardPage(),
-                            ),
-                          );
-                        },
-                        child: Text('View Gift Card (You Earned)',
-                            style:
-                                TextStyle(fontSize: 16, color: Colors.white)),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
+        _showTransactionSuccessDialog(giftCardAwarded: giftCardAwarded);
       } else if (res.statusCode == 403) {
         String errorMsg = 'Forbidden';
         try {
@@ -2264,117 +2585,7 @@ class _TransactionPageState extends State<TransactionPage> {
         final session = Provider.of<SessionProvider>(context, listen: false);
         session.loadFreebieCounts();
 
-        showDialog(
-          context: context,
-          builder: (_) => Dialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Container(
-              padding: EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                color: Colors.white,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      ClipPath(
-                        clipper: TopWaveClipper(),
-                        child: Container(
-                          height: 80,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 16,
-                        child: CircleAvatar(
-                          radius: 28,
-                          backgroundColor: Colors.white,
-                          child: Icon(Icons.check_circle,
-                              color: Color(0xFF00B4D8), size: 48),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-                  Text('Transaction Created!',
-                      style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF00B4D8))),
-                  SizedBox(height: 12),
-                  Text('Transaction ID:',
-                      style: TextStyle(fontSize: 16, color: Colors.black87)),
-                  SizedBox(height: 4),
-                  SelectableText('${_transactionId ?? ''}',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black)),
-                  SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Color(0xFF00B4D8),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        padding: EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () {
-                        Navigator.of(context).pop(); // Close the success dialog
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => UserTransactionsPage(),
-                          ),
-                        );
-                      },
-                      child: Text('View Transactions',
-                          style: TextStyle(fontSize: 16, color: Colors.white)),
-                    ),
-                  ),
-                  if (giftCardAwarded) ...[
-                    SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          padding: EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context)
-                              .pop(); // Close the success dialog
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => GiftCardPage(),
-                            ),
-                          );
-                        },
-                        child: Text('View Gift Card (You Earned)',
-                            style:
-                                TextStyle(fontSize: 16, color: Colors.white)),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
+        _showTransactionSuccessDialog(giftCardAwarded: giftCardAwarded);
       } else {
         final errBody = (res.body.isNotEmpty) ? res.body : 'Unknown error';
         String errorMsg = 'Failed to create transaction';
