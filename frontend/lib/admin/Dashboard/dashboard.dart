@@ -862,19 +862,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                 ),
               ),
             ),
-            // Bottom blue shape (background)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: ClipPath(
-                clipper: DashboardBottomWaveClipper(),
-                child: Container(
-                  height: 45,
-                  color: const Color(0xFF00B4D8),
-                ),
-              ),
-            ),
             // Header buttons overlay (on top)
             Positioned(
               top: 0,
@@ -1969,23 +1956,6 @@ class TopWaveClipper extends CustomClipper<Path> {
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
 
-class DashboardBottomWaveClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    Path path = Path();
-    path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
-        size.width * 0.5, size.height * 0.4);
-    path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
 
 class LogoutDialogWaveClipper extends CustomClipper<Path> {
   @override

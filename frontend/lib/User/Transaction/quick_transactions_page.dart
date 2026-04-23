@@ -1501,6 +1501,12 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
     );
   }
 
+  static const List<List<Color>> _quickStatPalette = [
+    [Color(0xFFFF6B6B), Color(0xFFFFA3A3)],
+    [Color(0xFF8B5CF6), Color(0xFFC4B5FD)],
+    [Color(0xFFF4B400), Color(0xFFFDE68A)],
+  ];
+
   Widget _buildStatusChip(String label, Color color, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1567,37 +1573,37 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
             title: 'Transactions',
             value: '$total',
             icon: Icons.receipt_long_rounded,
-            colors: const [Color(0xFF7C9DFF), Color(0xFFA9B8FF)],
+            colors: _quickStatPalette[0],
           ),
           _buildSummaryCard(
             title: 'Quick Value',
             value: _formatDisplayAmount(totalValue, _selectedDisplayCurrency),
             icon: Icons.currency_rupee_rounded,
-            colors: const [Color(0xFF4A8FFF), Color(0xFF7FB7FF)],
+            colors: _quickStatPalette[1],
           ),
           _buildSummaryCard(
             title: 'Pending Value',
             value: _formatDisplayAmount(pendingValue, _selectedDisplayCurrency),
             icon: Icons.pending_actions_rounded,
-            colors: const [Color(0xFFFFB562), Color(0xFFFFD9A0)],
+            colors: _quickStatPalette[2],
           ),
           _buildSummaryCard(
             title: 'Largest Quick',
             value: _formatDisplayAmount(largest, _selectedDisplayCurrency),
             icon: Icons.leaderboard_rounded,
-            colors: const [Color(0xFF7C9DFF), Color(0xFF58C4DD)],
+            colors: _quickStatPalette[0],
           ),
           _buildSummaryCard(
             title: 'Top Counterparty',
             value: topCounterparty,
             icon: Icons.person_search_rounded,
-            colors: const [Color(0xFF7E74F1), Color(0xFFC0BCFF)],
+            colors: _quickStatPalette[1],
           ),
           _buildSummaryCard(
             title: 'You Lent',
             value: '$lent',
             icon: Icons.arrow_upward_rounded,
-            colors: const [Color(0xFF00B4D8), Color(0xFF48CAE4)],
+            colors: _quickStatPalette[2],
           ),
         ],
       ),
@@ -1822,59 +1828,95 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildRoleChip('All', 'all', Icons.apps_rounded),
-                          const SizedBox(width: 8),
-                          _buildRoleChip(
-                              'You Lent', 'lent', Icons.arrow_upward_rounded),
-                          const SizedBox(width: 8),
-                          _buildRoleChip('You Borrowed', 'borrowed',
-                              Icons.arrow_downward_rounded),
-                          const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: _toggleShowFavourites,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: _showFavouritesOnly
-                                    ? const Color(0xFF00B4D8)
-                                    : Colors.white,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: _showFavouritesOnly
-                                      ? const Color(0xFF00B4D8)
-                                      : Colors.grey.shade300,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.favorite,
-                                    size: 18,
+                    child: Stack(
+                      alignment: Alignment.centerRight,
+                      children: [
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _buildRoleChip('All', 'all', Icons.apps_rounded),
+                              const SizedBox(width: 8),
+                              _buildRoleChip('You Lent', 'lent',
+                                  Icons.arrow_upward_rounded),
+                              const SizedBox(width: 8),
+                              _buildRoleChip('You Borrowed', 'borrowed',
+                                  Icons.arrow_downward_rounded),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: _toggleShowFavourites,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 14, vertical: 10),
+                                  decoration: BoxDecoration(
                                     color: _showFavouritesOnly
-                                        ? Colors.white
-                                        : Colors.grey.shade700,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'Favourites',
-                                    style: TextStyle(
+                                        ? const Color(0xFF00B4D8)
+                                        : Colors.white,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
                                       color: _showFavouritesOnly
-                                          ? Colors.white
-                                          : Colors.grey.shade800,
-                                      fontWeight: FontWeight.w700,
+                                          ? const Color(0xFF00B4D8)
+                                          : Colors.grey.shade300,
                                     ),
                                   ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.favorite,
+                                        size: 18,
+                                        color: _showFavouritesOnly
+                                            ? Colors.white
+                                            : Colors.grey.shade700,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Favourites',
+                                        style: TextStyle(
+                                          color: _showFavouritesOnly
+                                              ? Colors.white
+                                              : Colors.grey.shade800,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 28),
+                            ],
+                          ),
+                        ),
+                        IgnorePointer(
+                          child: Container(
+                            width: 34,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.white.withOpacity(0.0),
+                                  Colors.white.withOpacity(0.86),
+                                  Colors.white,
                                 ],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            alignment: Alignment.centerRight,
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Text(
+                                '->',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -2389,26 +2431,6 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
                                   ],
                                 ),
                 ],
-              ),
-            ),
-          ),
-
-          // Bottom wave - same size as top wave
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: ClipPath(
-              clipper: BottomWaveClipper(),
-              child: Container(
-                height: 90, // Same size as top wave
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF00B4D8), Color(0xFF48CAE4)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
               ),
             ),
           ),
@@ -3641,25 +3663,6 @@ class TopWaveClipper extends CustomClipper<Path> {
     path.quadraticBezierTo(
         size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
     path.lineTo(size.width, 0);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-class BottomWaveClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    Path path = Path();
-    path.moveTo(0, size.height * 0.3);
-    path.quadraticBezierTo(
-        size.width * 0.25, 0, size.width * 0.5, size.height * 0.3);
-    path.quadraticBezierTo(
-        size.width * 0.75, size.height * 0.6, size.width, size.height * 0.3);
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
     path.close();
     return path;
   }

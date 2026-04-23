@@ -210,7 +210,7 @@ class _UserDashboardPageState extends State<UserDashboardPage>
       _lastAdShownAt = DateTime.now();
       await showDialog(
         context: context,
-        barrierDismissible: true,
+        barrierDismissible: false,
         builder: (_) => UserAdPopupDialog(
           ad: Map<String, dynamic>.from(ad),
         ),
@@ -1231,20 +1231,6 @@ class _UserDashboardPageState extends State<UserDashboardPage>
               ),
             ),
 
-            // Bottom blue wave
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: ClipPath(
-                clipper: BottomWaveClipper(),
-                child: Container(
-                  height: 90,
-                  color: const Color(0xFF00B4D8),
-                ),
-              ),
-            ),
-
             // Header section
             Positioned(
               top: 0,
@@ -1866,24 +1852,6 @@ class TopWaveClipper extends CustomClipper<Path> {
     path.quadraticBezierTo(
         size.width * 0.75, size.height * 0.4, size.width, size.height * 0.7);
     path.lineTo(size.width, 0);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
-}
-
-class BottomWaveClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    Path path = Path();
-    path.moveTo(0, 0);
-    path.quadraticBezierTo(size.width * 0.25, size.height * 0.6,
-        size.width * 0.5, size.height * 0.4);
-    path.quadraticBezierTo(size.width * 0.75, 0, size.width, size.height * 0.4);
-    path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
     path.close();
     return path;
   }
