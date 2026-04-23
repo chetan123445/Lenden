@@ -40,35 +40,36 @@ class _AnalyticsPageState extends State<AnalyticsPage>
   List<Map<String, dynamic>> _secureTransactions = [];
   String _selectedDisplayCurrency = 'INR';
   String? _displayCurrencyError;
+  bool _secureTabLoaded = false;
+  bool _quickTabLoaded = false;
+  bool _groupTabLoaded = false;
+  bool _quickDetailsLoaded = false;
+  bool _secureDetailsLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_handleTabChange);
     _loadDisplayCurrencies();
-    _fetchAnalytics();
-    _fetchQuickTransactions();
-    _fetchSecureTransactions();
+    _ensureTabLoaded(0);
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchAnalytics() async {
+  void _handleTabChange() {
+    if (_tabController.indexIsChanging) return;
+    _ensureTabLoaded(_tabController.index);
+  }
+
+  Future<void> _ensureTabLoaded(int index, {bool force = false}) async {
     final session = Provider.of<SessionProvider>(context, listen: false);
     final email = session.user?['email'];
-
-    setState(() {
-      _secureLoading = true;
-      _quickLoading = true;
-      _groupLoading = true;
-      _secureError = null;
-      _quickError = null;
-      _groupError = null;
-    });
 
     if (email == null) {
       setState(() {
@@ -82,11 +83,36 @@ class _AnalyticsPageState extends State<AnalyticsPage>
       return;
     }
 
-    await Future.wait([
-      _fetchSecureAnalytics(email),
-      _fetchQuickAnalytics(email),
-      _fetchGroupAnalytics(email),
-    ]);
+    if (index == 0) {
+      if (!force && _secureTabLoaded && _secureDetailsLoaded) return;
+      await Future.wait([
+        _fetchSecureAnalytics(email),
+        _fetchSecureTransactions(email: email),
+      ]);
+      _secureTabLoaded = true;
+      _secureDetailsLoaded = true;
+      return;
+    }
+
+    if (index == 1) {
+      if (!force && _quickTabLoaded && _quickDetailsLoaded) return;
+      await Future.wait([
+        _fetchQuickAnalytics(email),
+        _fetchQuickTransactions(),
+      ]);
+      _quickTabLoaded = true;
+      _quickDetailsLoaded = true;
+      return;
+    }
+
+    if (!force && _groupTabLoaded) return;
+    await _fetchGroupAnalytics(email);
+    _groupTabLoaded = true;
+  }
+
+  Future<void> _refreshActiveTab() async {
+    await _loadDisplayCurrencies();
+    await _ensureTabLoaded(_tabController.index, force: true);
   }
 
   Future<void> _loadDisplayCurrencies() async {
@@ -115,6 +141,10 @@ class _AnalyticsPageState extends State<AnalyticsPage>
   }
 
   Future<void> _fetchSecureAnalytics(String email) async {
+    setState(() {
+      _secureLoading = true;
+      _secureError = null;
+    });
     try {
       final res = await ApiClient.get('/api/analytics/secure?email=$email');
       if (res.statusCode == 200) {
@@ -148,6 +178,10 @@ class _AnalyticsPageState extends State<AnalyticsPage>
   }
 
   Future<void> _fetchGroupAnalytics(String email) async {
+    setState(() {
+      _groupLoading = true;
+      _groupError = null;
+    });
     try {
       final res = await ApiClient.get('/api/analytics/groups?email=$email');
       if (res.statusCode == 200) {
@@ -181,6 +215,10 @@ class _AnalyticsPageState extends State<AnalyticsPage>
   }
 
   Future<void> _fetchQuickAnalytics(String email) async {
+    setState(() {
+      _quickLoading = true;
+      _quickError = null;
+    });
     try {
       final res = await ApiClient.get('/api/analytics/quick?email=$email');
       if (res.statusCode == 200) {
@@ -248,16 +286,16 @@ class _AnalyticsPageState extends State<AnalyticsPage>
     }
   }
 
-  Future<void> _fetchSecureTransactions() async {
+  Future<void> _fetchSecureTransactions({String? email}) async {
     setState(() {
       _secureTransactionsLoading = true;
       _secureTransactionsError = null;
     });
 
     try {
-      final session = Provider.of<SessionProvider>(context, listen: false);
-      final email = session.user?['email'];
-      if (email == null) {
+      final resolvedEmail = email ??
+          Provider.of<SessionProvider>(context, listen: false).user?['email'];
+      if (resolvedEmail == null) {
         setState(() {
           _secureTransactionsError = 'User email not found.';
           _secureTransactionsLoading = false;
@@ -266,7 +304,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
       }
 
       final res = await ApiClient.get(
-        '/api/transactions/user?email=${Uri.encodeComponent(email)}',
+        '/api/transactions/user?email=${Uri.encodeComponent(resolvedEmail)}',
       );
       if (res.statusCode == 200) {
         final body = json.decode(res.body);
@@ -1053,7 +1091,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
                     MaterialPageRoute(
                       builder: (_) => const PrivacySettingsPage(),
                     ),
-                  ).then((_) => _fetchAnalytics());
+                  ).then((_) => _refreshActiveTab());
                 },
                 icon: const Icon(Icons.settings, color: Colors.white),
                 label: const Text(
@@ -1371,10 +1409,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
 
     return RefreshIndicator(
       onRefresh: () async {
-        await _loadDisplayCurrencies();
-        await _fetchAnalytics();
-        await _fetchSecureTransactions();
-        await _fetchQuickTransactions();
+        await _refreshActiveTab();
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),

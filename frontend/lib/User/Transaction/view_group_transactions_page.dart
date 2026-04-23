@@ -161,8 +161,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
         });
       } else {
         setState(() {
-          error =
-              'Failed to load group transactions. Status: ${response.statusCode}\nBody: ${response.body}';
+          error = 'Failed to load group transactions. Please try again.';
           loading = false;
         });
       }
@@ -277,7 +276,8 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
   }
 
   double _expenseAmountInInr(Map<String, dynamic> expense) {
-    return double.tryParse((expense['amountInr'] ?? expense['amount'] ?? 0).toString()) ??
+    return double.tryParse(
+            (expense['amountInr'] ?? expense['amount'] ?? 0).toString()) ??
         0.0;
   }
 
@@ -422,34 +422,25 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
     }
 
     if (userMemberId == null) {
-      print('User member ID not found for email: $userEmail');
       return 0.0;
     }
 
-    print('User member ID: $userMemberId for email: $userEmail');
-    print('Total expenses in group: ${expenses.length}');
-
     for (var expense in expenses) {
       final split = expense['split'] ?? [];
-      print('Expense: ${expense['description']}, Split items: ${split.length}');
 
       for (var splitItem in split) {
         // Check if this split item belongs to the current user and is not settled
         String splitUserId = splitItem['user'].toString();
-        double splitAmount = _splitAmountInInr(
-            Map<String, dynamic>.from(splitItem as Map));
+        double splitAmount =
+            _splitAmountInInr(Map<String, dynamic>.from(splitItem as Map));
         bool isSettled = splitItem['settled'] == true;
-        print(
-            'Split item - User ID: $splitUserId, Amount: $splitAmount, Settled: $isSettled');
 
         if (splitUserId == userMemberId && !isSettled) {
           total += splitAmount;
-          print('Match found! Adding $splitAmount to total. New total: $total');
         }
       }
     }
 
-    print('Final total split amount for $userEmail: $total');
     return total;
   }
 
@@ -536,8 +527,9 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
       currentUserEmail,
       excludingExpenseId: expense['_id']?.toString(),
     );
-    String editCurrency =
-        (expense['currency'] ?? lockedCurrency ?? 'INR').toString().toUpperCase();
+    String editCurrency = (expense['currency'] ?? lockedCurrency ?? 'INR')
+        .toString()
+        .toUpperCase();
 
     // Filter out members who have left the group from selected members
     List<String> editSelectedMembers =
@@ -552,7 +544,6 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
       for (var splitItem in expense['split']) {
         // Find the member by user ID in the group data
         // Since we don't have direct access to group data here, we'll initialize with equal split
-        final splitAmount = (splitItem['amount'] ?? 0).toDouble();
         // We'll need to find the member email from the group data
         // For now, we'll use a placeholder approach
       }
@@ -651,8 +642,8 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                         .map(
                           (currency) => DropdownMenuItem(
                             value: currency['code'],
-                            child:
-                                Text('${currency['symbol']} ${currency['code']}'),
+                            child: Text(
+                                '${currency['symbol']} ${currency['code']}'),
                           ),
                         )
                         .toList(),
@@ -1007,12 +998,6 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
                           final shouldShowEdit =
                               expenseAddedBy == currentUserEmail;
 
-                          // Debug: Print the comparison
-                          print('View page - Edit button check:');
-                          print('Current user email: $currentUserEmail');
-                          print('Expense addedBy: $expenseAddedBy');
-                          print('Should show edit: $shouldShowEdit');
-
                           return shouldShowEdit
                               ? IconButton(
                                   icon: Icon(Icons.edit,
@@ -1056,7 +1041,7 @@ class _ViewGroupTransactionsPageState extends State<ViewGroupTransactionsPage> {
           ),
         ],
       ),
-    );
+    ).then((_) {});
   }
 
   @override

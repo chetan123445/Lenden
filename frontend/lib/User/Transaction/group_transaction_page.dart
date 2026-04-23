@@ -428,10 +428,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     final currentUserEmail =
         Provider.of<SessionProvider>(context, listen: false).user?['email'];
 
-    // Debug: Print both emails to see what's happening
-    print('Trying to add email: $email');
-    print('Current user email: $currentUserEmail');
-
     // Check if trying to add the group creator (current user)
     if (email.toLowerCase() == (currentUserEmail ?? '').toLowerCase()) {
       setState(() {
@@ -580,8 +576,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           targetCurrency,
         ) ??
         parsedAmount;
-    final displaySymbol =
-        _displayCurrencyData?.symbolFor(targetCurrency) ?? _currencySymbol(code);
+    final displaySymbol = _displayCurrencyData?.symbolFor(targetCurrency) ??
+        _currencySymbol(code);
     return '$displaySymbol${converted.toStringAsFixed(2)}';
   }
 
@@ -679,17 +675,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     }
 
     if (userMemberId == null) {
-      print('User member ID not found for email: $memberEmail');
       return 0.0;
     }
 
-    print(
-        'Calculating total split for member: $memberEmail (ID: $userMemberId)');
-    print('Total expenses in group: ${expenses.length}');
-
     for (var expense in expenses) {
       final split = (expense['split'] ?? []) as List<dynamic>;
-      print('Expense: ${expense['description']}, Split items: ${split.length}');
 
       for (var splitItem in split) {
         // Check if this split item belongs to the current user and is not settled
@@ -697,25 +687,15 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         double splitAmount =
             double.parse((splitItem['amount'] ?? 0).toString());
         bool isSettled = splitItem['settled'] == true;
-        print(
-            'Split item - User ID: $splitUserId, Amount: $splitAmount, Settled: $isSettled');
-        print('  - Raw settled value: ${splitItem['settled']}');
-        print('  - Type of settled: ${splitItem['settled'].runtimeType}');
 
         if (splitUserId == userMemberId) {
-          print('  - This split belongs to current user');
           if (!isSettled) {
             total += splitAmount;
-            print(
-                '  - NOT SETTLED: Adding $splitAmount to total. New total: $total');
-          } else {
-            print('  - SETTLED: Skipping $splitAmount (already settled)');
           }
         }
       }
     }
 
-    print('Final total split amount for $memberEmail: $total');
     return total;
   }
 
@@ -1404,7 +1384,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
             .toList();
       }
 
-      // Debug: Print request data
       final requestData = {
         'description': _expenseDescController.text.trim(),
         'amount': double.tryParse(_expenseAmountController.text.trim()),
@@ -1414,15 +1393,10 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         'selectedMembers': selectedMembers,
         'useCoins': useCoins,
       };
-      print('Adding expense with data: ${json.encode(requestData)}');
-
       final res = await ApiClient.post(
         '/api/group-transactions/${group!['_id']}/add-expense',
         body: requestData,
       );
-
-      print('Response status: ${res.statusCode}');
-      print('Response body: ${res.body}');
 
       final data = json.decode(res.body);
       if (res.statusCode == 200) {
@@ -1455,7 +1429,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         throw Exception(errorMsg);
       }
     } catch (e) {
-      print('Error adding expense: $e');
       // Re-throw the exception so the dialog can handle it
       rethrow;
     } finally {
@@ -2533,22 +2506,11 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
       error = null;
     });
     try {
-      // Debug: Print the expense data being sent
-      print('Sending edit expense request:');
-      print('Expense ID: $expenseId');
-      print('Expense Data: $expenseData');
-      print(
-          'Current user email: ${Provider.of<SessionProvider>(context, listen: false).user?['email']}');
-
       final res = await ApiClient.put(
         '/api/group-transactions/${group!['_id']}/expenses/$expenseId',
         body: expenseData,
       );
       final data = json.decode(res.body);
-
-      // Debug: Print the response
-      print('Response status: ${res.statusCode}');
-      print('Response data: $data');
 
       if (res.statusCode == 200) {
         setState(() {
@@ -2566,10 +2528,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         setState(() {
           error = data['error'] ?? 'Failed to update expense';
         });
-        // Show debug info if available
-        if (data['debug'] != null) {
-          print('Debug info: ${data['debug']}');
-        }
       }
     } catch (e) {
       setState(() {
@@ -3876,14 +3834,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
     final userBalance = _getCurrentUserBalance();
     final hasBalance = userBalance != 0;
 
-    // Debug: Print detailed balance information
-    print('=== LEAVE GROUP DEBUG ===');
-    print('User Balance: $userBalance');
-    print('Has Balance: $hasBalance');
-    print(
-        'Current User Email: ${Provider.of<SessionProvider>(context, listen: false).user?['email']}');
-    print('=======================');
-
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -4748,12 +4698,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                 final expenseAddedBy = expense['addedBy'];
                                 final shouldShowEdit =
                                     expenseAddedBy == currentUserEmail;
-
-                                // Debug: Print the comparison
-                                print('Edit button check:');
-                                print('Current user email: $currentUserEmail');
-                                print('Expense addedBy: $expenseAddedBy');
-                                print('Should show edit: $shouldShowEdit');
 
                                 return shouldShowEdit
                                     ? IconButton(
@@ -6072,9 +6016,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           ),
                         ),
                       ElevatedButton(
-                        onPressed: creatingGroup || !canCreate
-                            ? null
-                            : _createGroup,
+                        onPressed:
+                            creatingGroup || !canCreate ? null : _createGroup,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Color(0xFF00B4D8),
                           shape: RoundedRectangleBorder(
@@ -6671,7 +6614,25 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
         .toList();
 
     Map<String, double> editCustomSplitAmounts = {};
+    final Map<String, TextEditingController> editCustomSplitControllers = {};
     String? validationError;
+
+    void syncEditCustomSplitControllerTexts() {
+      for (final memberEmail in editSelectedMembers) {
+        final nextText =
+            (editCustomSplitAmounts[memberEmail] ?? 0.0).toStringAsFixed(2);
+        final controller = editCustomSplitControllers.putIfAbsent(
+          memberEmail,
+          () => TextEditingController(text: nextText),
+        );
+        if (controller.text != nextText) {
+          controller.value = TextEditingValue(
+            text: nextText,
+            selection: TextSelection.collapsed(offset: nextText.length),
+          );
+        }
+      }
+    }
 
     // Initialize custom split amounts from existing split data
     if (expense['split'] != null) {
@@ -6816,6 +6777,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                     editCustomSplitAmounts[memberEmail] =
                                         amount /
                                             (editSelectedMembers.length + 1);
+                                    syncEditCustomSplitControllerTexts();
                                   }
                                 } else {
                                   editSelectedMembers.remove(memberEmail);
@@ -6863,6 +6825,7 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                           for (var memberEmail in editSelectedMembers) {
                             editCustomSplitAmounts[memberEmail] = splitAmount;
                           }
+                          syncEditCustomSplitControllerTexts();
                         }
                       });
                     },
@@ -7080,6 +7043,16 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                   SizedBox(width: 12),
                                   Expanded(
                                     child: TextField(
+                                      controller: editCustomSplitControllers
+                                          .putIfAbsent(
+                                        memberEmail,
+                                        () => TextEditingController(
+                                          text: (editCustomSplitAmounts[
+                                                      memberEmail] ??
+                                                  0.0)
+                                              .toStringAsFixed(2),
+                                        ),
+                                      ),
                                       keyboardType: TextInputType.number,
                                       decoration: InputDecoration(
                                         hintText: 'Amount',
@@ -7090,12 +7063,6 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                                         ),
                                         contentPadding: EdgeInsets.symmetric(
                                             horizontal: 8, vertical: 4),
-                                      ),
-                                      controller: TextEditingController(
-                                        text:
-                                            editCustomSplitAmounts[memberEmail]
-                                                    ?.toStringAsFixed(2) ??
-                                                '0.00',
                                       ),
                                       onChanged: (value) {
                                         final amount =
@@ -7849,12 +7816,12 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         onChanged: lockedCurrency != null
                             ? null
                             : dialogAddingExpense
-                            ? null
-                            : (value) {
-                                setDialogState(() {
-                                  _expenseCurrency = value ?? 'INR';
-                                });
-                              },
+                                ? null
+                                : (value) {
+                                    setDialogState(() {
+                                      _expenseCurrency = value ?? 'INR';
+                                    });
+                                  },
                         decoration: InputDecoration(
                           labelText: 'Currency',
                           labelStyle: TextStyle(
@@ -8483,7 +8450,9 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
           );
         },
       ),
-    ).then((_) => dialogScrollController.dispose());
+    ).then((_) {
+      dialogScrollController.dispose();
+    });
   }
 
   Future<bool> _showExpenseCoinsDialog() async {
@@ -8566,8 +8535,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
                       child: Text(
                         'Cancel',
@@ -8592,8 +8561,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
                       child: Text(
                         'Subscribe',
@@ -8609,8 +8578,8 @@ class _GroupTransactionPageState extends State<GroupTransactionPage> {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        padding: EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12),
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       ),
                       child: Text(
                         'Use 5 LenDen Coins',
