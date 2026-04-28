@@ -730,6 +730,7 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
       _roleFilter = 'all';
       _dateFilter = 'all';
       _selectedCounterparty = 'all';
+      _showFavouritesOnly = false;
       _showAll = false;
       filteredTransactions = List<Map<String, dynamic>>.from(transactions);
       sortTransactions();
@@ -1640,50 +1641,27 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
   }
 
   void _showFilterOptions() {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Filter Transactions',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Status',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey[700],
-              ),
-            ),
-            _buildFilterOption('All Transactions', 'all', Icons.list),
-            _buildFilterOption('Cleared Only', 'cleared', Icons.check_circle),
-            _buildFilterOption('Not Cleared', 'not_cleared', Icons.pending),
-            const SizedBox(height: 8),
-            Text(
-              'Date Range',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey[700],
-              ),
-            ),
-            _buildDateFilterOption('All Time', 'all', Icons.all_inclusive),
-            _buildDateFilterOption('Today', 'today', Icons.today),
-            _buildDateFilterOption('This Week', 'week', Icons.date_range),
-            _buildDateFilterOption('This Month', 'month', Icons.calendar_month),
-          ],
+    Navigator.of(context)
+        .push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => _QuickTransactionFilterPage(
+          counterpartyOptions: _counterpartyOptions(),
         ),
       ),
-    );
+    )
+        .then((result) {
+      if (result == null || !mounted) return;
+      setState(() {
+        filterBy = (result['status'] ?? 'all').toString();
+        _roleFilter = (result['role'] ?? 'all').toString();
+        _dateFilter = (result['date'] ?? 'all').toString();
+        _selectedCounterparty = (result['counterparty'] ?? 'all').toString();
+        _showFavouritesOnly = result['favourites'] == true;
+        _showAll = false;
+      });
+      filterTransactions(searchQuery);
+    });
   }
 
   Widget _buildFilterOption(String label, String value, IconData icon) {
@@ -2907,6 +2885,663 @@ class _QuickTransactionsPageState extends State<QuickTransactionsPage> {
             ),
           ),
         ));
+  }
+}
+
+class _QuickTransactionFilterPage extends StatefulWidget {
+  final List<Map<String, String>> counterpartyOptions;
+
+  const _QuickTransactionFilterPage({
+    required this.counterpartyOptions,
+  });
+
+  @override
+  State<_QuickTransactionFilterPage> createState() =>
+      _QuickTransactionFilterPageState();
+}
+
+class _QuickTransactionFilterPageState
+    extends State<_QuickTransactionFilterPage> {
+  String _status = 'all';
+  String _role = 'all';
+  String _date = 'all';
+  String _counterparty = 'all';
+  bool _favouritesOnly = false;
+
+  String _counterpartyLabel(String value) {
+    final match = widget.counterpartyOptions.firstWhere(
+      (item) => item['email'] == value,
+      orElse: () => const {'label': 'All People'},
+    );
+    return match['label'] ?? 'All People';
+  }
+
+  Widget _buildSection({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Widget child,
+    Color backgroundColor = const Color(0xFFF9FCFD),
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          colors: [Colors.orange, Colors.white, Colors.green],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(22),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF00B4D8).withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: const Color(0xFF00B4D8)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            child,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChoiceRow({
+    required String label,
+    required String value,
+    required String groupValue,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final selected = groupValue == value;
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () => onChanged(value),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFE9F8FC) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFF00B4D8)
+                : Colors.grey.withOpacity(0.25),
+          ),
+        ),
+        child: Row(
+          children: [
+            Radio<String>(
+              value: value,
+              groupValue: groupValue,
+              activeColor: const Color(0xFF00B4D8),
+              onChanged: onChanged,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCounterpartyPicker() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(26),
+              gradient: const LinearGradient(
+                colors: [Colors.orange, Colors.white, Colors.green],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFFFDFEFE),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.30),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF4FBFE),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00B4D8).withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.people_alt_outlined,
+                              color: Color(0xFF00B4D8),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Choose Counterparty',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(sheetContext).pop(),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.45,
+                      child: ListView.builder(
+                        itemCount: widget.counterpartyOptions.length,
+                        itemBuilder: (context, index) {
+                          final item = widget.counterpartyOptions[index];
+                          final email = item['email'] ?? 'all';
+                          final label = item['label'] ?? 'All People';
+                          final selected = _counterparty == email;
+                          final isAll = email == 'all';
+                          return InkWell(
+                            borderRadius: BorderRadius.circular(18),
+                            onTap: () => Navigator.of(sheetContext).pop(email),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? const Color(0xFFEAF9FD)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: selected
+                                      ? const Color(0xFF00B4D8)
+                                      : Colors.grey.withOpacity(0.18),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.03),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Radio<String>(
+                                    value: email,
+                                    groupValue: _counterparty,
+                                    activeColor: const Color(0xFF00B4D8),
+                                    onChanged: (_) =>
+                                        Navigator.of(sheetContext).pop(email),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    width: 42,
+                                    height: 42,
+                                    decoration: BoxDecoration(
+                                      color: isAll
+                                          ? const Color(0xFFEDF7FA)
+                                          : const Color(0xFFF4F7FF),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Icon(
+                                      isAll
+                                          ? Icons.groups_rounded
+                                          : Icons.person_rounded,
+                                      color: isAll
+                                          ? const Color(0xFF00B4D8)
+                                          : const Color(0xFF3B82F6),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        SingleChildScrollView(
+                                          scrollDirection: Axis.horizontal,
+                                          child: Text(
+                                            label,
+                                            maxLines: 1,
+                                            softWrap: false,
+                                            style: TextStyle(
+                                              fontSize: 17,
+                                              fontWeight: selected
+                                                  ? FontWeight.w800
+                                                  : FontWeight.w700,
+                                              color: Colors.black87,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          isAll
+                                              ? 'Show every person in quick transactions'
+                                              : 'Filter quick transactions for this counterparty',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (selected == null) return;
+    setState(() => _counterparty = selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7FBFD),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+        title: const Text(
+          'Quick Transaction Filters',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                children: [
+                  _buildSection(
+                    icon: Icons.check_circle_outline_rounded,
+                    title: 'Status',
+                    subtitle: 'Choose the transaction status you want to see.',
+                    backgroundColor: const Color(0xFFFFFCF7),
+                    child: Column(
+                      children: [
+                        _buildChoiceRow(
+                          label: 'All Transactions',
+                          value: 'all',
+                          groupValue: _status,
+                          onChanged: (value) =>
+                              setState(() => _status = value ?? 'all'),
+                        ),
+                        _buildChoiceRow(
+                          label: 'Cleared Only',
+                          value: 'cleared',
+                          groupValue: _status,
+                          onChanged: (value) =>
+                              setState(() => _status = value ?? 'all'),
+                        ),
+                        _buildChoiceRow(
+                          label: 'Not Cleared',
+                          value: 'not_cleared',
+                          groupValue: _status,
+                          onChanged: (value) =>
+                              setState(() => _status = value ?? 'all'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSection(
+                    icon: Icons.swap_vert_circle_outlined,
+                    title: 'Role',
+                    subtitle: 'Focus on what you lent or borrowed.',
+                    backgroundColor: const Color(0xFFF7FAFF),
+                    child: Column(
+                      children: [
+                        _buildChoiceRow(
+                          label: 'All Roles',
+                          value: 'all',
+                          groupValue: _role,
+                          onChanged: (value) =>
+                              setState(() => _role = value ?? 'all'),
+                        ),
+                        _buildChoiceRow(
+                          label: 'You Lent',
+                          value: 'lent',
+                          groupValue: _role,
+                          onChanged: (value) =>
+                              setState(() => _role = value ?? 'all'),
+                        ),
+                        _buildChoiceRow(
+                          label: 'You Borrowed',
+                          value: 'borrowed',
+                          groupValue: _role,
+                          onChanged: (value) =>
+                              setState(() => _role = value ?? 'all'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSection(
+                    icon: Icons.date_range_rounded,
+                    title: 'Date Range',
+                    subtitle: 'Pick a quick date window for the list.',
+                    backgroundColor: const Color(0xFFF7FBF8),
+                    child: Column(
+                      children: [
+                        _buildChoiceRow(
+                          label: 'All Time',
+                          value: 'all',
+                          groupValue: _date,
+                          onChanged: (value) =>
+                              setState(() => _date = value ?? 'all'),
+                        ),
+                        _buildChoiceRow(
+                          label: 'Today',
+                          value: 'today',
+                          groupValue: _date,
+                          onChanged: (value) =>
+                              setState(() => _date = value ?? 'all'),
+                        ),
+                        _buildChoiceRow(
+                          label: 'This Week',
+                          value: 'week',
+                          groupValue: _date,
+                          onChanged: (value) =>
+                              setState(() => _date = value ?? 'all'),
+                        ),
+                        _buildChoiceRow(
+                          label: 'This Month',
+                          value: 'month',
+                          groupValue: _date,
+                          onChanged: (value) =>
+                              setState(() => _date = value ?? 'all'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSection(
+                    icon: Icons.people_alt_outlined,
+                    title: 'Counterparty',
+                    subtitle: 'Pick a person with a cleaner full list view.',
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: _showCounterpartyPicker,
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                          border:
+                              Border.all(color: Colors.grey.withOpacity(0.25)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.03),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEAF7FB),
+                                borderRadius: BorderRadius.circular(15),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.people_alt_outlined,
+                                color: Color(0xFF00B4D8),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Selected Person',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Text(
+                                      _counterpartyLabel(_counterparty),
+                                      maxLines: 1,
+                                      softWrap: false,
+                                      style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.black87,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF4F8FA),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildSection(
+                    icon: Icons.favorite_border_rounded,
+                    title: 'Favourite Filter',
+                    subtitle:
+                        'The enable or disable control is shown in front.',
+                    backgroundColor: const Color(0xFFFFF8FA),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: Colors.grey.withOpacity(0.25)),
+                      ),
+                      child: Row(
+                        children: [
+                          Switch(
+                            value: _favouritesOnly,
+                            activeColor: const Color(0xFF00B4D8),
+                            onChanged: (value) =>
+                                setState(() => _favouritesOnly = value),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Text(
+                                'Show Favourites Only',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              color: Colors.white,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        setState(() {
+                          _status = 'all';
+                          _role = 'all';
+                          _date = 'all';
+                          _counterparty = 'all';
+                          _favouritesOnly = false;
+                        });
+                      },
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Color(0xFF00B4D8)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Reset',
+                        style: TextStyle(
+                          color: Color(0xFF00B4D8),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop({
+                          'status': _status,
+                          'role': _role,
+                          'date': _date,
+                          'counterparty': _counterparty,
+                          'favourites': _favouritesOnly,
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00B4D8),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: const Text(
+                        'Apply Filters',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

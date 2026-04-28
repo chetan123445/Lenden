@@ -2291,19 +2291,17 @@ class _UserTransactionsPageState extends State<UserTransactionsPage> {
   }
 
   Future<void> _showFiltersBottomSheet() async {
-    String tempClearanceFilter = clearanceFilter;
-    String tempInterestTypeFilter = interestTypeFilter;
-    String tempSortBy = _sortBy;
-    bool tempSortAsc = _sortAsc;
-    DateTime? tempStartDate = _startDate;
-    DateTime? tempEndDate = _endDate;
-    double? tempMinAmount = _minAmount;
-    double? tempMaxAmount = _maxAmount;
+    String tempClearanceFilter = 'All';
+    String tempInterestTypeFilter = 'All';
+    String tempSortBy = 'Created';
+    bool tempSortAsc = false;
+    DateTime? tempStartDate;
+    DateTime? tempEndDate;
+    double? tempMinAmount;
+    double? tempMaxAmount;
 
-    final minAmountController =
-        TextEditingController(text: _minAmount?.toString() ?? '');
-    final maxAmountController =
-        TextEditingController(text: _maxAmount?.toString() ?? '');
+    final minAmountController = TextEditingController();
+    final maxAmountController = TextEditingController();
 
     await showModalBottomSheet<void>(
       context: context,

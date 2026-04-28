@@ -92,12 +92,23 @@ class _SplashScreenState extends State<SplashScreen>
                       ],
                     ),
                     padding: const EdgeInsets.all(24),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
-                      child: Image.asset(
-                        'assets/icon.png',
-                        width: 140,
-                        height: 140,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(28),
+                        gradient: const LinearGradient(
+                          colors: [Colors.orange, Colors.white, Colors.green],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: Image.asset(
+                          'assets/icon.png',
+                          width: 140,
+                          height: 140,
+                        ),
                       ),
                     ),
                   ),
